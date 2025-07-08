@@ -1,6 +1,6 @@
-# Skybyn App
+# Skybyn Mobile App
 
-A secure cloud storage Flutter application with modern UI/UX and comprehensive authentication features.
+A secure application with modern UI/UX and comprehensive authentication features.
 
 ## 🚀 Features
 
