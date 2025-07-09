@@ -309,19 +309,32 @@ class _HomeScreenState extends State<HomeScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Delete Comment'),
-        content: const Text('Are you sure you want to delete this comment?'),
+        backgroundColor: Colors.grey[900],
+        title: const Text(
+          'Delete Comment',
+          style: TextStyle(color: Colors.white),
+        ),
+        content: const Text(
+          'Are you sure you want to delete this comment?',
+          style: TextStyle(color: Colors.white70),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
+            child: const Text(
+              'Cancel',
+              style: TextStyle(color: Colors.white),
+            ),
           ),
           TextButton(
             onPressed: () async {
               Navigator.of(context).pop();
               await _performCommentDeletion(commentId);
             },
-            child: const Text('Delete'),
+            child: const Text(
+              'Delete',
+              style: TextStyle(color: Colors.red),
+            ),
           ),
         ],
       ),
@@ -353,6 +366,9 @@ class _HomeScreenState extends State<HomeScreen> {
         commentId: commentId,
         userId: userId,
       );
+
+      // Send WebSocket message to notify other clients
+      RealtimeService().sendDeleteComment(postWithComment.id, commentId);
 
       // Hide loading indicator
       Navigator.pop(context);

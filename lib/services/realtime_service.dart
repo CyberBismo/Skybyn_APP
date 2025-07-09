@@ -169,6 +169,72 @@ class RealtimeService {
     print('🏓 [WebSocket] Sent pong');
   }
 
+  void sendDeletePost(String postId) {
+    if (!_isConnected) {
+      print('❌ [WebSocket] Cannot send delete_post: not connected');
+      return;
+    }
+    
+    final deleteMessage = {
+      'type': 'delete_post',
+      'sessionId': _sessionId,
+      'id': postId,
+    };
+    final messageJson = jsonEncode(deleteMessage);
+    _channel?.sink.add(messageJson);
+    print('🗑️ [WebSocket] Sent delete_post: $messageJson');
+  }
+
+  void sendDeleteComment(String postId, String commentId) {
+    if (!_isConnected) {
+      print('❌ [WebSocket] Cannot send delete_comment: not connected');
+      return;
+    }
+    
+    final deleteMessage = {
+      'type': 'delete_comment',
+      'sessionId': _sessionId,
+      'pid': postId,
+      'id': commentId,
+    };
+    final messageJson = jsonEncode(deleteMessage);
+    _channel?.sink.add(messageJson);
+    print('🗑️ [WebSocket] Sent delete_comment: $messageJson');
+  }
+
+  void sendNewPost(String postId) {
+    if (!_isConnected) {
+      print('❌ [WebSocket] Cannot send new_post: not connected');
+      return;
+    }
+    
+    final newPostMessage = {
+      'type': 'new_post',
+      'sessionId': _sessionId,
+      'id': postId,
+    };
+    final messageJson = jsonEncode(newPostMessage);
+    _channel?.sink.add(messageJson);
+    print('📝 [WebSocket] Sent new_post: $messageJson');
+  }
+
+  void sendNewComment(String postId, String commentId) {
+    if (!_isConnected) {
+      print('❌ [WebSocket] Cannot send new_comment: not connected');
+      return;
+    }
+    
+    final newCommentMessage = {
+      'type': 'new_comment',
+      'sessionId': _sessionId,
+      'pid': postId,
+      'cid': commentId,
+    };
+    final messageJson = jsonEncode(newCommentMessage);
+    _channel?.sink.add(messageJson);
+    print('💬 [WebSocket] Sent new_comment: $messageJson');
+  }
+
   Future<void> _handleNewPost(String postId) async {
     try {
       final response = await http.post(

@@ -6,6 +6,7 @@ import '../widgets/comment_card.dart';
 import '../services/comment_service.dart';
 import '../services/auth_service.dart';
 import '../services/post_service.dart';
+import '../services/realtime_service.dart';
 import 'package:flutter/services.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'post_menu.dart';
@@ -249,6 +250,11 @@ class _PostCardState extends State<PostCard> {
         userId: userId,
         content: commentText,
         onSuccess: (String commentId) async {
+          // Send WebSocket message to notify other clients
+          if (commentId.isNotEmpty) {
+            RealtimeService().sendNewComment(_currentPost.id, commentId);
+          }
+          
           // Hide loading indicator
           Navigator.pop(context);
           
@@ -345,6 +351,9 @@ class _PostCardState extends State<PostCard> {
 
       await _commentService.deleteComment(commentId: commentId, userId: userId);
 
+      // Send WebSocket message to notify other clients
+      RealtimeService().sendDeleteComment(_currentPost.id, commentId);
+
       Navigator.pop(context); // Dismiss loading indicator
 
       final updatedPost = await _postService.fetchPost(postId: _currentPost.id, userId: userId);
@@ -368,19 +377,32 @@ class _PostCardState extends State<PostCard> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Delete Post'),
-        content: const Text('Are you sure you want to delete this post?'),
+        backgroundColor: Colors.grey[900],
+        title: const Text(
+          'Delete Post',
+          style: TextStyle(color: Colors.white),
+        ),
+        content: const Text(
+          'Are you sure you want to delete this post?',
+          style: TextStyle(color: Colors.white70),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
+            child: const Text(
+              'Cancel',
+              style: TextStyle(color: Colors.white),
+            ),
           ),
           TextButton(
             onPressed: () async {
               Navigator.of(context).pop();
               await _deletePost();
             },
-            child: const Text('Delete'),
+            child: const Text(
+              'Delete',
+              style: TextStyle(color: Colors.red),
+            ),
           ),
         ],
       ),
@@ -399,6 +421,9 @@ class _PostCardState extends State<PostCard> {
       if (userId == null) throw Exception('User not logged in');
 
       await _postService.deletePost(postId: _currentPost.id, userId: userId);
+
+      // Send WebSocket message to notify other clients
+      RealtimeService().sendDeletePost(_currentPost.id);
 
       Navigator.pop(context); // Dismiss loading indicator
 
@@ -457,12 +482,22 @@ class _PostCardState extends State<PostCard> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Report Post'),
-        content: const Text('Are you sure you want to report this post?'),
+        backgroundColor: Colors.grey[900],
+        title: const Text(
+          'Report Post',
+          style: TextStyle(color: Colors.white),
+        ),
+        content: const Text(
+          'Are you sure you want to report this post?',
+          style: TextStyle(color: Colors.white70),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
+            child: const Text(
+              'Cancel',
+              style: TextStyle(color: Colors.white),
+            ),
           ),
           TextButton(
             onPressed: () {
@@ -472,7 +507,10 @@ class _PostCardState extends State<PostCard> {
                 SnackBar(content: Text('Post reported successfully')),
               );
             },
-            child: const Text('Report'),
+            child: const Text(
+              'Report',
+              style: TextStyle(color: Colors.orange),
+            ),
           ),
         ],
       ),

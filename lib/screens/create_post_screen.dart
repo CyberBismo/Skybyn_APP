@@ -5,6 +5,7 @@ import 'dart:io';
 import 'dart:ui';
 import '../services/post_service.dart';
 import '../services/auth_service.dart';
+import '../services/realtime_service.dart';
 import '../models/post.dart';
 
 class CreatePostScreen extends StatefulWidget {
@@ -101,9 +102,12 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
           content: content,
         );
 
+        // Send WebSocket message to notify other clients
+        final postId = result['postID'];
+        RealtimeService().sendNewPost(postId);
+
         if (mounted) {
           // Return the post ID from the API response
-          final postId = result['postID'];
           Navigator.of(context).pop(postId);
         }
       }

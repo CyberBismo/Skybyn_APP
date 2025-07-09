@@ -41,19 +41,32 @@ class _BiometricScreenState extends State<BiometricScreen> {
         context: context,
         barrierDismissible: false,
         builder: (context) => AlertDialog(
-          title: const Text('Authentication Failed'),
-          content: const Text('Could not verify your identity. Please try again.'),
+          backgroundColor: Colors.grey[900],
+          title: const Text(
+            'Authentication Failed',
+            style: TextStyle(color: Colors.white),
+          ),
+          content: const Text(
+            'Could not verify your identity. Please try again.',
+            style: TextStyle(color: Colors.white70),
+          ),
           actions: [
             TextButton(
               onPressed: () {
                 Navigator.of(context).pop();
                 _authenticateAndNavigate(); // Retry
               },
-              child: const Text('Try Again'),
+              child: const Text(
+                'Try Again',
+                style: TextStyle(color: Colors.blue),
+              ),
             ),
             TextButton(
               onPressed: () => SystemNavigator.pop(), // Exit app
-              child: const Text('Exit'),
+              child: const Text(
+                'Exit',
+                style: TextStyle(color: Colors.red),
+              ),
             ),
           ],
         ),

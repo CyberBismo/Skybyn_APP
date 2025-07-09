@@ -230,12 +230,22 @@ class _NotificationTestScreenState extends State<NotificationTestScreen> {
                       showDialog(
                         context: context,
                         builder: (context) => AlertDialog(
-                          title: const Text('Test Foreground Notification'),
-                          content: const Text('This will show a notification even when the app is in the foreground. You should see it as a banner at the top of the screen.'),
+                          backgroundColor: Colors.grey[900],
+                          title: const Text(
+                            'Test Foreground Notification',
+                            style: TextStyle(color: Colors.white),
+                          ),
+                          content: const Text(
+                            'This will show a notification even when the app is in the foreground. You should see it as a banner at the top of the screen.',
+                            style: TextStyle(color: Colors.white70),
+                          ),
                           actions: [
                             TextButton(
                               onPressed: () => Navigator.of(context).pop(),
-                              child: const Text('Cancel'),
+                              child: const Text(
+                                'Cancel',
+                                style: TextStyle(color: Colors.white),
+                              ),
                             ),
                             TextButton(
                               onPressed: () async {
@@ -247,7 +257,10 @@ class _NotificationTestScreenState extends State<NotificationTestScreen> {
                                 );
                                 CustomSnackBar.show(context, 'Foreground notification sent!');
                               },
-                              child: const Text('Send'),
+                              child: const Text(
+                                'Send',
+                                style: TextStyle(color: Colors.blue),
+                              ),
                             ),
                           ],
                         ),
@@ -300,12 +313,22 @@ class _NotificationTestScreenState extends State<NotificationTestScreen> {
                       showDialog(
                         context: context,
                         builder: (context) => AlertDialog(
-                          title: const Text('Pending Notifications'),
-                          content: Text('You have ${pendingNotifications.length} pending notifications.'),
+                          backgroundColor: Colors.grey[900],
+                          title: const Text(
+                            'Pending Notifications',
+                            style: TextStyle(color: Colors.white),
+                          ),
+                          content: Text(
+                            'You have ${pendingNotifications.length} pending notifications.',
+                            style: const TextStyle(color: Colors.white70),
+                          ),
                           actions: [
                             TextButton(
                               onPressed: () => Navigator.of(context).pop(),
-                              child: const Text('OK'),
+                              child: const Text(
+                                'OK',
+                                style: TextStyle(color: Colors.white),
+                              ),
                             ),
                           ],
                         ),
