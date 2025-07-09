@@ -51,5 +51,7 @@
 		<false/>
 		<key>NSCameraUsageDescription</key>
 		<string>This app needs camera access to scan QR codes for authentication.</string>
+		<key>NSUserNotificationUsageDescription</key>
+		<string>This app needs notification permissions to show broadcast messages and updates.</string>
 	</dict>
 </plist>

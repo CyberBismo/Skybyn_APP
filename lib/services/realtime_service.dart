@@ -28,6 +28,7 @@ class RealtimeService {
   Function(String, String)? _onNewComment; // postId, commentId
   Function(String)? _onDeletePost;
   Function(String, String)? _onDeleteComment; // postId, commentId
+  Function(String)? _onBroadcast; // broadcast message
 
   bool get isConnected => _isConnected;
 
@@ -36,12 +37,14 @@ class RealtimeService {
     Function(String, String)? onNewComment,
     Function(String)? onDeletePost,
     Function(String, String)? onDeleteComment,
+    Function(String)? onBroadcast,
   }) async {
     print('🔧 [WebSocket] Initializing and connecting...');
     _onNewPost = onNewPost;
     _onNewComment = onNewComment;
     _onDeletePost = onDeletePost;
     _onDeleteComment = onDeleteComment;
+    _onBroadcast = onBroadcast;
 
     if (_isConnected || _isConnecting) {
       print('🔌 [WebSocket] Already connected or connecting.');
@@ -149,6 +152,8 @@ class RealtimeService {
         case 'broadcast':
           final broadcastMessage = data['message'];
           print('📢 [WebSocket] Broadcast message: $broadcastMessage');
+          // Show broadcast message to user via callback
+          _onBroadcast?.call(broadcastMessage?.toString() ?? 'Broadcast message');
           break;
         default:
           print('❓ [WebSocket] Unknown message type: $messageType');

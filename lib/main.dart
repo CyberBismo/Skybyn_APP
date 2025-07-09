@@ -16,6 +16,7 @@ import 'dart:async';
 import 'services/focus_service.dart';
 import 'services/auth_service.dart';
 import 'services/notification_service.dart';
+import 'services/background_service.dart';
 import 'widgets/background_gradient.dart';
 
 Future<void> main() async {
@@ -29,6 +30,11 @@ Future<void> main() async {
     final notificationService = NotificationService();
     await notificationService.initialize();
     print('✅ Notification service initialized');
+    
+    // Initialize background service
+    final backgroundService = BackgroundService();
+    await backgroundService.initialize();
+    print('✅ Background service initialized');
     
     // Create theme service without async initialization
     final themeService = ThemeService();

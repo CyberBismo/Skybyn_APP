@@ -70,6 +70,7 @@ class _HomeScreenState extends State<HomeScreen> {
   final _realtimeService = RealtimeService();
   final _searchFormKey = GlobalKey<SearchFormState>();
   final _scrollController = ScrollController();
+  final _scaffoldMessengerKey = GlobalKey<ScaffoldMessengerState>();
   User? _user;
   String? _currentUserId;
   List<Post> _posts = [];
@@ -107,6 +108,7 @@ class _HomeScreenState extends State<HomeScreen> {
       }
     });
     
+    print('🔧 [HomeScreen] Connecting to WebSocket...');
     _realtimeService.connect(
       onNewPost: (Post newPost) {
         if (mounted) {
@@ -141,6 +143,41 @@ class _HomeScreenState extends State<HomeScreen> {
       onDeleteComment: (String postId, String commentId) {
         print('📥 [WebSocket] Received delete comment message: postId=$postId, commentId=$commentId');
         _removeCommentFromPost(postId, commentId);
+      },
+      onBroadcast: (String message) {
+        print('📢 [WebSocket] Received broadcast message: $message');
+        print('📢 [WebSocket] Widget mounted: $mounted');
+        
+        if (mounted) {
+          // Show broadcast message as a local notification
+          print('📢 [WebSocket] Attempting to show notification...');
+          final notificationService = NotificationService();
+          notificationService.showNotification(
+            title: 'Broadcast',
+            body: message,
+            payload: 'broadcast',
+          ).then((_) {
+            print('📢 [WebSocket] Notification show() completed');
+          }).catchError((error) {
+            print('📢 [WebSocket] Error showing notification: $error');
+          });
+          
+          // For iOS Simulator, also show a SnackBar as fallback
+          if (Platform.isIOS) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted) {
+                _scaffoldMessengerKey.currentState?.showSnackBar(
+                  SnackBar(
+                    content: Text('📢 Broadcast: $message'),
+                    backgroundColor: Colors.blue,
+                    duration: const Duration(seconds: 5),
+                    behavior: SnackBarBehavior.fixed,
+                  ),
+                );
+              }
+            });
+          }
+        }
       },
     );
   }
@@ -577,7 +614,9 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     final appBarHeight = AppBarConfig.getAppBarHeight(context);
 
-    return Scaffold(
+    return ScaffoldMessenger(
+      key: _scaffoldMessengerKey,
+      child: Scaffold(
       extendBodyBehindAppBar: true,
       extendBody: true,
       appBar: CustomAppBar(
@@ -660,7 +699,44 @@ class _HomeScreenState extends State<HomeScreen> {
                       ? Center(
                           child: Padding(
                             padding: const EdgeInsets.only(top: 80.0),
-                            child: Text('No posts to display', style: TextStyle(color: Colors.white70, fontSize: 18)),
+                                                          child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Text('No posts to display', style: TextStyle(color: Colors.white70, fontSize: 18)),
+                                  const SizedBox(height: 20),
+                                  ElevatedButton(
+                                    onPressed: () {
+                                      print('🧪 [Test] Manual SnackBar test');
+                                      _scaffoldMessengerKey.currentState?.showSnackBar(
+                                        SnackBar(
+                                          content: Text('🧪 Test SnackBar'),
+                                          backgroundColor: Colors.green,
+                                          duration: const Duration(seconds: 3),
+                                          behavior: SnackBarBehavior.fixed,
+                                        ),
+                                      );
+                                    },
+                                    child: Text('Test SnackBar'),
+                                  ),
+                                  const SizedBox(height: 10),
+                                  ElevatedButton(
+                                    onPressed: () {
+                                      print('🧪 [Test] Manual notification test');
+                                      final notificationService = NotificationService();
+                                      notificationService.showNotification(
+                                        title: 'Test Notification',
+                                        body: 'This is a test notification',
+                                        payload: 'test',
+                                      ).then((_) {
+                                        print('🧪 [Test] Manual notification completed');
+                                      }).catchError((error) {
+                                        print('🧪 [Test] Manual notification error: $error');
+                                      });
+                                    },
+                                    child: Text('Test Notification'),
+                                  ),
+                                ],
+                              ),
                           ),
                         )
                       : SingleChildScrollView(
@@ -790,6 +866,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ],
         ),
       ),
-    );
+    ),
+  );
   }
 } 

@@ -44,9 +44,9 @@ class NotificationService {
 
     const DarwinInitializationSettings initializationSettingsIOS =
         DarwinInitializationSettings(
-      requestAlertPermission: false,
-      requestBadgePermission: false,
-      requestSoundPermission: false,
+      requestAlertPermission: true,
+      requestBadgePermission: true,
+      requestSoundPermission: true,
       defaultPresentAlert: true,
       defaultPresentBadge: true,
       defaultPresentSound: true,
@@ -123,31 +123,46 @@ class NotificationService {
     String? payload,
     String channelId = _adminChannelId,
   }) async {
-    const AndroidNotificationDetails androidPlatformChannelSpecifics =
-        AndroidNotificationDetails(
-      _adminChannelId,
-      'Admin Notifications',
-      channelDescription: 'Important system notifications from administrators',
-      importance: Importance.max,
-      priority: Priority.high,
-    );
-    const DarwinNotificationDetails iOSPlatformChannelSpecifics =
-        DarwinNotificationDetails(
-      presentAlert: true,
-      presentBadge: true,
-      presentSound: true,
-    );
-    const NotificationDetails platformChannelSpecifics = NotificationDetails(
-      android: androidPlatformChannelSpecifics,
-      iOS: iOSPlatformChannelSpecifics,
-    );
-    await _localNotifications.show(
-      DateTime.now().millisecondsSinceEpoch ~/ 1000,
-      title,
-      body,
-      platformChannelSpecifics,
-      payload: payload,
-    );
+    try {
+      print('🔔 [Notification] Attempting to show notification: $title - $body');
+      print('🔔 [Notification] Platform: ${Platform.isIOS ? 'iOS' : 'Android'}');
+      
+      const AndroidNotificationDetails androidPlatformChannelSpecifics =
+          AndroidNotificationDetails(
+        _adminChannelId,
+        'Admin Notifications',
+        channelDescription: 'Important system notifications from administrators',
+        importance: Importance.max,
+        priority: Priority.high,
+      );
+      const DarwinNotificationDetails iOSPlatformChannelSpecifics =
+          DarwinNotificationDetails(
+        presentAlert: true,
+        presentBadge: true,
+        presentSound: true,
+      );
+      const NotificationDetails platformChannelSpecifics = NotificationDetails(
+        android: androidPlatformChannelSpecifics,
+        iOS: iOSPlatformChannelSpecifics,
+      );
+      
+      final int notificationId = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+      print('🔔 [Notification] Using notification ID: $notificationId');
+      
+      await _localNotifications.show(
+        notificationId,
+        title,
+        body,
+        platformChannelSpecifics,
+        payload: payload,
+      );
+      
+      print('🔔 [Notification] Notification show() completed successfully');
+    } catch (e, stackTrace) {
+      print('🔔 [Notification] Error showing notification: $e');
+      print('🔔 [Notification] Stack trace: $stackTrace');
+      rethrow;
+    }
   }
 
   Future<void> showScheduledNotification({
