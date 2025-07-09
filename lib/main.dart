@@ -15,6 +15,7 @@ import 'package:flutter/services.dart'; // Import for SystemChrome
 import 'dart:async';
 import 'services/focus_service.dart';
 import 'services/auth_service.dart';
+import 'services/notification_service.dart';
 import 'widgets/background_gradient.dart';
 
 Future<void> main() async {
@@ -24,6 +25,11 @@ Future<void> main() async {
   print('🚀 App starting...');
   
   try {
+    // Initialize notification service
+    final notificationService = NotificationService();
+    await notificationService.initialize();
+    print('✅ Notification service initialized');
+    
     // Create theme service without async initialization
     final themeService = ThemeService();
     print('✅ Theme service created');
