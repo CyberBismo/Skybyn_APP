@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_core/firebase_core.dart';
 // import 'dart:io' show Platform;
 import 'screens/login_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/qr_scanner_screen.dart';
-import 'screens/notification_test_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/profile_screen.dart';
 import 'dart:io';
@@ -17,58 +17,124 @@ import 'services/focus_service.dart';
 import 'services/auth_service.dart';
 import 'services/notification_service.dart';
 import 'services/background_service.dart';
+import 'services/firebase_messaging_service.dart';
 import 'widgets/background_gradient.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 Future<void> main() async {
   // Ensure Flutter is initialized first
   WidgetsFlutterBinding.ensureInitialized();
   
-  print('🚀 App starting...');
+  // Initialize HTTP overrides to handle SSL certificates
+  HttpOverrides.global = MyHttpOverrides();
   
+  // Start the app immediately without waiting for Firebase
+  runApp(
+    ChangeNotifierProvider(
+      create: (_) => ThemeService(),
+      child: const MyApp(),
+    ),
+  );
+  
+  // Initialize Firebase in the background (non-blocking)
+  _initializeFirebaseInBackground();
+}
+
+Future<void> _initializeFirebaseInBackground() async {
   try {
-    // Initialize notification service
-    final notificationService = NotificationService();
-    await notificationService.initialize();
-    print('✅ Notification service initialized');
+    print('🔄 [Firebase] Starting background initialization...');
     
-    // Initialize background service
-    final backgroundService = BackgroundService();
-    await backgroundService.initialize();
-    print('✅ Background service initialized');
+    // Check if Firebase is already initialized
+    if (Firebase.apps.isEmpty) {
+      await Firebase.initializeApp();
+      print('✅ [Firebase] Firebase initialized successfully');
+    } else {
+      print('ℹ️ [Firebase] Firebase already initialized, skipping...');
+    }
     
-    // Create theme service without async initialization
-    final themeService = ThemeService();
-    print('✅ Theme service created');
-    
-    // Run the app
-    runApp(
-      ChangeNotifierProvider(
-        create: (_) => themeService,
-        child: const MyApp(),
-      ),
-    );
-    
-    print('✅ App launched successfully');
-  } catch (e, stackTrace) {
-    print('❌ Critical error during app initialization: $e');
-    print('Stack trace: $stackTrace');
-    
-    // Fallback: run app with minimal initialization
-    runApp(
-      MaterialApp(
-        title: 'Skybyn',
-        home: const Scaffold(
-          body: Center(
-            child: Text('App initialization failed. Please restart.'),
-          ),
-        ),
-      ),
-    );
+    // Initialize Firebase Messaging for background notifications (Android only)
+    if (Platform.isAndroid) {
+      try {
+        final firebaseMessagingService = FirebaseMessagingService();
+        await firebaseMessagingService.initialize();
+        print('✅ [Firebase] Firebase Messaging initialized for background notifications');
+      } catch (e) {
+        print('❌ [Firebase] Firebase Messaging initialization failed: $e');
+      }
+    } else {
+      print('ℹ️ [Firebase] Firebase Messaging skipped for iOS (using WebSocket instead)');
+    }
+  } catch (e) {
+    print('❌ [Firebase] Background initialization failed: $e');
+    // Continue without Firebase - app will still work
   }
 }
 
-class MyApp extends StatelessWidget {
+class MyApp extends StatefulWidget {
   const MyApp({super.key});
+
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
+  final NotificationService _notificationService = NotificationService();
+  final BackgroundService _backgroundService = BackgroundService();
+  bool _isAppInForeground = true;
+  Timer? _serviceCheckTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    
+    // Initialize services in the background
+    _initializeServices();
+  }
+
+  Future<void> _initializeServices() async {
+    try {
+      // Initialize notification service
+      await _notificationService.initialize();
+      
+      // Initialize background service
+      await _backgroundService.initialize();
+    } catch (e) {
+      print('❌ [Services] Error initializing services: $e');
+    }
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _serviceCheckTimer?.cancel(); // This can be removed if _serviceCheckTimer is not used elsewhere
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    
+    switch (state) {
+      case AppLifecycleState.resumed:
+        print('🔄 App resumed');
+        _isAppInForeground = true;
+        break;
+      case AppLifecycleState.paused:
+      case AppLifecycleState.inactive:
+        print('🔄 App paused/inactive');
+        _isAppInForeground = false;
+        break;
+      case AppLifecycleState.detached:
+        print('🔄 App detached - keeping background service running');
+        // Don't stop background service when app is detached
+        break;
+      case AppLifecycleState.hidden:
+        print('🔄 App hidden');
+        _isAppInForeground = false;
+        break;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -166,12 +232,11 @@ class __InitialScreenState extends State<_InitialScreen> with TickerProviderStat
   final AuthService _authService = AuthService();
   late AnimationController _fadeController;
   late Animation<double> _fadeAnimation;
-  OverlayEntry? _splashOverlay;
+  bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
-    print('🚀 _InitialScreen initState called');
     
     _fadeController = AnimationController(
       duration: const Duration(milliseconds: 800),
@@ -186,67 +251,45 @@ class __InitialScreenState extends State<_InitialScreen> with TickerProviderStat
       curve: Curves.easeOut,
     ));
     
-    // Listen to animation completion
-    _fadeController.addStatusListener((status) {
-      if (status == AnimationStatus.completed) {
-        _splashOverlay?.remove();
-        _splashOverlay = null;
-      }
-    });
-    
+    print('🚀 [Splash] InitialScreen initState called');
     _checkAuthStatus();
   }
 
   Future<void> _checkAuthStatus() async {
+    print('🔍 [Auth] Starting authentication check...');
+    
+    // Add a small delay to ensure the UI is ready
+    await Future.delayed(const Duration(milliseconds: 500));
+    
     try {
-      print('🔍 Checking authentication status...');
-      
       final userId = await _authService.getStoredUserId();
       final userProfile = await _authService.getStoredUserProfile();
       
-      print('📱 Stored user ID: $userId');
-      print('👤 Stored user profile: ${userProfile?.username ?? 'None'}');
+      print('🔍 [Auth] User ID: $userId');
+      print('🔍 [Auth] User Profile: $userProfile');
       
       if (mounted) {
         if (userId != null && userProfile != null) {
-          print('✅ User is authenticated, navigating to home');
-          // Navigate to home screen
+          print('🔍 [Auth] User is logged in, navigating to home screen');
           Navigator.of(context).pushReplacement(
             MaterialPageRoute(builder: (context) => const HomeScreen()),
           );
         } else {
-          print('❌ User is not authenticated, navigating to login');
-          // Navigate to login screen
+          print('🔍 [Auth] User is not logged in, navigating to login screen');
           Navigator.of(context).pushReplacement(
             MaterialPageRoute(builder: (context) => const LoginScreen()),
           );
         }
-        
-        // Wait for the new screen to be fully loaded, then fade out splash overlay
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (mounted) {
-              _fadeController.forward();
-            }
-          });
-        });
+      } else {
+        print('🔍 [Auth] Widget not mounted, skipping navigation');
       }
     } catch (e) {
-      print('❌ Error checking auth status: $e');
+      print('❌ [Auth] Error during authentication check: $e');
       if (mounted) {
-        // Navigate to login screen
+        print('🔍 [Auth] Navigating to login screen due to error');
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(builder: (context) => const LoginScreen()),
         );
-        
-        // Wait for the new screen to be fully loaded, then fade out splash overlay
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (mounted) {
-              _fadeController.forward();
-            }
-          });
-        });
       }
     }
   }
@@ -254,46 +297,44 @@ class __InitialScreenState extends State<_InitialScreen> with TickerProviderStat
   @override
   void dispose() {
     _fadeController.dispose();
-    _splashOverlay?.remove();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    print('🎨 Building _InitialScreen widget');
-    
-    // Create splash overlay that will fade out over the new screen
-    _splashOverlay = OverlayEntry(
-      builder: (context) => FadeTransition(
-        opacity: _fadeAnimation,
-        child: Material(
-          color: Colors.transparent,
-          child: Stack(
-            children: [
-              const BackgroundGradient(),
-              Center(
-                child: Image.asset(
-                  'assets/images/logo.png',
-                  width: 200,
-                  height: 200,
+    return Scaffold(
+      body: Stack(
+        children: [
+          const BackgroundGradient(),
+          Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: Colors.white.withOpacity(0.2),
+                      width: 1,
+                    ),
+                  ),
+                  child: Image.asset(
+                    'assets/images/logo.png',
+                    width: 150,
+                    height: 150,
+                  ),
                 ),
-              ),
-            ],
+                const SizedBox(height: 30),
+                const CircularProgressIndicator(
+                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                ),
+              ],
+            ),
           ),
-        ),
+        ],
       ),
-    );
-    
-    // Insert the overlay
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
-        Overlay.of(context).insert(_splashOverlay!);
-      }
-    });
-    
-    // Return empty scaffold - the splash screen is now an overlay
-    return const Scaffold(
-      body: SizedBox.shrink(),
     );
   }
 }

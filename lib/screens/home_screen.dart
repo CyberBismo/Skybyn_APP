@@ -18,10 +18,10 @@ import 'create_post_screen.dart';
 import 'profile_screen.dart';
 import 'settings_screen.dart';
 import 'qr_scanner_screen.dart';
-import 'notification_test_screen.dart';
 import 'login_screen.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'dart:io';
 
 // Lifecycle event handler for keyboard-aware scrolling
 class LifecycleEventHandler extends WidgetsBindingObserver {
@@ -145,22 +145,13 @@ class _HomeScreenState extends State<HomeScreen> {
         _removeCommentFromPost(postId, commentId);
       },
       onBroadcast: (String message) {
-        print('📢 [WebSocket] Received broadcast message: $message');
-        print('📢 [WebSocket] Widget mounted: $mounted');
-        
         if (mounted) {
-          // Show broadcast message as a local notification
-          print('📢 [WebSocket] Attempting to show notification...');
           final notificationService = NotificationService();
           notificationService.showNotification(
             title: 'Broadcast',
             body: message,
             payload: 'broadcast',
-          ).then((_) {
-            print('📢 [WebSocket] Notification show() completed');
-          }).catchError((error) {
-            print('📢 [WebSocket] Error showing notification: $error');
-          });
+          );
           
           // For iOS Simulator, also show a SnackBar as fallback
           if (Platform.isIOS) {
@@ -339,8 +330,6 @@ class _HomeScreenState extends State<HomeScreen> {
       }
     });
   }
-
-
 
   Future<void> _deleteComment(String commentId) async {
     showDialog(

@@ -39,7 +39,6 @@ class RealtimeService {
     Function(String, String)? onDeleteComment,
     Function(String)? onBroadcast,
   }) async {
-    print('🔧 [WebSocket] Initializing and connecting...');
     _onNewPost = onNewPost;
     _onNewComment = onNewComment;
     _onDeletePost = onDeletePost;
@@ -47,13 +46,11 @@ class RealtimeService {
     _onBroadcast = onBroadcast;
 
     if (_isConnected || _isConnecting) {
-      print('🔌 [WebSocket] Already connected or connecting.');
       return;
     }
     _isConnecting = true;
     _sessionId = _generateSessionId();
-    final wsUrl = 'wss://dev.skybyn.no:4433'; // Updated WebSocket endpoint
-    print('🔌 [WebSocket] Connecting to $wsUrl');
+    final wsUrl = 'wss://dev.skybyn.no:4433';
     try {
       _channel = WebSocketChannel.connect(Uri.parse(wsUrl));
       _isConnected = true;
@@ -66,10 +63,8 @@ class RealtimeService {
         cancelOnError: true,
       );
       await _sendConnectMessage();
-      print('✅ [WebSocket] Connected');
     } catch (e, stackTrace) {
-      print('❌ [WebSocket] Connection error: $e');
-      print(stackTrace);
+      print('WebSocket connection error: $e');
       _isConnected = false;
       _isConnecting = false;
       _scheduleReconnect();
@@ -77,7 +72,6 @@ class RealtimeService {
   }
 
   Future<void> _sendConnectMessage() async {
-    print('🔧 [WebSocket] Preparing connect message...');
     final authService = AuthService();
     final user = await authService.getStoredUserProfile();
     final token = user?.token;
@@ -101,7 +95,6 @@ class RealtimeService {
     };
     final messageJson = jsonEncode(connectMessage);
     _channel?.sink.add(messageJson);
-    print('📤 [WebSocket] Connect message sent: $messageJson');
   }
 
   Future<String> _getDeviceType(Map<String, dynamic> deviceInfo) async {
@@ -122,7 +115,6 @@ class RealtimeService {
   }
 
   void _handleMessage(dynamic message) {
-    print('📥 [WebSocket] Received message: $message');
     try {
       final data = jsonDecode(message);
       if (data is! Map) return;
@@ -151,16 +143,11 @@ class RealtimeService {
           break;
         case 'broadcast':
           final broadcastMessage = data['message'];
-          print('📢 [WebSocket] Broadcast message: $broadcastMessage');
-          // Show broadcast message to user via callback
           _onBroadcast?.call(broadcastMessage?.toString() ?? 'Broadcast message');
           break;
-        default:
-          print('❓ [WebSocket] Unknown message type: $messageType');
       }
     } catch (e, stackTrace) {
-      print('❌ [WebSocket] Error parsing message: $e');
-      print(stackTrace);
+      print('Error parsing WebSocket message: $e');
     }
   }
 
@@ -171,14 +158,10 @@ class RealtimeService {
     };
     final messageJson = jsonEncode(pongMessage);
     _channel?.sink.add(messageJson);
-    print('🏓 [WebSocket] Sent pong');
   }
 
   void sendDeletePost(String postId) {
-    if (!_isConnected) {
-      print('❌ [WebSocket] Cannot send delete_post: not connected');
-      return;
-    }
+    if (!_isConnected) return;
     
     final deleteMessage = {
       'type': 'delete_post',
@@ -187,14 +170,10 @@ class RealtimeService {
     };
     final messageJson = jsonEncode(deleteMessage);
     _channel?.sink.add(messageJson);
-    print('🗑️ [WebSocket] Sent delete_post: $messageJson');
   }
 
   void sendDeleteComment(String postId, String commentId) {
-    if (!_isConnected) {
-      print('❌ [WebSocket] Cannot send delete_comment: not connected');
-      return;
-    }
+    if (!_isConnected) return;
     
     final deleteMessage = {
       'type': 'delete_comment',
@@ -204,14 +183,10 @@ class RealtimeService {
     };
     final messageJson = jsonEncode(deleteMessage);
     _channel?.sink.add(messageJson);
-    print('🗑️ [WebSocket] Sent delete_comment: $messageJson');
   }
 
   void sendNewPost(String postId) {
-    if (!_isConnected) {
-      print('❌ [WebSocket] Cannot send new_post: not connected');
-      return;
-    }
+    if (!_isConnected) return;
     
     final newPostMessage = {
       'type': 'new_post',
@@ -220,14 +195,10 @@ class RealtimeService {
     };
     final messageJson = jsonEncode(newPostMessage);
     _channel?.sink.add(messageJson);
-    print('📝 [WebSocket] Sent new_post: $messageJson');
   }
 
   void sendNewComment(String postId, String commentId) {
-    if (!_isConnected) {
-      print('❌ [WebSocket] Cannot send new_comment: not connected');
-      return;
-    }
+    if (!_isConnected) return;
     
     final newCommentMessage = {
       'type': 'new_comment',
@@ -237,7 +208,6 @@ class RealtimeService {
     };
     final messageJson = jsonEncode(newCommentMessage);
     _channel?.sink.add(messageJson);
-    print('💬 [WebSocket] Sent new_comment: $messageJson');
   }
 
   Future<void> _handleNewPost(String postId) async {
@@ -272,25 +242,19 @@ class RealtimeService {
   }
 
   void _onConnectionClosed() {
-    print('🔌 [WebSocket] Connection closed');
     _isConnected = false;
     _scheduleReconnect();
   }
 
   void _onConnectionError(error) {
-    print('❌ [WebSocket] Connection error: $error');
     _isConnected = false;
     _scheduleReconnect();
   }
 
   void _scheduleReconnect() {
-    if (_reconnectAttempts > 5) {
-      print('❌ [WebSocket] Max reconnect attempts reached. Giving up.');
-      return;
-    }
+    if (_reconnectAttempts > 5) return;
     _reconnectAttempts++;
     final delay = Duration(seconds: 2 * _reconnectAttempts);
-    print('🔄 [WebSocket] Reconnecting in ${delay.inSeconds} seconds...');
     Future.delayed(delay, () {
       if (!_isConnected) {
         connect();

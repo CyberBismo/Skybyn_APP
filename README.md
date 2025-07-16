@@ -101,8 +101,7 @@ lib/
 │   ├── home_screen.dart
 │   ├── profile_screen.dart
 │   ├── settings_screen.dart
-│   ├── qr_scanner_screen.dart
-│   └── notification_test_screen.dart
+│   └── qr_scanner_screen.dart
 ├── services/                 # Business logic
 │   ├── auth_service.dart
 │   ├── theme_service.dart

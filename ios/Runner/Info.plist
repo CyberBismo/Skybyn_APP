@@ -13,7 +13,7 @@
 		<key>CFBundleInfoDictionaryVersion</key>
 		<string>6.0</string>
 		<key>CFBundleName</key>
-		<string>skybyn</string>
+		<string>Skybyn</string>
 		<key>CFBundlePackageType</key>
 		<string>APPL</string>
 		<key>CFBundleShortVersionString</key>
@@ -53,5 +53,16 @@
 		<string>This app needs camera access to scan QR codes for authentication.</string>
 		<key>NSUserNotificationUsageDescription</key>
 		<string>This app needs notification permissions to show broadcast messages and updates.</string>
+		<key>UIBackgroundModes</key>
+		<array>
+			<string>remote-notification</string>
+			<string>background-processing</string>
+			<string>background-fetch</string>
+		</array>
+		<key>NSAppTransportSecurity</key>
+		<dict>
+			<key>NSAllowsArbitraryLoads</key>
+			<true/>
+		</dict>
 	</dict>
 </plist>

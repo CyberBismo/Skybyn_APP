@@ -6,7 +6,7 @@ import '../screens/home_screen.dart';
 import '../screens/profile_screen.dart';
 import '../screens/settings_screen.dart';
 import '../screens/qr_scanner_screen.dart';
-import '../screens/notification_test_screen.dart';
+
 
 class UserMenu {
   static OverlayEntry? _currentOverlayEntry;
@@ -169,19 +169,7 @@ class UserMenu {
                                 );
                               },
                             ),
-                            _buildMenuItem(
-                              context: context,
-                              icon: Icons.notifications,
-                              label: 'Notification Test',
-                              onTap: () {
-                                overlayEntry?.remove();
-                                _currentOverlayEntry = null;
-                                completer.complete('notification_test');
-                                Navigator.of(context).push(
-                                  MaterialPageRoute(builder: (context) => const NotificationTestScreen()),
-                                );
-                              },
-                            ),
+
                             Divider(
                               color: Theme.of(context).brightness == Brightness.dark 
                                 ? Colors.white.withOpacity(0.2) 

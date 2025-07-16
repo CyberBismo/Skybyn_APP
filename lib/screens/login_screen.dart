@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:ui';
 import '../services/auth_service.dart';
+import '../services/notification_service.dart';
 import 'dart:io';
 import '../widgets/background_gradient.dart';
 import 'home_screen.dart';
@@ -59,6 +60,34 @@ class _LoginScreenState extends State<LoginScreen> {
 
       if (response['responseCode'] == '1') {
         if (mounted) {
+          // Show login success notification
+          print('🔔 Attempting to show login success notification...');
+          try {
+            final notificationService = NotificationService();
+            await notificationService.requestPermissions();
+            
+            // Check if notifications are enabled
+            final isEnabled = await notificationService.areNotificationsEnabled();
+            print('📱 Notifications enabled: $isEnabled');
+            
+            // For iOS, check notification status
+            if (Platform.isIOS) {
+              await notificationService.checkIOSNotificationStatus();
+            }
+            
+            if (isEnabled) {
+              // Show system notification for login success
+              await notificationService.showNotification(
+                title: 'Login successful',
+                body: 'Welcome to Skybyn',
+                payload: 'login_success',
+              );
+              print('✅ Login success notification sent successfully');
+            }
+          } catch (e) {
+            print('❌ Error showing login notification: $e');
+          }
+          
           Navigator.of(context).pushReplacement(
             MaterialPageRoute(builder: (context) => const HomeScreen()),
           );
