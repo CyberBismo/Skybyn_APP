@@ -814,15 +814,19 @@ class _PostCardState extends State<PostCard> {
                             ],
                           ),
                           const SizedBox(width: 16),
-                          Row(
-                            children: [
-                              GestureDetector(
-                                onTap: _toggleComments,
-                                child: Icon(Icons.comment, color: textColor, size: PostCardStyles.iconSize),
-                              ),
-                              const SizedBox(width: 4),
-                              Text('${_currentPost.comments}', style: PostCardStyles.statsTextStyle),
-                            ],
+                          // Center the comment icon and count vertically
+                          Align(
+                            alignment: Alignment.center,
+                            child: Row(
+                              children: [
+                                GestureDetector(
+                                  onTap: _toggleComments,
+                                  child: Icon(Icons.comment, color: textColor, size: PostCardStyles.iconSize),
+                                ),
+                                const SizedBox(width: 4),
+                                Text('${_currentPost.comments}', style: PostCardStyles.statsTextStyle),
+                              ],
+                            ),
                           ),
                         ],
                       ),

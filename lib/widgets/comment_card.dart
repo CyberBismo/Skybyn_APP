@@ -116,7 +116,7 @@ class CommentCard extends StatelessWidget {
     }
 
     return Stack(
-      alignment: Alignment.topRight,
+      alignment: Alignment.centerRight, // Center the menu icon vertically
       children: [
         Padding(
           padding: CommentCardStyles.cardPadding,
@@ -138,20 +138,30 @@ class CommentCard extends StatelessWidget {
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: RichText(
-                  text: TextSpan(
-                    style: CommentCardStyles.commentTextStyle,
-                    children: [
-                      TextSpan(
-                        text: '${comment.username} ',
-                        style: CommentCardStyles.authorTextStyle,
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.center, // Center vertically
+                  children: [
+                    // Username without background
+                    Text(
+                      comment.username,
+                      style: CommentCardStyles.authorTextStyle,
+                    ),
+                    const SizedBox(width: 8),
+                    // Comment text with background
+                    Expanded(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.1), // Transparent background
+                          borderRadius: BorderRadius.circular(8.0), // Rounded corners
+                        ),
+                        child: Text(
+                          comment.content,
+                          style: CommentCardStyles.commentTextStyle,
+                        ),
                       ),
-                      TextSpan(
-                        text: comment.content,
-                        style: CommentCardStyles.timestampTextStyle,
-                      ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ),
             ],
@@ -159,16 +169,19 @@ class CommentCard extends StatelessWidget {
         ),
         // Comment menu button
         if (currentUserId != null && onDelete != null)
-          Builder(
-            builder: (context) {
-              return CommentMenu.createMenuButton(
-                context: context,
-                commentId: comment.id,
-                currentUserId: currentUserId!,
-                commentUserId: comment.userId,
-                onDelete: onDelete!,
-              );
-            },
+          Padding(
+            padding: const EdgeInsets.only(right: 8.0), // Add horizontal padding
+            child: Builder(
+              builder: (context) {
+                return CommentMenu.createMenuButton(
+                  context: context,
+                  commentId: comment.id,
+                  currentUserId: currentUserId!,
+                  commentUserId: comment.userId,
+                  onDelete: onDelete!,
+                );
+              },
+            ),
           ),
       ],
     );
