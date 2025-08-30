@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/post.dart';
 import '../models/comment.dart';
-import '../models/user.dart';
 import '../widgets/background_gradient.dart';
 import '../widgets/post_card.dart';
 import '../widgets/custom_app_bar.dart';
@@ -13,6 +12,7 @@ import '../services/post_service.dart';
 import '../services/comment_service.dart';
 import '../services/notification_service.dart';
 import '../services/websocket_service.dart';
+import '../services/auto_update_service.dart';
 import 'create_post_screen.dart';
 import 'login_screen.dart';
 import 'package:http/http.dart' as http;
@@ -20,6 +20,7 @@ import 'dart:convert';
 import 'dart:io';
 import '../widgets/chat_list_modal.dart';
 import '../widgets/app_colors.dart';
+import '../widgets/update_dialog.dart';
 
 // Lifecycle event handler for keyboard-aware scrolling
 class LifecycleEventHandler extends WidgetsBindingObserver {
@@ -62,6 +63,8 @@ class HomeScreen extends StatefulWidget {
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 }
+
+
 
 class _HomeScreenState extends State<HomeScreen> {
   final _authService = AuthService();
@@ -508,6 +511,49 @@ class _HomeScreenState extends State<HomeScreen> {
       print('🧪 Test response body: ${response.body}');
     } catch (e) {
       print('🧪 Test failed: $e');
+    }
+  }
+
+  // Check for app updates
+  Future<void> _checkForUpdates() async {
+    if (!Platform.isAndroid) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Auto-updates are only available on Android')),
+      );
+      return;
+    }
+
+    try {
+      final updateAvailable = await AutoUpdateService().checkForUpdates(showDialog: false, context: context);
+      
+      if (updateAvailable) {
+        // Get version information
+        final currentVersion = AutoUpdateService().getCurrentVersion();
+        final latestVersion = await AutoUpdateService().getLatestVersion() ?? 'Unknown';
+        
+        // Show update dialog
+        if (mounted) {
+          showDialog(
+            context: context,
+            builder: (context) => UpdateDialog(
+              currentVersion: currentVersion,
+              latestVersion: latestVersion,
+            ),
+          );
+        }
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('No updates available')),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error checking for updates: $e')),
+        );
+      }
     }
   }
 

@@ -172,6 +172,18 @@ class UnifiedMenu {
               },
             ),
             MenuItem(
+              icon: Icons.system_update,
+              label: 'Check for Updates',
+              onTap: () {
+                // Close the menu first
+                closeCurrentMenu();
+                // Navigate to home screen
+                Navigator.of(context).pushReplacement(
+                  MaterialPageRoute(builder: (context) => const HomeScreen()),
+                );
+              },
+            ),
+            MenuItem(
               icon: Icons.logout,
               label: 'Logout',
               onTap: onLogout,

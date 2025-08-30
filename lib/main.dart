@@ -14,6 +14,7 @@ import 'services/auth_service.dart';
 import 'services/notification_service.dart';
 import 'services/websocket_service.dart';
 import 'services/firebase_messaging_service.dart';
+import 'services/auto_update_service.dart';
 import 'widgets/background_gradient.dart';
 
 Future<void> main() async {
@@ -36,6 +37,9 @@ Future<void> main() async {
     // Initialize theme service first
     final themeService = ThemeService();
     await themeService.initialize();
+    
+    // Initialize auto-update service
+    await AutoUpdateService().initialize();
     
     // Run the app
     runApp(
@@ -120,6 +124,15 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       
       // Initialize WebSocket service
       await _webSocketService.initialize();
+      
+              // Check for updates after a delay
+        if (Platform.isAndroid) {
+          Future.delayed(const Duration(seconds: 5), () {
+            // Note: Context not available during app startup
+            // Updates will be checked when user manually checks or when context is available
+            print('ℹ️ [AutoUpdate] Skipping startup update check - no context available');
+          });
+        }
     } catch (e) {
       print('❌ [Services] Error initializing services: $e');
     }
