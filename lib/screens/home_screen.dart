@@ -7,21 +7,19 @@ import '../widgets/post_card.dart';
 import '../widgets/custom_app_bar.dart';
 import '../widgets/custom_bottom_navigation_bar.dart';
 import '../widgets/search_form.dart';
-import '../widgets/user_menu.dart';
 import '../widgets/custom_snack_bar.dart';
 import '../services/auth_service.dart';
 import '../services/post_service.dart';
 import '../services/comment_service.dart';
 import '../services/notification_service.dart';
-import '../services/realtime_service.dart';
+import '../services/websocket_service.dart';
 import 'create_post_screen.dart';
-import 'profile_screen.dart';
-import 'settings_screen.dart';
-import 'qr_scanner_screen.dart';
 import 'login_screen.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'dart:io';
+import '../widgets/chat_list_modal.dart';
+import '../widgets/app_colors.dart';
 
 // Lifecycle event handler for keyboard-aware scrolling
 class LifecycleEventHandler extends WidgetsBindingObserver {
@@ -67,11 +65,11 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final _authService = AuthService();
-  final _realtimeService = RealtimeService();
+  final _webSocketService = WebSocketService();
   final _searchFormKey = GlobalKey<SearchFormState>();
   final _scrollController = ScrollController();
   final _scaffoldMessengerKey = GlobalKey<ScaffoldMessengerState>();
-  User? _user;
+  // Removed unused _user field
   String? _currentUserId;
   List<Post> _posts = [];
   bool _isLoading = true;
@@ -109,7 +107,7 @@ class _HomeScreenState extends State<HomeScreen> {
     });
     
     print('🔧 [HomeScreen] Connecting to WebSocket...');
-    _realtimeService.connect(
+    _webSocketService.connect(
       onNewPost: (Post newPost) {
         if (mounted) {
           setState(() {
@@ -175,7 +173,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   void dispose() {
-    _realtimeService.dispose();
+    _webSocketService.disconnect();
     _scrollController.dispose();
     if (_lifecycleEventHandler != null) {
       WidgetsBinding.instance.removeObserver(_lifecycleEventHandler!);
@@ -265,7 +263,6 @@ class _HomeScreenState extends State<HomeScreen> {
       final userId = await _authService.getStoredUserId();
       if (userId != null) {
         // Load user information
-        final username = await _authService.getStoredUsername();
         setState(() {
           _currentUserId = userId;
         });
@@ -287,7 +284,6 @@ class _HomeScreenState extends State<HomeScreen> {
           _posts = [];
         }
       } else {
-        print('No user ID found, showing empty state');
         _posts = [];
       }
     } catch (e) {
@@ -336,20 +332,20 @@ class _HomeScreenState extends State<HomeScreen> {
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: Colors.grey[900],
-        title: const Text(
+        title: Text(
           'Delete Comment',
-          style: TextStyle(color: Colors.white),
+          style: TextStyle(color: AppColors.getTextColor(context)),
         ),
-        content: const Text(
+        content: Text(
           'Are you sure you want to delete this comment?',
-          style: TextStyle(color: Colors.white70),
+          style: TextStyle(color: AppColors.getSecondaryTextColor(context)),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text(
+            child: Text(
               'Cancel',
-              style: TextStyle(color: Colors.white),
+              style: TextStyle(color: AppColors.getTextColor(context)),
             ),
           ),
           TextButton(
@@ -394,7 +390,7 @@ class _HomeScreenState extends State<HomeScreen> {
       );
 
       // Send WebSocket message to notify other clients
-      RealtimeService().sendDeleteComment(postWithComment.id, commentId);
+              // WebSocketService().sendDeleteComment(postWithComment.id, commentId);
 
       // Hide loading indicator
       Navigator.pop(context);
@@ -465,8 +461,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
       // Calculate the position to scroll to
       // Each post takes approximately 200-300 pixels, plus spacing
-      final estimatedPostHeight = 250.0;
-      final estimatedSpacing = 20.0;
+      const estimatedPostHeight = 250.0;
+      const estimatedSpacing = 20.0;
       final targetPosition = postIndex * (estimatedPostHeight + estimatedSpacing);
       
       // Add some padding to ensure the input is visible above the keyboard
@@ -528,7 +524,7 @@ class _HomeScreenState extends State<HomeScreen> {
       
       // Try to fetch the new comment data from the API
       try {
-        final url = 'https://api.skybyn.no/comment/get_comment.php';
+        const url = 'https://api.skybyn.no/comment/get_comment.php';
         final body = {'commentID': commentId, 'userID': userId};
         
         print('🔄 Making request to: $url');
@@ -599,6 +595,15 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  void _openChatListModal() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => const ChatListModal(),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final appBarHeight = AppBarConfig.getAppBarHeight(context);
@@ -644,15 +649,15 @@ class _HomeScreenState extends State<HomeScreen> {
                   margin: EdgeInsets.only(
                     top: MediaQuery.of(context).padding.top + 60, // Account for status bar and app bar
                   ),
-                  decoration: BoxDecoration(
+                  decoration: const BoxDecoration(
                     color: Colors.transparent,
-                    borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+                    borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
                   ),
                   child: Padding(
                     padding: EdgeInsets.only(
                       bottom: MediaQuery.of(context).viewInsets.bottom, // Account for keyboard
                     ),
-                    child: CreatePostScreen(),
+                    child: const CreatePostScreen(),
                   ),
                 ),
               ),
@@ -665,7 +670,7 @@ class _HomeScreenState extends State<HomeScreen> {
             }
           },
           onFriendsPressed: () {},
-          onChatPressed: () {},
+          onChatPressed: _openChatListModal,
           onNotificationsPressed: () {},
         ),
       ),
@@ -691,21 +696,21 @@ class _HomeScreenState extends State<HomeScreen> {
                                                           child: Column(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
-                                  Text('No posts to display', style: TextStyle(color: Colors.white70, fontSize: 18)),
+                                  Text('No posts to display', style: TextStyle(color: AppColors.getSecondaryTextColor(context), fontSize: 18)),
                                   const SizedBox(height: 20),
                                   ElevatedButton(
                                     onPressed: () {
                                       print('🧪 [Test] Manual SnackBar test');
                                       _scaffoldMessengerKey.currentState?.showSnackBar(
-                                        SnackBar(
+                                        const SnackBar(
                                           content: Text('🧪 Test SnackBar'),
                                           backgroundColor: Colors.green,
-                                          duration: const Duration(seconds: 3),
+                                          duration: Duration(seconds: 3),
                                           behavior: SnackBarBehavior.fixed,
                                         ),
                                       );
                                     },
-                                    child: Text('Test SnackBar'),
+                                    child: const Text('Test SnackBar'),
                                   ),
                                   const SizedBox(height: 10),
                                   ElevatedButton(
@@ -722,7 +727,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                         print('🧪 [Test] Manual notification error: $error');
                                       });
                                     },
-                                    child: Text('Test Notification'),
+                                    child: const Text('Test Notification'),
                                   ),
                                 ],
                               ),
@@ -735,7 +740,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             bottom: 80.0,
                           ),
                           child: Padding(
-                            padding: const EdgeInsets.all(16.0),
+                            padding: const EdgeInsets.only(left: 10.0, right: 10.0, top: 20.0),
                             child: Column(
                               children: [
                                 for (final post in _posts) ...[
@@ -748,7 +753,6 @@ class _HomeScreenState extends State<HomeScreen> {
                                       onPostUpdated: _updatePost,
                                       onInputFocused: () => _onPostInputFocused(post.id),
                                       onInputUnfocused: () => _onPostInputUnfocused(post.id)),
-                                  const SizedBox(height: 10),
                                 ],
                               ],
                             ),
@@ -760,21 +764,18 @@ class _HomeScreenState extends State<HomeScreen> {
                 top: 0,
                 left: 0,
                 right: 0,
-                child: GestureDetector(
-                  onTap: () {}, // Consume tap
-                  child: SearchForm(
-                    key: _searchFormKey,
-                    onClose: () {
-                      setState(() {
-                        _showSearchForm = false;
-                      });
-                    },
-                    onSearch: (query) {
-                      // TODO: Implement actual search logic here
-                      print('Searching for: $query');
-                      _searchFormKey.currentState?.closeForm();
-                    },
-                  ),
+                child: SearchForm(
+                  key: _searchFormKey,
+                  onClose: () {
+                    setState(() {
+                      _showSearchForm = false;
+                    });
+                  },
+                  onSearch: (query) {
+                    // TODO: Implement actual search logic here
+                    print('Searching for: $query');
+                    _searchFormKey.currentState?.closeForm();
+                  },
                 ),
               ),
             if (_showInAppNotification)
@@ -807,7 +808,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Icon(Icons.notifications, color: Colors.white, size: 28),
+                              Icon(Icons.notifications, color: AppColors.getIconColor(context), size: 28),
                               const SizedBox(width: 12),
                               Expanded(
                                 child: Column(
@@ -816,8 +817,8 @@ class _HomeScreenState extends State<HomeScreen> {
                                   children: [
                                     Text(
                                       _inAppNotificationTitle,
-                                      style: const TextStyle(
-                                        color: Colors.white,
+                                      style: TextStyle(
+                                        color: AppColors.getTextColor(context),
                                         fontWeight: FontWeight.bold,
                                         fontSize: 16,
                                       ),
@@ -825,8 +826,8 @@ class _HomeScreenState extends State<HomeScreen> {
                                     const SizedBox(height: 2),
                                     Text(
                                       _inAppNotificationBody,
-                                      style: const TextStyle(
-                                        color: Colors.white,
+                                      style: TextStyle(
+                                        color: AppColors.getTextColor(context),
                                         fontSize: 14,
                                       ),
                                     ),
@@ -839,9 +840,9 @@ class _HomeScreenState extends State<HomeScreen> {
                                     _showInAppNotification = false;
                                   });
                                 },
-                                child: const Padding(
-                                  padding: EdgeInsets.only(left: 8.0, top: 2.0),
-                                  child: Icon(Icons.close, color: Colors.white70, size: 20),
+                                child: Padding(
+                                  padding: const EdgeInsets.only(left: 8.0, top: 2.0),
+                                  child: Icon(Icons.close, color: AppColors.getIconColor(context), size: 20),
                                 ),
                               ),
                             ],

@@ -84,7 +84,7 @@ class CommentService {
     String? userId,
   }) async {
     try {
-      final url = 'https://api.skybyn.no/comment/get_comment.php';
+      const url = 'https://api.skybyn.no/comment/get_comment.php';
       final body = {
         'commentID': commentId,
         if (userId != null) 'userID': userId,

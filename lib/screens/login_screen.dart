@@ -4,7 +4,9 @@ import '../services/auth_service.dart';
 import '../services/notification_service.dart';
 import 'dart:io';
 import '../widgets/background_gradient.dart';
+import '../widgets/app_colors.dart';
 import 'home_screen.dart';
+import 'register_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -148,10 +150,10 @@ class _LoginScreenState extends State<LoginScreen> {
                         filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
                         child: Container(
                           decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.1),
+                            color: AppColors.getCardBackgroundColor(context).withValues(alpha: 0.1), // Keep original background
                             borderRadius: BorderRadius.circular(10),
                             border: Border.all(
-                              color: Colors.white.withValues(alpha: 0.2),
+                              color: Colors.white.withValues(alpha: 0.3), // White border in both modes
                               width: 1.5,
                             ),
                           ),
@@ -163,18 +165,18 @@ class _LoginScreenState extends State<LoginScreen> {
                               fillColor: Colors.transparent,
                               hintText: 'Username',
                               hintStyle: TextStyle(
-                                color: Colors.white.withValues(alpha: 0.7),
+                                color: Colors.white.withValues(alpha: 0.7), // White hint in both modes
                                 fontSize: 16,
                               ),
-                              prefixIcon: Icon(Icons.person, color: Colors.white.withValues(alpha: 0.7)),
+                              prefixIcon: Icon(Icons.person, color: Colors.white), // White icon in both modes
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(10),
                                 borderSide: BorderSide.none,
                               ),
                               contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
                             ),
-                            style: const TextStyle(
-                              color: Colors.white,
+                            style: TextStyle(
+                              color: Colors.black, // Consistent light mode text
                               fontSize: 16,
                             ),
                             onTap: () {
@@ -197,10 +199,10 @@ class _LoginScreenState extends State<LoginScreen> {
                         filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
                         child: Container(
                           decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.1),
+                            color: AppColors.getCardBackgroundColor(context).withValues(alpha: 0.1), // Keep original background
                             borderRadius: BorderRadius.circular(10),
                             border: Border.all(
-                              color: Colors.white.withValues(alpha: 0.2),
+                              color: Colors.white.withValues(alpha: 0.3), // White border in both modes
                               width: 1.5,
                             ),
                           ),
@@ -213,14 +215,14 @@ class _LoginScreenState extends State<LoginScreen> {
                               fillColor: Colors.transparent,
                               hintText: 'Password',
                               hintStyle: TextStyle(
-                                color: Colors.white.withValues(alpha: 0.7),
+                                color: Colors.white.withValues(alpha: 0.7), // White hint in both modes
                                 fontSize: 16,
                               ),
-                              prefixIcon: Icon(Icons.lock, color: Colors.white.withValues(alpha: 0.7)),
+                              prefixIcon: Icon(Icons.lock, color: Colors.white), // White icon in both modes
                               suffixIcon: IconButton(
                                 icon: Icon(
                                   _obscurePassword ? Icons.visibility : Icons.visibility_off,
-                                  color: Colors.white.withValues(alpha: 0.7),
+                                  color: Colors.white.withValues(alpha: 0.7), // White icon in both modes
                                 ),
                                 onPressed: () {
                                   setState(() {
@@ -234,8 +236,8 @@ class _LoginScreenState extends State<LoginScreen> {
                               ),
                               contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
                             ),
-                            style: const TextStyle(
-                              color: Colors.white,
+                            style: TextStyle(
+                              color: Colors.white, // White text in both modes
                               fontSize: 16,
                             ),
                             onTap: () {
@@ -295,7 +297,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             ),
                             borderRadius: BorderRadius.circular(15),
                             border: Border.all(
-                              color: Colors.white.withValues(alpha: 0.2),
+                              color: Colors.white.withValues(alpha: 0.3), // White border in both modes
                               width: 1.5,
                             ),
                           ),
@@ -307,34 +309,95 @@ class _LoginScreenState extends State<LoginScreen> {
                                 padding: const EdgeInsets.symmetric(vertical: 16),
                                 child: Center(
                                   child: _isLoading
-                                      ? const SizedBox(
+                                      ? SizedBox(
                                           height: 24,
                                           width: 24,
                                           child: CircularProgressIndicator(
                                             strokeWidth: 2.5,
-                                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white), // White loading indicator in both modes
                                           ),
                                         )
                                       : Row(
                                           mainAxisAlignment: MainAxisAlignment.center,
                                           children: [
-                                            const Icon(
+                                            Icon(
                                               Icons.login_rounded,
-                                              color: Colors.white,
+                                              color: Colors.white, // White icon in both modes
                                               size: 20,
                                             ),
                                             const SizedBox(width: 8),
-                                            Text(
-                                              'Login',
-                                              style: TextStyle(
-                                                fontSize: 18,
-                                                fontWeight: FontWeight.w600,
-                                                color: Colors.white.withValues(alpha: 0.95),
-                                                letterSpacing: 0.5,
+                                                                                          Text(
+                                                'Login',
+                                                style: TextStyle(
+                                                  fontSize: 18,
+                                                  fontWeight: FontWeight.w600,
+                                                  color: Colors.white, // White text in both modes
+                                                  letterSpacing: 0.5,
+                                                ),
                                               ),
-                                            ),
                                           ],
                                         ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    // Register button
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(10),
+                      child: BackdropFilter(
+                        filter: ImageFilter.blur(sigmaX: 3, sigmaY: 3),
+                        child: Container(
+                          width: double.infinity * 0.3, // Make it much shorter in width
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: [
+                                const Color(0xFF32CD32).withValues(alpha: 0.8),  // Lime green
+                                const Color(0xFF228B22).withValues(alpha: 0.8),  // Forest green
+                              ],
+                            ),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                              color: Colors.white.withValues(alpha: 0.3), // White border in both modes
+                              width: 1.0,
+                            ),
+                          ),
+                          child: Material(
+                            color: Colors.transparent,
+                            child: InkWell(
+                              onTap: () {
+                                Navigator.of(context).push(
+                                  MaterialPageRoute(builder: (context) => const RegisterScreen()),
+                                );
+                              },
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(vertical: 8), // Even smaller padding
+                                child: Center(
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(
+                                        Icons.person_add_rounded,
+                                        color: Colors.white, // White icon in both modes
+                                        size: 16, // Even smaller icon
+                                      ),
+                                      const SizedBox(width: 6), // Smaller spacing
+                                      Text(
+                                        'Register',
+                                        style: TextStyle(
+                                          fontSize: 14, // Even smaller font
+                                          fontWeight: FontWeight.w600,
+                                          color: Colors.white, // White text in both modes
+                                          letterSpacing: 0.5,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
                                 ),
                               ),
                             ),

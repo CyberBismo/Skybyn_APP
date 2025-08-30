@@ -5,7 +5,6 @@ import 'dart:io';
 import 'dart:ui';
 import '../services/post_service.dart';
 import '../services/auth_service.dart';
-import '../services/realtime_service.dart';
 import '../models/post.dart';
 
 class CreatePostScreen extends StatefulWidget {
@@ -55,14 +54,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
     super.dispose();
   }
 
-  Future<void> _pickImage() async {
-    final XFile? picked = await _picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
-    if (picked != null) {
-      setState(() {
-        _selectedImage = File(picked.path);
-      });
-    }
-  }
+  // Removed unused _pickImage method
 
   Future<void> _submitPost() async {
     final content = _contentController.text.trim();
@@ -87,7 +79,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
       if (widget.isEditing && widget.postToEdit != null) {
         // Update existing post
         await _postService.updatePost(
-          postId: widget.postToEdit!.id!,
+          postId: widget.postToEdit!.id,
           userId: userId,
           content: content,
         );
@@ -104,7 +96,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
 
         // Send WebSocket message to notify other clients
         final postId = result['postID'];
-        RealtimeService().sendNewPost(postId);
+        // WebSocketService().sendNewPost(postId);
 
         if (mounted) {
           // Return the post ID from the API response

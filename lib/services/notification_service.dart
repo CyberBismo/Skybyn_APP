@@ -33,7 +33,7 @@ class NotificationService {
       } else if (Platform.isAndroid) {
         await requestAndroidPermissions();
       }
-    } catch (e, stackTrace) {
+    } catch (e) {
       print('Error initializing notification service: $e');
     }
   }
@@ -186,12 +186,6 @@ class NotificationService {
       print('🔔 [NotificationService] Showing notification: $title - $body');
       print('🔔 [NotificationService] Platform: ${Platform.operatingSystem}');
       print('🔔 [NotificationService] Channel ID: $channelId');
-      
-      // Check if the notification service is properly initialized
-      if (_localNotifications == null) {
-        print('❌ [NotificationService] Local notifications plugin is null');
-        return;
-      }
       
       // Android notification details
       const AndroidNotificationDetails androidPlatformChannelSpecifics =

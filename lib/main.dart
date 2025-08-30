@@ -3,41 +3,55 @@ import 'package:firebase_core/firebase_core.dart';
 // import 'dart:io' show Platform;
 import 'screens/login_screen.dart';
 import 'screens/home_screen.dart';
-import 'screens/qr_scanner_screen.dart';
-import 'screens/settings_screen.dart';
-import 'screens/profile_screen.dart';
 import 'dart:io';
-import 'screens/biometric_screen.dart';
-import 'services/local_auth_service.dart';
 import 'package:provider/provider.dart';
 import 'services/theme_service.dart';
-import 'package:flutter/services.dart'; // Import for SystemChrome
+// Import for SystemChrome
 import 'dart:async';
 import 'services/focus_service.dart';
 import 'services/auth_service.dart';
 import 'services/notification_service.dart';
-import 'services/background_service.dart';
+import 'services/websocket_service.dart';
 import 'services/firebase_messaging_service.dart';
 import 'widgets/background_gradient.dart';
-import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 Future<void> main() async {
-  // Ensure Flutter is initialized first
-  WidgetsFlutterBinding.ensureInitialized();
+  // Gate all print calls behind a debug flag using Zone
+  const bool enableLogging = bool.fromEnvironment('SKYBYN_DEBUG_LOGS', defaultValue: false);
   
-  // Initialize HTTP overrides to handle SSL certificates
-  HttpOverrides.global = MyHttpOverrides();
-  
-  // Start the app immediately without waiting for Firebase
-  runApp(
-    ChangeNotifierProvider(
-      create: (_) => ThemeService(),
-      child: const MyApp(),
-    ),
-  );
-  
-  // Initialize Firebase in the background (non-blocking)
-  _initializeFirebaseInBackground();
+  runZonedGuarded(() async {
+    // Ensure Flutter is initialized first
+    WidgetsFlutterBinding.ensureInitialized();
+    
+    // Initialize HTTP overrides to handle SSL certificates
+    HttpOverrides.global = MyHttpOverrides();
+    
+    // Initialize theme service first
+    final themeService = ThemeService();
+    await themeService.initialize();
+    
+    // Run the app
+    runApp(
+      ChangeNotifierProvider.value(
+        value: themeService,
+        child: const MyApp(),
+      ),
+    );
+    
+    // Initialize Firebase in the background (non-blocking)
+    _initializeFirebaseInBackground();
+  }, (error, stack) {
+    if (enableLogging) {
+      // ignore: avoid_print
+      print('Uncaught zone error: $error');
+    }
+  }, zoneSpecification: ZoneSpecification(
+    print: (self, parent, zone, line) {
+      if (enableLogging) {
+        parent.print(zone, line);
+      }
+    },
+  ));
 }
 
 Future<void> _initializeFirebaseInBackground() async {
@@ -79,7 +93,7 @@ class MyApp extends StatefulWidget {
 
 class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   final NotificationService _notificationService = NotificationService();
-  final BackgroundService _backgroundService = BackgroundService();
+  final WebSocketService _webSocketService = WebSocketService();
   bool _isAppInForeground = true;
   Timer? _serviceCheckTimer;
 
@@ -97,8 +111,8 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       // Initialize notification service
       await _notificationService.initialize();
       
-      // Initialize background service
-      await _backgroundService.initialize();
+      // Initialize WebSocket service
+      await _webSocketService.initialize();
     } catch (e) {
       print('❌ [Services] Error initializing services: $e');
     }
@@ -138,7 +152,11 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
-    const primaryBlue = Color(0xFF0D47A1);
+    // Web platform colors
+    const webLightPrimary = Color(0xFF48C6EF); // Light blue from web light mode
+    const webLightSecondary = Color(0xFF6F86D6); // Blue from web light mode
+    const webDarkPrimary = Color(0xFF243B55); // Dark blue from web dark mode
+    const webDarkSecondary = Color(0xFF141E30); // Almost black from web dark mode
 
     return Consumer<ThemeService>(
       builder: (context, themeService, child) {
@@ -146,28 +164,27 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
           title: 'Skybyn',
           theme: ThemeData(
             brightness: Brightness.light,
-            primaryColor: primaryBlue,
-            scaffoldBackgroundColor: const Color(0xFF0D47A1),
+            primaryColor: webLightPrimary,
+            scaffoldBackgroundColor: webLightPrimary,
             colorScheme: ColorScheme.light(
-              primary: primaryBlue,
-              secondary: const Color(0xFF6495ED),
-              background: const Color(0xFF0D47A1),
-              surface: const Color(0xFF0D47A1),
-              onPrimary: Colors.white,
-              onSecondary: Colors.white,
-              onBackground: Colors.white,
-              onSurface: Colors.white,
+              brightness: Brightness.light,
+              primary: webLightPrimary,
+              secondary: webLightSecondary,
+              surface: webLightPrimary,
+              onPrimary: Colors.black,
+              onSecondary: Colors.black,
+              onSurface: Colors.black,
             ),
-            appBarTheme: const AppBarTheme(
+            appBarTheme: AppBarTheme(
               backgroundColor: Colors.transparent,
               elevation: 0,
-              iconTheme: IconThemeData(color: Colors.white),
-              actionsIconTheme: IconThemeData(color: Colors.white),
-              titleTextStyle: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+              iconTheme: IconThemeData(color: Colors.black),
+              actionsIconTheme: IconThemeData(color: Colors.black),
+              titleTextStyle: TextStyle(color: Colors.black, fontSize: 20, fontWeight: FontWeight.bold),
             ),
             snackBarTheme: SnackBarThemeData(
               backgroundColor: Colors.transparent,
-              contentTextStyle: const TextStyle(color: Colors.white),
+              contentTextStyle: TextStyle(color: Colors.black),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
               ),
@@ -177,19 +194,18 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
           ),
           darkTheme: ThemeData(
             brightness: Brightness.dark,
-            primaryColor: primaryBlue,
-            scaffoldBackgroundColor: Colors.black,
+            primaryColor: webDarkPrimary,
+            scaffoldBackgroundColor: webDarkPrimary,
             colorScheme: ColorScheme.dark(
-              primary: primaryBlue,
-              secondary: const Color(0xFF000000),
-              background: Colors.black,
-              surface: Colors.black,
+              brightness: Brightness.dark,
+              primary: webDarkPrimary,
+              secondary: webDarkSecondary,
+              surface: webDarkPrimary,
               onPrimary: Colors.white,
               onSecondary: Colors.white,
-              onBackground: Colors.white,
               onSurface: Colors.white,
             ),
-            appBarTheme: const AppBarTheme(
+            appBarTheme: AppBarTheme(
               backgroundColor: Colors.transparent,
               elevation: 0,
               iconTheme: IconThemeData(color: Colors.white),
@@ -222,7 +238,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
 }
 
 class _InitialScreen extends StatefulWidget {
-  const _InitialScreen({super.key});
+  const _InitialScreen();
 
   @override
   State<_InitialScreen> createState() => __InitialScreenState();
@@ -232,7 +248,7 @@ class __InitialScreenState extends State<_InitialScreen> with TickerProviderStat
   final AuthService _authService = AuthService();
   late AnimationController _fadeController;
   late Animation<double> _fadeAnimation;
-  bool _isLoading = true;
+  final bool _isLoading = true;
 
   @override
   void initState() {
@@ -310,21 +326,10 @@ class __InitialScreenState extends State<_InitialScreen> with TickerProviderStat
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                      color: Colors.white.withOpacity(0.2),
-                      width: 1,
-                    ),
-                  ),
-                  child: Image.asset(
-                    'assets/images/logo.png',
-                    width: 150,
-                    height: 150,
-                  ),
+                Image.asset(
+                  'assets/images/logo.png',
+                  width: 150,
+                  height: 150,
                 ),
                 const SizedBox(height: 30),
                 const CircularProgressIndicator(

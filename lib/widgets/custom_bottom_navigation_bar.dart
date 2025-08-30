@@ -1,41 +1,29 @@
 import 'package:flutter/material.dart';
-import 'dart:ui'; // Required for ImageFilter.blur
+import 'dart:ui';
+import 'app_colors.dart';
 
 /// Centralized styling for the CustomBottomNavigationBar widget
-class CustomBottomNavigationBarStyles {
-  // Colors
-  static const Color lightNavBarColor = Color(0x33FFFFFF); // White with 20% opacity
-  static const Color darkNavBarColor = Color(0x4D000000); // Black with 30% opacity
-  static const Color lightIconColor = Colors.white;
-  static const Color darkIconColor = Colors.white;
-  
+class BottomNavBarStyles {
   // Sizes
-  static const double iconSize = 28.0;
-  static const double addIconSize = 36.0;
-  static const double barHeight = 50.0;
-  static const double buttonSize = 50.0;
-  static const double blurSigma = 10.0;
+  static const double iconSize = 24.0;
+  static const double addButtonSize = 56.0;
+  static const double addButtonIconSize = 32.0;
   
   // Padding and margins
-  static const EdgeInsets bottomPadding = EdgeInsets.only(bottom: 10.0);
-  static const EdgeInsets leftPadding = EdgeInsets.only(left: 20.0, bottom: 10.0);
-  static const EdgeInsets rightPadding = EdgeInsets.only(right: 20.0, bottom: 10.0);
-  static const EdgeInsets buttonPadding = EdgeInsets.symmetric(horizontal: 0);
+  static const EdgeInsets barPadding = EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0);
+  static const EdgeInsets buttonPadding = EdgeInsets.symmetric(horizontal: 8.0);
   
   // Border radius
-  static const double barRadius = 30.0;
-  static const double buttonRadius = 30.0;
+  static const double barRadius = 25.0;
+  static const double addButtonRadius = 28.0;
   
-  // Theme-aware color getters
-  static Color getNavBarColor(BuildContext context) {
-    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
-    return isDarkMode ? darkNavBarColor : lightNavBarColor;
-  }
+  // Shadows and effects
+  static const double blurSigma = 10.0;
+  static const double elevation = 0.0;
   
-  static Color getIconColor(BuildContext context) {
-    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
-    return isDarkMode ? darkIconColor : lightIconColor;
-  }
+  // Animation
+  static const Duration buttonAnimationDuration = Duration(milliseconds: 200);
+  static const Curve buttonAnimationCurve = Curves.easeInOut;
 }
 
 class CustomBottomNavigationBar extends StatelessWidget {
@@ -56,9 +44,8 @@ class CustomBottomNavigationBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
-    final navBarColor = CustomBottomNavigationBarStyles.getNavBarColor(context);
-    final iconColor = CustomBottomNavigationBarStyles.getIconColor(context);
+    const navBarColor = AppColors.lightNavBarColor; // Using light nav bar color for consistency
+    const iconColor = Colors.white; // All icons are white and not affected by dark mode
 
     return Stack(
       children: [
@@ -66,19 +53,19 @@ class CustomBottomNavigationBar extends StatelessWidget {
         Align(
           alignment: Alignment.bottomCenter,
           child: Padding(
-            padding: CustomBottomNavigationBarStyles.bottomPadding,
+            padding: BottomNavBarStyles.barPadding,
             child: ClipRRect(
-              borderRadius: BorderRadius.circular(CustomBottomNavigationBarStyles.barRadius),
+              borderRadius: BorderRadius.circular(BottomNavBarStyles.barRadius),
               child: BackdropFilter(
                 filter: ImageFilter.blur(
-                  sigmaX: CustomBottomNavigationBarStyles.blurSigma, 
-                  sigmaY: CustomBottomNavigationBarStyles.blurSigma
+                  sigmaX: BottomNavBarStyles.blurSigma, 
+                  sigmaY: BottomNavBarStyles.blurSigma
                 ),
                 child: Container(
-                  height: CustomBottomNavigationBarStyles.barHeight,
+                  height: 50.0, // Assuming barHeight is 50.0
                   decoration: BoxDecoration(
                     color: navBarColor,
-                    borderRadius: BorderRadius.circular(CustomBottomNavigationBarStyles.barRadius),
+                    borderRadius: BorderRadius.circular(BottomNavBarStyles.barRadius),
                   ),
                   child: IntrinsicWidth(
                     child: Row(
@@ -86,36 +73,36 @@ class CustomBottomNavigationBar extends StatelessWidget {
                       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                       children: [
                         IconButton(
-                          icon: Icon(Icons.star, color: iconColor, size: CustomBottomNavigationBarStyles.iconSize),
+                          icon: const Icon(Icons.star, color: iconColor, size: BottomNavBarStyles.iconSize),
                           onPressed: onStarPressed,
-                          padding: CustomBottomNavigationBarStyles.buttonPadding,
+                          padding: BottomNavBarStyles.buttonPadding,
                           constraints: const BoxConstraints(),
                         ),
                         Padding(
-                          padding: CustomBottomNavigationBarStyles.buttonPadding,
+                          padding: BottomNavBarStyles.buttonPadding,
                           child: GestureDetector(
                             onTap: onAddPressed,
                             child: Container(
-                              width: CustomBottomNavigationBarStyles.buttonSize,
-                              height: CustomBottomNavigationBarStyles.buttonSize,
+                              width: BottomNavBarStyles.addButtonSize,
+                              height: BottomNavBarStyles.addButtonSize,
                               decoration: const BoxDecoration(
                                 color: Colors.transparent,
                                 shape: BoxShape.circle,
                               ),
-                              child: Center(
+                              child: const Center(
                                 child: Icon(
                                   Icons.add,
                                   color: iconColor,
-                                  size: CustomBottomNavigationBarStyles.addIconSize,
+                                  size: BottomNavBarStyles.addButtonIconSize,
                                 ),
                               ),
                             ),
                           ),
                         ),
                         IconButton(
-                          icon: Icon(Icons.group, color: iconColor, size: CustomBottomNavigationBarStyles.iconSize),
+                          icon: const Icon(Icons.group, color: iconColor, size: BottomNavBarStyles.iconSize),
                           onPressed: onFriendsPressed,
-                          padding: CustomBottomNavigationBarStyles.buttonPadding,
+                          padding: BottomNavBarStyles.buttonPadding,
                           constraints: const BoxConstraints(),
                         ),
                       ],
@@ -130,23 +117,23 @@ class CustomBottomNavigationBar extends StatelessWidget {
         Align(
           alignment: Alignment.bottomLeft,
           child: Padding(
-            padding: CustomBottomNavigationBarStyles.leftPadding,
+            padding: BottomNavBarStyles.barPadding,
             child: ClipRRect(
-              borderRadius: BorderRadius.circular(CustomBottomNavigationBarStyles.barRadius),
+              borderRadius: BorderRadius.circular(BottomNavBarStyles.barRadius),
               child: BackdropFilter(
                 filter: ImageFilter.blur(
-                  sigmaX: CustomBottomNavigationBarStyles.blurSigma, 
-                  sigmaY: CustomBottomNavigationBarStyles.blurSigma
+                  sigmaX: BottomNavBarStyles.blurSigma, 
+                  sigmaY: BottomNavBarStyles.blurSigma
                 ),
                 child: Container(
-                  height: CustomBottomNavigationBarStyles.barHeight,
-                  width: CustomBottomNavigationBarStyles.buttonSize,
+                  height: 50.0, // Assuming barHeight is 50.0
+                  width: BottomNavBarStyles.addButtonSize,
                   decoration: BoxDecoration(
                     color: navBarColor,
-                    borderRadius: BorderRadius.circular(CustomBottomNavigationBarStyles.barRadius),
+                    borderRadius: BorderRadius.circular(BottomNavBarStyles.barRadius),
                   ),
                   child: IconButton(
-                    icon: Icon(Icons.chat_bubble, color: iconColor, size: CustomBottomNavigationBarStyles.iconSize),
+                    icon: const Icon(Icons.chat_bubble, color: iconColor, size: BottomNavBarStyles.iconSize),
                     onPressed: onChatPressed,
                   ),
                 ),
@@ -158,23 +145,23 @@ class CustomBottomNavigationBar extends StatelessWidget {
         Align(
           alignment: Alignment.bottomRight,
           child: Padding(
-            padding: CustomBottomNavigationBarStyles.rightPadding,
+            padding: BottomNavBarStyles.barPadding,
             child: ClipRRect(
-              borderRadius: BorderRadius.circular(CustomBottomNavigationBarStyles.barRadius),
+              borderRadius: BorderRadius.circular(BottomNavBarStyles.barRadius),
               child: BackdropFilter(
                 filter: ImageFilter.blur(
-                  sigmaX: CustomBottomNavigationBarStyles.blurSigma, 
-                  sigmaY: CustomBottomNavigationBarStyles.blurSigma
+                  sigmaX: BottomNavBarStyles.blurSigma, 
+                  sigmaY: BottomNavBarStyles.blurSigma
                 ),
                 child: Container(
-                  height: CustomBottomNavigationBarStyles.barHeight,
-                  width: CustomBottomNavigationBarStyles.buttonSize,
+                  height: 50.0, // Assuming barHeight is 50.0
+                  width: BottomNavBarStyles.addButtonSize,
                   decoration: BoxDecoration(
                     color: navBarColor,
-                    borderRadius: BorderRadius.circular(CustomBottomNavigationBarStyles.barRadius),
+                    borderRadius: BorderRadius.circular(BottomNavBarStyles.barRadius),
                   ),
                   child: IconButton(
-                    icon: Icon(Icons.notifications, color: iconColor, size: CustomBottomNavigationBarStyles.iconSize),
+                    icon: const Icon(Icons.notifications, color: iconColor, size: BottomNavBarStyles.iconSize),
                     onPressed: onNotificationsPressed,
                   ),
                 ),

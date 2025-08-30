@@ -6,6 +6,7 @@ import '../widgets/background_gradient.dart';
 import '../widgets/post_card.dart';
 import '../widgets/custom_app_bar.dart';
 import '../widgets/custom_bottom_navigation_bar.dart';
+import '../widgets/app_colors.dart';
 import 'home_screen.dart';
 import '../widgets/search_form.dart';
 import '../services/auth_service.dart';
@@ -16,7 +17,7 @@ class ProfileScreen extends StatefulWidget {
   final String? userId;
   final String? username;
 
-  ProfileScreen({Key? key, this.userId, this.username}) : super(key: key);
+  const ProfileScreen({super.key, this.userId, this.username});
 
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
@@ -53,7 +54,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       username: username,
     );
     setState(() {
-      userData = profile != null ? profile.toJson() : null;
+      userData = profile?.toJson();
       isLoading = false;
     });
     
@@ -152,11 +153,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 maxChildSize: 0.9,
                 builder: (context, scrollController) => Container(
                   margin: const EdgeInsets.only(top: 100),
-                  decoration: BoxDecoration(
+                  decoration: const BoxDecoration(
                     color: Colors.transparent,
-                    borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+                    borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
                   ),
-                  child: CreatePostScreen(),
+                  child: const CreatePostScreen(),
                 ),
               ),
             );
@@ -181,7 +182,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
                 // --- Static Profile Header ---
                 SliverToBoxAdapter(
-                  child: Container(
+                  child: SizedBox(
                     height: 250,
                     child: Stack(
                       alignment: Alignment.center,
@@ -204,7 +205,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             width: 120,
                             height: 120,
                             decoration: BoxDecoration(
-                              border: Border.all(color: Colors.white, width: 3),
+                              border: Border.all(color: AppColors.getIconColor(context), width: 3),
                               borderRadius: BorderRadius.circular(20),
                             ),
                             child: ClipRRect(
@@ -292,7 +293,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       childCount: userPosts.length,
                     ),
                   ),
-                SliverToBoxAdapter(
+                const SliverToBoxAdapter(
                   child: SizedBox(height: 130), // Restore space for bottom nav bar
                 ),
               ],

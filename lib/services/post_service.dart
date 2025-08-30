@@ -101,7 +101,7 @@ class PostService {
         final jsonMatch = RegExp(r'\[.*\]$', dotAll: true).firstMatch(responseBody);
         if (jsonMatch != null) {
           responseBody = jsonMatch.group(0)!;
-          print('✅ Extracted JSON from mixed response: ${responseBody.length > 100 ? responseBody.substring(0, 100) + '...' : responseBody}');
+          print('✅ Extracted JSON from mixed response: ${responseBody.length > 100 ? '${responseBody.substring(0, 100)}...' : responseBody}');
         } else {
           print('❌ Could not extract JSON from mixed response');
           throw Exception('API returned invalid response format (HTML without JSON)');
@@ -181,7 +181,7 @@ class PostService {
     required String content,
   }) async {
     // Send plain text content to server (server will handle encryption)
-    print('📤 Sending plain text post content to server: "${content.length > 50 ? content.substring(0, 50) + '...' : content}"');
+    print('📤 Sending plain text post content to server: "${content.length > 50 ? '${content.substring(0, 50)}...' : content}"');
 
     final response = await http.post(
       Uri.parse('https://api.skybyn.no/post/add.php'),
@@ -211,7 +211,7 @@ class PostService {
     required String content,
   }) async {
     // Send plain text content to server (server will handle encryption)
-    print('📤 Sending plain text post update to server: "${content.length > 50 ? content.substring(0, 50) + '...' : content}"');
+    print('📤 Sending plain text post update to server: "${content.length > 50 ? '${content.substring(0, 50)}...' : content}"');
 
     final response = await http.post(
       Uri.parse('https://api.skybyn.no/post/update.php'),

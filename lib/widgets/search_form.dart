@@ -1,60 +1,30 @@
 import 'package:flutter/material.dart';
 import 'dart:ui';
+import 'app_colors.dart';
 
 /// Centralized styling for the SearchForm widget
 class SearchFormStyles {
-  // Colors
-  static const Color lightFormColor = Color(0x33FFFFFF); // White with 20% opacity
-  static const Color darkFormColor = Color(0x4D000000); // Black with 30% opacity
-  static const Color lightFieldColor = Color(0x1AFFFFFF); // White with 10% opacity
-  static const Color darkFieldColor = Color(0x1A000000); // Black with 10% opacity
-  static const Color lightTextColor = Colors.black;
-  static const Color darkTextColor = Colors.white;
-  static const Color lightHintColor = Color(0xB3FFFFFF); // White with 70% opacity
-  static const Color darkHintColor = Color(0x99000000); // Black with 60% opacity
-  
   // Sizes
-  static const double borderRadius = 30.0;
+  static const double borderRadius = 40.0; // Match web platform
   static const double iconSize = 24.0;
   static const double fontSize = 16.0;
   
-  // Padding and margins
-  static const EdgeInsets formPadding = EdgeInsets.only(top: 40, left: 16, right: 16, bottom: 16);
-  static const EdgeInsets fieldPadding = EdgeInsets.symmetric(horizontal: 16, vertical: 12);
+  // Padding and margins - Updated to account for app bar positioning
+  static const EdgeInsets formPadding = EdgeInsets.symmetric(horizontal: 20, vertical: 10); // Reduced top padding
+  static const EdgeInsets fieldPadding = EdgeInsets.symmetric(horizontal: 15, vertical: 10);
   static const EdgeInsets closeButtonPadding = EdgeInsets.only(right: 8.0);
   
   // Border radius
-  static const double formRadius = 30.0;
-  static const double fieldRadius = 25.0;
+  static const double formRadius = 40.0; // Match web platform
+  static const double fieldRadius = 40.0; // Match web platform
   
   // Shadows and effects
-  static const double blurSigma = 10.0;
+  static const double blurSigma = 5.0; // Match web platform blur
   static const double elevation = 0.0;
   
   // Animation
-  static const Duration slideDuration = Duration(milliseconds: 300);
+  static const Duration slideDuration = Duration(milliseconds: 200); // Match web
   static const Curve slideCurve = Curves.easeInOut;
-  
-  // Theme-aware color getters
-  static Color getFormColor(BuildContext context) {
-    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
-    return isDarkMode ? darkFormColor : lightFormColor;
-  }
-  
-  static Color getFieldColor(BuildContext context) {
-    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
-    return isDarkMode ? darkFieldColor : lightFieldColor;
-  }
-  
-  static Color getTextColor(BuildContext context) {
-    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
-    return isDarkMode ? darkTextColor : lightTextColor;
-  }
-  
-  static Color getHintColor(BuildContext context) {
-    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
-    return isDarkMode ? darkHintColor : lightHintColor;
-  }
 }
 
 class SearchForm extends StatefulWidget {
@@ -62,10 +32,10 @@ class SearchForm extends StatefulWidget {
   final Function(String) onSearch;
 
   const SearchForm({
-    Key? key,
+    super.key,
     required this.onClose,
     required this.onSearch,
-  }) : super(key: key);
+  });
 
   @override
   SearchFormState createState() => SearchFormState();
@@ -120,57 +90,96 @@ class SearchFormState extends State<SearchForm> with SingleTickerProviderStateMi
 
   @override
   Widget build(BuildContext context) {
-    final formColor = SearchFormStyles.getFormColor(context);
-    final fieldColor = SearchFormStyles.getFieldColor(context);
-    final textColor = SearchFormStyles.getTextColor(context);
-    final hintColor = SearchFormStyles.getHintColor(context);
+    final formColor = AppColors.getFormColor(context);
+    final textColor = AppColors.getTextColor(context);
+    final hintColor = AppColors.getHintColor(context);
 
     return SlideTransition(
       position: _animation,
       child: Material(
-        color: Colors.transparent, // Ensure Material doesn't block blur
+        color: Colors.transparent,
         child: Container(
-          padding: const EdgeInsets.only(top: 40, left: 16, right: 16, bottom: 16),
-          child: SafeArea(
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(SearchFormStyles.fieldRadius),
-              child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: SearchFormStyles.blurSigma, sigmaY: SearchFormStyles.blurSigma),
-                child: Container(
-                  padding: SearchFormStyles.fieldPadding,
-                  color: fieldColor,
-                  child: Row(
-                    children: [
-                      Icon(Icons.search, color: textColor, size: SearchFormStyles.iconSize),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: TextField(
-                          controller: _searchController,
-                          focusNode: _searchFocusNode,
-                          decoration: InputDecoration(
-                            hintText: 'Search Skybyn...',
-                            hintStyle: TextStyle(color: hintColor),
-                            border: InputBorder.none,
-                            contentPadding: EdgeInsets.zero,
-                          ),
-                          style: TextStyle(color: textColor, fontSize: SearchFormStyles.fontSize),
-                          onSubmitted: (query) {
-                            _searchFocusNode.unfocus();
-                            widget.onSearch(query);
-                          },
-                          onTap: () {
-                            // Ensure any other context menus are closed
-                            // This helps prevent SystemContextMenu conflicts
-                          },
+          // Position the search form within the app bar area
+          margin: EdgeInsets.only(
+            top: MediaQuery.of(context).padding.top + 20, // Reduced from 75 to 20 to move it higher
+            left: 20,
+            right: 20,
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(40),
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: SearchFormStyles.blurSigma, sigmaY: SearchFormStyles.blurSigma),
+              child: Container(
+                color: formColor,
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(40),
+                    child: BackdropFilter(
+                      filter: ImageFilter.blur(sigmaX: SearchFormStyles.blurSigma, sigmaY: SearchFormStyles.blurSigma),
+                      child: Container(
+                        color: formColor,
+                        child: Stack(
+                          children: [
+                            // Search input
+                            TextField(
+                              controller: _searchController,
+                              focusNode: _searchFocusNode,
+                              decoration: InputDecoration(
+                                hintText: 'Search...',
+                                hintStyle: TextStyle(color: hintColor),
+                                border: InputBorder.none,
+                                contentPadding: const EdgeInsets.only(
+                                  left: 40, // Space for icon
+                                  right: 40, // Space for close button
+                                  top: 10,
+                                  bottom: 10,
+                                ),
+                              ),
+                              style: TextStyle(color: textColor, fontSize: SearchFormStyles.fontSize),
+                              onSubmitted: (query) {
+                                _searchFocusNode.unfocus();
+                                widget.onSearch(query);
+                              },
+                              onTap: () {
+                                // Ensure any other context menus are closed
+                              },
+                            ),
+                            // Search icon (absolute positioned)
+                            Positioned(
+                              left: 10,
+                              top: 0,
+                              bottom: 0,
+                              child: Center(
+                                child: Icon(
+                                  Icons.search,
+                                  color: textColor,
+                                  size: 20,
+                                ),
+                              ),
+                            ),
+                            // Close button (absolute positioned)
+                            Positioned(
+                              right: 10,
+                              top: 0,
+                              bottom: 0,
+                              child: Center(
+                                child: GestureDetector(
+                                  onTap: () {
+                                    closeForm();
+                                  },
+                                  child: Icon(
+                                    Icons.close,
+                                    color: textColor,
+                                    size: 20,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                      GestureDetector(
-                        onTap: () {
-                          closeForm();
-                        },
-                        child: Icon(Icons.close, color: textColor, size: SearchFormStyles.iconSize),
-                      ),
-                    ],
+                    ),
                   ),
                 ),
               ),

@@ -1,114 +1,134 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../models/post.dart';
-import '../models/comment.dart';
+
 import '../widgets/comment_card.dart';
 import '../services/comment_service.dart';
 import '../services/auth_service.dart';
 import '../services/post_service.dart';
-import '../services/realtime_service.dart';
 import 'package:flutter/services.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'post_menu.dart';
+import 'unified_menu.dart';
+import '../services/websocket_service.dart';
 import '../screens/create_post_screen.dart';
+import '../widgets/app_colors.dart';
 
-/// Centralized styling for the PostCard widget
+/// Centralized styling for the PostCard widget - matches web platform exactly
 class PostCardStyles {
-  // Colors
-  static const Color lightCardBackgroundColor = Color(0x33FFFFFF); // White with 20% opacity
-  static const Color darkCardBackgroundColor = Color(0x4D000000); // Black with 30% opacity
-  static const Color lightCardBorderColor = Color(0x00000000); // Black with 0% opacity
-  static const Color darkCardBorderColor = Color(0x26FFFFFF); // White with 15% opacity
-  static const Color lightTextColor = Colors.white;
-  static const Color darkTextColor = Colors.white;
-  static const Color lightHintColor = Color(0x99FFFFFF); // White with 60% opacity
-  static const Color darkHintColor = Color(0x99FFFFFF); // White with 60% opacity
-  static const Color lightAvatarBorderColor = Colors.white;
-  static const Color darkAvatarBorderColor = Color(0xCC000000); // Black with 80% opacity
+  // Colors - match web platform's CSS variables
+  static const Color lightCardBackgroundColor = Color(0x66FFFFFF); // White with 40% opacity for light mode
+  static const Color darkCardBackgroundColor = Color(0x66000000); // Black with 40% opacity for dark mode
+  static const Color lightCardBorderColor = Colors.transparent; // No border in web
+  static const Color darkCardBorderColor = Colors.transparent;
+  static const Color lightTextColor = Colors.black; // Black text for light mode
+  static const Color darkTextColor = Colors.white; // White text for dark mode
+  static const Color lightHintColor = Color(0x66000000); // Black with 40% opacity for light mode
+  static const Color darkHintColor = Color(0x99FFFFFF); // White with 60% opacity for dark mode
+  static const Color lightAvatarBorderColor = Colors.black;
+  static const Color darkAvatarBorderColor = Colors.white;
   
-  // Sizes
-  static const double cardBorderRadius = 18.0;
-  static const double avatarSize = 60.0;
-  static const double avatarBorderWidth = 2.0;
-  static const double imageBorderRadius = 12.0;
+  // Sizes - match web platform exactly
+  static const double cardBorderRadius = 20.0; // border-radius: 20px
+  static const double avatarSize = 70.0; // width: 70px, height: 70px
+  static const double avatarBorderWidth = 0.0; // No border in web
+  static const double imageMaxHeight = 300.0;
   static const double iconSize = 20.0;
-  static const double actionButtonSize = 40.0;
+  static const double fontSize = 16.0;
+  static const double smallFontSize = 14.0;
   
-  // Padding and margins
-  static const EdgeInsets cardPadding = EdgeInsets.all(16.0);
-  static const EdgeInsets headerPadding = EdgeInsets.only(bottom: 12.0);
-  static const EdgeInsets contentPadding = EdgeInsets.only(top: 20.0, left: 20.0, right: 20.0, bottom: 0);
-  static const EdgeInsets imagePadding = EdgeInsets.only(top: 12.0);
-  static const EdgeInsets actionsPadding = EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0);
-  static const EdgeInsets commentSectionPadding = EdgeInsets.only(top: 8.0, left: 16.0, right: 16.0, bottom: 8.0);
-  static const EdgeInsets avatarPadding = EdgeInsets.only(right: 12.0);
+  // Padding and margins - match web platform exactly
+  static const EdgeInsets cardPadding = EdgeInsets.all(0.0); // No padding on card itself
+  static const EdgeInsets contentPadding = EdgeInsets.symmetric(horizontal: 20.0, vertical: 10.0); // padding: 10px 20px
+  static const EdgeInsets headerPadding = EdgeInsets.all(0.0); // No padding in web
+  static const EdgeInsets imagePadding = EdgeInsets.symmetric(horizontal: 10.0, vertical: 5.0); // margin: 5px 10px
+  static const EdgeInsets actionsPadding = EdgeInsets.symmetric(horizontal: 20.0, vertical: 10.0);
+  static const EdgeInsets commentSectionPadding = EdgeInsets.symmetric(horizontal: 10.0, vertical: 5.0); // padding: 0 10px
+  static const EdgeInsets avatarPadding = EdgeInsets.all(10.0); // margin: 10px
   static const EdgeInsets textPadding = EdgeInsets.symmetric(vertical: 4.0);
   
-  // Border radius
-  static const double cardRadius = 18.0;
-  static const double avatarRadius = 12.0;
-  static const double imageRadius = 16.0;
-  static const double buttonRadius = 20.0;
+  // Border radius - match web platform exactly
+  static const double cardRadius = 20.0; // border-radius: 20px
+  static const double avatarRadius = 10.0; // border-radius: 10px
+  static const double imageRadius = 10.0; // border-radius: 10px
+  static const double buttonRadius = 10.0; // border-radius: 10px
+  static const double commentRadius = 10.0; // border-radius: 10px
   
-  // Shadows and effects
-  static const double blurSigma = 16.0;
-  static const double shadowBlurRadius = 12.0;
-  static const Offset shadowOffset = Offset(0, 4);
-  static const double shadowOpacity = 0.04;
-  static const double cardBorderWidth = 1.2;
+  // Shadows and effects - match web platform exactly
+  static const double blurSigma = 5.0; // backdrop-filter: blur(5px)
+  static const double shadowBlurRadius = 0.0; // No shadow in web
+  static const Offset shadowOffset = Offset(0, 0);
+  static const double shadowOpacity = 0.0;
+  static const double cardBorderWidth = 0.0; // No border in web
   
-  // Text styles
-  static const TextStyle authorTextStyle = TextStyle(
-    fontSize: 16,
-    fontWeight: FontWeight.bold,
-    color: Colors.white,
-  );
+  // Text styles - match web platform exactly
+  static TextStyle getAuthorTextStyle(BuildContext context) {
+    return TextStyle(
+      fontSize: 16,
+      fontWeight: FontWeight.normal, // No bold in web
+      color: getTextColor(context),
+    );
+  }
   
-  static const TextStyle contentTextStyle = TextStyle(
-    fontSize: 20,
-    color: Colors.white,
-  );
+  static TextStyle getContentTextStyle(BuildContext context) {
+    return TextStyle(
+      fontSize: 16, // Default font size
+      color: getTextColor(context),
+    );
+  }
   
-  static const TextStyle timestampTextStyle = TextStyle(
-    fontSize: 12,
-    color: Color(0x99FFFFFF), // White with 60% opacity
-  );
+  static TextStyle getTimestampTextStyle(BuildContext context) {
+    return TextStyle(
+      fontSize: 12, // font-size: 12px
+      color: getHintColor(context),
+    );
+  }
   
-  static const TextStyle statsTextStyle = TextStyle(
-    fontSize: 14,
-    color: Colors.white,
-    fontWeight: FontWeight.w500,
-  );
+  static TextStyle getStatsTextStyle(BuildContext context) {
+    return TextStyle(
+      fontSize: 14,
+      color: getTextColor(context),
+      fontWeight: FontWeight.normal,
+    );
+  }
   
-  static const TextStyle actionButtonTextStyle = TextStyle(
-    fontSize: 12,
-    color: Colors.white,
-  );
+  static TextStyle getActionButtonTextStyle(BuildContext context) {
+    return TextStyle(
+      fontSize: 12,
+      color: getTextColor(context),
+    );
+  }
   
-  // Theme-aware color getters
+  // Theme-aware color getters - match web platform exactly
   static Color getCardBackgroundColor(BuildContext context) {
-    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
-    return isDarkMode ? darkCardBackgroundColor : lightCardBackgroundColor;
+    final theme = Theme.of(context);
+    return theme.brightness == Brightness.light 
+        ? lightCardBackgroundColor 
+        : darkCardBackgroundColor;
   }
   
   static Color getCardBorderColor(BuildContext context) {
-    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
-    return isDarkMode ? darkCardBorderColor : lightCardBorderColor;
+    return Colors.transparent; // No border in web
   }
   
   static Color getTextColor(BuildContext context) {
-    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
-    return isDarkMode ? darkTextColor : lightTextColor;
+    final theme = Theme.of(context);
+    return theme.brightness == Brightness.light 
+        ? lightTextColor 
+        : darkTextColor;
   }
   
   static Color getHintColor(BuildContext context) {
-    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
-    return isDarkMode ? darkHintColor : lightHintColor;
+    final theme = Theme.of(context);
+    return theme.brightness == Brightness.light 
+        ? lightHintColor 
+        : darkHintColor;
   }
   
   static Color getAvatarBorderColor(BuildContext context) {
-    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
-    return isDarkMode ? darkAvatarBorderColor : lightAvatarBorderColor;
+    final theme = Theme.of(context);
+    return theme.brightness == Brightness.light 
+        ? lightAvatarBorderColor 
+        : darkAvatarBorderColor;
   }
 }
 
@@ -121,14 +141,14 @@ class PostCard extends StatefulWidget {
   final VoidCallback? onInputUnfocused;
 
   const PostCard({
-    Key? key,
+    super.key,
     required this.post,
     this.currentUserId,
     this.onPostDeleted,
     this.onPostUpdated,
     this.onInputFocused,
     this.onInputUnfocused,
-  }) : super(key: key);
+  });
 
   @override
   _PostCardState createState() => _PostCardState();
@@ -243,7 +263,7 @@ class _PostCardState extends State<PostCard> {
         throw Exception('User not logged in');
       }
 
-      print('🔄 Posting comment: "${commentText}" to post ${_currentPost.id}');
+      print('🔄 Posting comment: "$commentText" to post ${_currentPost.id}');
 
       await _commentService.postComment(
         postId: _currentPost.id,
@@ -252,7 +272,7 @@ class _PostCardState extends State<PostCard> {
         onSuccess: (String commentId) async {
           // Send WebSocket message to notify other clients
           if (commentId.isNotEmpty) {
-            RealtimeService().sendNewComment(_currentPost.id, commentId);
+            WebSocketService().sendNewComment(_currentPost.id, commentId);
           }
           
           // Hide loading indicator
@@ -329,7 +349,7 @@ class _PostCardState extends State<PostCard> {
       // Show error to user
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
+          const SnackBar(
             content: Text('Comment posted but could not load details'),
             backgroundColor: Colors.orange,
           ),
@@ -352,7 +372,7 @@ class _PostCardState extends State<PostCard> {
       await _commentService.deleteComment(commentId: commentId, userId: userId);
 
       // Send WebSocket message to notify other clients
-      RealtimeService().sendDeleteComment(_currentPost.id, commentId);
+              WebSocketService().sendDeleteComment(_currentPost.id, commentId);
 
       Navigator.pop(context); // Dismiss loading indicator
 
@@ -423,7 +443,7 @@ class _PostCardState extends State<PostCard> {
       await _postService.deletePost(postId: _currentPost.id, userId: userId);
 
       // Send WebSocket message to notify other clients
-      RealtimeService().sendDeletePost(_currentPost.id);
+              WebSocketService().sendDeletePost(_currentPost.id);
 
       Navigator.pop(context); // Dismiss loading indicator
 
@@ -451,7 +471,7 @@ class _PostCardState extends State<PostCard> {
         final postUrl = 'https://skybyn.com/post/${_currentPost.id}';
         await Clipboard.setData(ClipboardData(text: postUrl));
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Post link copied to clipboard!')),
+          const SnackBar(content: Text('Post link copied to clipboard!')),
         );
         break;
       case 'view_comments':
@@ -472,7 +492,7 @@ class _PostCardState extends State<PostCard> {
     await Clipboard.setData(ClipboardData(text: postUrl));
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Post link copied to clipboard!')),
+        const SnackBar(content: Text('Post link copied to clipboard!')),
       );
     }
   }
@@ -504,7 +524,7 @@ class _PostCardState extends State<PostCard> {
               Navigator.of(context).pop();
               // TODO: Implement actual report functionality
               ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Post reported successfully')),
+                const SnackBar(content: Text('Post reported successfully')),
               );
             },
             child: const Text(
@@ -532,9 +552,9 @@ class _PostCardState extends State<PostCard> {
           margin: EdgeInsets.only(
             top: MediaQuery.of(context).padding.top + 60, // Account for status bar and app bar
           ),
-          decoration: BoxDecoration(
+          decoration: const BoxDecoration(
             color: Colors.transparent,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
           ),
           child: Padding(
             padding: EdgeInsets.only(
@@ -696,75 +716,102 @@ class _PostCardState extends State<PostCard> {
       }
     }
 
-    return Stack(
-      children: [
-        Container(
-          margin: const EdgeInsets.symmetric(horizontal: 0, vertical: 0),
-          decoration: BoxDecoration(
-            color: cardBackgroundColor,
-            borderRadius: BorderRadius.circular(PostCardStyles.cardRadius),
-            border: Border.all(color: cardBorderColor, width: PostCardStyles.cardBorderWidth),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(PostCardStyles.shadowOpacity),
-                blurRadius: PostCardStyles.shadowBlurRadius,
-                offset: PostCardStyles.shadowOffset,
-              ),
-            ],
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(PostCardStyles.cardRadius),
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: PostCardStyles.blurSigma, sigmaY: PostCardStyles.blurSigma),
-              child: SingleChildScrollView(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.all(12.0),
-                      child: Row(
-                        children: [
-                          Container(
-                            width: PostCardStyles.avatarSize,
-                            height: PostCardStyles.avatarSize,
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(PostCardStyles.avatarRadius),
-                            ),
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(PostCardStyles.avatarRadius),
-                              child: avatarWidget
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  _currentPost.author,
-                                  style: PostCardStyles.authorTextStyle,
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 10.0), // margin-bottom: 10px
+      padding: const EdgeInsets.only(bottom: 2.0), // padding-bottom: 2px
+      child: Container(
+        decoration: BoxDecoration(
+          color: PostCardStyles.getCardBackgroundColor(context), // background: rgba(var(--mode),.7)
+          borderRadius: BorderRadius.circular(PostCardStyles.cardRadius), // border-radius: 20px
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(PostCardStyles.cardRadius),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: PostCardStyles.blurSigma, sigmaY: PostCardStyles.blurSigma), // backdrop-filter: blur(5px)
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Header section - match web platform's post_header exactly
+                SizedBox(
+                  child: Row(
+                    children: [
+                      // User details - 70% width like web platform's post_details
+                      Expanded(
+                        flex: 7,
+                        child: SizedBox(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              // User avatar and name row
+                              SizedBox(
+                                height: 70.0, // height: 70px
+                                child: Row(
+                                  children: [
+                                    // User avatar - match web platform's post_user_image exactly
+                                    SizedBox(
+                                      width: PostCardStyles.avatarSize,
+                                      height: PostCardStyles.avatarSize,
+                                      child: Container(
+                                        margin: PostCardStyles.avatarPadding, // margin: 10px
+                                        decoration: BoxDecoration(
+                                          color: AppColors.avatarBackgroundColor,
+                                          borderRadius: BorderRadius.circular(PostCardStyles.avatarRadius), // border-radius: 10px
+                                          border: Border.all(color: PostCardStyles.getAvatarBorderColor(context), width: PostCardStyles.avatarBorderWidth),
+                                        ),
+                                        child: ClipRRect(
+                                          borderRadius: BorderRadius.circular(PostCardStyles.avatarRadius),
+                                          child: avatarWidget,
+                                        ),
+                                      ),
+                                    ),
+                                    // User name - match web platform's post_user_name exactly
+                                    Expanded(
+                                      child: SizedBox(
+                                        height: 70.0, // height: 70px
+                                        child: Align(
+                                          alignment: Alignment.centerLeft,
+                                          child: Text(
+                                            _currentPost.author,
+                                            style: PostCardStyles.getAuthorTextStyle(context),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                                Text(
-                                  _formatTimestamp(_currentPost.createdAt),
-                                  style: PostCardStyles.timestampTextStyle,
+                              ),
+                              // Date - now part of the header
+                              Transform.translate(
+                                offset: const Offset(0, -10), // Move date 10px up
+                                child: Container(
+                                  margin: const EdgeInsets.only(left: 70.0), // margin-left: 70px
+                                  padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 0.0),
+                                  child: Text(
+                                    _formatTimestamp(_currentPost.createdAt),
+                                    style: PostCardStyles.getTimestampTextStyle(context), // font-size: 12px
+                                  ),
                                 ),
-                              ],
-                            ),
+                              ),
+                            ],
                           ),
-                          Builder(
+                        ),
+                      ),
+                      // Actions section - 30% width like web platform's post_actions
+                      Expanded(
+                        flex: 2,
+                        child: Container(
+                          height: 75.0, // height: 50px
+                          padding: const EdgeInsets.all(20.0), // padding: 20px
+                          child: Builder(
                             builder: (context) {
                               print('🔍 PostCard Debug: postId=${_currentPost.id}, postUserId=${_currentPost.userId}, currentUserId=$_currentUserId');
                               if (_currentPost.userId == null) {
                                 print('❌ PostCard: userId is null, hiding menu');
                                 return const SizedBox.shrink();
                               }
-                              if (_currentUserId == null) {
-                                print('❌ PostCard: currentUserId is null, hiding menu');
-                                return const SizedBox.shrink();
-                              }
                               print('✅ PostCard: Showing menu, isAuthor=${_currentUserId == _currentPost.userId}');
-                              return PostMenu.createMenuButton(
+                              return UnifiedMenu.createPostMenuButton(
                                 context: context,
                                 postId: _currentPost.id,
                                 currentUserId: _currentUserId,
@@ -776,93 +823,113 @@ class _PostCardState extends State<PostCard> {
                               );
                             },
                           ),
-                        ],
-                      ),
-                    ),
-                    Padding(
-                      padding: PostCardStyles.contentPadding,
-                      child: Text(
-                        _currentPost.content,
-                        style: PostCardStyles.contentTextStyle,
-                      ),
-                    ),
-                    if (imageWidget != null)
-                      Padding(
-                        padding: PostCardStyles.imagePadding,
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(PostCardStyles.imageRadius),
-                          child: imageWidget,
                         ),
                       ),
-                    Padding(
-                      padding: PostCardStyles.actionsPadding,
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.end,
+                    ],
+                  ),
+                ),
+                // Content section - match web platform's post_content exactly
+                Container(
+                  padding: PostCardStyles.contentPadding, // padding: 10px 20px
+                  child: Text(
+                    _currentPost.content,
+                    style: PostCardStyles.getContentTextStyle(context),
+                    textAlign: TextAlign.left,
+                  ),
+                ),
+                // Image section - match web platform's post_uploads exactly
+                if (imageWidget != null)
+                  Container(
+                    width: double.infinity,
+                    margin: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 5.0), // margin: 5px 10px
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(PostCardStyles.imageRadius), // border-radius: 10px
+                      child: imageWidget,
+                    ),
+                  ),
+                
+                // Actions section - match web platform's styling exactly
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 10.0),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      // Like button
+                      Row(
                         children: [
-                          Row(
-                            children: [
-                              GestureDetector(
-                                onTap: _toggleLike,
-                                child: Icon(
-                                  _currentPost.isLiked ? Icons.favorite : Icons.favorite_border,
-                                  color: _currentPost.isLiked ? Colors.red : textColor,
-                                  size: PostCardStyles.iconSize,
-                                ),
-                              ),
-                              const SizedBox(width: 4),
-                              Text('${_currentPost.likes}', style: PostCardStyles.statsTextStyle),
-                            ],
-                          ),
-                          const SizedBox(width: 16),
-                          // Center the comment icon and count vertically
-                          Align(
-                            alignment: Alignment.center,
-                            child: Row(
-                              children: [
-                                GestureDetector(
-                                  onTap: _toggleComments,
-                                  child: Icon(Icons.comment, color: textColor, size: PostCardStyles.iconSize),
-                                ),
-                                const SizedBox(width: 4),
-                                Text('${_currentPost.comments}', style: PostCardStyles.statsTextStyle),
-                              ],
+                          GestureDetector(
+                            onTap: _toggleLike,
+                            child: Icon(
+                              _currentPost.isLiked ? Icons.favorite : Icons.favorite_border,
+                              color: _currentPost.isLiked ? Colors.red : textColor,
+                              size: PostCardStyles.iconSize,
                             ),
                           ),
+                          const SizedBox(width: 4),
+                          Text(
+                            '${_currentPost.likes}', 
+                            style: TextStyle(
+                              fontSize: PostCardStyles.smallFontSize, 
+                              color: textColor
+                            )
+                          ),
                         ],
                       ),
-                    ),
-                    // Comment Input Field (always visible)
-                    _buildCommentInputField(textColor: textColor, hintColor: hintColor),
-                    // Show last comment if comments are not expanded and list is not empty
-                    if (!_showComments && _currentPost.commentsList.isNotEmpty)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 8.0, left: 16.0, right: 16.0, bottom: 8.0),
-                        child: CommentCard(
-                          comment: _currentPost.commentsList.first,
-                          currentUserId: _currentUserId,
-                          onDelete: () => _deleteComment(_currentPost.commentsList.first.id),
-                        ),
-                      ),
-                    // Collapsible list of comments
-                    if (_showComments) _buildCommentSection(),
-                    if (_currentPost.commentsList.length > 3)
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-                        child: Align(
-                          alignment: Alignment.centerRight,
-                          child: TextButton(
-                            onPressed: _showAllCommentsPopup,
-                            child: Text('Expand', style: TextStyle(color: textColor)),
+                      const SizedBox(width: 16),
+                      // Comment button
+                      Row(
+                        children: [
+                          GestureDetector(
+                            onTap: _toggleComments,
+                            child: Icon(
+                              Icons.comment, 
+                              color: textColor, 
+                              size: PostCardStyles.iconSize
+                            ),
                           ),
-                        ),
+                          const SizedBox(width: 4),
+                          Text(
+                            '${_currentPost.comments}', 
+                            style: TextStyle(
+                              fontSize: PostCardStyles.smallFontSize, 
+                              color: textColor
+                            )
+                          ),
+                        ],
                       ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
+                // Comment Input Field (always visible)
+                _buildCommentInputField(textColor: textColor, hintColor: hintColor),
+                // Show last comment if comments are not expanded and list is not empty
+                if (!_showComments && _currentPost.commentsList.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8.0, left: 16.0, right: 16.0, bottom: 8.0),
+                    child: CommentCard(
+                      comment: _currentPost.commentsList.first,
+                      currentUserId: _currentUserId,
+                      onDelete: () => _deleteComment(_currentPost.commentsList.first.id),
+                    ),
+                  ),
+                // Collapsible list of comments
+                if (_showComments) _buildCommentSection(),
+                if (_currentPost.commentsList.length > 3)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                    child: Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton(
+                        onPressed: _showAllCommentsPopup,
+                        child: Text('Expand', style: TextStyle(color: textColor)),
+                      ),
+                    ),
+                  ),
+              ],
             ),
           ),
         ),
-      ],
+      ),
     );
   }
 
@@ -953,15 +1020,15 @@ class _PostCardState extends State<PostCard> {
     required Color hintColor,
   }) {
     return Padding(
-      padding: EdgeInsets.only(
-        bottom: 16.0,
+      padding: const EdgeInsets.only(
+        bottom: 0.0, // Removed bottom padding
         left: 16.0,
         right: 16.0,
       ),
       child: Row(
         children: [
           Expanded(
-            child: Container(
+            child: SizedBox(
               height: 40.0,
               child: TextField(
                 controller: _commentController,
@@ -970,7 +1037,7 @@ class _PostCardState extends State<PostCard> {
                   hintText: 'Add a comment...',
                   hintStyle: TextStyle(color: hintColor),
                   border: InputBorder.none,
-                  contentPadding: EdgeInsets.symmetric(vertical: 0, horizontal: 0),
+                  contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 0),
                 ),
                 style: TextStyle(color: textColor),
                 onTap: () {
@@ -1037,12 +1104,12 @@ class _PostCardState extends State<PostCard> {
             child: Container(
               margin: const EdgeInsets.symmetric(horizontal: 16.0),
               decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.8),
+                color: PostCardStyles.getCardBackgroundColor(context),
                 borderRadius: BorderRadius.circular(25),
-                border: Border.all(color: Colors.white.withOpacity(0.2)),
+                border: Border.all(color: PostCardStyles.getCardBorderColor(context)),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.3),
+                    color: PostCardStyles.getCardBackgroundColor(context).withOpacity(0.3),
                     blurRadius: 10,
                     offset: const Offset(0, 2),
                   ),
@@ -1058,11 +1125,11 @@ class _PostCardState extends State<PostCard> {
                         focusNode: _commentFocusNode,
                         decoration: InputDecoration(
                           hintText: 'Add a comment...',
-                          hintStyle: TextStyle(color: Colors.white.withOpacity(0.7)),
+                          hintStyle: TextStyle(color: PostCardStyles.getHintColor(context)),
                           border: InputBorder.none,
-                          contentPadding: EdgeInsets.symmetric(vertical: 8.0, horizontal: 0),
+                          contentPadding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 0),
                         ),
-                        style: TextStyle(color: Colors.white),
+                        style: TextStyle(color: PostCardStyles.getTextColor(context)),
                         onTap: () {
                           // Ensure any other context menus are closed
                           _popupMenuFocusNode.unfocus();
@@ -1076,7 +1143,7 @@ class _PostCardState extends State<PostCard> {
                       onPressed: _postComment,
                       icon: Icon(
                         Icons.send,
-                        color: Colors.white,
+                        color: PostCardStyles.getTextColor(context),
                         size: PostCardStyles.iconSize,
                       ),
                     ),

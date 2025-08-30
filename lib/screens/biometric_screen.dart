@@ -83,9 +83,8 @@ class _BiometricScreenState extends State<BiometricScreen> {
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
             colors: [
-              Color(0xFF0D47A1),
-              Color(0xFF1976D2),
-              Color(0xFF42A5F5),
+              Color(0xFF243B55), // Dark blue from web dark mode
+              Color(0xFF141E30), // Almost black from web dark mode
             ],
           ),
         ),

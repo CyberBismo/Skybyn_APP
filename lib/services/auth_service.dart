@@ -3,7 +3,6 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/user.dart';
 import 'device_service.dart';
-import 'notification_service.dart';
 // import 'dart:io' show Platform;
 // import 'package:firebase_auth/firebase_auth.dart' as fb_auth;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -79,7 +78,7 @@ class AuthService {
 
   Future<User?> fetchUserProfile(String username) async {
     try {
-      print('Fetching user profile for username: ' + username);
+      print('Fetching user profile for username: $username');
       final userId = await getStoredUserId();
       final requestBody = {'userID': userId};
       print('Profile API request body:');
@@ -150,7 +149,7 @@ class AuthService {
     try {
       // TODO: Implement API call to update user profile
       // For now, we'll just update the local storage
-      final storage = FlutterSecureStorage();
+      const storage = FlutterSecureStorage();
       await storage.write(
         key: 'user_profile',
         value: jsonEncode(updatedUser.toJson()),
@@ -185,6 +184,169 @@ class AuthService {
     } catch (e) {
       print('Error fetching any user profile: ${e.toString()}');
       return null;
+    }
+  }
+
+  /// Sends a verification code to the specified email address
+  /// Returns the verification code that was sent (for testing purposes)
+  /// In production, this should not return the code
+  Future<Map<String, dynamic>> sendEmailVerification(String email) async {
+    try {
+      print('Sending verification code to email: $email');
+      
+      final response = await http.post(
+        Uri.parse('$baseUrl/sendEmailVerification.php'),
+        body: {
+          'email': email,
+          'action': 'register',
+        },
+      );
+
+      print('Send verification response status: ${response.statusCode}');
+      print('Send verification response body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        
+        if (data['responseCode'] == '1') {
+          print('Verification code sent successfully');
+          return {
+            'success': true,
+            'message': data['message'] ?? 'Verification code sent successfully',
+            'verificationCode': data['verificationCode'], // For testing only
+          };
+        } else {
+          print('Failed to send verification code: ${data['message']}');
+          return {
+            'success': false,
+            'message': data['message'] ?? 'Failed to send verification code',
+          };
+        }
+      } else {
+        print('Server error with status: ${response.statusCode}');
+        return {
+          'success': false,
+          'message': 'Server error occurred (Status: ${response.statusCode})',
+        };
+      }
+    } catch (e) {
+      print('Send verification exception: $e');
+      return {
+        'success': false,
+        'message': 'Connection error occurred: ${e.toString()}',
+      };
+    }
+  }
+
+  /// Verifies the email verification code
+  Future<Map<String, dynamic>> verifyEmailCode(String email, String code) async {
+    try {
+      print('Verifying code for email: $email');
+      
+      final response = await http.post(
+        Uri.parse('$baseUrl/verify_email.php'),
+        body: {
+          'email': email,
+          'code': code,
+          'action': 'register',
+        },
+      );
+
+      print('Verify email response status: ${response.statusCode}');
+      print('Verify email response body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        
+        if (data['responseCode'] == '1') {
+          print('Email verification successful');
+          return {
+            'success': true,
+            'message': data['message'] ?? 'Email verified successfully',
+          };
+        } else {
+          print('Email verification failed: ${data['message']}');
+          return {
+            'success': false,
+            'message': data['message'] ?? 'Email verification failed',
+          };
+        }
+      } else {
+        print('Server error with status: ${response.statusCode}');
+        return {
+          'success': false,
+          'message': 'Server error occurred (Status: ${response.statusCode})',
+        };
+      }
+    } catch (e) {
+      print('Verify email exception: $e');
+      return {
+        'success': false,
+        'message': 'Connection error occurred: ${e.toString()}',
+      };
+    }
+  }
+
+  /// Registers a new user account
+  Future<Map<String, dynamic>> registerUser({
+    required String email,
+    required String username,
+    required String password,
+    required String firstName,
+    required String? middleName,
+    required String lastName,
+    required DateTime dateOfBirth,
+  }) async {
+    try {
+      print('Registering new user: $username ($email)');
+      
+      final response = await http.post(
+        Uri.parse('$baseUrl/register.php'),
+        body: {
+          'email': email,
+          'username': username,
+          'password': password,
+          'firstName': firstName,
+          'middleName': middleName ?? '',
+          'lastName': lastName,
+          'dateOfBirth': dateOfBirth.toIso8601String(),
+        },
+      );
+
+      print('Registration response status: ${response.statusCode}');
+      print('Registration response body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        
+        if (data['responseCode'] == '1') {
+          print('User registration successful');
+          return {
+            'success': true,
+            'message': data['message'] ?? 'Registration successful',
+            'userID': data['userID'],
+            'username': username,
+          };
+        } else {
+          print('Registration failed: ${data['message']}');
+          return {
+            'success': false,
+            'message': data['message'] ?? 'Registration failed',
+          };
+        }
+      } else {
+        print('Server error with status: ${response.statusCode}');
+        return {
+          'success': false,
+          'message': 'Server error occurred (Status: ${response.statusCode})',
+        };
+      }
+    } catch (e) {
+      print('Registration exception: $e');
+      return {
+        'success': false,
+        'message': 'Connection error occurred: ${e.toString()}',
+      };
     }
   }
 } 

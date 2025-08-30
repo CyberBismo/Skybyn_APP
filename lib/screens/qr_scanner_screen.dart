@@ -202,9 +202,9 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
                                 size: 64,
                               ),
                               const SizedBox(height: 16),
-                              Text(
+                              const Text(
                                 'Camera Error',
-                                style: const TextStyle(
+                                style: TextStyle(
                                   color: Colors.white,
                                   fontSize: 20,
                                   fontWeight: FontWeight.bold,
@@ -251,7 +251,7 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
                             child: Column(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                Icon(Icons.check_circle, color: Colors.green, size: 120),
+                                const Icon(Icons.check_circle, color: Colors.green, size: 120),
                                 const SizedBox(height: 24),
                                 ElevatedButton(
                                   style: ElevatedButton.styleFrom(
