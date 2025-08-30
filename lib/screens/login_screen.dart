@@ -176,7 +176,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
                             ),
                             style: TextStyle(
-                              color: Colors.black, // Consistent light mode text
+                              color: Colors.white, // White text in both modes
                               fontSize: 16,
                             ),
                             onTap: () {

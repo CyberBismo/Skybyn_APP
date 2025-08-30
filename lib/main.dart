@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:firebase_core/firebase_core.dart';
 // import 'dart:io' show Platform;
 import 'screens/login_screen.dart';
@@ -22,6 +23,12 @@ Future<void> main() async {
   runZonedGuarded(() async {
     // Ensure Flutter is initialized first
     WidgetsFlutterBinding.ensureInitialized();
+    
+    // Set preferred orientations to portrait only
+    await SystemChrome.setPreferredOrientations([
+      DeviceOrientation.portraitUp,
+      DeviceOrientation.portraitDown,
+    ]);
     
     // Initialize HTTP overrides to handle SSL certificates
     HttpOverrides.global = MyHttpOverrides();

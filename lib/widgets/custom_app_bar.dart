@@ -7,8 +7,8 @@ import 'app_colors.dart';
 class AppBarConfig {
   /// Returns the app bar height with platform-specific adjustments
   static double getAppBarHeight(BuildContext context) {
-    // Web platform uses 75px height
-    return 75.0;
+    // Web platform uses 60px height (reduced from 75px)
+    return 60.0;
   }
 
   /// Returns the total app bar height including status bar padding
@@ -76,7 +76,7 @@ class CustomAppBar extends StatefulWidget implements PreferredSizeWidget {
   @override
   Size get preferredSize {
     // This will be called after build, so we can use a more dynamic approach
-    return const Size.fromHeight(75.0 + 44.0); // Fallback for initial sizing
+    return const Size.fromHeight(60.0 + 44.0); // Fallback for initial sizing - will be overridden by build method
   }
 
   @override
@@ -114,7 +114,7 @@ class _CustomAppBarState extends State<CustomAppBar> {
       child: Container(
         height: totalHeight,
         decoration: const BoxDecoration(
-          color: AppColors.backdropColor,
+          color: Colors.transparent,
         ),
         child: ClipRect(
           child: BackdropFilter(
@@ -122,57 +122,65 @@ class _CustomAppBarState extends State<CustomAppBar> {
             child: Container(
               height: totalHeight,
               decoration: const BoxDecoration(
-                color: AppColors.backdropColor,
+                color: Colors.transparent,
               ),
               child: SafeArea(
                 top: false, // Don't add top padding to move closer to status bar
                 child: SizedBox(
                   height: appBarHeight,
-                  child: Row(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.end,
                     children: [
-                      // Search button - fixed width with padding
-                      SizedBox(
-                        width: 72.0,
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                          child: IconButton(
-                            onPressed: _handleSearchPressed,
-                            icon: const Icon(
-                              Icons.search, 
-                              color: AppColors.iconColor, // White color, not affected by dark mode
-                              size: CustomAppBarStyles.searchIconSize,
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 10.0),
+                        child: Row(
+                          children: [
+                            // Search button - fixed width with padding
+                            SizedBox(
+                              width: 72.0,
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                                child: IconButton(
+                                  onPressed: _handleSearchPressed,
+                                  icon: const Icon(
+                                    Icons.search, 
+                                    color: AppColors.iconColor, // White color, not affected by dark mode
+                                    size: CustomAppBarStyles.searchIconSize,
+                                  ),
+                                ),
+                              ),
                             ),
-                          ),
-                        ),
-                      ),
-                      // Logo - centered with flex
-                      Expanded(
-                        child: Center(
-                          child: GestureDetector(
-                            onTap: widget.onLogoPressed,
-                            child: Image.asset(
-                              widget.logoPath,
-                              height: appBarHeight * CustomAppBarStyles.logoHeightMultiplier,
-                              fit: CustomAppBarStyles.logoFit,
-                              color: null, // Ensure no color overlay
-                              colorBlendMode: null, // Ensure no blend mode
+                            // Logo - centered with flex
+                            Expanded(
+                              child: Center(
+                                child: GestureDetector(
+                                  onTap: widget.onLogoPressed,
+                                  child: Image.asset(
+                                    widget.logoPath,
+                                    height: appBarHeight * CustomAppBarStyles.logoHeightMultiplier,
+                                    fit: CustomAppBarStyles.logoFit,
+                                    color: null, // Ensure no color overlay
+                                    colorBlendMode: null, // Ensure no blend mode
+                                  ),
+                                ),
+                              ),
                             ),
-                          ),
-                        ),
-                      ),
-                      // Menu button - fixed width with padding
-                      SizedBox(
-                        width: 72.0,
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                          child: UnifiedMenu.createUserMenuButton(
-                            context: context,
-                            appBarHeight: appBarHeight,
-                            onLogout: widget.onLogout,
-                            menuKey: _menuKey,
-                            onSearchFormToggle: widget.onSearchFormToggle,
-                            isSearchFormVisible: widget.isSearchFormVisible,
-                          ),
+                            // Menu button - fixed width with padding
+                            SizedBox(
+                              width: 72.0,
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                                child: UnifiedMenu.createUserMenuButton(
+                                  context: context,
+                                  appBarHeight: appBarHeight,
+                                  onLogout: widget.onLogout,
+                                  menuKey: _menuKey,
+                                  onSearchFormToggle: widget.onSearchFormToggle,
+                                  isSearchFormVisible: widget.isSearchFormVisible,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ],

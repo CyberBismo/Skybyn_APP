@@ -736,11 +736,11 @@ class _HomeScreenState extends State<HomeScreen> {
                       : SingleChildScrollView(
                           controller: _scrollController,
                           padding: EdgeInsets.only(
-                            top: appBarHeight + MediaQuery.of(context).padding.top - 20,
+                            top: 60.0 + MediaQuery.of(context).padding.top + 5.0, // App bar height + status bar + 5px gap (reduced to prevent overlap)
                             bottom: 80.0,
                           ),
                           child: Padding(
-                            padding: const EdgeInsets.only(left: 10.0, right: 10.0, top: 20.0),
+                            padding: const EdgeInsets.only(left: 10.0, right: 10.0),
                             child: Column(
                               children: [
                                 for (final post in _posts) ...[

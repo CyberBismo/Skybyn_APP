@@ -131,17 +131,20 @@ flutter_launcher_icons:
   ios: true
   image_path: "assets/images/icon.png"
   min_sdk_android: 21
-  remove_alpha_ios: true
+  remove_alpha_ios: false
+  adaptive_icon_background: "assets/images/background.png"
+  adaptive_icon_foreground: "assets/images/logo.png"
+  ios_content_mode: scaleAspectFit
 #  adaptive_icon_background: "assets/images/ic_launcher_background.webp"
 #  adaptive_icon_foreground: "assets/images/ic_launcher_foreground.webp"
   web:
     generate: true
   windows:
     generate: true
-    image_path: "assets/images/logo.png"
+    image_path: "assets/images/icon.png"
     icon_size: 48
   macos:
     generate: true
-    image_path: "assets/images/logo.png"
+    image_path: "assets/images/icon.png"
 
 

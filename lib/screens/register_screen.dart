@@ -68,12 +68,31 @@ class _RegisterScreenState extends State<RegisterScreen> {
     final DateTime firstDate = DateTime.now().subtract(const Duration(days: 36500)); // 100 years ago
     final DateTime lastDate = DateTime.now().subtract(const Duration(days: 5475)); // 15 years ago
     
-    final DateTime? picked = await showModalBottomSheet<DateTime>(
+    // Use the native date picker for better Android compatibility
+    final DateTime? picked = await showDatePicker(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (BuildContext context) {
-        return _buildDatePickerBottomSheet(initialDate, firstDate, lastDate);
+      initialDate: initialDate,
+      firstDate: firstDate,
+      lastDate: lastDate,
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: Theme.of(context).colorScheme.copyWith(
+              primary: Colors.blue,
+              onPrimary: Colors.white,
+              surface: Colors.white,
+              onSurface: Colors.white,
+            ),
+            dialogBackgroundColor: Colors.white,
+            textTheme: Theme.of(context).textTheme.copyWith(
+              bodyLarge: Theme.of(context).textTheme.bodyLarge?.copyWith(color: Colors.white),
+              bodyMedium: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.white),
+              titleMedium: Theme.of(context).textTheme.titleMedium?.copyWith(color: Colors.white),
+              titleSmall: Theme.of(context).textTheme.titleSmall?.copyWith(color: Colors.white),
+            ),
+          ),
+          child: child!,
+        );
       },
     );
     
@@ -84,62 +103,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     }
   }
 
-  Widget _buildDatePickerBottomSheet(DateTime initialDate, DateTime firstDate, DateTime lastDate) {
-    return Container(
-      height: MediaQuery.of(context).size.height * 0.6,
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.only(
-          topLeft: Radius.circular(20),
-          topRight: Radius.circular(20),
-        ),
-      ),
-      child: Column(
-        children: [
-          // Header
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: const BoxDecoration(
-              color: Colors.blue,
-              borderRadius: BorderRadius.only(
-                topLeft: Radius.circular(20),
-                topRight: Radius.circular(20),
-              ),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text(
-                  'Select Date of Birth',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
-                ),
-                IconButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  icon: const Icon(Icons.close, color: Colors.white),
-                ),
-              ],
-            ),
-          ),
-          
-          // Date picker
-          Expanded(
-            child: CalendarDatePicker(
-              initialDate: initialDate,
-              firstDate: firstDate,
-              lastDate: lastDate,
-              onDateChanged: (DateTime date) {
-                Navigator.of(context).pop(date);
-              },
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+
 
   String? _validateRequired(String? value, String fieldName) {
     if (value == null || value.trim().isEmpty) {
