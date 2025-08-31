@@ -12,6 +12,7 @@ import 'unified_menu.dart';
 import '../services/websocket_service.dart';
 import '../screens/create_post_screen.dart';
 import '../widgets/app_colors.dart';
+import '../config/constants.dart';
 
 /// Centralized styling for the PostCard widget - matches web platform exactly
 class PostCardStyles {
@@ -468,7 +469,7 @@ class _PostCardState extends State<PostCard> {
     switch (value) {
       case 'share':
         // Implement share logic (copy link to clipboard for now)
-        final postUrl = 'https://skybyn.com/post/${_currentPost.id}';
+        final postUrl = '${ApiConstants.webBase}/post/${_currentPost.id}';
         await Clipboard.setData(ClipboardData(text: postUrl));
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Post link copied to clipboard!')),
@@ -488,7 +489,7 @@ class _PostCardState extends State<PostCard> {
 
   void _onShare() async {
     // Implement share logic (copy link to clipboard for now)
-    final postUrl = 'https://skybyn.com/post/${_currentPost.id}';
+    final postUrl = '${ApiConstants.webBase}/post/${_currentPost.id}';
     await Clipboard.setData(ClipboardData(text: postUrl));
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(

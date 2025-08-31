@@ -1,119 +1,123 @@
 import 'package:flutter/material.dart';
+import 'package:permission_handler/permission_handler.dart';
+import '../services/auto_update_service.dart';
 
-class PermissionDialog extends StatelessWidget {
-  final VoidCallback onGranted;
-  final VoidCallback onDenied;
+class PermissionDialog extends StatefulWidget {
+  final VoidCallback? onGranted;
+  final VoidCallback? onDenied;
 
   const PermissionDialog({
     super.key,
-    required this.onGranted,
-    required this.onDenied,
+    this.onGranted,
+    this.onDenied,
   });
+
+  @override
+  State<PermissionDialog> createState() => _PermissionDialogState();
+}
+
+class _PermissionDialogState extends State<PermissionDialog> {
+  bool _isRequesting = false;
+  bool _hasPermission = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkPermission();
+  }
+
+  Future<void> _checkPermission() async {
+    final hasPermission = await AutoUpdateService.hasInstallPermission();
+    setState(() {
+      _hasPermission = hasPermission;
+    });
+  }
+
+  Future<void> _requestPermission() async {
+    setState(() {
+      _isRequesting = true;
+    });
+
+    try {
+      final granted = await AutoUpdateService.requestInstallPermission();
+      setState(() {
+        _hasPermission = granted;
+        _isRequesting = false;
+      });
+
+      if (granted) {
+        widget.onGranted?.call();
+      }
+    } catch (e) {
+      setState(() {
+        _isRequesting = false;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error requesting permission: $e')),
+        );
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: Row(
-        children: [
-          Icon(
-            Icons.security,
-            color: Theme.of(context).primaryColor,
-            size: 28,
-          ),
-          const SizedBox(width: 12),
-          const Text('Permission Required'),
-        ],
-      ),
+      title: const Text('Install Permission Required'),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'To enable automatic app updates, Skybyn needs permission to install apps from unknown sources.',
-            style: Theme.of(context).textTheme.bodyLarge,
+          const Text(
+            'To install app updates, Skybyn needs permission to install packages from unknown sources.',
+            style: TextStyle(fontSize: 16),
           ),
           const SizedBox(height: 16),
-          
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Colors.blue[50],
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.blue[200]!),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+          if (_hasPermission)
+            const Row(
               children: [
-                Row(
-                  children: [
-                    Icon(
-                      Icons.info_outline,
-                      color: Colors.blue[700],
-                      size: 20,
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      'Why is this needed?',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        fontWeight: FontWeight.w600,
-                        color: Colors.blue[700],
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
+                Icon(Icons.check_circle, color: Colors.green),
+                SizedBox(width: 8),
                 Text(
-                  '• Enable automatic app updates\n'
-                  '• Download and install new versions\n'
-                  '• Keep your app up to date\n'
-                  '• Improve security and features',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Colors.blue[700],
-                  ),
+                  'Permission granted!',
+                  style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold),
                 ),
               ],
-            ),
-          ),
-          
-          const SizedBox(height: 16),
-          
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Colors.orange[50],
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.orange[200]!),
-            ),
-            child: Row(
+            )
+          else
+            const Row(
               children: [
-                Icon(
-                  Icons.warning_amber_outlined,
-                  color: Colors.orange[700],
-                  size: 20,
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'This permission only allows Skybyn to install its own updates. It cannot install other apps.',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Colors.orange[700],
-                    ),
-                  ),
+                Icon(Icons.warning, color: Colors.orange),
+                SizedBox(width: 8),
+                Text(
+                  'Permission not granted',
+                  style: TextStyle(color: Colors.orange, fontWeight: FontWeight.bold),
                 ),
               ],
             ),
-          ),
         ],
       ),
       actions: [
         TextButton(
-          onPressed: onDenied,
-          child: const Text('Not Now'),
+          onPressed: widget.onDenied,
+          child: const Text('Cancel'),
         ),
-        ElevatedButton(
-          onPressed: onGranted,
-          child: const Text('Grant Permission'),
-        ),
+        if (!_hasPermission)
+          ElevatedButton(
+            onPressed: _isRequesting ? null : _requestPermission,
+            child: _isRequesting
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Text('Grant Permission'),
+          ),
+        if (_hasPermission)
+          ElevatedButton(
+            onPressed: widget.onGranted,
+            child: const Text('Continue'),
+          ),
       ],
     );
   }

@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'dart:ui'; // Required for ImageFilter.blur
 import 'unified_menu.dart';
 import 'app_colors.dart';
+import '../services/auto_update_service.dart';
+import 'permission_dialog.dart';
+import 'update_dialog.dart';
 
 /// Centralized app bar configuration and styling
 class AppBarConfig {
@@ -101,6 +104,70 @@ class _CustomAppBarState extends State<CustomAppBar> {
     widget.onSearchFormToggle?.call();
     print('   - Search form toggle called');
     print('🔍 Search icon action completed');
+  }
+
+  void _checkForUpdates() async {
+    try {
+      // Check if we have permission to install from unknown sources
+      if (!await AutoUpdateService.hasInstallPermission()) {
+        // Show permission dialog
+        final bool userGranted = await showDialog<bool>(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => PermissionDialog(
+            onGranted: () {
+              Navigator.of(context).pop(true);
+            },
+            onDenied: () {
+              Navigator.of(context).pop(false);
+            },
+          ),
+        ) ?? false;
+        
+        if (!userGranted) {
+          return;
+        }
+        
+        // Try to request permission
+        final bool permissionGranted = await AutoUpdateService.requestInstallPermission();
+        if (!permissionGranted) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Permission denied. Cannot check for updates.')),
+            );
+          }
+          return;
+        }
+      }
+      
+      // Check for updates
+      final updateInfo = await AutoUpdateService.checkForUpdates();
+      
+      if (mounted && updateInfo != null && updateInfo.isAvailable) {
+        // Show update dialog
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => UpdateDialog(
+            currentVersion: '1.0.0',
+            latestVersion: updateInfo.version,
+            releaseNotes: updateInfo.releaseNotes,
+          ),
+        );
+      } else if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No updates available.')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error checking for updates: $e')),
+        );
+      }
+    } finally {
+      UnifiedMenu.closeCurrentMenu();
+    }
   }
 
   @override

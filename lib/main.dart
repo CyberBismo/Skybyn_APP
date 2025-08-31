@@ -38,8 +38,7 @@ Future<void> main() async {
     final themeService = ThemeService();
     await themeService.initialize();
     
-    // Initialize auto-update service
-    await AutoUpdateService().initialize();
+    // Auto-update service is now static and doesn't need initialization
     
     // Run the app
     runApp(

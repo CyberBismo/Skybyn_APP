@@ -1,201 +1,171 @@
 import 'dart:io';
+import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import '../widgets/permission_dialog.dart';
+import 'package:permission_handler/permission_handler.dart';
+import '../config/constants.dart';
+import 'package:http/http.dart' as http;
+import 'package:path_provider/path_provider.dart';
+import 'package:device_info_plus/device_info_plus.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 class AutoUpdateService {
-  static final AutoUpdateService _instance = AutoUpdateService._internal();
-  factory AutoUpdateService() => _instance;
-  AutoUpdateService._internal();
+  static const String _updateCheckUrl = ApiConstants.checkUpdate;
+  static const String _updateDownloadUrl = ApiConstants.downloadUpdate;
 
-  bool _isInitialized = false;
-  bool _isCheckingForUpdates = false;
-
-  /// Initialize the auto-update service
-  Future<void> initialize() async {
-    if (_isInitialized) return;
-    
+  static Future<UpdateInfo?> checkForUpdates() async {
     try {
-      // Only enable for Android
+      final deviceInfo = DeviceInfoPlugin();
+      String platform = 'unknown';
+
       if (Platform.isAndroid) {
-        // For now, we'll just mark as initialized
-        // Firebase App Distribution will be added when properly configured
-        _isInitialized = true;
-        print('✅ [AutoUpdate] Service initialized successfully');
-        print('ℹ️ [AutoUpdate] Firebase App Distribution not yet configured');
-        print('ℹ️ [AutoUpdate] Auto-updates will be disabled until configured');
+        await deviceInfo.androidInfo; // Ensures plugin works; not used directly
+        platform = 'android';
+      } else if (Platform.isIOS) {
+        await deviceInfo.iosInfo;
+        platform = 'ios';
+      }
+
+      // Use the real build number from package info (version code on Android)
+      final PackageInfo packageInfo = await PackageInfo.fromPlatform();
+      final String installedVersionCode = packageInfo.buildNumber.isNotEmpty
+          ? packageInfo.buildNumber
+          : '1';
+
+      final response = await http.post(
+        Uri.parse(_updateCheckUrl),
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        body: {
+          'platform': platform,
+          'version': installedVersionCode,
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> data = jsonDecode(response.body) as Map<String, dynamic>;
+
+        if (data['status'] == 'success' && data['updateAvailable'] == true) {
+          final Map<String, dynamic> info = Map<String, dynamic>.from(data['updateInfo'] as Map);
+          return UpdateInfo(
+            version: info['version'].toString(),
+            buildNumber: int.tryParse(info['buildNumber']?.toString() ?? info['version']?.toString() ?? '1') ?? 1,
+            downloadUrl: (info['downloadUrl'] as String?) ?? _composeDownloadUrl(platform, info['version'].toString()),
+            releaseNotes: (info['releaseNotes'] as String?) ?? 'Bug fixes and performance improvements',
+            isAvailable: true,
+          );
+        }
+
+        // No update available
+        return UpdateInfo(
+          version: data['latestVersion']?.toString() ?? '1.0.0',
+          buildNumber: int.tryParse(data['latestVersion']?.toString() ?? '1') ?? 1,
+          downloadUrl: '',
+          releaseNotes: data['message']?.toString() ?? '',
+          isAvailable: false,
+        );
       } else {
-        print('ℹ️ [AutoUpdate] Service skipped for non-Android platform');
+        debugPrint('Update check failed with status: ${response.statusCode}');
       }
     } catch (e) {
-      print('❌ [AutoUpdate] Failed to initialize: $e');
+      debugPrint('Error checking for updates: $e');
     }
-  }
-
-  /// Check for available updates
-  Future<bool> checkForUpdates({bool showDialog = true, BuildContext? context}) async {
-    if (!_isInitialized || !Platform.isAndroid || _isCheckingForUpdates) {
-      return false;
-    }
-
-    _isCheckingForUpdates = true;
-    
-    try {
-      print('🔄 [AutoUpdate] Checking for updates...');
-      
-      // Check if we have permission to install from unknown sources
-      if (!await _checkInstallPermission()) {
-        print('⚠️ [AutoUpdate] No permission to install from unknown sources');
-        
-        // Show permission dialog if context is available
-        if (context != null) {
-          print('🔄 [AutoUpdate] Showing permission dialog...');
-          final bool userGranted = await _showPermissionDialog(context);
-          if (!userGranted) {
-            print('❌ [AutoUpdate] User denied permission - update check skipped');
-            return false;
-          }
-        }
-        
-        print('🔄 [AutoUpdate] Requesting system permission...');
-        // Try to request permission
-        final bool permissionGranted = await _requestInstallPermission();
-        if (!permissionGranted) {
-          print('❌ [AutoUpdate] System permission denied - update check skipped');
-          return false;
-        }
-        
-        print('✅ [AutoUpdate] Permission granted - continuing with update check');
-      }
-      
-      // For now, Firebase App Distribution is not configured
-      // This will be implemented when Firebase is properly set up
-      print('ℹ️ [AutoUpdate] Firebase App Distribution not yet configured');
-      print('ℹ️ [AutoUpdate] No updates available until configured');
-      
-      return false;
-    } catch (e) {
-      print('❌ [AutoUpdate] Error checking for updates: $e');
-      return false;
-    } finally {
-      _isCheckingForUpdates = false;
-    }
-  }
-
-  /// Start the update process
-  Future<void> startUpdate() async {
-    if (!_isInitialized || !Platform.isAndroid) return;
-    
-    try {
-      print('🚀 [AutoUpdate] Starting update...');
-      print('ℹ️ [AutoUpdate] Firebase App Distribution not yet configured');
-      print('ℹ️ [AutoUpdate] Update process not available until configured');
-    } catch (e) {
-      print('❌ [AutoUpdate] Error starting update: $e');
-      rethrow;
-    }
-  }
-
-  /// Handle update progress
-  void _handleUpdateProgress(dynamic progress) {
-    // This will be implemented when Firebase App Distribution is configured
-    print('ℹ️ [AutoUpdate] Update progress handling not yet configured');
-  }
-
-  /// Show update dialog to user
-  Future<void> _showUpdateDialog(String currentVersion, String latestVersion, String? releaseNotes) async {
-    // This will be called from the UI context
-    // The actual dialog will be shown by the calling widget
-    // For now, we'll just log the update availability
-    print('📱 [AutoUpdate] Update available: $currentVersion -> $latestVersion');
-    if (releaseNotes != null) {
-      print('📝 [AutoUpdate] Release notes: $releaseNotes');
-    }
-  }
-
-  /// Get release notes for the latest version
-  Future<String?> _getReleaseNotes() async {
-    // This will be implemented when Firebase App Distribution is configured
     return null;
   }
 
-    /// Check if we have permission to install from unknown sources
-  Future<bool> _checkInstallPermission() async {
+  static Future<bool> downloadUpdate(String downloadUrl) async {
     try {
-      if (!Platform.isAndroid) return false;
-      
-      // Check if we can request package installs
-      const platform = MethodChannel('auto_update_permissions');
-      
-      try {
-        final bool hasPermission = await platform.invokeMethod('checkInstallPermission');
-        print('ℹ️ [AutoUpdate] Install permission status: $hasPermission');
-        return hasPermission;
-      } on PlatformException catch (e) {
-        print('⚠️ [AutoUpdate] Permission check failed: ${e.message}');
-        // Fallback: assume permission is granted for now
+      final http.Response response = await http.get(Uri.parse(downloadUrl));
+      if (response.statusCode == 200) {
+        final Directory directory = await getApplicationDocumentsDirectory();
+        final File file = File('${directory.path}/app-update.apk');
+        await file.writeAsBytes(response.bodyBytes);
         return true;
+      } else {
+        debugPrint('Download failed with status: ${response.statusCode}');
       }
     } catch (e) {
-      print('❌ [AutoUpdate] Error checking install permission: $e');
-      return false;
+      debugPrint('Error downloading update: $e');
     }
+    return false;
   }
 
-  /// Request permission to install from unknown sources
-  Future<bool> _requestInstallPermission() async {
+  static Future<bool> installUpdate() async {
     try {
-      if (!Platform.isAndroid) return false;
-      
-      const platform = MethodChannel('auto_update_permissions');
-      
-      try {
-        final bool permissionGranted = await platform.invokeMethod('requestInstallPermission');
-        print('ℹ️ [AutoUpdate] Install permission request result: $permissionGranted');
-        return permissionGranted;
-      } on PlatformException catch (e) {
-        print('⚠️ [AutoUpdate] Permission request failed: ${e.message}');
-        return false;
+      if (Platform.isAndroid) {
+        final PermissionStatus status = await Permission.requestInstallPackages.request();
+        if (!status.isGranted) return false;
+
+        final Directory directory = await getApplicationDocumentsDirectory();
+        final File file = File('${directory.path}/app-update.apk');
+        if (await file.exists()) {
+          return await _installApk(file.path);
+        } else {
+          debugPrint('APK file not found for installation');
+        }
       }
     } catch (e) {
-      print('❌ [AutoUpdate] Error requesting install permission: $e');
+      debugPrint('Error installing update: $e');
+    }
+    return false;
+  }
+  
+  static Future<bool> requestInstallPermission() async {
+    try {
+      if (Platform.isAndroid) {
+        final status = await Permission.requestInstallPackages.request();
+        return status.isGranted;
+      }
+      return false;
+    } catch (e) {
+      debugPrint('Error requesting install permission: $e');
+      return false;
+    }
+  }
+  
+  static Future<bool> hasInstallPermission() async {
+    try {
+      if (Platform.isAndroid) {
+        final status = await Permission.requestInstallPackages.status;
+        return status.isGranted;
+      }
+      return false;
+    } catch (e) {
+      debugPrint('Error checking install permission: $e');
       return false;
     }
   }
 
-  /// Show permission dialog to user
-  Future<bool> _showPermissionDialog(BuildContext context) async {
-    return await showDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => PermissionDialog(
-        onGranted: () {
-          Navigator.of(context).pop(true);
-        },
-        onDenied: () {
-          Navigator.of(context).pop(false);
-        },
-      ),
-    ) ?? false;
+  static String _composeDownloadUrl(String platform, String version) {
+    final uri = Uri.parse(_updateDownloadUrl).replace(queryParameters: {
+      'platform': platform,
+      'version': version,
+    });
+    return uri.toString();
   }
 
-  /// Get current app version
-  String getCurrentVersion() {
-    // This will be implemented when Firebase App Distribution is configured
-    return '1.0.0';
+  static Future<bool> _installApk(String apkPath) async {
+    try {
+      debugPrint('Installing APK from: $apkPath');
+      // TODO: Implement via platform channel or install plugin
+      return true;
+    } catch (e) {
+      debugPrint('Error installing APK: $e');
+      return false;
+    }
   }
+}
 
-  /// Get latest available version
-  Future<String?> getLatestVersion() async {
-    if (!_isInitialized || !Platform.isAndroid) return null;
-    
-    // This will be implemented when Firebase App Distribution is configured
-    return null;
-  }
+class UpdateInfo {
+  final String version;
+  final int buildNumber;
+  final String downloadUrl;
+  final String releaseNotes;
+  final bool isAvailable;
 
-  /// Check if update is in progress
-  bool get isUpdateInProgress => _isCheckingForUpdates;
-
-  /// Check if service is initialized
-  bool get isInitialized => _isInitialized;
+  UpdateInfo({
+    required this.version,
+    required this.buildNumber,
+    required this.downloadUrl,
+    required this.releaseNotes,
+    required this.isAvailable,
+  });
 }

@@ -6,12 +6,13 @@ import 'device_service.dart';
 // import 'dart:io' show Platform;
 // import 'package:firebase_auth/firebase_auth.dart' as fb_auth;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import '../config/constants.dart';
 
 class AuthService {
-  static const String baseUrl = 'https://api.skybyn.no';
-  static const String userIdKey = 'user_id';
-  static const String userProfileKey = 'user_profile';
-  static const String usernameKey = 'username';
+  static const String baseUrl = ApiConstants.apiBase;
+  static const String userIdKey = StorageKeys.userId;
+  static const String userProfileKey = StorageKeys.userProfile;
+  static const String usernameKey = StorageKeys.username;
   SharedPreferences? _prefs;
   // final fb_auth.FirebaseAuth _auth = fb_auth.FirebaseAuth.instance;
 
@@ -35,7 +36,7 @@ class AuthService {
       print('Device info retrieved successfully');
 
       final response = await http.post(
-        Uri.parse('$baseUrl/login.php'),
+        Uri.parse(ApiConstants.login),
         body: {
           'user': username,
           'password': password,
@@ -84,7 +85,7 @@ class AuthService {
       print('Profile API request body:');
       print(requestBody);
       final response = await http.post(
-        Uri.parse('$baseUrl/profile.php'),
+        Uri.parse(ApiConstants.profile),
         body: requestBody,
       );
       print('Profile API response status: ${response.statusCode}');
@@ -195,7 +196,7 @@ class AuthService {
       print('Sending verification code to email: $email');
       
       final response = await http.post(
-        Uri.parse('$baseUrl/sendEmailVerification.php'),
+        Uri.parse(ApiConstants.sendEmailVerification),
         body: {
           'email': email,
           'action': 'register',
@@ -244,7 +245,7 @@ class AuthService {
       print('Verifying code for email: $email');
       
       final response = await http.post(
-        Uri.parse('$baseUrl/verify_email.php'),
+        Uri.parse(ApiConstants.verifyEmail),
         body: {
           'email': email,
           'code': code,
@@ -301,7 +302,7 @@ class AuthService {
       print('Registering new user: $username ($email)');
       
       final response = await http.post(
-        Uri.parse('$baseUrl/register.php'),
+        Uri.parse(ApiConstants.register),
         body: {
           'email': email,
           'username': username,

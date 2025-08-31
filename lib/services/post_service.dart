@@ -1,6 +1,7 @@
 import '../models/post.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import '../config/constants.dart';
 
 class PostService {
   Future<List<Post>> fetchPostsForUser({String? userId}) async {
@@ -9,7 +10,7 @@ class PostService {
     
     try {
       final response = await http.post(
-        Uri.parse('https://api.skybyn.no/post/timeline.php'),
+        Uri.parse(ApiConstants.timeline),
         body: {'userID': userID}, 
       ).timeout(const Duration(seconds: 10));
     
@@ -42,7 +43,7 @@ class PostService {
   Future<List<Post>> fetchUserTimeline({required String userId, String? currentUserId}) async {
     try {
       final response = await http.post(
-        Uri.parse('https://api.skybyn.no/post/user-timeline.php'),
+        Uri.parse(ApiConstants.userTimeline),
         body: {
           'userID': userId,
           if (currentUserId != null) 'currentUserID': currentUserId,
@@ -81,7 +82,7 @@ class PostService {
     
     try {
       final response = await http.post(
-        Uri.parse('https://api.skybyn.no/post/get_post.php'),
+        Uri.parse(ApiConstants.getPost),
         body: {'postID': postId, 'userID': userID},
       ).timeout(const Duration(seconds: 10));
     
@@ -151,7 +152,7 @@ class PostService {
     print('🗑️ Attempting to delete post: postID=$postId, userID=$userId');
     
     final response = await http.post(
-      Uri.parse('https://api.skybyn.no/post/delete.php'),
+      Uri.parse(ApiConstants.deletePost),
       body: {'postID': postId, 'userID': userId},
     );
 
@@ -184,7 +185,7 @@ class PostService {
     print('📤 Sending plain text post content to server: "${content.length > 50 ? '${content.substring(0, 50)}...' : content}"');
 
     final response = await http.post(
-      Uri.parse('https://api.skybyn.no/post/add.php'),
+      Uri.parse(ApiConstants.addPost),
       body: {
         'userID': userId,
         'content': content,
@@ -214,7 +215,7 @@ class PostService {
     print('📤 Sending plain text post update to server: "${content.length > 50 ? '${content.substring(0, 50)}...' : content}"');
 
     final response = await http.post(
-      Uri.parse('https://api.skybyn.no/post/update.php'),
+      Uri.parse(ApiConstants.updatePost),
       body: {
         'postID': postId,
         'userID': userId,

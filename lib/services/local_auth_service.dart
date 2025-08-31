@@ -3,39 +3,31 @@ import 'package:local_auth/local_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class LocalAuthService {
-  static final _auth = LocalAuthentication();
-  static const _biometricEnabledKey = 'biometric_enabled';
+  static const String _biometricEnabledKey = 'biometric_enabled';
 
   static Future<bool> isBiometricEnabled() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getBool(_biometricEnabledKey) ?? false;
   }
 
-  static Future<void> setBiometricEnabled(bool isEnabled) async {
+  static Future<void> setBiometricEnabled(bool enabled) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_biometricEnabledKey, isEnabled);
-  }
-
-  static Future<bool> canAuthenticate() async {
-    return await _auth.canCheckBiometrics || await _auth.isDeviceSupported();
+    await prefs.setBool(_biometricEnabledKey, enabled);
   }
 
   static Future<bool> authenticate() async {
     try {
-      if (!await canAuthenticate()) {
-        return false;
-      }
-      return await _auth.authenticate(
-        localizedReason: 'Please authenticate to access sensitive information.',
-        options: const AuthenticationOptions(
-          useErrorDialogs: true,
-          stickyAuth: true,
-          biometricOnly: true,
-        ),
+      final LocalAuthentication auth = LocalAuthentication();
+      final bool canCheck = await auth.canCheckBiometrics;
+      if (!canCheck) return false;
+      return await auth.authenticate(
+        localizedReason: 'Authenticate to enable biometric lock',
+        options: const AuthenticationOptions(biometricOnly: true, stickyAuth: true),
       );
-    } on PlatformException catch (e) {
-      print('Error during authentication: $e');
+    } on PlatformException {
       return false;
     }
   }
-} 
+}
+
+

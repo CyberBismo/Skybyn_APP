@@ -12,6 +12,7 @@ import '../widgets/search_form.dart';
 import '../services/auth_service.dart';
 import '../services/post_service.dart';
 import 'create_post_screen.dart';
+import '../config/constants.dart';
 
 class ProfileScreen extends StatefulWidget {
   final String? userId;
@@ -93,7 +94,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Future<void> _sendFriendAction(String action) async {
     if (currentUserId == null || userData == null) return;
     final response = await http.post(
-      Uri.parse('https://api.skybyn.no/friend/friend.php'),
+      Uri.parse(ApiConstants.friend),
       body: {
         'userID': currentUserId!,
         'friendID': userData!['userID'],

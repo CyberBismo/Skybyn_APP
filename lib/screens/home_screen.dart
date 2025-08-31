@@ -21,6 +21,7 @@ import 'dart:io';
 import '../widgets/chat_list_modal.dart';
 import '../widgets/app_colors.dart';
 import '../widgets/update_dialog.dart';
+import '../config/constants.dart';
 
 // Lifecycle event handler for keyboard-aware scrolling
 class LifecycleEventHandler extends WidgetsBindingObserver {
@@ -502,7 +503,7 @@ class _HomeScreenState extends State<HomeScreen> {
     try {
       print('🧪 Testing HTTP connection to API...');
       final response = await http.get(
-        Uri.parse('https://api.skybyn.no/'),
+        Uri.parse(ApiConstants.apiBase + '/'),
         headers: {
           'User-Agent': 'Flutter Mobile App',
         },
@@ -524,20 +525,17 @@ class _HomeScreenState extends State<HomeScreen> {
     }
 
     try {
-      final updateAvailable = await AutoUpdateService().checkForUpdates(showDialog: false, context: context);
+      final updateInfo = await AutoUpdateService.checkForUpdates();
       
-      if (updateAvailable) {
-        // Get version information
-        final currentVersion = AutoUpdateService().getCurrentVersion();
-        final latestVersion = await AutoUpdateService().getLatestVersion() ?? 'Unknown';
-        
+      if (updateInfo != null && updateInfo.isAvailable) {
         // Show update dialog
         if (mounted) {
           showDialog(
             context: context,
             builder: (context) => UpdateDialog(
-              currentVersion: currentVersion,
-              latestVersion: latestVersion,
+              currentVersion: '1.0.0',
+              latestVersion: updateInfo.version,
+              releaseNotes: updateInfo.releaseNotes,
             ),
           );
         }
@@ -570,7 +568,7 @@ class _HomeScreenState extends State<HomeScreen> {
       
       // Try to fetch the new comment data from the API
       try {
-        const url = 'https://api.skybyn.no/comment/get_comment.php';
+        const url = ApiConstants.getComment;
         final body = {'commentID': commentId, 'userID': userId};
         
         print('🔄 Making request to: $url');

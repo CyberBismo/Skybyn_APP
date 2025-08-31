@@ -3,6 +3,7 @@ import 'dart:convert';
 import '../models/comment.dart';
 // import 'dart:io' show Platform;
 // import 'package:cloud_firestore/cloud_firestore.dart';
+import '../config/constants.dart';
 
 class CommentService {
   Future<void> postComment({
@@ -16,7 +17,7 @@ class CommentService {
 
     // Make API call to add comment
     final response = await http.post(
-      Uri.parse('https://api.skybyn.no/comment/add.php'),
+      Uri.parse(ApiConstants.addComment),
       body: {
         'postID': postId,
         'userID': userId,
@@ -84,7 +85,7 @@ class CommentService {
     String? userId,
   }) async {
     try {
-      const url = 'https://api.skybyn.no/comment/get_comment.php';
+      const url = ApiConstants.getComment;
       final body = {
         'commentID': commentId,
         if (userId != null) 'userID': userId,
@@ -163,7 +164,7 @@ class CommentService {
   }) async {
     try {
       final response = await http.post(
-        Uri.parse('https://api.skybyn.no/comment/delete.php'),
+        Uri.parse(ApiConstants.deleteComment),
         body: {'commentID': commentId, 'userID': userId},
       );
 

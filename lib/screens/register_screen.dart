@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../widgets/background_gradient.dart';
 import '../services/auth_service.dart';
+import '../widgets/wheel_date_picker.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -64,36 +65,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }
 
   Future<void> _selectDate(BuildContext context) async {
-    final DateTime initialDate = _selectedDate ?? DateTime.now().subtract(const Duration(days: 5475)); // 15 years ago
-    final DateTime firstDate = DateTime.now().subtract(const Duration(days: 36500)); // 100 years ago
-    final DateTime lastDate = DateTime.now().subtract(const Duration(days: 5475)); // 15 years ago
-    
-    // Use the native date picker for better Android compatibility
-    final DateTime? picked = await showDatePicker(
-      context: context,
+    final DateTime now = DateTime.now();
+    final DateTime initialDate = _selectedDate ?? DateTime(now.year - 15, now.month, now.day);
+    final DateTime firstDate = DateTime(now.year - 100, now.month, now.day);
+    final DateTime lastDate = DateTime(now.year - 15, now.month, now.day);
+
+    final DateTime? picked = await showWheelDatePicker(
+      context,
       initialDate: initialDate,
       firstDate: firstDate,
       lastDate: lastDate,
-      builder: (context, child) {
-        return Theme(
-          data: Theme.of(context).copyWith(
-            colorScheme: Theme.of(context).colorScheme.copyWith(
-              primary: Colors.blue,
-              onPrimary: Colors.white,
-              surface: Colors.white,
-              onSurface: Colors.white,
-            ),
-            dialogBackgroundColor: Colors.white,
-            textTheme: Theme.of(context).textTheme.copyWith(
-              bodyLarge: Theme.of(context).textTheme.bodyLarge?.copyWith(color: Colors.white),
-              bodyMedium: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.white),
-              titleMedium: Theme.of(context).textTheme.titleMedium?.copyWith(color: Colors.white),
-              titleSmall: Theme.of(context).textTheme.titleSmall?.copyWith(color: Colors.white),
-            ),
-          ),
-          child: child!,
-        );
-      },
     );
     
     if (picked != null && picked != _selectedDate) {
@@ -447,7 +428,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
               children: [
                 Icon(
                   _selectedDate != null ? Icons.check_circle : Icons.calendar_today,
-                  color: _selectedDate != null ? Colors.green : Colors.white,
+                  color: Colors.white,
                   size: 20,
                 ),
                 const SizedBox(width: 8),
@@ -458,7 +439,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
-                    color: _selectedDate != null ? Colors.green : Colors.white,
+                    color: Colors.white,
                   ),
                 ),
               ],
@@ -471,10 +452,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: Colors.green.withValues(alpha: 0.1),
+              color: Colors.white.withValues(alpha: 0.08),
               borderRadius: BorderRadius.circular(10),
               border: Border.all(
-                color: Colors.green.withValues(alpha: 0.3),
+                color: Colors.white.withValues(alpha: 0.3),
                 width: 1.5,
               ),
             ),
@@ -482,7 +463,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
               children: [
                 const Icon(
                   Icons.check_circle,
-                  color: Colors.green,
+                  color: Colors.white,
                   size: 24,
                 ),
                 const SizedBox(width: 12),
@@ -493,7 +474,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       const Text(
                         'Date Selected',
                         style: TextStyle(
-                          color: Colors.green,
+                          color: Colors.white,
                           fontSize: 16,
                           fontWeight: FontWeight.w600,
                         ),
@@ -502,7 +483,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       Text(
                         'Age: ${DateTime.now().difference(_selectedDate!).inDays ~/ 365} years old',
                         style: TextStyle(
-                          color: Colors.green.withValues(alpha: 0.8),
+                          color: Colors.white.withValues(alpha: 0.8),
                           fontSize: 14,
                         ),
                       ),
@@ -798,53 +779,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
           ),
         ),
         const SizedBox(height: 20),
-        
-        // Success message
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.blue.withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(
-              color: Colors.blue.withValues(alpha: 0.3),
-              width: 1.5,
-            ),
-          ),
-          child: Row(
-            children: [
-              const Icon(
-                Icons.email,
-                color: Colors.blue,
-                size: 24,
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Email Sent',
-                      style: TextStyle(
-                        color: Colors.blue,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Verification code sent to ${_emailController.text}',
-                      style: TextStyle(
-                        color: Colors.blue.withValues(alpha: 0.8),
-                        fontSize: 14,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-        
         const SizedBox(height: 20),
         
         // Verification code input
