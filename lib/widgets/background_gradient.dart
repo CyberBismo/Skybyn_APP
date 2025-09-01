@@ -170,4 +170,4 @@ class _BackgroundGradientState extends State<BackgroundGradient> with TickerProv
       ],
     );
   }
-} 
+}
