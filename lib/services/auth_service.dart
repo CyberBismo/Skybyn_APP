@@ -172,7 +172,7 @@ class AuthService {
         throw Exception('Must provide either username or userId');
       }
       final response = await http.post(
-        Uri.parse('$baseUrl/profile.php'),
+        Uri.parse(ApiConstants.profile),
         body: requestBody,
       );
       if (response.statusCode == 200) {
@@ -201,13 +201,18 @@ class AuthService {
           'email': email,
           'action': 'register',
         },
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
       );
+      print('Send verification POST URL: ${ApiConstants.sendEmailVerification}');
+      print('Send verification POST Body: {email: $email, action: register}');
 
       print('Send verification response status: ${response.statusCode}');
       print('Send verification response body: ${response.body}');
 
       if (response.statusCode == 200) {
-        final data = json.decode(response.body);
+        final data = _safeJsonDecode(response.body);
         
         if (data['responseCode'] == '1') {
           print('Verification code sent successfully');
@@ -215,6 +220,8 @@ class AuthService {
             'success': true,
             'message': data['message'] ?? 'Verification code sent successfully',
             'verificationCode': data['verificationCode'], // For testing only
+            'status': data['status']?.toString(),
+            'alreadyVerified': (data['status']?.toString().toLowerCase() == 'verified'),
           };
         } else {
           print('Failed to send verification code: ${data['message']}');
@@ -244,20 +251,26 @@ class AuthService {
     try {
       print('Verifying code for email: $email');
       
-      final response = await http.post(
+      print('Verify email POST URL: ${ApiConstants.verifyEmail}');
+      print('Verify email POST Body: {email: $email, code: [REDACTED], action: register}');
+      http.Response response = await http.post(
         Uri.parse(ApiConstants.verifyEmail),
         body: {
           'email': email,
           'code': code,
-          'action': 'register',
+        },
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
         },
       );
+
+      // No fallback; verify_email.php is the only endpoint
 
       print('Verify email response status: ${response.statusCode}');
       print('Verify email response body: ${response.body}');
 
       if (response.statusCode == 200) {
-        final data = json.decode(response.body);
+        final data = _safeJsonDecode(response.body);
         
         if (data['responseCode'] == '1') {
           print('Email verification successful');
@@ -284,6 +297,37 @@ class AuthService {
       return {
         'success': false,
         'message': 'Connection error occurred: ${e.toString()}',
+      };
+    }
+  }
+
+  dynamic _safeJsonDecode(String body) {
+    try {
+      return json.decode(body);
+    } catch (_) {
+      // Try to extract JSON if there is HTML or other noise around it
+      final int objStart = body.indexOf('{');
+      final int arrStart = body.indexOf('[');
+      int start = -1;
+      if (objStart != -1 && arrStart != -1) {
+        start = objStart < arrStart ? objStart : arrStart;
+      } else if (objStart != -1) {
+        start = objStart;
+      } else if (arrStart != -1) {
+        start = arrStart;
+      }
+      if (start != -1) {
+        final String trimmed = body.substring(start).trim();
+        try {
+          return json.decode(trimmed);
+        } catch (e) {
+          print('Failed to decode trimmed JSON: $e');
+        }
+      }
+      // As a last resort, return a map with raw message so UI can show something meaningful
+      return {
+        'responseCode': '0',
+        'message': body.length > 200 ? body.substring(0, 200) : body,
       };
     }
   }

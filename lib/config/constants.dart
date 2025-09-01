@@ -1,6 +1,6 @@
 class ApiConstants {
   static const String apiBase = 'https://api.skybyn.no';
-  static const String webBase = 'https://skybyn.com';
+  static const String webBase = 'https://skybyn.no';
 
   // Auth
   static const String login = '$apiBase/login.php';
@@ -25,6 +25,7 @@ class ApiConstants {
   // Misc
   static const String qrCheck = '$apiBase/qr_check.php';
   static const String friend = '$apiBase/friend/friend.php';
+  static const String friends = '$apiBase/friend/friends.php';
 
   // Updates
   static const String checkUpdate = '$apiBase/appUpdates/check.php';

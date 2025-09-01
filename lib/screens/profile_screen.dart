@@ -6,6 +6,7 @@ import '../widgets/background_gradient.dart';
 import '../widgets/post_card.dart';
 import '../widgets/custom_app_bar.dart';
 import '../widgets/custom_bottom_navigation_bar.dart';
+import '../widgets/chat_list_modal.dart';
 import '../widgets/app_colors.dart';
 import 'home_screen.dart';
 import '../widgets/search_form.dart';
@@ -164,7 +165,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
             );
           },
           onFriendsPressed: () {},
-          onChatPressed: () {},
+          onChatPressed: () {
+            showModalBottomSheet(
+              context: context,
+              isScrollControlled: true,
+              backgroundColor: Colors.transparent,
+              builder: (context) => const ChatListModal(),
+            );
+          },
           onNotificationsPressed: () {},
         ),
       ),

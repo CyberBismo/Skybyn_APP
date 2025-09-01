@@ -61,4 +61,15 @@ class Comment {
       content: json['content'] ?? '',
     );
   }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'user': userId, // Keep 'user' for API compatibility
+      'userId': userId, // Add 'userId' for clarity
+      'username': username,
+      'avatar': avatar,
+      'content': content,
+    };
+  }
 } 

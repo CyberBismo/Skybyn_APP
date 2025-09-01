@@ -162,13 +162,15 @@ class Post {
     return {
       'id': id,
       'author': author,
+      'userId': userId,
       'avatar': avatar,
       'content': content,
       'image': image,
       'likes': likes,
       'comments': comments,
       'commentsList': commentsList.map((c) => c.toJson()).toList(),
-      'timestamp': createdAt.toIso8601String(),
+      'created': createdAt.toIso8601String(),
+      'createdAt': createdAt.toIso8601String(), // Keep both for compatibility
       'ilike': isLiked ? '1' : '0',
     };
   }

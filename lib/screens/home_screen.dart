@@ -305,6 +305,37 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  Future<void> _refreshData() async {
+    print('🔄 [HomeScreen] _refreshData() called!');
+    try {
+      final userId = await _authService.getStoredUserId();
+      if (userId != null) {
+        print('🔄 [HomeScreen] Refreshing posts from API for user: $userId');
+        final newPosts = await PostService().fetchPostsForUser(userId: userId)
+            .timeout(const Duration(seconds: 15));
+        
+        print('🔄 [HomeScreen] Got ${newPosts.length} posts from API');
+        
+        if (mounted) {
+          setState(() {
+            _posts = newPosts;
+          });
+          print('✅ [HomeScreen] setState called, posts updated');
+        } else {
+          print('⚠️ [HomeScreen] Widget not mounted, cannot update state');
+        }
+        print('✅ [HomeScreen] Refresh completed, got ${_posts.length} posts');
+      } else {
+        print('❌ [HomeScreen] No user ID found for refresh');
+      }
+    } catch (e) {
+      print('❌ [HomeScreen] Error refreshing data: $e');
+      if (mounted) {
+        CustomSnackBar.show(context, 'Error refreshing data: $e');
+      }
+    }
+  }
+
   Future<void> _handleLogout() async {
     await _authService.logout();
     if (mounted) {
@@ -661,8 +692,8 @@ class _HomeScreenState extends State<HomeScreen> {
         logoPath: 'assets/images/logo.png',
         onLogout: _handleLogout,
         onLogoPressed: () {
-          // Reload data when logo is pressed
-          _loadData();
+          // Force refresh data when logo is pressed
+          _refreshData();
         },
         onSearchFormToggle: () {
           setState(() {
@@ -718,187 +749,190 @@ class _HomeScreenState extends State<HomeScreen> {
           onNotificationsPressed: () {},
         ),
       ),
-      body: GestureDetector(
-        onTap: () {
-          if (_showSearchForm) {
-            _searchFormKey.currentState?.closeForm();
-          }
-
-        },
-        behavior: HitTestBehavior.opaque,
-        child: Stack(
-          children: [
-            const BackgroundGradient(),
-            RefreshIndicator(
-              onRefresh: _loadData,
-              child: _isLoading
-                  ? const Center(child: CircularProgressIndicator())
-                  : (_posts.isEmpty
-                      ? Center(
-                          child: Padding(
-                            padding: const EdgeInsets.only(top: 80.0),
-                                                          child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Text('No posts to display', style: TextStyle(color: AppColors.getSecondaryTextColor(context), fontSize: 18)),
-                                  const SizedBox(height: 20),
-                                  ElevatedButton(
-                                    onPressed: () {
-                                      print('🧪 [Test] Manual SnackBar test');
-                                      _scaffoldMessengerKey.currentState?.showSnackBar(
-                                        const SnackBar(
-                                          content: Text('🧪 Test SnackBar'),
-                                          backgroundColor: Colors.green,
-                                          duration: Duration(seconds: 3),
-                                          behavior: SnackBarBehavior.fixed,
-                                        ),
-                                      );
-                                    },
-                                    child: const Text('Test SnackBar'),
-                                  ),
-                                  const SizedBox(height: 10),
-                                  ElevatedButton(
-                                    onPressed: () {
-                                      print('🧪 [Test] Manual notification test');
-                                      final notificationService = NotificationService();
-                                      notificationService.showNotification(
-                                        title: 'Test Notification',
-                                        body: 'This is a test notification',
-                                        payload: 'test',
-                                      ).then((_) {
-                                        print('🧪 [Test] Manual notification completed');
-                                      }).catchError((error) {
-                                        print('🧪 [Test] Manual notification error: $error');
-                                      });
-                                    },
-                                    child: const Text('Test Notification'),
-                                  ),
-                                ],
-                              ),
+      body: Stack(
+        children: [
+          const BackgroundGradient(),
+          if (_isLoading)
+            const Center(child: CircularProgressIndicator())
+          else if (_posts.isEmpty)
+            Center(
+              child: Padding(
+                padding: const EdgeInsets.only(top: 80.0),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text('No posts to display', style: TextStyle(color: AppColors.getSecondaryTextColor(context), fontSize: 18)),
+                    const SizedBox(height: 20),
+                    ElevatedButton(
+                      onPressed: () {
+                        print('🧪 [Test] Manual SnackBar test');
+                        _scaffoldMessengerKey.currentState?.showSnackBar(
+                          const SnackBar(
+                            content: Text('🧪 Test SnackBar'),
+                            backgroundColor: Colors.green,
+                            duration: Duration(seconds: 3),
+                            behavior: SnackBarBehavior.fixed,
                           ),
-                        )
-                      : SingleChildScrollView(
-                          controller: _scrollController,
-                          padding: EdgeInsets.only(
-                            top: 60.0 + MediaQuery.of(context).padding.top + 5.0, // App bar height + status bar + 5px gap (reduced to prevent overlap)
-                            bottom: 80.0,
-                          ),
-                          child: Padding(
-                            padding: const EdgeInsets.only(left: 10.0, right: 10.0),
-                            child: Column(
-                              children: [
-                                for (final post in _posts) ...[
-                                  const SizedBox(height: 10),
-                                  PostCard(
-                                      key: ValueKey(post.id),
-                                      post: post,
-                                      currentUserId: _currentUserId,
-                                      onPostDeleted: _handlePostDeleted,
-                                      onPostUpdated: _updatePost,
-                                      onInputFocused: () => _onPostInputFocused(post.id),
-                                      onInputUnfocused: () => _onPostInputUnfocused(post.id)),
-                                ],
-                              ],
-                            ),
-                          ),
-                        )),
-            ),
-            if (_showSearchForm)
-              Positioned(
-                top: 0,
-                left: 0,
-                right: 0,
-                child: SearchForm(
-                  key: _searchFormKey,
-                  onClose: () {
-                    setState(() {
-                      _showSearchForm = false;
-                    });
-                  },
-                  onSearch: (query) {
-                    // TODO: Implement actual search logic here
-                    print('Searching for: $query');
-                    _searchFormKey.currentState?.closeForm();
-                  },
+                        );
+                      },
+                      child: const Text('Test SnackBar'),
+                    ),
+                    const SizedBox(height: 10),
+                    ElevatedButton(
+                      onPressed: () {
+                        print('🧪 [Test] Manual notification test');
+                        final notificationService = NotificationService();
+                        notificationService.showNotification(
+                          title: 'Test Notification',
+                          body: 'This is a test notification',
+                          payload: 'test',
+                        ).then((_) {
+                          print('🧪 [Test] Manual notification completed');
+                        }).catchError((error) {
+                          print('🧪 [Test] Manual notification error: $error');
+                        });
+                      },
+                      child: const Text('Test Notification'),
+                    ),
+                    const SizedBox(height: 10),
+                    ElevatedButton(
+                      onPressed: () {
+                        print('🧪 [Test] Manual refresh test');
+                        _refreshData();
+                      },
+                      child: const Text('Test Refresh'),
+                    ),
+                  ],
                 ),
               ),
-            if (_showInAppNotification)
-              SafeArea(
-                child: Align(
-                  alignment: Alignment.topCenter,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 16.0),
-                    child: AnimatedOpacity(
-                      opacity: _showInAppNotification ? 1.0 : 0.0,
-                      duration: const Duration(milliseconds: 300),
-                      child: Material(
-                        elevation: 8,
-                        borderRadius: BorderRadius.circular(12),
-                        color: Colors.transparent,
-                        child: Container(
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF2196F3),
-                            borderRadius: BorderRadius.circular(12),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.15),
-                                blurRadius: 12,
-                                offset: const Offset(0, 4),
-                              ),
-                            ],
-                          ),
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(Icons.notifications, color: AppColors.getIconColor(context), size: 28),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Text(
-                                      _inAppNotificationTitle,
-                                      style: TextStyle(
-                                        color: AppColors.getTextColor(context),
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 16,
-                                      ),
+            )
+          else
+            RefreshIndicator(
+              onRefresh: () async {
+                print('🔄 [HomeScreen] RefreshIndicator onRefresh called!');
+                await _refreshData();
+              },
+              child: SingleChildScrollView(
+                controller: _scrollController,
+                padding: EdgeInsets.only(
+                  top: 60.0 + MediaQuery.of(context).padding.top + 5.0, // App bar height + status bar + 5px gap (reduced to prevent overlap)
+                  bottom: 80.0,
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.only(left: 10.0, right: 10.0),
+                  child: Column(
+                    children: [
+                      for (final post in _posts) ...[
+                        const SizedBox(height: 10),
+                        PostCard(
+                            key: ValueKey(post.id),
+                            post: post,
+                            currentUserId: _currentUserId,
+                            onPostDeleted: _handlePostDeleted,
+                            onPostUpdated: _updatePost,
+                            onInputFocused: () => _onPostInputFocused(post.id),
+                            onInputUnfocused: () => _onPostInputUnfocused(post.id)),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          if (_showSearchForm)
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: SearchForm(
+                key: _searchFormKey,
+                onClose: () {
+                  setState(() {
+                    _showSearchForm = false;
+                  });
+                },
+                onSearch: (query) {
+                  // TODO: Implement actual search logic here
+                  print('Searching for: $query');
+                  _searchFormKey.currentState?.closeForm();
+                },
+              ),
+            ),
+          if (_showInAppNotification)
+            SafeArea(
+              child: Align(
+                alignment: Alignment.topCenter,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 16.0),
+                  child: AnimatedOpacity(
+                    opacity: _showInAppNotification ? 1.0 : 0.0,
+                    duration: const Duration(milliseconds: 300),
+                    child: Material(
+                      elevation: 8,
+                      borderRadius: BorderRadius.circular(12),
+                      color: Colors.transparent,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF2196F3),
+                          borderRadius: BorderRadius.circular(12),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.15),
+                              blurRadius: 12,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.notifications, color: AppColors.getIconColor(context), size: 28),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    _inAppNotificationTitle,
+                                    style: TextStyle(
+                                      color: AppColors.getSecondaryTextColor(context),
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 16,
                                     ),
-                                    const SizedBox(height: 2),
-                                    Text(
-                                      _inAppNotificationBody,
-                                      style: TextStyle(
-                                        color: AppColors.getTextColor(context),
-                                        fontSize: 14,
-                                      ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    _inAppNotificationBody,
+                                    style: TextStyle(
+                                      color: AppColors.getSecondaryTextColor(context),
+                                      fontSize: 14,
                                     ),
-                                  ],
-                                ),
+                                  ),
+                                ],
                               ),
-                              GestureDetector(
-                                onTap: () {
-                                  setState(() {
-                                    _showInAppNotification = false;
-                                  });
-                                },
-                                child: Padding(
-                                  padding: const EdgeInsets.only(left: 8.0, top: 2.0),
-                                  child: Icon(Icons.close, color: AppColors.getIconColor(context), size: 20),
-                                ),
+                            ),
+                            GestureDetector(
+                              onTap: () {
+                                setState(() {
+                                  _showInAppNotification = false;
+                                });
+                              },
+                              child: Padding(
+                                padding: const EdgeInsets.only(left: 8.0, top: 2.0),
+                                child: Icon(Icons.close, color: AppColors.getIconColor(context), size: 20),
                               ),
-                            ],
-                          ),
+                            ),
+                          ],
                         ),
                       ),
                     ),
                   ),
                 ),
               ),
-          ],
-        ),
+            ),
+        ],
       ),
     ),
   );

@@ -1,4 +1,8 @@
 import 'package:flutter/material.dart';
+import 'dart:ui' as ui;
+import 'dart:typed_data';
+import 'package:flutter/services.dart';
+import 'dart:async';
 
 class BackgroundGradient extends StatefulWidget {
   final Widget? child;
@@ -9,6 +13,7 @@ class BackgroundGradient extends StatefulWidget {
 }
 
 class _BackgroundGradientState extends State<BackgroundGradient> with TickerProviderStateMixin {
+  List<Color>? _imageGradientColors;
   late AnimationController _cloud1Controller;
   late AnimationController _cloud2Controller;
   late AnimationController _cloud3Controller;
@@ -19,6 +24,7 @@ class _BackgroundGradientState extends State<BackgroundGradient> with TickerProv
   @override
   void initState() {
     super.initState();
+    _loadGradientFromBackground();
     
     // Cloud 1: Left to right, very slow speed
     _cloud1Controller = AnimationController(
@@ -87,13 +93,22 @@ class _BackgroundGradientState extends State<BackgroundGradient> with TickerProv
       const Color(0xFF141E30), // Almost black (web dark mode)
     ];
 
+    final midnightColors = [
+      const Color(0xFF0B132B), // Midnight navy
+      const Color(0xFF000814), // Near-black midnight blue
+    ];
+
+    final gradientColors = isDarkMode
+        ? midnightColors
+        : (_imageGradientColors ?? lightColors);
+
     return Stack(
       children: [
         // Background gradient
         Container(
           decoration: BoxDecoration(
             gradient: LinearGradient(
-              colors: isDarkMode ? darkColors : lightColors,
+              colors: gradientColors,
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
             ),
@@ -169,5 +184,70 @@ class _BackgroundGradientState extends State<BackgroundGradient> with TickerProv
         ),
       ],
     );
+  }
+
+  Future<void> _loadGradientFromBackground() async {
+    try {
+      final ByteData data = await rootBundle.load('assets/images/background.png');
+      final Uint8List bytes = data.buffer.asUint8List();
+      final ui.Image image = await _decodeImage(bytes);
+
+      final ByteData? raw = await image.toByteData(format: ui.ImageByteFormat.rawRgba);
+      if (raw == null) return;
+      final Uint8List pixels = raw.buffer.asUint8List();
+
+      final int width = image.width;
+      final int height = image.height;
+
+      int yTop = (height * 0.1).floor().clamp(0, height - 1);
+      int yBottom = (height * 0.9).floor().clamp(0, height - 1);
+
+      Color topColor = _averageRowColor(pixels, width, height, yTop);
+      Color bottomColor = _averageRowColor(pixels, width, height, yBottom);
+
+      if (!mounted) return;
+      setState(() {
+        _imageGradientColors = [topColor, bottomColor];
+      });
+    } catch (_) {
+      // If anything fails, keep defaults
+    }
+  }
+
+  Color _averageRowColor(Uint8List pixels, int width, int height, int y) {
+    int redTotal = 0;
+    int greenTotal = 0;
+    int blueTotal = 0;
+    int alphaTotal = 0;
+
+    for (int x = 0; x < width; x++) {
+      final int index = (y * width + x) * 4; // RGBA
+      final int r = pixels[index];
+      final int g = pixels[index + 1];
+      final int b = pixels[index + 2];
+      final int a = pixels[index + 3];
+      redTotal += r;
+      greenTotal += g;
+      blueTotal += b;
+      alphaTotal += a;
+    }
+
+    final int count = width;
+    final int rAvg = (redTotal / count).round();
+    final int gAvg = (greenTotal / count).round();
+    final int bAvg = (blueTotal / count).round();
+    final int aAvg = (alphaTotal / count).round();
+
+    return Color.fromARGB(aAvg, rAvg, gAvg, bAvg);
+  }
+
+  Future<ui.Image> _decodeImage(Uint8List bytes) async {
+    final Completer<ui.Image> completer = Completer<ui.Image>();
+    ui.decodeImageFromList(bytes, (ui.Image image) {
+      if (!completer.isCompleted) {
+        completer.complete(image);
+      }
+    });
+    return completer.future;
   }
 } 

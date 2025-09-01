@@ -42,6 +42,23 @@ class _RegisterScreenState extends State<RegisterScreen> {
   String? _errorMessage;
   int _currentGroup = 0; // 0: date, 1: full name, 2: email, 3: email verification, 4: username, 5: password
 
+  // Live password metrics
+  double _passwordStrength = 0.0;
+  bool _pwHasMinLen = false;
+  bool _pwHasAlpha = false;
+  bool _pwHasNum = false;
+  bool _pwHasSpecial = false;
+  bool _pwMatch = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _passwordController.addListener(_updatePasswordMetrics);
+    _confirmPasswordController.addListener(_updatePasswordMetrics);
+    // Initialize metrics on first build
+    _updatePasswordMetrics();
+  }
+
   @override
   void dispose() {
     _firstNameController.dispose();
@@ -190,6 +207,24 @@ class _RegisterScreenState extends State<RegisterScreen> {
             // In production, this should not be stored client-side
             _expectedVerificationCode = result['verificationCode'];
           });
+
+          // Skip code entry if backend indicates already verified
+          final bool alreadyVerified = (result['alreadyVerified'] == true) ||
+              (result['status']?.toString().toLowerCase() == 'verified');
+          if (alreadyVerified) {
+            setState(() {
+              _emailStepCompleted = true;
+            });
+            // Advance past the verification step
+            if (_currentGroup == 2) {
+              // We are currently at Email step; next would normally be code step (3)
+              // Skip directly to Username step (4)
+              _currentGroup = 4;
+            } else if (_currentGroup == 3) {
+              // If for any reason we're on the code step, jump to username as well
+              _currentGroup = 4;
+            }
+          }
           
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -296,6 +331,25 @@ class _RegisterScreenState extends State<RegisterScreen> {
         _errorMessage = null;
       });
     }
+  }
+
+  void _updatePasswordMetrics() {
+    final String pwd = _passwordController.text;
+    final String confirm = _confirmPasswordController.text;
+    final bool hasMinLen = pwd.length >= 8;
+    final bool hasAlpha = RegExp(r'[A-Za-z]').hasMatch(pwd);
+    final bool hasNum = RegExp(r'[0-9]').hasMatch(pwd);
+    final bool hasSpecial = RegExp(r'''[!@#\$%^&*(),.?":{}|<>_\-\[\]\\/;'`~+=]''').hasMatch(pwd);
+    final int met = [hasMinLen, hasAlpha, hasNum, hasSpecial].where((b) => b).length;
+    final double strength = met / 4.0;
+    setState(() {
+      _pwHasMinLen = hasMinLen;
+      _pwHasAlpha = hasAlpha;
+      _pwHasNum = hasNum;
+      _pwHasSpecial = hasSpecial;
+      _pwMatch = confirm.isNotEmpty && pwd == confirm;
+      _passwordStrength = strength;
+    });
   }
 
   bool _canProceedToNextGroup() {
@@ -472,7 +526,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const Text(
-                        'Date Selected',
+                        'Based on your selection, you are',
                         style: TextStyle(
                           color: Colors.white,
                           fontSize: 16,
@@ -481,7 +535,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        'Age: ${DateTime.now().difference(_selectedDate!).inDays ~/ 365} years old',
+                        '${DateTime.now().difference(_selectedDate!).inDays ~/ 365} years old',
                         style: TextStyle(
                           color: Colors.white.withValues(alpha: 0.8),
                           fontSize: 14,
@@ -969,6 +1023,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
           ),
           textInputAction: TextInputAction.next,
           onFieldSubmitted: (_) => _confirmPasswordFocusNode.requestFocus(),
+          onChanged: (_) => _updatePasswordMetrics(),
         ),
         const SizedBox(height: 20),
 
@@ -1019,8 +1074,53 @@ class _RegisterScreenState extends State<RegisterScreen> {
           ),
           textInputAction: TextInputAction.done,
           onFieldSubmitted: (_) => _handleRegister(),
+          onChanged: (_) => _updatePasswordMetrics(),
         ),
+        const SizedBox(height: 20),
+        // Password strength bar
+        ClipRRect(
+          borderRadius: BorderRadius.circular(6),
+          child: LinearProgressIndicator(
+            value: _passwordStrength.clamp(0.0, 1.0),
+            minHeight: 12,
+            backgroundColor: Colors.white.withValues(alpha: 0.2),
+            valueColor: AlwaysStoppedAnimation<Color>(
+              _passwordStrength < 0.5
+                  ? Colors.red
+                  : (_passwordStrength < 0.75 ? Colors.orange : Colors.green),
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        _buildRequirementRow('At least 8 characters.', _pwHasMinLen),
+        _buildRequirementRow('Alphabetic character used.', _pwHasAlpha),
+        _buildRequirementRow('Numeric character used.', _pwHasNum),
+        _buildRequirementRow('Special character used.', _pwHasSpecial),
+        _buildRequirementRow('Passwords match.', _pwMatch),
       ],
+    );
+  }
+
+  Widget _buildRequirementRow(String text, bool met) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6.0),
+      child: Row(
+        children: [
+          Icon(
+            met ? Icons.check_circle : Icons.cancel,
+            color: met ? Colors.green : Colors.red,
+            size: 18,
+          ),
+          const SizedBox(width: 8),
+          Text(
+            text,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 14,
+            ),
+          ),
+        ],
+      ),
     );
   }
 

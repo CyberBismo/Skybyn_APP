@@ -5,7 +5,6 @@ import '../config/constants.dart';
 
 class PostService {
   Future<List<Post>> fetchPostsForUser({String? userId}) async {
-    // Use a default user ID for testing if none provided
     final userID = userId;
     
     try {
@@ -14,28 +13,21 @@ class PostService {
         body: {'userID': userID}, 
       ).timeout(const Duration(seconds: 10));
     
-    print('Fetching posts for user: $userID');
-    print('API Response status: ${response.statusCode}');
-    print('API Response body: ${response.body}');
-    
-    if (response.statusCode == 200) {
-      final List<dynamic> data = json.decode(response.body);
-      print('Parsed ${data.length} posts from API');
-      
-      final List<Post> posts = [];
-      for (final item in data) {
-        final postMap = item as Map<String, dynamic>;
-        posts.add(Post.fromJson(postMap));
+      if (response.statusCode == 200) {
+        final List<dynamic> data = json.decode(response.body);
+        
+        final List<Post> posts = [];
+        for (final item in data) {
+          final postMap = item as Map<String, dynamic>;
+          posts.add(Post.fromJson(postMap));
+        }
+        
+        return posts;
+      } else {
+        throw Exception('Failed to load posts: ${response.statusCode}');
       }
-      
-      return posts;
-    } else {
-      print('API Error: ${response.statusCode} - ${response.body}');
-      throw Exception('Failed to load posts: ${response.statusCode}');
-    }
     } catch (e) {
-      print('❌ Network error or timeout while fetching posts: $e');
-      // Return empty list instead of throwing to prevent app from hanging
+      print('❌ [PostService] Error: $e');
       return [];
     }
   }
@@ -50,28 +42,21 @@ class PostService {
         },
       ).timeout(const Duration(seconds: 10));
     
-    print('Fetching user timeline for user: $userId');
-    print('API Response status: ${response.statusCode}');
-    print('API Response body: ${response.body}');
-    
-    if (response.statusCode == 200) {
-      final List<dynamic> data = json.decode(response.body);
-      print('Parsed ${data.length} posts from user timeline API');
-      
-      final List<Post> posts = [];
-      for (final item in data) {
-        final postMap = item as Map<String, dynamic>;
-        posts.add(Post.fromJson(postMap));
+      if (response.statusCode == 200) {
+        final List<dynamic> data = json.decode(response.body);
+        
+        final List<Post> posts = [];
+        for (final item in data) {
+          final postMap = item as Map<String, dynamic>;
+          posts.add(Post.fromJson(postMap));
+        }
+        
+        return posts;
+      } else {
+        throw Exception('Failed to load user timeline: ${response.statusCode}');
       }
-      
-      return posts;
-    } else {
-      print('API Error: ${response.statusCode} - ${response.body}');
-      throw Exception('Failed to load user timeline: ${response.statusCode}');
-    }
     } catch (e) {
-      print('❌ Network error or timeout while fetching user timeline: $e');
-      // Return empty list instead of throwing to prevent app from hanging
+      print('❌ [PostService] Error: $e');
       return [];
     }
   }
@@ -235,4 +220,5 @@ class PostService {
     
     print('Post updated successfully: postID=$postId, userID=$userId');
   }
+
 } 
