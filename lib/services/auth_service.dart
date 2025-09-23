@@ -30,7 +30,7 @@ class AuthService {
   Future<Map<String, dynamic>> login(String username, String password) async {
     try {
       print('Attempting login for user: $username');
-      
+
       final deviceService = DeviceService();
       final deviceInfo = await deviceService.getDeviceInfo();
       print('Device info retrieved successfully');
@@ -49,16 +49,17 @@ class AuthService {
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        
+
         if (data['responseCode'] == '1') {
           print('Login successful, storing user data');
           await initPrefs();
-          await _prefs?.setString(userIdKey, data['userID']);
+          // Convert userID to string to avoid type mismatch
+          await _prefs?.setString(userIdKey, data['userID'].toString());
           await _prefs?.setString(usernameKey, username);
           await fetchUserProfile(username);
           return data;
         }
-        
+
         print('Login failed with response: $data');
         return data;
       } else {
@@ -96,7 +97,7 @@ class AuthService {
         print(data);
         if (data['responseCode'] == '1') {
           // Manually add the userID to the map before creating the User object
-          data['id'] = userId; 
+          data['id'] = userId.toString(); // Ensure it's a string
           final user = User.fromJson(data);
           print('User object created from profile API:');
           print(user);
@@ -194,7 +195,7 @@ class AuthService {
   Future<Map<String, dynamic>> sendEmailVerification(String email) async {
     try {
       print('Sending verification code to email: $email');
-      
+
       final response = await http.post(
         Uri.parse(ApiConstants.sendEmailVerification),
         body: {
@@ -205,7 +206,8 @@ class AuthService {
           'Content-Type': 'application/x-www-form-urlencoded',
         },
       );
-      print('Send verification POST URL: ${ApiConstants.sendEmailVerification}');
+      print(
+          'Send verification POST URL: ${ApiConstants.sendEmailVerification}');
       print('Send verification POST Body: {email: $email, action: register}');
 
       print('Send verification response status: ${response.statusCode}');
@@ -213,7 +215,7 @@ class AuthService {
 
       if (response.statusCode == 200) {
         final data = _safeJsonDecode(response.body);
-        
+
         if (data['responseCode'] == '1') {
           print('Verification code sent successfully');
           return {
@@ -221,7 +223,8 @@ class AuthService {
             'message': data['message'] ?? 'Verification code sent successfully',
             'verificationCode': data['verificationCode'], // For testing only
             'status': data['status']?.toString(),
-            'alreadyVerified': (data['status']?.toString().toLowerCase() == 'verified'),
+            'alreadyVerified':
+                (data['status']?.toString().toLowerCase() == 'verified'),
           };
         } else {
           print('Failed to send verification code: ${data['message']}');
@@ -247,12 +250,14 @@ class AuthService {
   }
 
   /// Verifies the email verification code
-  Future<Map<String, dynamic>> verifyEmailCode(String email, String code) async {
+  Future<Map<String, dynamic>> verifyEmailCode(
+      String email, String code) async {
     try {
       print('Verifying code for email: $email');
-      
+
       print('Verify email POST URL: ${ApiConstants.verifyEmail}');
-      print('Verify email POST Body: {email: $email, code: [REDACTED], action: register}');
+      print(
+          'Verify email POST Body: {email: $email, code: [REDACTED], action: register}');
       http.Response response = await http.post(
         Uri.parse(ApiConstants.verifyEmail),
         body: {
@@ -271,7 +276,7 @@ class AuthService {
 
       if (response.statusCode == 200) {
         final data = _safeJsonDecode(response.body);
-        
+
         if (data['responseCode'] == '1') {
           print('Email verification successful');
           return {
@@ -344,7 +349,7 @@ class AuthService {
   }) async {
     try {
       print('Registering new user: $username ($email)');
-      
+
       final response = await http.post(
         Uri.parse(ApiConstants.register),
         body: {
@@ -363,7 +368,7 @@ class AuthService {
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        
+
         if (data['responseCode'] == '1') {
           print('User registration successful');
           return {
@@ -394,4 +399,4 @@ class AuthService {
       };
     }
   }
-} 
+}

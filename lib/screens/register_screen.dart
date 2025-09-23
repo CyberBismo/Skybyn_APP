@@ -20,9 +20,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
-  
+
   final _authService = AuthService();
-  
+
   final _firstNameFocusNode = FocusNode();
   final _middleNameFocusNode = FocusNode();
   final _lastNameFocusNode = FocusNode();
@@ -37,10 +37,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
   bool _obscureConfirmPassword = true;
   bool _isLoading = false;
   bool _verificationEmailSent = false;
-  bool _emailStepCompleted = false;
+  bool _emailAlreadyVerified = false;
   String? _expectedVerificationCode;
   String? _errorMessage;
-  int _currentGroup = 0; // 0: date, 1: full name, 2: email, 3: email verification, 4: username, 5: password
+  int _currentGroup =
+      0; // 0: date, 1: full name, 2: email, 3: email verification, 4: username, 5: password
 
   // Live password metrics
   double _passwordStrength = 0.0;
@@ -53,6 +54,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
   @override
   void initState() {
     super.initState();
+    _firstNameController.addListener(_updateButtonState);
+    _lastNameController.addListener(_updateButtonState);
+    _emailController.addListener(_updateButtonState);
+    _verificationCodeController.addListener(_updateButtonState);
+    _usernameController.addListener(_updateButtonState);
     _passwordController.addListener(_updatePasswordMetrics);
     _confirmPasswordController.addListener(_updatePasswordMetrics);
     // Initialize metrics on first build
@@ -69,7 +75,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     _usernameController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
-    
+
     _firstNameFocusNode.dispose();
     _middleNameFocusNode.dispose();
     _lastNameFocusNode.dispose();
@@ -83,7 +89,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   Future<void> _selectDate(BuildContext context) async {
     final DateTime now = DateTime.now();
-    final DateTime initialDate = _selectedDate ?? DateTime(now.year - 15, now.month, now.day);
+    final DateTime initialDate =
+        _selectedDate ?? DateTime(now.year - 15, now.month, now.day);
     final DateTime firstDate = DateTime(now.year - 100, now.month, now.day);
     final DateTime lastDate = DateTime(now.year - 15, now.month, now.day);
 
@@ -93,15 +100,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
       firstDate: firstDate,
       lastDate: lastDate,
     );
-    
+
     if (picked != null && picked != _selectedDate) {
       setState(() {
         _selectedDate = picked;
       });
     }
   }
-
-
 
   String? _validateRequired(String? value, String fieldName) {
     if (value == null || value.trim().isEmpty) {
@@ -128,7 +133,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
     if (value.length < 4) {
       return 'Verification code must be at least 4 characters';
     }
-    if (_expectedVerificationCode != null && value != _expectedVerificationCode) {
+    if (_expectedVerificationCode != null &&
+        value != _expectedVerificationCode) {
       return 'Invalid verification code. Please try again.';
     }
     return null;
@@ -173,8 +179,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
         if (!success) {
           return; // Don't proceed if email sending failed
         }
+        // If email was already verified, _sendVerificationEmail() will have
+        // set _currentGroup to 4, so we should return early here
+        if (_currentGroup == 4) {
+          return;
+        }
       }
-      
+
       // If on email verification step, verify the code
       if (_currentGroup == 3) {
         final success = await _verifyEmailCode();
@@ -182,7 +193,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
           return; // Don't proceed if verification failed
         }
       }
-      
+
       setState(() {
         _currentGroup++;
         _errorMessage = null;
@@ -197,8 +208,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
     });
 
     try {
-      final result = await _authService.sendEmailVerification(_emailController.text.trim());
-      
+      final result = await _authService
+          .sendEmailVerification(_emailController.text.trim());
+
       if (mounted) {
         if (result['success']) {
           setState(() {
@@ -212,20 +224,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
           final bool alreadyVerified = (result['alreadyVerified'] == true) ||
               (result['status']?.toString().toLowerCase() == 'verified');
           if (alreadyVerified) {
+            // Skip verification step entirely - go directly to username step (4)
             setState(() {
-              _emailStepCompleted = true;
+              _currentGroup = 4;
+              _emailAlreadyVerified = true;
             });
-            // Advance past the verification step
-            if (_currentGroup == 2) {
-              // We are currently at Email step; next would normally be code step (3)
-              // Skip directly to Username step (4)
-              _currentGroup = 4;
-            } else if (_currentGroup == 3) {
-              // If for any reason we're on the code step, jump to username as well
-              _currentGroup = 4;
-            }
+            return true; // Return early to prevent normal flow
           }
-          
+
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(result['message']),
@@ -268,13 +274,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
         _emailController.text.trim(),
         _verificationCodeController.text.trim(),
       );
-      
+
       if (mounted) {
         if (result['success']) {
-          setState(() {
-            _emailStepCompleted = true;
-          });
-          
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(result['message']),
@@ -312,25 +314,43 @@ class _RegisterScreenState extends State<RegisterScreen> {
       if (_currentGroup == 3) {
         setState(() {
           _verificationEmailSent = false;
-          _emailStepCompleted = false;
           _expectedVerificationCode = null;
           _verificationCodeController.clear();
         });
       }
-      
-      // If going back from username step to email verification step, reset verification state
+
+      // If going back from username step, check if email was already verified
       if (_currentGroup == 4) {
-        setState(() {
-          _emailStepCompleted = false;
-          _verificationCodeController.clear();
-        });
+        if (_emailAlreadyVerified) {
+          // Go back to email step (group 2) instead of verification step (group 3)
+          setState(() {
+            _currentGroup = 2;
+            _emailAlreadyVerified = false;
+            _verificationEmailSent = false;
+            _expectedVerificationCode = null;
+            _verificationCodeController.clear();
+            _errorMessage = null;
+          });
+          return;
+        } else {
+          // Normal flow: go back to verification step
+          setState(() {
+            _verificationCodeController.clear();
+          });
+        }
       }
-      
+
       setState(() {
         _currentGroup--;
         _errorMessage = null;
       });
     }
+  }
+
+  void _updateButtonState() {
+    setState(() {
+      // This will trigger a rebuild and update the button state
+    });
   }
 
   void _updatePasswordMetrics() {
@@ -339,8 +359,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
     final bool hasMinLen = pwd.length >= 8;
     final bool hasAlpha = RegExp(r'[A-Za-z]').hasMatch(pwd);
     final bool hasNum = RegExp(r'[0-9]').hasMatch(pwd);
-    final bool hasSpecial = RegExp(r'''[!@#\$%^&*(),.?":{}|<>_\-\[\]\\/;'`~+=]''').hasMatch(pwd);
-    final int met = [hasMinLen, hasAlpha, hasNum, hasSpecial].where((b) => b).length;
+    final bool hasSpecial =
+        RegExp(r'''[!@#\$%^&*(),.?":{}|<>_\-\[\]\\/;'`~+=]''').hasMatch(pwd);
+    final int met =
+        [hasMinLen, hasAlpha, hasNum, hasSpecial].where((b) => b).length;
     final double strength = met / 4.0;
     setState(() {
       _pwHasMinLen = hasMinLen;
@@ -357,17 +379,18 @@ class _RegisterScreenState extends State<RegisterScreen> {
       case 0: // Date
         return _validateDate() == null;
       case 1: // Full name
-        return _firstNameController.text.trim().isNotEmpty && 
-               _lastNameController.text.trim().isNotEmpty;
+        return _firstNameController.text.trim().isNotEmpty &&
+            _lastNameController.text.trim().isNotEmpty;
       case 2: // Email
         return _validateEmail(_emailController.text) == null;
       case 3: // Email verification
-        return _validateVerificationCode(_verificationCodeController.text) == null;
+        return _validateVerificationCode(_verificationCodeController.text) ==
+            null;
       case 4: // Username
         return _usernameController.text.trim().isNotEmpty;
       case 5: // Password
-        return _validatePassword(_passwordController.text) == null && 
-               _validateConfirmPassword(_confirmPasswordController.text) == null;
+        return _validatePassword(_passwordController.text) == null &&
+            _validateConfirmPassword(_confirmPasswordController.text) == null;
       default:
         return false;
     }
@@ -393,12 +416,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
     try {
       // TODO: Implement actual registration logic
       await Future.delayed(const Duration(seconds: 2)); // Simulate API call
-      
+
       if (mounted) {
         // Show success message and navigate back
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Registration successful! Please check your email to verify your account.'),
+            content: Text(
+                'Registration successful! Please check your email to verify your account.'),
             backgroundColor: Colors.green,
           ),
         );
@@ -459,7 +483,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
           ),
         ),
         const SizedBox(height: 20),
-        
+
         // Date selection button
         SizedBox(
           width: double.infinity,
@@ -481,13 +505,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Icon(
-                  _selectedDate != null ? Icons.check_circle : Icons.calendar_today,
+                  _selectedDate != null
+                      ? Icons.check_circle
+                      : Icons.calendar_today,
                   color: Colors.white,
                   size: 20,
                 ),
                 const SizedBox(width: 8),
                 Text(
-                  _selectedDate != null 
+                  _selectedDate != null
                       ? '${_selectedDate!.day}/${_selectedDate!.month}/${_selectedDate!.year}'
                       : 'Select Date of Birth',
                   style: TextStyle(
@@ -500,7 +526,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
             ),
           ),
         ),
-        
+
         if (_selectedDate != null) ...[
           const SizedBox(height: 20),
           Container(
@@ -573,7 +599,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
           ),
         ),
         const SizedBox(height: 20),
-        
+
         // First Name
         const Text(
           'First Name',
@@ -601,7 +627,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
               borderRadius: BorderRadius.circular(10),
               borderSide: BorderSide.none,
             ),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
           ),
           style: const TextStyle(
             color: Colors.white,
@@ -611,7 +638,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
           onFieldSubmitted: (_) => _middleNameFocusNode.requestFocus(),
         ),
         const SizedBox(height: 20),
-        
+
         // Middle Name (Optional)
         const Text(
           'Middle Name (Optional)',
@@ -638,7 +665,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
               borderRadius: BorderRadius.circular(10),
               borderSide: BorderSide.none,
             ),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
           ),
           style: const TextStyle(
             color: Colors.white,
@@ -648,7 +676,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
           onFieldSubmitted: (_) => _lastNameFocusNode.requestFocus(),
         ),
         const SizedBox(height: 20),
-        
+
         // Last Name
         const Text(
           'Last Name',
@@ -676,7 +704,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
               borderRadius: BorderRadius.circular(10),
               borderSide: BorderSide.none,
             ),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
           ),
           style: const TextStyle(
             color: Colors.white,
@@ -710,7 +739,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
           ),
         ),
         const SizedBox(height: 20),
-        
+
         // Email input
         const Text(
           'Email',
@@ -739,7 +768,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
               borderRadius: BorderRadius.circular(10),
               borderSide: BorderSide.none,
             ),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
           ),
           style: const TextStyle(
             color: Colors.white,
@@ -749,17 +779,17 @@ class _RegisterScreenState extends State<RegisterScreen> {
           onFieldSubmitted: (_) => _nextGroup(),
           onChanged: (value) {
             // Reset verification state if email changes
-            if (_verificationEmailSent) {
+            if (_verificationEmailSent || _emailAlreadyVerified) {
               setState(() {
                 _verificationEmailSent = false;
-                _emailStepCompleted = false;
+                _emailAlreadyVerified = false;
                 _expectedVerificationCode = null;
                 _verificationCodeController.clear();
               });
             }
           },
         ),
-        
+
         // Success message when email is sent
         if (_verificationEmailSent) ...[
           const SizedBox(height: 20),
@@ -834,7 +864,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         ),
         const SizedBox(height: 20),
         const SizedBox(height: 20),
-        
+
         // Verification code input
         const Text(
           'Verification Code',
@@ -863,7 +893,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
               borderRadius: BorderRadius.circular(10),
               borderSide: BorderSide.none,
             ),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
           ),
           style: const TextStyle(
             color: Colors.white,
@@ -872,21 +903,22 @@ class _RegisterScreenState extends State<RegisterScreen> {
           textInputAction: TextInputAction.done,
           onFieldSubmitted: (_) => _nextGroup(),
         ),
-        
+
         const SizedBox(height: 20),
-        
+
         // Resend code button
         Center(
           child: TextButton(
-            onPressed: _isLoading ? null : () async {
-              final success = await _sendVerificationEmail();
-              if (success) {
-                setState(() {
-                  _emailStepCompleted = false;
-                  _verificationCodeController.clear();
-                });
-              }
-            },
+            onPressed: _isLoading
+                ? null
+                : () async {
+                    final success = await _sendVerificationEmail();
+                    if (success) {
+                      setState(() {
+                        _verificationCodeController.clear();
+                      });
+                    }
+                  },
             child: const Text(
               'Resend Code',
               style: TextStyle(
@@ -923,7 +955,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
           ),
         ),
         const SizedBox(height: 20),
-        
         TextFormField(
           controller: _usernameController,
           focusNode: _usernameFocusNode,
@@ -941,7 +972,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
               borderRadius: BorderRadius.circular(10),
               borderSide: BorderSide.none,
             ),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
           ),
           style: const TextStyle(
             color: Colors.white,
@@ -975,7 +1007,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
           ),
         ),
         const SizedBox(height: 20),
-        
+
         // Password
         const Text(
           'Password',
@@ -1015,7 +1047,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
               borderRadius: BorderRadius.circular(10),
               borderSide: BorderSide.none,
             ),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
           ),
           style: const TextStyle(
             color: Colors.white,
@@ -1053,7 +1086,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
             prefixIcon: Icon(Icons.lock_outline, color: Colors.white),
             suffixIcon: IconButton(
               icon: Icon(
-                _obscureConfirmPassword ? Icons.visibility : Icons.visibility_off,
+                _obscureConfirmPassword
+                    ? Icons.visibility
+                    : Icons.visibility_off,
                 color: Colors.white.withValues(alpha: 0.7),
               ),
               onPressed: () {
@@ -1066,7 +1101,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
               borderRadius: BorderRadius.circular(10),
               borderSide: BorderSide.none,
             ),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
           ),
           style: const TextStyle(
             color: Colors.white,
@@ -1145,17 +1181,28 @@ class _RegisterScreenState extends State<RegisterScreen> {
             ),
             child: Container(
               decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    Color(0xFF2196F3),  // Blue
-                    Color(0xFF1976D2),  // Darker blue
-                  ],
-                ),
+                gradient: _canProceedToNextGroup()
+                    ? const LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          Color(0xFF2196F3), // Blue
+                          Color(0xFF1976D2), // Darker blue
+                        ],
+                      )
+                    : const LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          Color(0xFF9E9E9E), // Grey
+                          Color(0xFF757575), // Darker grey
+                        ],
+                      ),
                 borderRadius: BorderRadius.circular(15),
                 border: Border.all(
-                  color: Colors.white.withValues(alpha: 0.3),
+                  color: _canProceedToNextGroup()
+                      ? Colors.white.withValues(alpha: 0.3)
+                      : Colors.white.withValues(alpha: 0.1),
                   width: 1.5,
                 ),
               ),
@@ -1167,18 +1214,22 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     children: [
                       Text(
                         _currentGroup == 5 ? 'Create Account' : 'Continue',
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.w600,
-                          color: Colors.white,
+                          color: _canProceedToNextGroup()
+                              ? Colors.white
+                              : Colors.white.withValues(alpha: 0.6),
                           letterSpacing: 0.5,
                         ),
                       ),
                       if (_currentGroup < 5) ...[
                         const SizedBox(width: 8),
-                        const Icon(
+                        Icon(
                           Icons.arrow_forward,
-                          color: Colors.white,
+                          color: _canProceedToNextGroup()
+                              ? Colors.white
+                              : Colors.white.withValues(alpha: 0.6),
                           size: 20,
                         ),
                       ],
@@ -1190,7 +1241,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
           ),
         ),
         const SizedBox(height: 12),
-        
+
         // Go back button (only show if not on first group)
         if (_currentGroup > 0) ...[
           SizedBox(
@@ -1200,7 +1251,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.transparent,
                 foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 12), // Reduced from 16
+                padding:
+                    const EdgeInsets.symmetric(vertical: 12), // Reduced from 16
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12), // Reduced from 15
                 ),
@@ -1218,7 +1270,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   ),
                 ),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(vertical: 12), // Reduced from 16
+                  padding: const EdgeInsets.symmetric(
+                      vertical: 12), // Reduced from 16
                   child: const Center(
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -1270,7 +1323,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         children: [
                           IconButton(
                             onPressed: () => Navigator.of(context).pop(),
-                            icon: const Icon(Icons.arrow_back, color: Colors.white),
+                            icon: const Icon(Icons.arrow_back,
+                                color: Colors.white),
                           ),
                           const SizedBox(width: 16),
                           const Text(
@@ -1293,8 +1347,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               height: 4,
                               margin: EdgeInsets.only(right: index < 5 ? 8 : 0),
                               decoration: BoxDecoration(
-                                color: index <= _currentGroup 
-                                    ? Colors.white 
+                                color: index <= _currentGroup
+                                    ? Colors.white
                                     : Colors.white.withValues(alpha: 0.3),
                                 borderRadius: BorderRadius.circular(2),
                               ),
@@ -1315,11 +1369,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           decoration: BoxDecoration(
                             color: Colors.red.withValues(alpha: 0.1),
                             borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: Colors.red.withValues(alpha: 0.3)),
+                            border: Border.all(
+                                color: Colors.red.withValues(alpha: 0.3)),
                           ),
                           child: Row(
                             children: [
-                              const Icon(Icons.error_outline, color: Colors.red, size: 20),
+                              const Icon(Icons.error_outline,
+                                  color: Colors.red, size: 20),
                               const SizedBox(width: 8),
                               Expanded(
                                 child: Text(
@@ -1358,7 +1414,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 style: TextButton.styleFrom(
                                   padding: EdgeInsets.zero,
                                   minimumSize: Size.zero,
-                                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                  tapTargetSize:
+                                      MaterialTapTargetSize.shrinkWrap,
                                 ),
                                 child: const Text(
                                   'Sign In',

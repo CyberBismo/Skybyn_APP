@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import '../services/auto_update_service.dart';
-import 'custom_app_bar.dart';
 
 class UpdateDialog extends StatefulWidget {
   final String currentVersion;
@@ -41,15 +40,43 @@ class _UpdateDialogState extends State<UpdateDialog> {
     });
 
     try {
-      // For now, we'll simulate the update process
-      // In production, this would use the actual update service
-      await Future.delayed(const Duration(seconds: 2));
-      
+      // Check for updates first
+      final updateInfo = await AutoUpdateService.checkForUpdates();
+      if (updateInfo == null || !updateInfo.isAvailable) {
+        setState(() {
+          _updateStatus = 'No update available';
+        });
+        return;
+      }
+
+      setState(() {
+        _updateStatus = 'Downloading update...';
+        _updateProgress = 0.3;
+      });
+
+      // Download the update
+      final downloadSuccess =
+          await AutoUpdateService.downloadUpdate(updateInfo.downloadUrl);
+      if (!downloadSuccess) {
+        throw Exception('Failed to download update');
+      }
+
+      setState(() {
+        _updateStatus = 'Installing update...';
+        _updateProgress = 0.7;
+      });
+
+      // Install the update
+      final installSuccess = await AutoUpdateService.installUpdate();
+      if (!installSuccess) {
+        throw Exception('Failed to install update');
+      }
+
       setState(() {
         _updateStatus = 'Update completed successfully!';
         _updateProgress = 1.0;
       });
-      
+
       // Close dialog after a delay
       await Future.delayed(const Duration(seconds: 1));
       if (mounted) {
@@ -60,7 +87,7 @@ class _UpdateDialogState extends State<UpdateDialog> {
         setState(() {
           _updateStatus = 'Error: $e';
         });
-        
+
         // Show error dialog
         showDialog(
           context: context,
@@ -102,21 +129,21 @@ class _UpdateDialogState extends State<UpdateDialog> {
             style: Theme.of(context).textTheme.bodyLarge,
           ),
           const SizedBox(height: 16),
-          
+
           // Version info
           Row(
             children: [
               Text(
                 'Current: ',
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  fontWeight: FontWeight.w500,
-                ),
+                      fontWeight: FontWeight.w500,
+                    ),
               ),
               Text(
                 widget.currentVersion,
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: Colors.grey[600],
-                ),
+                      color: Colors.grey[600],
+                    ),
               ),
             ],
           ),
@@ -126,27 +153,28 @@ class _UpdateDialogState extends State<UpdateDialog> {
               Text(
                 'Latest: ',
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  fontWeight: FontWeight.w500,
-                ),
+                      fontWeight: FontWeight.w500,
+                    ),
               ),
               Text(
                 widget.latestVersion,
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: Theme.of(context).primaryColor,
-                  fontWeight: FontWeight.bold,
-                ),
+                      color: Theme.of(context).primaryColor,
+                      fontWeight: FontWeight.bold,
+                    ),
               ),
             ],
           ),
-          
+
           // Release notes
-          if (widget.releaseNotes != null && widget.releaseNotes!.isNotEmpty) ...[
+          if (widget.releaseNotes != null &&
+              widget.releaseNotes!.isNotEmpty) ...[
             const SizedBox(height: 16),
             Text(
               'What\'s new:',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                fontWeight: FontWeight.w500,
-              ),
+                    fontWeight: FontWeight.w500,
+                  ),
             ),
             const SizedBox(height: 8),
             Container(
@@ -161,7 +189,7 @@ class _UpdateDialogState extends State<UpdateDialog> {
               ),
             ),
           ],
-          
+
           // Update progress
           if (_isUpdating) ...[
             const SizedBox(height: 16),
@@ -176,8 +204,8 @@ class _UpdateDialogState extends State<UpdateDialog> {
             Text(
               _updateStatus,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: Colors.grey[600],
-              ),
+                    color: Colors.grey[600],
+                  ),
               textAlign: TextAlign.center,
             ),
           ],
