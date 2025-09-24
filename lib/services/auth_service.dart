@@ -47,27 +47,35 @@ class AuthService {
       print('Login response status: ${response.statusCode}');
       print('Login response body: ${response.body}');
 
+      // Parse response regardless of status code to get actual API message
+      final data = json.decode(response.body);
+      
       if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-
         if (data['responseCode'] == '1') {
           print('Login successful, storing user data');
           await initPrefs();
           // Convert userID to string to avoid type mismatch
           await _prefs?.setString(userIdKey, data['userID'].toString());
           await _prefs?.setString(usernameKey, username);
-          await fetchUserProfile(username);
+          
+          // Try to fetch user profile, but don't fail login if it fails
+          try {
+            await fetchUserProfile(username);
+            print('✅ [Login] User profile fetched and stored successfully');
+          } catch (e) {
+            print('⚠️ [Login] Failed to fetch user profile during login: $e');
+            print('⚠️ [Login] Login will still succeed, profile can be fetched later');
+          }
+          
           return data;
         }
 
         print('Login failed with response: $data');
         return data;
       } else {
-        print('Server error with status: ${response.statusCode}');
-        return {
-          'responseCode': '0',
-          'message': 'Server error occurred (Status: ${response.statusCode})',
-        };
+        print('Server error with status: ${response.statusCode}, response: $data');
+        // Return the actual API response even for error status codes
+        return data;
       }
     } catch (e) {
       print('Login exception: $e');
@@ -80,10 +88,11 @@ class AuthService {
 
   Future<User?> fetchUserProfile(String username) async {
     try {
-      print('Fetching user profile for username: $username');
+      print('🔍 [Profile] Fetching user profile for username: $username');
       final userId = await getStoredUserId();
+      print('🔍 [Profile] Retrieved userId from storage: $userId');
       final requestBody = {'userID': userId};
-      print('Profile API request body:');
+      print('🔍 [Profile] Profile API request body:');
       print(requestBody);
       final response = await http.post(
         Uri.parse(ApiConstants.profile),
@@ -99,11 +108,12 @@ class AuthService {
           // Manually add the userID to the map before creating the User object
           data['id'] = userId.toString(); // Ensure it's a string
           final user = User.fromJson(data);
-          print('User object created from profile API:');
+          print('🔍 [Profile] User object created from profile API:');
           print(user);
           // Store user profile locally
           await initPrefs();
           await _prefs?.setString(userProfileKey, json.encode(user.toJson()));
+          print('🔍 [Profile] User profile stored successfully in SharedPreferences');
           return user;
         } else {
           print('Profile API did not return responseCode 1');
@@ -120,24 +130,33 @@ class AuthService {
 
   Future<String?> getStoredUserId() async {
     await initPrefs();
-    return _prefs?.getString(userIdKey);
+    final userId = _prefs?.getString(userIdKey);
+    print('🔍 [Auth] getStoredUserId() returned: $userId');
+    return userId;
   }
 
   Future<String?> getStoredUsername() async {
     await initPrefs();
-    return _prefs?.getString(usernameKey);
+    final username = _prefs?.getString(usernameKey);
+    print('🔍 [Auth] getStoredUsername() returned: $username');
+    return username;
   }
 
   Future<User?> getStoredUserProfile() async {
     await initPrefs();
     final profileJson = _prefs?.getString(userProfileKey);
+    print('🔍 [Auth] getStoredUserProfile() - profileJson length: ${profileJson?.length ?? 0}');
     if (profileJson != null) {
       try {
-        return User.fromJson(json.decode(profileJson));
+        final user = User.fromJson(json.decode(profileJson));
+        print('🔍 [Auth] getStoredUserProfile() successfully parsed user: ${user.toString()}');
+        return user;
       } catch (e) {
+        print('🔍 [Auth] getStoredUserProfile() failed to parse user: $e');
         return null;
       }
     }
+    print('🔍 [Auth] getStoredUserProfile() - no profile data found');
     return null;
   }
 
@@ -145,17 +164,22 @@ class AuthService {
     await initPrefs();
     await _prefs?.remove(userIdKey);
     await _prefs?.remove(userProfileKey);
+    await _prefs?.remove(usernameKey);
+    
+    // Also clear any data stored in FlutterSecureStorage
+    const storage = FlutterSecureStorage();
+    await storage.delete(key: 'user_profile');
+    await storage.delete(key: userIdKey);
+    await storage.delete(key: userProfileKey);
+    await storage.delete(key: usernameKey);
   }
 
   Future<void> updateUserProfile(User updatedUser) async {
     try {
       // TODO: Implement API call to update user profile
       // For now, we'll just update the local storage
-      const storage = FlutterSecureStorage();
-      await storage.write(
-        key: 'user_profile',
-        value: jsonEncode(updatedUser.toJson()),
-      );
+      await initPrefs();
+      await _prefs?.setString(userProfileKey, jsonEncode(updatedUser.toJson()));
     } catch (e) {
       print('Error updating user profile: $e');
       throw Exception('Failed to update profile');

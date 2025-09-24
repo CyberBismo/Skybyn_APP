@@ -13,6 +13,7 @@ import '../services/comment_service.dart';
 import '../services/notification_service.dart';
 import '../services/websocket_service.dart';
 import '../services/auto_update_service.dart';
+import '../services/firebase_messaging_service.dart';
 import 'create_post_screen.dart';
 import 'login_screen.dart';
 import 'package:http/http.dart' as http;
@@ -90,6 +91,9 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     _loadData();
     _testHttpConnection(); // Test HTTP connectivity
+    
+    // Set up Firebase messaging callback for update notifications
+    FirebaseMessagingService.setUpdateCheckCallback(_checkForUpdates);
     
     // Listen to keyboard visibility changes
     WidgetsBinding.instance.addPostFrameCallback((_) {

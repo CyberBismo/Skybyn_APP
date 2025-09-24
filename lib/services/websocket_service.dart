@@ -160,13 +160,16 @@ class WebSocketService {
   /// Handle incoming messages
   void _handleMessage(dynamic message) {
     try {
-      print('📨 [WebSocket] Received message: $message');
-      
       if (message is String) {
         final data = json.decode(message);
         
         if (data is Map) {
           final messageType = data['type']?.toString();
+          
+          // Don't log ping messages to reduce noise
+          if (messageType != 'ping') {
+            print('📨 [WebSocket] Received message: $message');
+          }
           
           switch (messageType) {
             case 'ping':

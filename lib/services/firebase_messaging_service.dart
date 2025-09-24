@@ -3,8 +3,10 @@ import 'dart:io';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter/material.dart';
 import 'notification_service.dart';
 import 'auth_service.dart';
+import '../widgets/update_dialog.dart';
 
 // Handle background messages
 @pragma('vm:entry-point')
@@ -35,6 +37,9 @@ class FirebaseMessagingService {
   SharedPreferences? _prefs;
 
   String? _fcmToken;
+  
+  // Callback for update check trigger
+  static VoidCallback? _onUpdateCheckRequested;
   bool _isInitialized = false;
 
   bool get isInitialized => _isInitialized;
@@ -159,6 +164,11 @@ class FirebaseMessagingService {
           // Show broadcast message
           print('🎯 [Firebase] Show broadcast: $payload');
           break;
+        case 'app_update':
+          // Trigger update check - the home screen will handle showing the dialog
+          print('🎯 [Firebase] App update notification received - triggering update check');
+          _triggerUpdateCheck();
+          break;
         default:
           print('🎯 [Firebase] Unknown notification type: $type');
       }
@@ -205,6 +215,21 @@ class FirebaseMessagingService {
       print('✅ [Firebase] FCM token deleted');
     } catch (e) {
       print('❌ [Firebase] Error deleting FCM token: $e');
+    }
+  }
+
+  /// Set callback for update check requests
+  static void setUpdateCheckCallback(VoidCallback? callback) {
+    _onUpdateCheckRequested = callback;
+  }
+
+  /// Trigger update check from notification
+  void _triggerUpdateCheck() {
+    if (_onUpdateCheckRequested != null) {
+      print('🎯 [Firebase] Triggering update check callback');
+      _onUpdateCheckRequested!();
+    } else {
+      print('⚠️ [Firebase] No update check callback set');
     }
   }
 } 

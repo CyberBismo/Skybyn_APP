@@ -160,6 +160,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           child: TextField(
                             controller: _usernameController,
                             focusNode: _usernameFocusNode,
+                            textInputAction: TextInputAction.next,
                             decoration: InputDecoration(
                               filled: true,
                               fillColor: Colors.transparent,
@@ -210,6 +211,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             controller: _passwordController,
                             focusNode: _passwordFocusNode,
                             obscureText: _obscurePassword,
+                            textInputAction: TextInputAction.go,
                             decoration: InputDecoration(
                               filled: true,
                               fillColor: Colors.transparent,

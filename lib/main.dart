@@ -16,6 +16,7 @@ import 'services/websocket_service.dart';
 import 'services/firebase_messaging_service.dart';
 import 'services/auto_update_service.dart';
 import 'widgets/background_gradient.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 Future<void> main() async {
   // Gate all print calls behind a debug flag using Zone
@@ -297,6 +298,12 @@ class __InitialScreenState extends State<_InitialScreen> with TickerProviderStat
     await Future.delayed(const Duration(milliseconds: 500));
     
     try {
+      // Debug: Check what's actually stored
+      await _authService.initPrefs();
+      final prefs = await SharedPreferences.getInstance();
+      final allKeys = prefs.getKeys();
+      print('🔍 [Auth] All stored keys: $allKeys');
+      
       final userId = await _authService.getStoredUserId();
       final userProfile = await _authService.getStoredUserProfile();
       
@@ -304,11 +311,43 @@ class __InitialScreenState extends State<_InitialScreen> with TickerProviderStat
       print('🔍 [Auth] User Profile: $userProfile');
       
       if (mounted) {
-        if (userId != null && userProfile != null) {
-          print('🔍 [Auth] User is logged in, navigating to home screen');
-          Navigator.of(context).pushReplacement(
-            MaterialPageRoute(builder: (context) => const HomeScreen()),
-          );
+        if (userId != null) {
+          if (userProfile != null) {
+            print('🔍 [Auth] User is logged in with profile, navigating to home screen');
+            Navigator.of(context).pushReplacement(
+              MaterialPageRoute(builder: (context) => const HomeScreen()),
+            );
+          } else {
+            print('🔍 [Auth] User ID found but no profile, attempting to fetch profile...');
+            // Try to fetch the profile again
+            try {
+              final username = await _authService.getStoredUsername();
+              if (username != null) {
+                final profile = await _authService.fetchUserProfile(username);
+                if (profile != null) {
+                  print('🔍 [Auth] Profile fetched successfully, navigating to home screen');
+                  Navigator.of(context).pushReplacement(
+                    MaterialPageRoute(builder: (context) => const HomeScreen()),
+                  );
+                } else {
+                  print('🔍 [Auth] Failed to fetch profile, navigating to login screen');
+                  Navigator.of(context).pushReplacement(
+                    MaterialPageRoute(builder: (context) => const LoginScreen()),
+                  );
+                }
+              } else {
+                print('🔍 [Auth] No username found, navigating to login screen');
+                Navigator.of(context).pushReplacement(
+                  MaterialPageRoute(builder: (context) => const LoginScreen()),
+                );
+              }
+            } catch (e) {
+              print('🔍 [Auth] Error fetching profile: $e, navigating to login screen');
+              Navigator.of(context).pushReplacement(
+                MaterialPageRoute(builder: (context) => const LoginScreen()),
+              );
+            }
+          }
         } else {
           print('🔍 [Auth] User is not logged in, navigating to login screen');
           Navigator.of(context).pushReplacement(
