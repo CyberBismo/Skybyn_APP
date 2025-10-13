@@ -28,12 +28,7 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   void initState() {
     super.initState();
-    // Auto-focus the username field when the screen opens
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
-        _usernameFocusNode.requestFocus();
-      }
-    });
+    // Username field is no longer auto-focused
   }
 
   Future<void> _handleLogin() async {
