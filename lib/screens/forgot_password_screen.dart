@@ -1,39 +1,28 @@
 import 'package:flutter/material.dart';
 import 'dart:ui';
 import '../services/auth_service.dart';
-import '../services/notification_service.dart';
-import 'dart:io';
 import '../widgets/background_gradient.dart';
 import '../widgets/app_colors.dart';
-import 'home_screen.dart';
-import 'register_screen.dart';
-import 'forgot_password_screen.dart';
 
-class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key});
+class ForgotPasswordScreen extends StatefulWidget {
+  const ForgotPasswordScreen({super.key});
 
   @override
-  State<LoginScreen> createState() => _LoginScreenState();
+  State<ForgotPasswordScreen> createState() => _ForgotPasswordScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> {
+class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   final TextEditingController _usernameController = TextEditingController();
-  final TextEditingController _passwordController = TextEditingController();
+  final TextEditingController _emailController = TextEditingController();
   final FocusNode _usernameFocusNode = FocusNode();
-  final FocusNode _passwordFocusNode = FocusNode();
+  final FocusNode _emailFocusNode = FocusNode();
   final AuthService _authService = AuthService();
   bool _isLoading = false;
-  bool _obscurePassword = true;
   String? _errorMessage;
+  String? _successMessage;
 
-  @override
-  void initState() {
-    super.initState();
-    // Username field is no longer auto-focused
-  }
-
-  Future<void> _handleLogin() async {
-    if (_usernameController.text.isEmpty || _passwordController.text.isEmpty) {
+  Future<void> _handleForgotPassword() async {
+    if (_usernameController.text.isEmpty || _emailController.text.isEmpty) {
       setState(() {
         _errorMessage = 'Please fill in all fields';
       });
@@ -43,82 +32,38 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() {
       _isLoading = true;
       _errorMessage = null;
+      _successMessage = null;
     });
 
     try {
-      // Debug platform info
-      print('Platform: ${Platform.isAndroid ? 'Android' : 'iOS'}');
-
-      final response = await _authService.login(
-        _usernameController.text,
-        _passwordController.text,
-      );
+      // TODO: Implement forgot password API call
+      // For now, just simulate a success response
+      await Future.delayed(const Duration(seconds: 2));
 
       if (!mounted) return;
 
-      if (response['responseCode'] == '1') {
-        if (mounted) {
-          // Show login success notification
-          print('🔔 Attempting to show login success notification...');
-          try {
-            final notificationService = NotificationService();
-            await notificationService.requestPermissions();
-
-            // Check if notifications are enabled
-            final isEnabled =
-                await notificationService.areNotificationsEnabled();
-            print('📱 Notifications enabled: $isEnabled');
-
-            // For iOS, check notification status
-            if (Platform.isIOS) {
-              await notificationService.checkIOSNotificationStatus();
-            }
-
-            if (isEnabled) {
-              // Show system notification for login success
-              await notificationService.showNotification(
-                title: 'Login successful',
-                body: 'Welcome to Skybyn',
-                payload: 'login_success',
-              );
-              print('✅ Login success notification sent successfully');
-            }
-          } catch (e) {
-            print('❌ Error showing login notification: $e');
-          }
-
-          Navigator.of(context).pushReplacement(
-            MaterialPageRoute(builder: (context) => const HomeScreen()),
-          );
-        }
-      } else {
-        setState(() {
-          _errorMessage = response['message'] ??
-              'Login failed. Please check your credentials and try again.';
-        });
-      }
+      setState(() {
+        _successMessage =
+            'Password reset instructions have been sent to your email';
+        _isLoading = false;
+      });
     } catch (e) {
-      print('Login error: $e');
+      print('Forgot password error: $e');
       if (!mounted) return;
       setState(() {
         _errorMessage =
             'Connection error. Please check your internet connection and try again.';
+        _isLoading = false;
       });
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
     }
   }
 
   @override
   void dispose() {
     _usernameFocusNode.dispose();
-    _passwordFocusNode.dispose();
+    _emailFocusNode.dispose();
     _usernameController.dispose();
-    _passwordController.dispose();
+    _emailController.dispose();
     super.dispose();
   }
 
@@ -167,35 +112,15 @@ class _LoginScreenState extends State<LoginScreen> {
                             ),
                           ],
                         ),
-                        GestureDetector(
-                          onTap: () {
-                            // TODO: Implement show info functionality
-                          },
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                Icons.keyboard_arrow_down,
-                                color: Colors.white.withValues(alpha: 0.7),
-                                size: 20,
-                              ),
-                              const SizedBox(width: 8),
-                              Text(
-                                'Click to read more',
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  color: Colors.white.withValues(alpha: 0.7),
-                                  letterSpacing: 0.5,
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Icon(
-                                Icons.keyboard_arrow_down,
-                                color: Colors.white.withValues(alpha: 0.7),
-                                size: 20,
-                              ),
-                            ],
+                        const SizedBox(height: 10),
+                        Text(
+                          'Enter your username and email to reset your password',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.white.withValues(alpha: 0.7),
+                            letterSpacing: 0.5,
                           ),
+                          textAlign: TextAlign.center,
                         ),
                       ],
                     ),
@@ -208,12 +133,10 @@ class _LoginScreenState extends State<LoginScreen> {
                         child: Container(
                           decoration: BoxDecoration(
                             color: AppColors.getCardBackgroundColor(context)
-                                .withValues(
-                                    alpha: 0.1), // Keep original background
+                                .withValues(alpha: 0.1),
                             borderRadius: BorderRadius.circular(10),
                             border: Border.all(
-                              color: Colors.white.withValues(
-                                  alpha: 0.3), // White border in both modes
+                              color: Colors.white.withValues(alpha: 0.3),
                               width: 1.5,
                             ),
                           ),
@@ -226,13 +149,11 @@ class _LoginScreenState extends State<LoginScreen> {
                               fillColor: Colors.transparent,
                               hintText: 'Username',
                               hintStyle: TextStyle(
-                                color: Colors.white.withValues(
-                                    alpha: 0.7), // White hint in both modes
+                                color: Colors.white.withValues(alpha: 0.7),
                                 fontSize: 16,
                               ),
-                              prefixIcon: const Icon(Icons.person,
-                                  color:
-                                      Colors.white), // White icon in both modes
+                              prefixIcon:
+                                  const Icon(Icons.person, color: Colors.white),
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(10),
                                 borderSide: BorderSide.none,
@@ -241,23 +162,21 @@ class _LoginScreenState extends State<LoginScreen> {
                                   horizontal: 16, vertical: 16),
                             ),
                             style: const TextStyle(
-                              color: Colors.white, // White text in both modes
+                              color: Colors.white,
                               fontSize: 16,
                             ),
                             onTap: () {
-                              // Unfocus other fields to prevent context menu conflicts
-                              _passwordFocusNode.unfocus();
+                              _emailFocusNode.unfocus();
                             },
                             onSubmitted: (_) {
-                              // Move focus to password field when username is submitted
-                              _passwordFocusNode.requestFocus();
+                              _emailFocusNode.requestFocus();
                             },
                           ),
                         ),
                       ),
                     ),
                     const SizedBox(height: 20),
-                    // Password field
+                    // Email field
                     ClipRRect(
                       borderRadius: BorderRadius.circular(10),
                       child: BackdropFilter(
@@ -265,46 +184,28 @@ class _LoginScreenState extends State<LoginScreen> {
                         child: Container(
                           decoration: BoxDecoration(
                             color: AppColors.getCardBackgroundColor(context)
-                                .withValues(
-                                    alpha: 0.1), // Keep original background
+                                .withValues(alpha: 0.1),
                             borderRadius: BorderRadius.circular(10),
                             border: Border.all(
-                              color: Colors.white.withValues(
-                                  alpha: 0.3), // White border in both modes
+                              color: Colors.white.withValues(alpha: 0.3),
                               width: 1.5,
                             ),
                           ),
                           child: TextField(
-                            controller: _passwordController,
-                            focusNode: _passwordFocusNode,
-                            obscureText: _obscurePassword,
+                            controller: _emailController,
+                            focusNode: _emailFocusNode,
+                            keyboardType: TextInputType.emailAddress,
                             textInputAction: TextInputAction.go,
                             decoration: InputDecoration(
                               filled: true,
                               fillColor: Colors.transparent,
-                              hintText: 'Password',
+                              hintText: 'Email',
                               hintStyle: TextStyle(
-                                color: Colors.white.withValues(
-                                    alpha: 0.7), // White hint in both modes
+                                color: Colors.white.withValues(alpha: 0.7),
                                 fontSize: 16,
                               ),
-                              prefixIcon: const Icon(Icons.lock,
-                                  color:
-                                      Colors.white), // White icon in both modes
-                              suffixIcon: IconButton(
-                                icon: Icon(
-                                  _obscurePassword
-                                      ? Icons.visibility
-                                      : Icons.visibility_off,
-                                  color: Colors.white.withValues(
-                                      alpha: 0.7), // White icon in both modes
-                                ),
-                                onPressed: () {
-                                  setState(() {
-                                    _obscurePassword = !_obscurePassword;
-                                  });
-                                },
-                              ),
+                              prefixIcon:
+                                  const Icon(Icons.email, color: Colors.white),
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(10),
                                 borderSide: BorderSide.none,
@@ -313,16 +214,14 @@ class _LoginScreenState extends State<LoginScreen> {
                                   horizontal: 16, vertical: 16),
                             ),
                             style: const TextStyle(
-                              color: Colors.white, // White text in both modes
+                              color: Colors.white,
                               fontSize: 16,
                             ),
                             onTap: () {
-                              // Unfocus other fields to prevent context menu conflicts
                               _usernameFocusNode.unfocus();
                             },
                             onSubmitted: (_) {
-                              // Attempt login when password is submitted
-                              _handleLogin();
+                              _handleForgotPassword();
                             },
                           ),
                         ),
@@ -356,16 +255,44 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                       ),
                     ],
+                    if (_successMessage != null) ...[
+                      const SizedBox(height: 10),
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: Colors.green.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                              color: Colors.green.withValues(alpha: 0.3)),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.check_circle_outline,
+                                color: Colors.green, size: 20),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                _successMessage!,
+                                style: const TextStyle(
+                                  color: Colors.green,
+                                  fontSize: 14,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: 30),
-                    // Login button
+                    // Submit button
                     SizedBox(
-                      width: double.infinity, // 100% width
+                      width: double.infinity,
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(10),
                         child: BackdropFilter(
                           filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
                           child: Container(
-                            width: double.infinity, // 100% width
+                            width: double.infinity,
                             decoration: BoxDecoration(
                               gradient: const LinearGradient(
                                 begin: Alignment.topLeft,
@@ -379,15 +306,15 @@ class _LoginScreenState extends State<LoginScreen> {
                               ),
                               borderRadius: BorderRadius.circular(10),
                               border: Border.all(
-                                color: Colors.white.withValues(
-                                    alpha: 0.3), // White border in both modes
+                                color: Colors.white.withValues(alpha: 0.3),
                                 width: 1.5,
                               ),
                             ),
                             child: Material(
                               color: Colors.transparent,
                               child: InkWell(
-                                onTap: _isLoading ? null : _handleLogin,
+                                onTap:
+                                    _isLoading ? null : _handleForgotPassword,
                                 child: Container(
                                   padding:
                                       const EdgeInsets.symmetric(vertical: 16),
@@ -398,10 +325,9 @@ class _LoginScreenState extends State<LoginScreen> {
                                             width: 24,
                                             child: CircularProgressIndicator(
                                               strokeWidth: 2.5,
-                                              valueColor: AlwaysStoppedAnimation<
-                                                      Color>(
-                                                  Colors
-                                                      .white), // White loading indicator in both modes
+                                              valueColor:
+                                                  AlwaysStoppedAnimation<Color>(
+                                                      Colors.white),
                                             ),
                                           )
                                         : const Row(
@@ -409,19 +335,17 @@ class _LoginScreenState extends State<LoginScreen> {
                                                 MainAxisAlignment.center,
                                             children: [
                                               Icon(
-                                                Icons.login_rounded,
-                                                color: Colors
-                                                    .white, // White icon in both modes
+                                                Icons.email_outlined,
+                                                color: Colors.white,
                                                 size: 20,
                                               ),
                                               SizedBox(width: 8),
                                               Text(
-                                                'Login',
+                                                'Send Reset Email',
                                                 style: TextStyle(
                                                   fontSize: 18,
                                                   fontWeight: FontWeight.w600,
-                                                  color: Colors
-                                                      .white, // White text in both modes
+                                                  color: Colors.white,
                                                   letterSpacing: 0.5,
                                                 ),
                                               ),
@@ -435,40 +359,17 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                       ),
                     ),
-                    // Forgot password text
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: TextButton(
-                        onPressed: () {
-                          Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (context) =>
-                                  const ForgotPasswordScreen(),
-                            ),
-                          );
-                        },
-                        child: Text(
-                          'Forgot password?',
-                          style: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.8),
-                            fontSize: 18,
-                          ),
-                        ),
-                      ),
-                    ),
                     const SizedBox(height: 20),
-                    // Register button
+                    // Back to login button
                     Center(
                       child: SizedBox(
-                        width: MediaQuery.of(context).size.width *
-                            0.7, // 80% of screen width
+                        width: MediaQuery.of(context).size.width * 0.7,
                         child: ClipRRect(
                           borderRadius: BorderRadius.circular(10),
                           child: BackdropFilter(
                             filter: ImageFilter.blur(sigmaX: 3, sigmaY: 3),
                             child: Container(
-                              width: double
-                                  .infinity, // Take full width of SizedBox
+                              width: double.infinity,
                               decoration: BoxDecoration(
                                 gradient: const LinearGradient(
                                   begin: Alignment.topLeft,
@@ -482,8 +383,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                 ),
                                 borderRadius: BorderRadius.circular(10),
                                 border: Border.all(
-                                  color: Colors.white.withValues(
-                                      alpha: 0.3), // White border in both modes
+                                  color: Colors.white.withValues(alpha: 0.3),
                                   width: 1.0,
                                 ),
                               ),
@@ -491,35 +391,28 @@ class _LoginScreenState extends State<LoginScreen> {
                                 color: Colors.transparent,
                                 child: InkWell(
                                   onTap: () {
-                                    Navigator.of(context).push(
-                                      MaterialPageRoute(
-                                          builder: (context) =>
-                                              const RegisterScreen()),
-                                    );
+                                    Navigator.of(context).pop();
                                   },
                                   child: Container(
-                                    padding: const EdgeInsets.symmetric(
-                                        vertical: 8), // Even smaller padding
+                                    padding:
+                                        const EdgeInsets.symmetric(vertical: 8),
                                     child: Center(
                                       child: Row(
                                         mainAxisAlignment:
                                             MainAxisAlignment.center,
                                         children: [
                                           Icon(
-                                            Icons.person_add_rounded,
-                                            color: Colors
-                                                .white, // White icon in both modes
-                                            size: 16, // Even smaller icon
+                                            Icons.arrow_back_rounded,
+                                            color: Colors.white,
+                                            size: 16,
                                           ),
-                                          const SizedBox(
-                                              width: 6), // Smaller spacing
+                                          const SizedBox(width: 6),
                                           Text(
-                                            'Register',
+                                            'Back to Login',
                                             style: TextStyle(
-                                              fontSize: 14, // Even smaller font
+                                              fontSize: 14,
                                               fontWeight: FontWeight.w600,
-                                              color: Colors
-                                                  .white, // White text in both modes
+                                              color: Colors.white,
                                               letterSpacing: 0.5,
                                             ),
                                           ),
