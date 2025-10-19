@@ -200,9 +200,9 @@ class NotificationService {
         playSound: true,
         icon: '@drawable/notification_icon', // Use logo for small notification icon
         largeIcon: DrawableResourceAndroidBitmap('@drawable/notification_icon'), // Use logo for large icon
-        color: Color(0xFF2196F3), // Blue color
+        color: Color.fromRGBO(33, 150, 243, 1.0), // Blue color
         enableLights: true,
-        ledColor: Color(0xFF2196F3),
+        ledColor: Color.fromRGBO(33, 150, 243, 1.0),
         ledOnMs: 1000,
         ledOffMs: 500,
       );

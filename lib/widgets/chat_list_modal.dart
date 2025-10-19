@@ -142,7 +142,7 @@ class _ChatListModalState extends State<ChatListModal> {
                                           width: 10,
                                           height: 10,
                                           decoration: BoxDecoration(
-                                            color: friend.online ? Colors.greenAccent : Colors.grey,
+                                            color: friend.online ? Colors.greenAccent : Colors.white,
                                             shape: BoxShape.circle,
                                           ),
                                         ),
@@ -150,7 +150,7 @@ class _ChatListModalState extends State<ChatListModal> {
                                         Text(
                                           friend.online ? 'Online' : 'Offline',
                                           style: TextStyle(
-                                            color: friend.online ? Colors.greenAccent : Colors.white54,
+                                            color: friend.online ? Colors.greenAccent : Colors.white,
                                             fontSize: 12,
                                           ),
                                         ),

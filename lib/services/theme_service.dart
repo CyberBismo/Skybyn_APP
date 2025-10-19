@@ -42,13 +42,18 @@ class ThemeService extends ChangeNotifier {
             _themeMode = ThemeMode.system;
             break;
         }
+      } else {
+        // Default to system theme if no preference is stored
+        _themeMode = ThemeMode.system;
       }
       _isInitialized = true;
       notifyListeners();
     } catch (e) {
       print('Error initializing theme service: $e');
-      // Keep default theme mode
+      // Default to system theme on error
+      _themeMode = ThemeMode.system;
       _isInitialized = true;
+      notifyListeners();
     }
   }
   
@@ -96,5 +101,10 @@ class ThemeService extends ChangeNotifier {
         await setThemeMode(ThemeMode.system);
         break;
     }
+  }
+  
+  // Reset to system theme (useful for debugging or reset functionality)
+  Future<void> resetToSystemTheme() async {
+    await setThemeMode(ThemeMode.system);
   }
 } 

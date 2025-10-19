@@ -17,17 +17,21 @@ import '../config/constants.dart';
 /// Centralized styling for the PostCard widget - matches web platform exactly
 class PostCardStyles {
   // Colors - match web platform's CSS variables
-  static const Color lightCardBackgroundColor = Color(0x66FFFFFF); // White with 40% opacity for light mode
-  static const Color darkCardBackgroundColor = Color(0x66000000); // Black with 40% opacity for dark mode
-  static const Color lightCardBorderColor = Colors.transparent; // No border in web
+  static const Color lightCardBackgroundColor =
+      Color.fromRGBO(0, 0, 0, 0.12); // White with 40% opacity for light mode
+  static const Color darkCardBackgroundColor =
+      Color.fromRGBO(0, 0, 0, 0.40); // Black with 40% opacity for dark mode
+  static const Color lightCardBorderColor =
+      Colors.transparent; // No border in web
   static const Color darkCardBorderColor = Colors.transparent;
-  static const Color lightTextColor = Colors.black; // Black text for light mode
+  static const Color lightTextColor =
+      Colors.white; // White text fRor light mode
   static const Color darkTextColor = Colors.white; // White text for dark mode
-  static const Color lightHintColor = Color(0x66000000); // Black with 40% opacity for light mode
-  static const Color darkHintColor = Color(0x99FFFFFF); // White with 60% opacity for dark mode
-  static const Color lightAvatarBorderColor = Colors.black;
+  static const Color lightHintColor = Colors.white; // White for light mode
+  static const Color darkHintColor = Colors.white; // White for dark mode
+  static const Color lightAvatarBorderColor = Colors.white;
   static const Color darkAvatarBorderColor = Colors.white;
-  
+
   // Sizes - match web platform exactly
   static const double cardBorderRadius = 20.0; // border-radius: 20px
   static const double avatarSize = 70.0; // width: 70px, height: 70px
@@ -36,31 +40,37 @@ class PostCardStyles {
   static const double iconSize = 20.0;
   static const double fontSize = 16.0;
   static const double smallFontSize = 14.0;
-  
+
   // Padding and margins - match web platform exactly
-  static const EdgeInsets cardPadding = EdgeInsets.all(0.0); // No padding on card itself
-  static const EdgeInsets contentPadding = EdgeInsets.symmetric(horizontal: 20.0, vertical: 10.0); // padding: 10px 20px
-  static const EdgeInsets headerPadding = EdgeInsets.all(0.0); // No padding in web
-  static const EdgeInsets imagePadding = EdgeInsets.symmetric(horizontal: 10.0, vertical: 5.0); // margin: 5px 10px
-  static const EdgeInsets actionsPadding = EdgeInsets.symmetric(horizontal: 20.0, vertical: 10.0);
-  static const EdgeInsets commentSectionPadding = EdgeInsets.symmetric(horizontal: 10.0, vertical: 5.0); // padding: 0 10px
+  static const EdgeInsets cardPadding =
+      EdgeInsets.all(0.0); // No padding on card itself
+  static const EdgeInsets contentPadding = EdgeInsets.symmetric(
+      horizontal: 20.0, vertical: 10.0); // padding: 10px 20px
+  static const EdgeInsets headerPadding =
+      EdgeInsets.all(0.0); // No padding in web
+  static const EdgeInsets imagePadding =
+      EdgeInsets.symmetric(horizontal: 10.0, vertical: 5.0); // margin: 5px 10px
+  static const EdgeInsets actionsPadding =
+      EdgeInsets.symmetric(horizontal: 20.0, vertical: 10.0);
+  static const EdgeInsets commentSectionPadding =
+      EdgeInsets.symmetric(horizontal: 10.0, vertical: 5.0); // padding: 0 10px
   static const EdgeInsets avatarPadding = EdgeInsets.all(10.0); // margin: 10px
   static const EdgeInsets textPadding = EdgeInsets.symmetric(vertical: 4.0);
-  
+
   // Border radius - match web platform exactly
   static const double cardRadius = 20.0; // border-radius: 20px
   static const double avatarRadius = 10.0; // border-radius: 10px
   static const double imageRadius = 10.0; // border-radius: 10px
   static const double buttonRadius = 10.0; // border-radius: 10px
   static const double commentRadius = 10.0; // border-radius: 10px
-  
+
   // Shadows and effects - match web platform exactly
   static const double blurSigma = 5.0; // backdrop-filter: blur(5px)
   static const double shadowBlurRadius = 0.0; // No shadow in web
   static const Offset shadowOffset = Offset(0, 0);
   static const double shadowOpacity = 0.0;
   static const double cardBorderWidth = 0.0; // No border in web
-  
+
   // Text styles - match web platform exactly
   static TextStyle getAuthorTextStyle(BuildContext context) {
     return TextStyle(
@@ -69,21 +79,21 @@ class PostCardStyles {
       color: getTextColor(context),
     );
   }
-  
+
   static TextStyle getContentTextStyle(BuildContext context) {
     return TextStyle(
       fontSize: 16, // Default font size
       color: getTextColor(context),
     );
   }
-  
+
   static TextStyle getTimestampTextStyle(BuildContext context) {
     return TextStyle(
       fontSize: 12, // font-size: 12px
       color: getHintColor(context),
     );
   }
-  
+
   static TextStyle getStatsTextStyle(BuildContext context) {
     return TextStyle(
       fontSize: 14,
@@ -91,45 +101,36 @@ class PostCardStyles {
       fontWeight: FontWeight.normal,
     );
   }
-  
+
   static TextStyle getActionButtonTextStyle(BuildContext context) {
     return TextStyle(
       fontSize: 12,
       color: getTextColor(context),
     );
   }
-  
+
   // Theme-aware color getters - match web platform exactly
   static Color getCardBackgroundColor(BuildContext context) {
     final theme = Theme.of(context);
-    return theme.brightness == Brightness.light 
-        ? lightCardBackgroundColor 
+    return theme.brightness == Brightness.light
+        ? lightCardBackgroundColor
         : darkCardBackgroundColor;
   }
-  
+
   static Color getCardBorderColor(BuildContext context) {
     return Colors.transparent; // No border in web
   }
-  
+
   static Color getTextColor(BuildContext context) {
-    final theme = Theme.of(context);
-    return theme.brightness == Brightness.light 
-        ? lightTextColor 
-        : darkTextColor;
+    return Colors.white; // Always white
   }
-  
+
   static Color getHintColor(BuildContext context) {
-    final theme = Theme.of(context);
-    return theme.brightness == Brightness.light 
-        ? lightHintColor 
-        : darkHintColor;
+    return Colors.white; // Always white
   }
-  
+
   static Color getAvatarBorderColor(BuildContext context) {
-    final theme = Theme.of(context);
-    return theme.brightness == Brightness.light 
-        ? lightAvatarBorderColor 
-        : darkAvatarBorderColor;
+    return Colors.white; // Always white
   }
 }
 
@@ -170,14 +171,14 @@ class _PostCardState extends State<PostCard> {
   final PostService _postService = PostService();
   String? _currentUsername;
   bool _isFetchingDetails = false;
-  
+
   @override
   void initState() {
     super.initState();
     _currentPost = widget.post;
     _currentUserId = widget.currentUserId ?? '';
     _isLiked = _currentPost.isLiked;
-    
+
     // Listen to keyboard visibility changes
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
@@ -191,7 +192,7 @@ class _PostCardState extends State<PostCard> {
       setState(() {
         _isKeyboardVisible = _commentFocusNode.hasFocus;
       });
-      
+
       // Call the appropriate callback
       if (_commentFocusNode.hasFocus) {
         widget.onInputFocused?.call();
@@ -210,7 +211,8 @@ class _PostCardState extends State<PostCard> {
     setState(() {
       _currentUsername = username;
     });
-    print('DEBUG: Loaded user ID: $_currentUserId, username: $_currentUsername');
+    print(
+        'DEBUG: Loaded user ID: $_currentUserId, username: $_currentUsername');
   }
 
   Future<void> _toggleComments() async {
@@ -220,14 +222,17 @@ class _PostCardState extends State<PostCard> {
 
     // Fetch full post details only when opening the comment section
     // and only if they haven't been fetched already.
-    if (_showComments && _currentPost.commentsList.isEmpty && _currentPost.comments > 0) {
+    if (_showComments &&
+        _currentPost.commentsList.isEmpty &&
+        _currentPost.comments > 0) {
       setState(() {
         _isFetchingDetails = true;
       });
       try {
         final userId = await _authService.getStoredUserId();
         if (userId == null) throw Exception('User not logged in');
-        final updatedPost = await _postService.fetchPost(postId: _currentPost.id, userId: userId);
+        final updatedPost = await _postService.fetchPost(
+            postId: _currentPost.id, userId: userId);
         setState(() {
           _currentPost = updatedPost;
         });
@@ -275,13 +280,13 @@ class _PostCardState extends State<PostCard> {
           if (commentId.isNotEmpty) {
             WebSocketService().sendNewComment(_currentPost.id, commentId);
           }
-          
+
           // Hide loading indicator
           Navigator.pop(context);
-          
+
           // Clear the text field
           _commentController.clear();
-          
+
           // If we have a valid comment ID, try to fetch it immediately
           if (commentId.isNotEmpty) {
             // Try to fetch the new comment and add it to the UI immediately
@@ -291,9 +296,9 @@ class _PostCardState extends State<PostCard> {
                 commentId: commentId,
                 userId: userId,
               );
-              
+
               print('✅ Successfully fetched comment: ${newComment.content}');
-              
+
               if (mounted) {
                 setState(() {
                   // Add the new comment to the end of the list (oldest position) since we reversed the order
@@ -303,7 +308,8 @@ class _PostCardState extends State<PostCard> {
                   );
                   // Don't change the comment display state - keep it as it was
                 });
-                print('✅ Comment added to UI immediately: ${newComment.content}');
+                print(
+                    '✅ Comment added to UI immediately: ${newComment.content}');
               }
             } catch (e) {
               print('❌ Failed to fetch new comment for immediate display: $e');
@@ -317,13 +323,12 @@ class _PostCardState extends State<PostCard> {
           }
         },
       );
-
     } catch (e) {
       // Hide loading indicator
       Navigator.pop(context);
-      
+
       print('❌ Failed to post comment: $e');
-      
+
       // Show error message
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -337,7 +342,8 @@ class _PostCardState extends State<PostCard> {
   Future<void> _refreshPostAsFallback(String userId) async {
     try {
       print('🔄 Falling back to refresh entire post...');
-      final updatedPost = await _postService.fetchPost(postId: _currentPost.id, userId: userId);
+      final updatedPost =
+          await _postService.fetchPost(postId: _currentPost.id, userId: userId);
       if (mounted) {
         setState(() {
           _currentPost = updatedPost;
@@ -373,12 +379,13 @@ class _PostCardState extends State<PostCard> {
       await _commentService.deleteComment(commentId: commentId, userId: userId);
 
       // Send WebSocket message to notify other clients
-              WebSocketService().sendDeleteComment(_currentPost.id, commentId);
+      WebSocketService().sendDeleteComment(_currentPost.id, commentId);
 
       Navigator.pop(context); // Dismiss loading indicator
 
-      final updatedPost = await _postService.fetchPost(postId: _currentPost.id, userId: userId);
-      if(mounted) {
+      final updatedPost =
+          await _postService.fetchPost(postId: _currentPost.id, userId: userId);
+      if (mounted) {
         setState(() {
           _currentPost = updatedPost;
         });
@@ -444,7 +451,7 @@ class _PostCardState extends State<PostCard> {
       await _postService.deletePost(postId: _currentPost.id, userId: userId);
 
       // Send WebSocket message to notify other clients
-              WebSocketService().sendDeletePost(_currentPost.id);
+      WebSocketService().sendDeletePost(_currentPost.id);
 
       Navigator.pop(context); // Dismiss loading indicator
 
@@ -551,7 +558,8 @@ class _PostCardState extends State<PostCard> {
         maxChildSize: 0.9,
         builder: (context, scrollController) => Container(
           margin: EdgeInsets.only(
-            top: MediaQuery.of(context).padding.top + 60, // Account for status bar and app bar
+            top: MediaQuery.of(context).padding.top +
+                60, // Account for status bar and app bar
           ),
           decoration: const BoxDecoration(
             color: Colors.transparent,
@@ -559,7 +567,9 @@ class _PostCardState extends State<PostCard> {
           ),
           child: Padding(
             padding: EdgeInsets.only(
-              bottom: MediaQuery.of(context).viewInsets.bottom, // Account for keyboard
+              bottom: MediaQuery.of(context)
+                  .viewInsets
+                  .bottom, // Account for keyboard
             ),
             child: CreatePostScreen(
               isEditing: true,
@@ -569,14 +579,12 @@ class _PostCardState extends State<PostCard> {
         ),
       ),
     );
-    
+
     // Handle the result
     if (result == 'updated' && widget.onPostUpdated != null) {
       widget.onPostUpdated!(_currentPost.id);
     }
   }
-
-
 
   Future<void> _toggleLike() async {
     try {
@@ -591,7 +599,9 @@ class _PostCardState extends State<PostCard> {
           avatar: _currentPost.avatar,
           content: _currentPost.content,
           image: _currentPost.image,
-          likes: _currentPost.isLiked ? _currentPost.likes - 1 : _currentPost.likes + 1,
+          likes: _currentPost.isLiked
+              ? _currentPost.likes - 1
+              : _currentPost.likes + 1,
           comments: _currentPost.comments,
           commentsList: _currentPost.commentsList,
           createdAt: _currentPost.createdAt,
@@ -610,7 +620,9 @@ class _PostCardState extends State<PostCard> {
           avatar: _currentPost.avatar,
           content: _currentPost.content,
           image: _currentPost.image,
-          likes: _currentPost.isLiked ? _currentPost.likes + 1 : _currentPost.likes - 1,
+          likes: _currentPost.isLiked
+              ? _currentPost.likes + 1
+              : _currentPost.likes - 1,
           comments: _currentPost.comments,
           commentsList: _currentPost.commentsList,
           createdAt: _currentPost.createdAt,
@@ -626,8 +638,9 @@ class _PostCardState extends State<PostCard> {
     // Check if keyboard is actually hidden and reposition floating input if needed
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final bottomInset = MediaQuery.of(context).viewInsets.bottom;
-      print('DEBUG: Build callback - bottomInset: $bottomInset, _isKeyboardVisible: $_isKeyboardVisible, hasFocus: ${_commentFocusNode.hasFocus}');
-      
+      print(
+          'DEBUG: Build callback - bottomInset: $bottomInset, _isKeyboardVisible: $_isKeyboardVisible, hasFocus: ${_commentFocusNode.hasFocus}');
+
       if (bottomInset == 0 && _isKeyboardVisible) {
         // Keyboard was dismissed, hide floating input
         setState(() {
@@ -635,7 +648,9 @@ class _PostCardState extends State<PostCard> {
         });
         print('DEBUG: Keyboard dismissed, setting _isKeyboardVisible to false');
         _hideFloatingInput();
-      } else if (bottomInset > 0 && !_isKeyboardVisible && _commentFocusNode.hasFocus) {
+      } else if (bottomInset > 0 &&
+          !_isKeyboardVisible &&
+          _commentFocusNode.hasFocus) {
         // Keyboard appeared, show floating input
         setState(() {
           _isKeyboardVisible = true;
@@ -644,11 +659,12 @@ class _PostCardState extends State<PostCard> {
         _showFloatingInput();
       }
     });
-    
-    print('DEBUG: Build called - viewInsets.bottom: ${MediaQuery.of(context).viewInsets.bottom}');
+
+    print(
+        'DEBUG: Build called - viewInsets.bottom: ${MediaQuery.of(context).viewInsets.bottom}');
     print('DEBUG: Build called - hasFocus: ${_commentFocusNode.hasFocus}');
     print('DEBUG: Build called - _isKeyboardVisible: $_isKeyboardVisible');
-    
+
     final theme = Theme.of(context);
     final isDarkMode = theme.brightness == Brightness.dark;
 
@@ -667,9 +683,13 @@ class _PostCardState extends State<PostCard> {
           width: PostCardStyles.avatarSize,
           height: PostCardStyles.avatarSize,
           fit: BoxFit.cover,
-          placeholder: (context, url) => Container(color: Colors.grey[800]),
-          errorWidget: (context, url, error) =>
-              Image.asset('assets/images/logo.png', width: PostCardStyles.avatarSize, height: PostCardStyles.avatarSize, fit: BoxFit.cover),
+          placeholder: (context, url) =>
+              Container(color: Colors.white.withOpacity(0.1)),
+          errorWidget: (context, url, error) => Image.asset(
+              'assets/images/logo.png',
+              width: PostCardStyles.avatarSize,
+              height: PostCardStyles.avatarSize,
+              fit: BoxFit.cover),
         );
       } else {
         avatarWidget = Image.asset(
@@ -677,12 +697,18 @@ class _PostCardState extends State<PostCard> {
           width: PostCardStyles.avatarSize,
           height: PostCardStyles.avatarSize,
           fit: BoxFit.cover,
-          errorBuilder: (context, error, stackTrace) =>
-              Image.asset('assets/images/logo.png', width: PostCardStyles.avatarSize, height: PostCardStyles.avatarSize, fit: BoxFit.cover),
+          errorBuilder: (context, error, stackTrace) => Image.asset(
+              'assets/images/logo.png',
+              width: PostCardStyles.avatarSize,
+              height: PostCardStyles.avatarSize,
+              fit: BoxFit.cover),
         );
       }
     } else {
-      avatarWidget = Image.asset('assets/images/logo.png', width: PostCardStyles.avatarSize, height: PostCardStyles.avatarSize, fit: BoxFit.cover);
+      avatarWidget = Image.asset('assets/images/logo.png',
+          width: PostCardStyles.avatarSize,
+          height: PostCardStyles.avatarSize,
+          fit: BoxFit.cover);
     }
 
     Widget? imageWidget;
@@ -694,12 +720,12 @@ class _PostCardState extends State<PostCard> {
           fit: BoxFit.cover,
           placeholder: (context, url) => Container(
             height: 200,
-            color: Colors.grey[800],
+            color: Colors.white.withOpacity(0.1),
             child: const Center(child: CircularProgressIndicator()),
           ),
           errorWidget: (context, url, error) => Container(
             height: 200,
-            color: Colors.grey[800],
+            color: Colors.white.withOpacity(0.1),
             child: const Center(child: Icon(Icons.error, color: Colors.white)),
           ),
         );
@@ -710,7 +736,7 @@ class _PostCardState extends State<PostCard> {
           fit: BoxFit.cover,
           errorBuilder: (context, error, stackTrace) => Container(
             height: 200,
-            color: Colors.grey[800],
+            color: Colors.white.withOpacity(0.1),
             child: const Center(child: Icon(Icons.error, color: Colors.white)),
           ),
         );
@@ -723,13 +749,17 @@ class _PostCardState extends State<PostCard> {
       padding: const EdgeInsets.only(bottom: 2.0), // padding-bottom: 2px
       child: Container(
         decoration: BoxDecoration(
-          color: PostCardStyles.getCardBackgroundColor(context), // background: rgba(var(--mode),.7)
-          borderRadius: BorderRadius.circular(PostCardStyles.cardRadius), // border-radius: 20px
+          color: PostCardStyles.getCardBackgroundColor(
+              context), // background: rgba(var(--mode),.7)
+          borderRadius: BorderRadius.circular(
+              PostCardStyles.cardRadius), // border-radius: 20px
         ),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(PostCardStyles.cardRadius),
           child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: PostCardStyles.blurSigma, sigmaY: PostCardStyles.blurSigma), // backdrop-filter: blur(5px)
+            filter: ImageFilter.blur(
+                sigmaX: PostCardStyles.blurSigma,
+                sigmaY: PostCardStyles.blurSigma), // backdrop-filter: blur(5px)
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -754,14 +784,24 @@ class _PostCardState extends State<PostCard> {
                                       width: PostCardStyles.avatarSize,
                                       height: PostCardStyles.avatarSize,
                                       child: Container(
-                                        margin: PostCardStyles.avatarPadding, // margin: 10px
+                                        margin: PostCardStyles
+                                            .avatarPadding, // margin: 10px
                                         decoration: BoxDecoration(
-                                          color: AppColors.avatarBackgroundColor,
-                                          borderRadius: BorderRadius.circular(PostCardStyles.avatarRadius), // border-radius: 10px
-                                          border: Border.all(color: PostCardStyles.getAvatarBorderColor(context), width: PostCardStyles.avatarBorderWidth),
+                                          color:
+                                              AppColors.avatarBackgroundColor,
+                                          borderRadius: BorderRadius.circular(
+                                              PostCardStyles
+                                                  .avatarRadius), // border-radius: 10px
+                                          border: Border.all(
+                                              color: PostCardStyles
+                                                  .getAvatarBorderColor(
+                                                      context),
+                                              width: PostCardStyles
+                                                  .avatarBorderWidth),
                                         ),
                                         child: ClipRRect(
-                                          borderRadius: BorderRadius.circular(PostCardStyles.avatarRadius),
+                                          borderRadius: BorderRadius.circular(
+                                              PostCardStyles.avatarRadius),
                                           child: avatarWidget,
                                         ),
                                       ),
@@ -774,7 +814,8 @@ class _PostCardState extends State<PostCard> {
                                           alignment: Alignment.centerLeft,
                                           child: Text(
                                             _currentPost.author,
-                                            style: PostCardStyles.getAuthorTextStyle(context),
+                                            style: PostCardStyles
+                                                .getAuthorTextStyle(context),
                                           ),
                                         ),
                                       ),
@@ -784,13 +825,17 @@ class _PostCardState extends State<PostCard> {
                               ),
                               // Date - now part of the header
                               Transform.translate(
-                                offset: const Offset(0, -10), // Move date 10px up
+                                offset:
+                                    const Offset(0, -10), // Move date 10px up
                                 child: Container(
-                                  margin: const EdgeInsets.only(left: 70.0), // margin-left: 70px
-                                  padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 0.0),
+                                  margin: const EdgeInsets.only(
+                                      left: 70.0), // margin-left: 70px
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 20.0, vertical: 0.0),
                                   child: Text(
                                     _formatTimestamp(_currentPost.createdAt),
-                                    style: PostCardStyles.getTimestampTextStyle(context), // font-size: 12px
+                                    style: PostCardStyles.getTimestampTextStyle(
+                                        context), // font-size: 12px
                                   ),
                                 ),
                               ),
@@ -806,12 +851,15 @@ class _PostCardState extends State<PostCard> {
                           padding: const EdgeInsets.all(20.0), // padding: 20px
                           child: Builder(
                             builder: (context) {
-                              print('🔍 PostCard Debug: postId=${_currentPost.id}, postUserId=${_currentPost.userId}, currentUserId=$_currentUserId');
+                              print(
+                                  '🔍 PostCard Debug: postId=${_currentPost.id}, postUserId=${_currentPost.userId}, currentUserId=$_currentUserId');
                               if (_currentPost.userId == null) {
-                                print('❌ PostCard: userId is null, hiding menu');
+                                print(
+                                    '❌ PostCard: userId is null, hiding menu');
                                 return const SizedBox.shrink();
                               }
-                              print('✅ PostCard: Showing menu, isAuthor=${_currentUserId == _currentPost.userId}');
+                              print(
+                                  '✅ PostCard: Showing menu, isAuthor=${_currentUserId == _currentPost.userId}');
                               return UnifiedMenu.createPostMenuButton(
                                 context: context,
                                 postId: _currentPost.id,
@@ -842,16 +890,19 @@ class _PostCardState extends State<PostCard> {
                 if (imageWidget != null)
                   Container(
                     width: double.infinity,
-                    margin: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 5.0), // margin: 5px 10px
+                    margin: const EdgeInsets.symmetric(
+                        horizontal: 10.0, vertical: 5.0), // margin: 5px 10px
                     child: ClipRRect(
-                      borderRadius: BorderRadius.circular(PostCardStyles.imageRadius), // border-radius: 10px
+                      borderRadius: BorderRadius.circular(
+                          PostCardStyles.imageRadius), // border-radius: 10px
                       child: imageWidget,
                     ),
                   ),
-                
+
                 // Actions section - match web platform's styling exactly
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 10.0),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 20.0, vertical: 10.0),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.end,
                     children: [
@@ -861,19 +912,19 @@ class _PostCardState extends State<PostCard> {
                           GestureDetector(
                             onTap: _toggleLike,
                             child: Icon(
-                              _currentPost.isLiked ? Icons.favorite : Icons.favorite_border,
-                              color: _currentPost.isLiked ? Colors.red : textColor,
+                              _currentPost.isLiked
+                                  ? Icons.favorite
+                                  : Icons.favorite_border,
+                              color:
+                                  _currentPost.isLiked ? Colors.red : textColor,
                               size: PostCardStyles.iconSize,
                             ),
                           ),
                           const SizedBox(width: 4),
-                          Text(
-                            '${_currentPost.likes}', 
-                            style: TextStyle(
-                              fontSize: PostCardStyles.smallFontSize, 
-                              color: textColor
-                            )
-                          ),
+                          Text('${_currentPost.likes}',
+                              style: TextStyle(
+                                  fontSize: PostCardStyles.smallFontSize,
+                                  color: textColor)),
                         ],
                       ),
                       const SizedBox(width: 16),
@@ -882,47 +933,47 @@ class _PostCardState extends State<PostCard> {
                         children: [
                           GestureDetector(
                             onTap: _toggleComments,
-                            child: Icon(
-                              Icons.comment, 
-                              color: textColor, 
-                              size: PostCardStyles.iconSize
-                            ),
+                            child: Icon(Icons.comment,
+                                color: textColor,
+                                size: PostCardStyles.iconSize),
                           ),
                           const SizedBox(width: 4),
-                          Text(
-                            '${_currentPost.comments}', 
-                            style: TextStyle(
-                              fontSize: PostCardStyles.smallFontSize, 
-                              color: textColor
-                            )
-                          ),
+                          Text('${_currentPost.comments}',
+                              style: TextStyle(
+                                  fontSize: PostCardStyles.smallFontSize,
+                                  color: textColor)),
                         ],
                       ),
                     ],
                   ),
                 ),
                 // Comment Input Field (always visible)
-                _buildCommentInputField(textColor: textColor, hintColor: hintColor),
+                _buildCommentInputField(
+                    textColor: textColor, hintColor: hintColor),
                 // Show last comment if comments are not expanded and list is not empty
                 if (!_showComments && _currentPost.commentsList.isNotEmpty)
                   Padding(
-                    padding: const EdgeInsets.only(top: 8.0, left: 16.0, right: 16.0, bottom: 8.0),
+                    padding: const EdgeInsets.only(
+                        top: 8.0, left: 16.0, right: 16.0, bottom: 8.0),
                     child: CommentCard(
                       comment: _currentPost.commentsList.first,
                       currentUserId: _currentUserId,
-                      onDelete: () => _deleteComment(_currentPost.commentsList.first.id),
+                      onDelete: () =>
+                          _deleteComment(_currentPost.commentsList.first.id),
                     ),
                   ),
                 // Collapsible list of comments
                 if (_showComments) _buildCommentSection(),
                 if (_currentPost.commentsList.length > 3)
                   Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16.0, vertical: 8.0),
                     child: Align(
                       alignment: Alignment.centerRight,
                       child: TextButton(
                         onPressed: _showAllCommentsPopup,
-                        child: Text('Expand', style: TextStyle(color: textColor)),
+                        child:
+                            Text('Expand', style: TextStyle(color: textColor)),
                       ),
                     ),
                   ),
@@ -952,7 +1003,8 @@ class _PostCardState extends State<PostCard> {
       builder: (context) {
         return Dialog(
           backgroundColor: Colors.black.withOpacity(0.95),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           child: Container(
             width: double.infinity,
             height: MediaQuery.of(context).size.height * 0.7,
@@ -963,7 +1015,11 @@ class _PostCardState extends State<PostCard> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text('All Comments', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                    const Text('All Comments',
+                        style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold)),
                     IconButton(
                       icon: const Icon(Icons.close, color: Colors.white),
                       onPressed: () => Navigator.of(context).pop(),
@@ -1038,7 +1094,8 @@ class _PostCardState extends State<PostCard> {
                   hintText: 'Add a comment...',
                   hintStyle: TextStyle(color: hintColor),
                   border: InputBorder.none,
-                  contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 0),
+                  contentPadding:
+                      const EdgeInsets.symmetric(vertical: 0, horizontal: 0),
                 ),
                 style: TextStyle(color: textColor),
                 onTap: () {
@@ -1073,10 +1130,10 @@ class _PostCardState extends State<PostCard> {
         children: [
           if (_currentPost.commentsList.isNotEmpty)
             ..._currentPost.commentsList.map((comment) => CommentCard(
-              comment: comment,
-              currentUserId: _currentUserId,
-              onDelete: () => _deleteComment(comment.id),
-            )),
+                  comment: comment,
+                  currentUserId: _currentUserId,
+                  onDelete: () => _deleteComment(comment.id),
+                )),
         ],
       ),
     );
@@ -1084,16 +1141,17 @@ class _PostCardState extends State<PostCard> {
 
   void _showFloatingInput() {
     _hideFloatingInput(); // Remove any existing overlay
-    
+
     _overlayEntry = OverlayEntry(
       builder: (context) {
         final keyboardHeight = MediaQuery.of(context).viewInsets.bottom;
-        final bottomPosition = _isKeyboardVisible 
-          ? keyboardHeight + 20.0 // 20px above keyboard
-          : -100.0; // Move off-screen when keyboard is hidden
-        
-        print('DEBUG: Floating input positioning - _isKeyboardVisible: $_isKeyboardVisible, keyboardHeight: $keyboardHeight, bottomPosition: $bottomPosition');
-        
+        final bottomPosition = _isKeyboardVisible
+            ? keyboardHeight + 20.0 // 20px above keyboard
+            : -100.0; // Move off-screen when keyboard is hidden
+
+        print(
+            'DEBUG: Floating input positioning - _isKeyboardVisible: $_isKeyboardVisible, keyboardHeight: $keyboardHeight, bottomPosition: $bottomPosition');
+
         return AnimatedPositioned(
           duration: const Duration(milliseconds: 300),
           curve: Curves.easeInOut,
@@ -1107,17 +1165,20 @@ class _PostCardState extends State<PostCard> {
               decoration: BoxDecoration(
                 color: PostCardStyles.getCardBackgroundColor(context),
                 borderRadius: BorderRadius.circular(25),
-                border: Border.all(color: PostCardStyles.getCardBorderColor(context)),
+                border: Border.all(
+                    color: PostCardStyles.getCardBorderColor(context)),
                 boxShadow: [
                   BoxShadow(
-                    color: PostCardStyles.getCardBackgroundColor(context).withOpacity(0.3),
+                    color: PostCardStyles.getCardBackgroundColor(context)
+                        .withOpacity(0.3),
                     blurRadius: 10,
                     offset: const Offset(0, 2),
                   ),
                 ],
               ),
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
                 child: Row(
                   children: [
                     Expanded(
@@ -1126,11 +1187,14 @@ class _PostCardState extends State<PostCard> {
                         focusNode: _commentFocusNode,
                         decoration: InputDecoration(
                           hintText: 'Add a comment...',
-                          hintStyle: TextStyle(color: PostCardStyles.getHintColor(context)),
+                          hintStyle: TextStyle(
+                              color: PostCardStyles.getHintColor(context)),
                           border: InputBorder.none,
-                          contentPadding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 0),
+                          contentPadding: const EdgeInsets.symmetric(
+                              vertical: 8.0, horizontal: 0),
                         ),
-                        style: TextStyle(color: PostCardStyles.getTextColor(context)),
+                        style: TextStyle(
+                            color: PostCardStyles.getTextColor(context)),
                         onTap: () {
                           // Ensure any other context menus are closed
                           _popupMenuFocusNode.unfocus();
@@ -1156,7 +1220,7 @@ class _PostCardState extends State<PostCard> {
         );
       },
     );
-    
+
     Overlay.of(context).insert(_overlayEntry!);
   }
 
@@ -1174,4 +1238,4 @@ class _PostCardState extends State<PostCard> {
     _commentController.dispose();
     super.dispose();
   }
-} 
+}

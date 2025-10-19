@@ -142,7 +142,7 @@ class _UpdateDialogState extends State<UpdateDialog> {
               Text(
                 widget.currentVersion,
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: Colors.grey[600],
+                      color: Colors.white,
                     ),
               ),
             ],
@@ -180,7 +180,7 @@ class _UpdateDialogState extends State<UpdateDialog> {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.grey[100],
+                color: Colors.white.withOpacity(0.1),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Text(
@@ -195,16 +195,16 @@ class _UpdateDialogState extends State<UpdateDialog> {
             const SizedBox(height: 16),
             LinearProgressIndicator(
               value: _updateProgress,
-              backgroundColor: Colors.grey[300],
+              backgroundColor: Colors.white.withOpacity(0.3),
               valueColor: AlwaysStoppedAnimation<Color>(
-                Theme.of(context).primaryColor,
+                Colors.white,
               ),
             ),
             const SizedBox(height: 8),
             Text(
               _updateStatus,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Colors.grey[600],
+                    color: Colors.white,
                   ),
               textAlign: TextAlign.center,
             ),

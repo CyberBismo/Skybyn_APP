@@ -74,7 +74,7 @@ class CommentCard extends StatelessWidget {
         width: CommentCardStyles.avatarSize,
         height: CommentCardStyles.avatarSize,
         fit: BoxFit.cover,
-        placeholder: (context, url) => Container(color: Colors.grey[800]),
+        placeholder: (context, url) => Container(color: Colors.white.withOpacity(0.1)),
         errorWidget: (context, url, error) =>
             Icon(Icons.person, size: CommentCardStyles.iconSize, color: iconColor),
       );

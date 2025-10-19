@@ -1186,16 +1186,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
                         colors: [
-                          Color(0xFF2196F3), // Blue
-                          Color(0xFF1976D2), // Darker blue
+                          Color.fromRGBO(33, 150, 243, 1.0), // Blue
+                          Color.fromRGBO(25, 118, 210, 1.0), // Darker blue
                         ],
                       )
                     : const LinearGradient(
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
                         colors: [
-                          Color(0xFF9E9E9E), // Grey
-                          Color(0xFF757575), // Darker grey
+                          Color.fromRGBO(158, 158, 158, 1.0), // Grey
+                          Color.fromRGBO(117, 117, 117, 1.0), // Darker grey
                         ],
                       ),
                 borderRadius: BorderRadius.circular(15),

@@ -23,7 +23,7 @@ allprojects {
 // Fix for Windows path resolution issues
 allprojects {
     tasks.withType(JavaCompile) {
-        options.compilerArgs << "-Xlint:unchecked" << "-Xlint:deprecation"
+        options.compilerArgs << "-Xlint:unchecked" << "-Xlint:deprecation" << "-Xlint:-options"
     }
 }
 

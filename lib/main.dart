@@ -35,7 +35,7 @@ Future<void> main() async {
     // Initialize HTTP overrides to handle SSL certificates
     HttpOverrides.global = MyHttpOverrides();
     
-    // Initialize theme service first
+    // Initialize theme service first - defaults to system theme
     final themeService = ThemeService();
     await themeService.initialize();
     
@@ -173,10 +173,10 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) {
     // Web platform colors
-    const webLightPrimary = Color(0xFF48C6EF); // Light blue from web light mode
-    const webLightSecondary = Color(0xFF6F86D6); // Blue from web light mode
-    const webDarkPrimary = Color(0xFF243B55); // Dark blue from web dark mode
-    const webDarkSecondary = Color(0xFF141E30); // Almost black from web dark mode
+    const webLightPrimary = Color.fromRGBO(72, 198, 239, 1.0); // Light blue from web light mode
+    const webLightSecondary = Color.fromRGBO(111, 134, 214, 1.0); // Blue from web light mode
+    const webDarkPrimary = Color.fromRGBO(36, 59, 85, 1.0); // Dark blue from web dark mode
+    const webDarkSecondary = Color.fromRGBO(20, 30, 48, 1.0); // Almost black from web dark mode
 
     return Consumer<ThemeService>(
       builder: (context, themeService, child) {
@@ -191,20 +191,20 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
               primary: webLightPrimary,
               secondary: webLightSecondary,
               surface: webLightPrimary,
-              onPrimary: Colors.black,
-              onSecondary: Colors.black,
-              onSurface: Colors.black,
+              onPrimary: Colors.white,
+              onSecondary: Colors.white,
+              onSurface: Colors.white,
             ),
             appBarTheme: AppBarTheme(
               backgroundColor: Colors.transparent,
               elevation: 0,
-              iconTheme: IconThemeData(color: Colors.black),
-              actionsIconTheme: IconThemeData(color: Colors.black),
-              titleTextStyle: TextStyle(color: Colors.black, fontSize: 20, fontWeight: FontWeight.bold),
+              iconTheme: IconThemeData(color: Colors.white),
+              actionsIconTheme: IconThemeData(color: Colors.white),
+              titleTextStyle: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
             ),
             snackBarTheme: SnackBarThemeData(
               backgroundColor: Colors.transparent,
-              contentTextStyle: TextStyle(color: Colors.black),
+              contentTextStyle: TextStyle(color: Colors.white),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
               ),

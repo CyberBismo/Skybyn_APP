@@ -9,7 +9,6 @@ import '../widgets/custom_bottom_navigation_bar.dart';
 import '../widgets/chat_list_modal.dart';
 import '../widgets/app_colors.dart';
 import 'home_screen.dart';
-import '../widgets/search_form.dart';
 import '../services/auth_service.dart';
 import '../services/post_service.dart';
 import 'create_post_screen.dart';
@@ -26,7 +25,6 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  final GlobalKey<SearchFormState> _searchFormKey = GlobalKey<SearchFormState>();
   bool _showSearchForm = false;
   Map<String, dynamic>? userData;
   String? currentUserId;
@@ -59,7 +57,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       userData = profile?.toJson();
       isLoading = false;
     });
-    
+
     // Load user posts after profile is loaded
     if (userData != null) {
       _loadUserPosts();
@@ -68,7 +66,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Future<void> _loadUserPosts() async {
     if (userData == null) return;
-    
+
     setState(() => isLoadingPosts = true);
     try {
       final postService = PostService();
@@ -90,7 +88,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   bool get isOwnProfile =>
-      userData != null && currentUserId != null && userData!['userID'] == currentUserId;
+      userData != null &&
+      currentUserId != null &&
+      userData!['userID'] == currentUserId;
 
   Future<void> _sendFriendAction(String action) async {
     if (currentUserId == null || userData == null) return;
@@ -115,7 +115,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     // Define wallpaper logic safely here
     final String wallpaperUrl = userData?['wallpaper'] as String? ?? '';
     final String avatarUrl = userData?['avatar'] as String? ?? '';
-    final bool useDefaultWallpaper = wallpaperUrl.isEmpty || wallpaperUrl == avatarUrl;
+    final bool useDefaultWallpaper =
+        wallpaperUrl.isEmpty || wallpaperUrl == avatarUrl;
 
     return Scaffold(
       extendBodyBehindAppBar: true,
@@ -125,8 +126,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
         onLogout: () {},
         onLogoPressed: () {
           Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (context) => const HomeScreen()),
-        );
+            MaterialPageRoute(builder: (context) => const HomeScreen()),
+          );
         },
         onSearchFormToggle: () {
           setState(() {
@@ -157,7 +158,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   margin: const EdgeInsets.only(top: 100),
                   decoration: const BoxDecoration(
                     color: Colors.transparent,
-                    borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+                    borderRadius:
+                        BorderRadius.vertical(top: Radius.circular(24)),
                   ),
                   child: const CreatePostScreen(),
                 ),
@@ -203,8 +205,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               : CachedNetworkImage(
                                   imageUrl: wallpaperUrl,
                                   fit: BoxFit.cover,
-                                  placeholder: (context, url) => Container(color: Colors.black),
-                                  errorWidget: (context, url, error) => const SizedBox.shrink(),
+                                  placeholder: (context, url) =>
+                                      Container(color: Colors.black),
+                                  errorWidget: (context, url, error) =>
+                                      const SizedBox.shrink(),
                                 ),
                         ),
                         // --- Avatar ---
@@ -214,7 +218,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             width: 120,
                             height: 120,
                             decoration: BoxDecoration(
-                              border: Border.all(color: AppColors.getIconColor(context), width: 3),
+                              border: Border.all(
+                                  color: AppColors.getIconColor(context),
+                                  width: 3),
                               borderRadius: BorderRadius.circular(20),
                             ),
                             child: ClipRRect(
@@ -223,10 +229,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                   ? CachedNetworkImage(
                                       imageUrl: avatarUrl,
                                       fit: BoxFit.cover,
-                                      placeholder: (context, url) => Container(color: Colors.grey[800]),
-                                      errorWidget: (context, url, error) => Image.asset('assets/images/logo.png', fit: BoxFit.cover),
+                                      placeholder: (context, url) =>
+                                          Container(color: Colors.grey[800]),
+                                      errorWidget: (context, url, error) =>
+                                          Image.asset('assets/images/logo.png',
+                                              fit: BoxFit.cover),
                                     )
-                                  : Image.asset('assets/images/logo.png', fit: BoxFit.cover),
+                                  : Image.asset('assets/images/logo.png',
+                                      fit: BoxFit.cover),
                             ),
                           ),
                         ),
@@ -241,7 +251,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                   fontSize: 24,
                                   fontWeight: FontWeight.bold,
                                   color: Colors.white,
-                                  shadows: [Shadow(blurRadius: 4, color: Colors.black54, offset: Offset(1, 1))],
+                                  shadows: [
+                                    Shadow(
+                                        blurRadius: 4,
+                                        color: Colors.black54,
+                                        offset: Offset(1, 1))
+                                  ],
                                 ),
                               ),
                               const SizedBox(height: 6),
@@ -290,7 +305,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           currentUserId: currentUserId,
                           onPostDeleted: (postId) {
                             setState(() {
-                              userPosts.removeWhere((post) => post.id == postId);
+                              userPosts
+                                  .removeWhere((post) => post.id == postId);
                             });
                           },
                           onPostUpdated: (postId) {
@@ -303,7 +319,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                   ),
                 const SliverToBoxAdapter(
-                  child: SizedBox(height: 130), // Restore space for bottom nav bar
+                  child:
+                      SizedBox(height: 130), // Restore space for bottom nav bar
                 ),
               ],
             ),
