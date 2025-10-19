@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'dart:ui' as ui;
-import 'dart:typed_data';
 import 'package:flutter/services.dart';
 import 'dart:async';
 import 'dart:math';
