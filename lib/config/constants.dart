@@ -8,6 +8,7 @@ class ApiConstants {
   static const String sendEmailVerification = '$apiBase/sendEmailVerification.php';
   static const String verifyEmail = '$apiBase/verify_email.php';
   static const String register = '$apiBase/register.php';
+  static const String resetPassword = '$apiBase/reset.php';
 
   // Posts
   static const String timeline = '$apiBase/post/timeline.php';
@@ -37,5 +38,3 @@ class StorageKeys {
   static const String userProfile = 'user_profile';
   static const String username = 'username';
 }
-
-
