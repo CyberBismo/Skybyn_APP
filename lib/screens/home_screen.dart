@@ -18,6 +18,7 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'dart:io';
 import '../widgets/chat_list_modal.dart';
+import '../widgets/search_form.dart';
 import '../widgets/app_colors.dart';
 import '../widgets/update_dialog.dart';
 import '../config/constants.dart';
@@ -77,6 +78,7 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _showInAppNotification = false;
   String _inAppNotificationTitle = '';
   String _inAppNotificationBody = '';
+  bool _showSearchForm = false;
   String? _focusedPostId;
   LifecycleEventHandler? _lifecycleEventHandler;
 
@@ -650,9 +652,11 @@ class _HomeScreenState extends State<HomeScreen> {
             _refreshData();
           },
           onSearchFormToggle: () {
-            // TODO: Implement search form toggle
+            setState(() {
+              _showSearchForm = !_showSearchForm;
+            });
           },
-          isSearchFormVisible: false,
+          isSearchFormVisible: _showSearchForm,
         ),
         bottomNavigationBar: Padding(
           padding: EdgeInsets.only(
@@ -923,6 +927,22 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ),
               ),
+          // Search form overlay
+          if (_showSearchForm)
+            SearchForm(
+              onClose: () {
+                setState(() {
+                  _showSearchForm = false;
+                });
+              },
+              onSearch: (query) {
+                // TODO: Implement search functionality
+                print('Search query: $query');
+                setState(() {
+                  _showSearchForm = false;
+                });
+              },
+            ),
           ],
         ),
       ),
