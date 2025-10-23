@@ -396,7 +396,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                                   child: Container(
                                     padding:
                                         const EdgeInsets.symmetric(vertical: 8),
-                                    child: Center(
+                                    child: const Center(
                                       child: Row(
                                         mainAxisAlignment:
                                             MainAxisAlignment.center,
@@ -406,7 +406,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                                             color: Colors.white,
                                             size: 16,
                                           ),
-                                          const SizedBox(width: 6),
+                                          SizedBox(width: 6),
                                           Text(
                                             'Back to Login',
                                             style: TextStyle(

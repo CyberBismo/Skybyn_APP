@@ -112,6 +112,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
     print('🔧 [HomeScreen] Connecting to WebSocket...');
     _webSocketService.connect(
+      onAppUpdate: _checkForUpdates,
       onNewPost: (Post newPost) {
         if (mounted) {
           setState(() {
@@ -124,11 +125,8 @@ class _HomeScreenState extends State<HomeScreen> {
       onDeletePost: (String postId) {
         if (mounted) {
           setState(() {
-            print(
-                'Attempting to delete post. Received ID: "$postId" (Type: ${postId.runtimeType})');
-            final postIdsInList = _posts
-                .map((p) => 'ID: "${p.id}" (Type: ${p.id.runtimeType})')
-                .join(', ');
+            print('Attempting to delete post. Received ID: "$postId" (Type: ${postId.runtimeType})');
+            final postIdsInList = _posts.map((p) => 'ID: "${p.id}" (Type: ${p.id.runtimeType})').join(', ');
             print('Current post IDs in list: [$postIdsInList]');
             final initialCount = _posts.length;
             _posts.removeWhere((post) => post.id == postId);
@@ -142,13 +140,11 @@ class _HomeScreenState extends State<HomeScreen> {
         }
       },
       onNewComment: (String postId, String commentId) {
-        print(
-            '📥 [WebSocket] Received new comment message: postId=$postId, commentId=$commentId');
+        print('📥 [WebSocket] Received new comment message: postId=$postId, commentId=$commentId');
         _addCommentToPost(postId, commentId);
       },
       onDeleteComment: (String postId, String commentId) {
-        print(
-            '📥 [WebSocket] Received delete comment message: postId=$postId, commentId=$commentId');
+        print('📥 [WebSocket] Received delete comment message: postId=$postId, commentId=$commentId');
         _removeCommentFromPost(postId, commentId);
       },
       onBroadcast: (String message) {
@@ -199,8 +195,7 @@ class _HomeScreenState extends State<HomeScreen> {
       }
 
       print('🔄 Updating post $postId for user $userId');
-      final updatedPost =
-          await PostService().fetchPost(postId: postId, userId: userId);
+      final updatedPost = await PostService().fetchPost(postId: postId, userId: userId);
 
       if (mounted) {
         setState(() {
@@ -217,10 +212,8 @@ class _HomeScreenState extends State<HomeScreen> {
       print('❌ Error updating post $postId: $e');
 
       // If the error is due to HTML warnings mixed with JSON, try a different approach
-      if (e.toString().contains('HTML without JSON') ||
-          e.toString().contains('invalid response format')) {
-        print(
-            '🔄 Attempting to refresh entire feed due to API response format issues');
+      if (e.toString().contains('HTML without JSON') || e.toString().contains('invalid response format')) {
+        print('🔄 Attempting to refresh entire feed due to API response format issues');
         try {
           await _loadData();
           print('✅ Successfully refreshed feed as fallback');
@@ -238,8 +231,7 @@ class _HomeScreenState extends State<HomeScreen> {
       final userId = await _authService.getStoredUserId();
       if (userId == null) return;
 
-      final newPost =
-          await PostService().fetchPost(postId: postId, userId: userId);
+      final newPost = await PostService().fetchPost(postId: postId, userId: userId);
       if (mounted) {
         setState(() {
           // Add the new post to the beginning of the list
@@ -253,8 +245,7 @@ class _HomeScreenState extends State<HomeScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(
-                'Post created but could not load details: ${e.toString()}'),
+            content: Text('Post created but could not load details: ${e.toString()}'),
             backgroundColor: Colors.orange,
           ),
         );
@@ -283,9 +274,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
         print('Attempting to fetch posts from timeline API...');
         try {
-          _posts = await PostService()
-              .fetchPostsForUser(userId: userId)
-              .timeout(const Duration(seconds: 15));
+          _posts = await PostService().fetchPostsForUser(userId: userId).timeout(const Duration(seconds: 15));
           print('Timeline API returned ${_posts.length} posts');
         } catch (timelineError) {
           print('Timeline API Error: $timelineError');
@@ -322,9 +311,7 @@ class _HomeScreenState extends State<HomeScreen> {
       final userId = await _authService.getStoredUserId();
       if (userId != null) {
         print('🔄 [HomeScreen] Refreshing posts from API for user: $userId');
-        final newPosts = await PostService()
-            .fetchPostsForUser(userId: userId)
-            .timeout(const Duration(seconds: 15));
+        final newPosts = await PostService().fetchPostsForUser(userId: userId).timeout(const Duration(seconds: 15));
 
         print('🔄 [HomeScreen] Got ${newPosts.length} posts from API');
 
@@ -450,15 +437,13 @@ class _HomeScreenState extends State<HomeScreen> {
       // Each post takes approximately 200-300 pixels, plus spacing
       const estimatedPostHeight = 250.0;
       const estimatedSpacing = 20.0;
-      final targetPosition =
-          postIndex * (estimatedPostHeight + estimatedSpacing);
+      final targetPosition = postIndex * (estimatedPostHeight + estimatedSpacing);
 
       // Add some padding to ensure the input is visible above the keyboard
       final keyboardHeight = MediaQuery.of(context).viewInsets.bottom;
       final additionalPadding = keyboardHeight > 0 ? 150.0 : 50.0;
 
-      final finalPosition = (targetPosition + additionalPadding)
-          .clamp(0.0, _scrollController.position.maxScrollExtent);
+      final finalPosition = (targetPosition + additionalPadding).clamp(0.0, _scrollController.position.maxScrollExtent);
 
       _scrollController.animateTo(
         finalPosition,
@@ -475,8 +460,7 @@ class _HomeScreenState extends State<HomeScreen> {
         _posts[postIndex].commentsList.removeWhere((c) => c.id == commentId);
         print('✅ Successfully removed comment $commentId from post $postId');
       } else {
-        print(
-            '⚠️ Post $postId not found in current feed, cannot remove comment');
+        print('⚠️ Post $postId not found in current feed, cannot remove comment');
       }
     });
   }
@@ -486,7 +470,7 @@ class _HomeScreenState extends State<HomeScreen> {
     try {
       print('🧪 Testing HTTP connection to API...');
       final response = await http.get(
-        Uri.parse(ApiConstants.apiBase + '/'),
+        Uri.parse('${ApiConstants.apiBase}/'),
         headers: {
           'User-Agent': 'Flutter Mobile App',
         },
@@ -502,8 +486,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _checkForUpdates() async {
     if (!Platform.isAndroid) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content: Text('Auto-updates are only available on Android')),
+        const SnackBar(content: Text('Auto-updates are only available on Android')),
       );
       return;
     }
@@ -575,9 +558,7 @@ class _HomeScreenState extends State<HomeScreen> {
           final data = jsonDecode(response.body);
           print('🔄 Parsed data: $data');
 
-          if (data is List &&
-              data.isNotEmpty &&
-              data.first['responseCode'] == '1') {
+          if (data is List && data.isNotEmpty && data.first['responseCode'] == '1') {
             final commentData = data.first;
             final comment = Comment(
               id: commentData['id'].toString(),
@@ -593,22 +574,18 @@ class _HomeScreenState extends State<HomeScreen> {
                 if (postIndex != -1) {
                   // Add the new comment to the top of the comment section
                   _posts[postIndex].commentsList.insert(0, comment);
-                  print(
-                      '✅ Successfully added comment $commentId to post $postId at top');
+                  print('✅ Successfully added comment $commentId to post $postId at top');
                 } else {
-                  print(
-                      '⚠️ Post $postId not found in current feed, cannot add comment');
+                  print('⚠️ Post $postId not found in current feed, cannot add comment');
                 }
               });
             }
             return; // Success, no need to fallback
           } else {
-            print(
-                '❌ API returned error for comment $commentId: ${data.first['message'] ?? 'Unknown error'}');
+            print('❌ API returned error for comment $commentId: ${data.first['message'] ?? 'Unknown error'}');
           }
         } else {
-          print(
-              '❌ HTTP error ${response.statusCode} when fetching comment $commentId');
+          print('❌ HTTP error ${response.statusCode} when fetching comment $commentId');
         }
       } catch (e) {
         print('❌ Error fetching comment $commentId: $e');
@@ -660,9 +637,7 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         bottomNavigationBar: Padding(
           padding: EdgeInsets.only(
-            bottom: Theme.of(context).platform == TargetPlatform.iOS
-                ? 8.0
-                : 8.0 + MediaQuery.of(context).padding.bottom,
+            bottom: Theme.of(context).platform == TargetPlatform.iOS ? 8.0 : 8.0 + MediaQuery.of(context).padding.bottom,
           ),
           child: CustomBottomNavigationBar(
             onStarPressed: () {},
@@ -678,19 +653,15 @@ class _HomeScreenState extends State<HomeScreen> {
                   maxChildSize: 0.9,
                   builder: (context, scrollController) => Container(
                     margin: EdgeInsets.only(
-                      top: MediaQuery.of(context).padding.top +
-                          60, // Account for status bar and app bar
+                      top: MediaQuery.of(context).padding.top + 60, // Account for status bar and app bar
                     ),
                     decoration: const BoxDecoration(
                       color: Colors.transparent,
-                      borderRadius:
-                          BorderRadius.vertical(top: Radius.circular(24)),
+                      borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
                     ),
                     child: Padding(
                       padding: EdgeInsets.only(
-                        bottom: MediaQuery.of(context)
-                            .viewInsets
-                            .bottom, // Account for keyboard
+                        bottom: MediaQuery.of(context).viewInsets.bottom, // Account for keyboard
                       ),
                       child: const CreatePostScreen(),
                     ),
@@ -700,8 +671,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
               // If a post was created, fetch the specific post
               if (postId != null) {
-                print(
-                    'Post created with ID: $postId, fetching post details...');
+                print('Post created with ID: $postId, fetching post details...');
                 await _fetchAndAddPost(postId);
               }
             },
@@ -718,8 +688,7 @@ class _HomeScreenState extends State<HomeScreen> {
             else if (_posts.isEmpty)
               RefreshIndicator(
                 onRefresh: () async {
-                  print(
-                      '🔄 [HomeScreen] RefreshIndicator onRefresh called (empty state)!');
+                  print('🔄 [HomeScreen] RefreshIndicator onRefresh called (empty state)!');
                   await _refreshData();
                 },
                 color: Colors.white, // White refresh indicator to match theme
@@ -727,33 +696,23 @@ class _HomeScreenState extends State<HomeScreen> {
                 strokeWidth: 2.0, // Thinner stroke for better appearance
                 displacement: 40.0, // Position the indicator lower
                 child: SingleChildScrollView(
-                  physics:
-                      const AlwaysScrollableScrollPhysics(), // Always allow scrolling for refresh
+                  physics: const AlwaysScrollableScrollPhysics(), // Always allow scrolling for refresh
                   child: SizedBox(
-                    height: MediaQuery.of(context).size.height -
-                        200, // Ensure enough height for refresh
+                    height: MediaQuery.of(context).size.height - 200, // Ensure enough height for refresh
                     child: Center(
                       child: Padding(
                         padding: const EdgeInsets.only(top: 80.0),
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Text('No posts to display',
-                                style: TextStyle(
-                                    color: AppColors.getSecondaryTextColor(
-                                        context),
-                                    fontSize: 18)),
+                            Text('No posts to display', style: TextStyle(color: AppColors.getSecondaryTextColor(context), fontSize: 18)),
                             const SizedBox(height: 10),
-                            Text('Pull down to refresh',
-                                style: TextStyle(
-                                    color: AppColors.getHintColor(context),
-                                    fontSize: 14)),
+                            Text('Pull down to refresh', style: TextStyle(color: AppColors.getHintColor(context), fontSize: 14)),
                             const SizedBox(height: 20),
                             ElevatedButton(
                               onPressed: () {
                                 print('🧪 [Test] Manual SnackBar test');
-                                _scaffoldMessengerKey.currentState
-                                    ?.showSnackBar(
+                                _scaffoldMessengerKey.currentState?.showSnackBar(
                                   const SnackBar(
                                     content: Text('🧪 Test SnackBar'),
                                     backgroundColor: Colors.green,
@@ -768,8 +727,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             ElevatedButton(
                               onPressed: () {
                                 print('🧪 [Test] Manual notification test');
-                                final notificationService =
-                                    NotificationService();
+                                final notificationService = NotificationService();
                                 notificationService
                                     .showNotification(
                                   title: 'Test Notification',
@@ -777,11 +735,9 @@ class _HomeScreenState extends State<HomeScreen> {
                                   payload: 'test',
                                 )
                                     .then((_) {
-                                  print(
-                                      '🧪 [Test] Manual notification completed');
+                                  print('🧪 [Test] Manual notification completed');
                                 }).catchError((error) {
-                                  print(
-                                      '🧪 [Test] Manual notification error: $error');
+                                  print('🧪 [Test] Manual notification error: $error');
                                 });
                               },
                               child: const Text('Test Notification'),
@@ -813,12 +769,9 @@ class _HomeScreenState extends State<HomeScreen> {
                 displacement: 40.0, // Position the indicator lower
                 child: SingleChildScrollView(
                   controller: _scrollController,
-                  physics:
-                      const AlwaysScrollableScrollPhysics(), // Always allow scrolling for refresh
+                  physics: const AlwaysScrollableScrollPhysics(), // Always allow scrolling for refresh
                   padding: EdgeInsets.only(
-                    top: 60.0 +
-                        MediaQuery.of(context).padding.top +
-                        5.0, // App bar height + status bar + 5px gap (reduced to prevent overlap)
+                    top: 60.0 + MediaQuery.of(context).padding.top + 5.0, // App bar height + status bar + 5px gap (reduced to prevent overlap)
                     bottom: 80.0,
                   ),
                   child: Padding(
@@ -827,16 +780,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       children: [
                         for (final post in _posts) ...[
                           const SizedBox(height: 10),
-                          PostCard(
-                              key: ValueKey(post.id),
-                              post: post,
-                              currentUserId: _currentUserId,
-                              onPostDeleted: _handlePostDeleted,
-                              onPostUpdated: _updatePost,
-                              onInputFocused: () =>
-                                  _onPostInputFocused(post.id),
-                              onInputUnfocused: () =>
-                                  _onPostInputUnfocused(post.id)),
+                          PostCard(key: ValueKey(post.id), post: post, currentUserId: _currentUserId, onPostDeleted: _handlePostDeleted, onPostUpdated: _updatePost, onInputFocused: () => _onPostInputFocused(post.id), onInputUnfocused: () => _onPostInputUnfocused(post.id)),
                         ],
                       ],
                     ),
@@ -848,8 +792,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: Align(
                   alignment: Alignment.topCenter,
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 16.0, vertical: 16.0),
+                    padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 16.0),
                     child: AnimatedOpacity(
                       opacity: _showInAppNotification ? 1.0 : 0.0,
                       duration: const Duration(milliseconds: 300),
@@ -869,15 +812,12 @@ class _HomeScreenState extends State<HomeScreen> {
                               ),
                             ],
                           ),
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 16, vertical: 12),
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                           child: Row(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Icon(Icons.notifications,
-                                  color: AppColors.getIconColor(context),
-                                  size: 28),
+                              Icon(Icons.notifications, color: AppColors.getIconColor(context), size: 28),
                               const SizedBox(width: 12),
                               Expanded(
                                 child: Column(
@@ -887,8 +827,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                     Text(
                                       _inAppNotificationTitle,
                                       style: TextStyle(
-                                        color: AppColors.getSecondaryTextColor(
-                                            context),
+                                        color: AppColors.getSecondaryTextColor(context),
                                         fontWeight: FontWeight.bold,
                                         fontSize: 16,
                                       ),
@@ -897,8 +836,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                     Text(
                                       _inAppNotificationBody,
                                       style: TextStyle(
-                                        color: AppColors.getSecondaryTextColor(
-                                            context),
+                                        color: AppColors.getSecondaryTextColor(context),
                                         fontSize: 14,
                                       ),
                                     ),
@@ -912,11 +850,8 @@ class _HomeScreenState extends State<HomeScreen> {
                                   });
                                 },
                                 child: Padding(
-                                  padding: const EdgeInsets.only(
-                                      left: 8.0, top: 2.0),
-                                  child: Icon(Icons.close,
-                                      color: AppColors.getIconColor(context),
-                                      size: 20),
+                                  padding: const EdgeInsets.only(left: 8.0, top: 2.0),
+                                  child: Icon(Icons.close, color: AppColors.getIconColor(context), size: 20),
                                 ),
                               ),
                             ],

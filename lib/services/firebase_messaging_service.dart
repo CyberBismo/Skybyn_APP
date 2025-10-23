@@ -6,7 +6,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/material.dart';
 import 'notification_service.dart';
 import 'auth_service.dart';
-import '../widgets/update_dialog.dart';
 
 // Handle background messages
 @pragma('vm:entry-point')

@@ -516,7 +516,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   _selectedDate != null
                       ? '${_selectedDate!.day}/${_selectedDate!.month}/${_selectedDate!.year}'
                       : 'Select Date of Birth',
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
                     color: Colors.white,
@@ -622,7 +622,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
               color: Colors.white.withValues(alpha: 0.7),
               fontSize: 16,
             ),
-            prefixIcon: Icon(Icons.person, color: Colors.white),
+            prefixIcon: const Icon(Icons.person, color: Colors.white),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(10),
               borderSide: BorderSide.none,
@@ -660,7 +660,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
               color: Colors.white.withValues(alpha: 0.7),
               fontSize: 16,
             ),
-            prefixIcon: Icon(Icons.person, color: Colors.white),
+            prefixIcon: const Icon(Icons.person, color: Colors.white),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(10),
               borderSide: BorderSide.none,
@@ -699,7 +699,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
               color: Colors.white.withValues(alpha: 0.7),
               fontSize: 16,
             ),
-            prefixIcon: Icon(Icons.person, color: Colors.white),
+            prefixIcon: const Icon(Icons.person, color: Colors.white),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(10),
               borderSide: BorderSide.none,
@@ -763,7 +763,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
               color: Colors.white.withValues(alpha: 0.7),
               fontSize: 16,
             ),
-            prefixIcon: Icon(Icons.email, color: Colors.white),
+            prefixIcon: const Icon(Icons.email, color: Colors.white),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(10),
               borderSide: BorderSide.none,
@@ -888,7 +888,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
               color: Colors.white.withValues(alpha: 0.7),
               fontSize: 16,
             ),
-            prefixIcon: Icon(Icons.verified, color: Colors.white),
+            prefixIcon: const Icon(Icons.verified, color: Colors.white),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(10),
               borderSide: BorderSide.none,
@@ -967,7 +967,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
               color: Colors.white.withValues(alpha: 0.7),
               fontSize: 16,
             ),
-            prefixIcon: Icon(Icons.account_circle, color: Colors.white),
+            prefixIcon: const Icon(Icons.account_circle, color: Colors.white),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(10),
               borderSide: BorderSide.none,
@@ -1031,7 +1031,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
               color: Colors.white.withValues(alpha: 0.7),
               fontSize: 16,
             ),
-            prefixIcon: Icon(Icons.lock_outline, color: Colors.white),
+            prefixIcon: const Icon(Icons.lock_outline, color: Colors.white),
             suffixIcon: IconButton(
               icon: Icon(
                 _obscurePassword ? Icons.visibility : Icons.visibility_off,
@@ -1083,7 +1083,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
               color: Colors.white.withValues(alpha: 0.7),
               fontSize: 16,
             ),
-            prefixIcon: Icon(Icons.lock_outline, color: Colors.white),
+            prefixIcon: const Icon(Icons.lock_outline, color: Colors.white),
             suffixIcon: IconButton(
               icon: Icon(
                 _obscureConfirmPassword
@@ -1177,7 +1177,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
               ),
               elevation: 0,
             ).copyWith(
-              backgroundColor: MaterialStateProperty.all(Colors.transparent),
+              backgroundColor: WidgetStateProperty.all(Colors.transparent),
             ),
             child: Container(
               decoration: BoxDecoration(
@@ -1258,7 +1258,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 ),
                 elevation: 0,
               ).copyWith(
-                backgroundColor: MaterialStateProperty.all(Colors.transparent),
+                backgroundColor: WidgetStateProperty.all(Colors.transparent),
               ),
               child: Container(
                 decoration: BoxDecoration(

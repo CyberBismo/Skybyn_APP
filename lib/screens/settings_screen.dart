@@ -951,7 +951,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   tileColor: transparentColor,
                   children: [
                     DropdownButtonFormField<String>(
-                      value: _selectedPinOption,
+                      initialValue: _selectedPinOption,
                       items: _pinOptions.map((option) {
                         return DropdownMenuItem<String>(
                           value: option,
@@ -1212,7 +1212,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           notificationsEnabled = value;
                         });
                       },
-                      activeColor: Colors.blue,
+                      activeThumbColor: Colors.blue,
                     ),
                     SwitchListTile(
                       title: Text(
@@ -1226,7 +1226,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           isPrivate = value;
                         });
                       },
-                      activeColor: Colors.blue,
+                      activeThumbColor: Colors.blue,
                     ),
                     SwitchListTile(
                       title: Text(
@@ -1252,7 +1252,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           });
                         }
                       },
-                      activeColor: Colors.blue,
+                      activeThumbColor: Colors.blue,
                     ),
                   ],
                 ),

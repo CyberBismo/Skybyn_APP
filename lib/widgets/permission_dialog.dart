@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:permission_handler/permission_handler.dart';
 import '../services/auto_update_service.dart';
 
 class PermissionDialog extends StatefulWidget {

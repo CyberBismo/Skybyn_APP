@@ -196,7 +196,7 @@ class _UpdateDialogState extends State<UpdateDialog> {
             LinearProgressIndicator(
               value: _updateProgress,
               backgroundColor: Colors.white.withOpacity(0.3),
-              valueColor: AlwaysStoppedAnimation<Color>(
+              valueColor: const AlwaysStoppedAnimation<Color>(
                 Colors.white,
               ),
             ),
@@ -222,9 +222,9 @@ class _UpdateDialogState extends State<UpdateDialog> {
             child: const Text('Update Now'),
           ),
         ] else ...[
-          TextButton(
+          const TextButton(
             onPressed: null,
-            child: const Text('Updating...'),
+            child: Text('Updating...'),
           ),
         ],
       ],

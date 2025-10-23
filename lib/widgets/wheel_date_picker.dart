@@ -133,9 +133,9 @@ class _WheelDatePickerState extends State<WheelDatePicker> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final textColor = Colors.white;
+    const textColor = Colors.white;
 
-    final monthNames = const <String>[
+    const monthNames = <String>[
       'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
       'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
     ];

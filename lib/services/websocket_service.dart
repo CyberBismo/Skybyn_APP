@@ -21,16 +21,40 @@ class WebSocketService {
   bool _isConnected = false;
   bool _isConnecting = false;
   int _reconnectAttempts = 0;
+  final int _maxReconnectAttempts = 10;
+  final int _reconnectDelay = 1000; // Start with 1 second
+  final int _maxReconnectDelay = 30000; // Max 30 seconds
   Timer? _reconnectTimer;
   bool _isInitialized = false;
-  
+
+  // Message queuing and acknowledgment
+  final List<Map<String, dynamic>> _messageQueue = [];
+  final Map<String, Map<String, dynamic>> _pendingMessages = {};
+  int _lastMessageId = 0;
+
+  // Connection quality metrics
+  final Map<String, dynamic> _connectionMetrics = {
+    'totalConnections': 0,
+    'successfulConnections': 0,
+    'failedConnections': 0,
+    'totalReconnects': 0,
+    'averageLatency': 0,
+    'lastLatency': 0,
+    'connectionStartTime': 0,
+    'totalUptime': 0,
+    'messagesSent': 0,
+    'messagesReceived': 0,
+    'errors': 0,
+  };
+
   // Callbacks for real-time updates
   Function(Post)? _onNewPost;
   Function(String, String)? _onNewComment; // postId, commentId
   Function(String)? _onDeletePost;
   Function(String, String)? _onDeleteComment; // postId, commentId
   Function(String)? _onBroadcast; // broadcast message
-  
+  Function()? _onAppUpdate; // app update notification
+
   // Services
   final NotificationService _notificationService = NotificationService();
   static const MethodChannel _methodChannel = MethodChannel('no.skybyn.app/background_service');
@@ -38,16 +62,158 @@ class WebSocketService {
   bool get isConnected => _isConnected;
   bool get isInitialized => _isInitialized;
 
+  /// Get connection quality metrics
+  Map<String, dynamic> getConnectionMetrics() {
+    return Map<String, dynamic>.from(_connectionMetrics);
+  }
+
+  // Enhanced connection management
+  int _getReconnectDelay() {
+    return (_reconnectDelay * (1 << _reconnectAttempts)).clamp(_reconnectDelay, _maxReconnectDelay);
+  }
+
+  void _updateConnectionMetrics(String event) {
+    final now = DateTime.now().millisecondsSinceEpoch;
+
+    switch (event) {
+      case 'connecting':
+        _connectionMetrics['totalConnections']++;
+        _connectionMetrics['connectionStartTime'] = now;
+        break;
+      case 'connected':
+        _connectionMetrics['successfulConnections']++;
+        if (_reconnectAttempts > 0) {
+          _connectionMetrics['totalReconnects']++;
+        }
+        _reconnectAttempts = 0;
+        break;
+      case 'failed':
+        _connectionMetrics['failedConnections']++;
+        break;
+      case 'message_sent':
+        _connectionMetrics['messagesSent']++;
+        break;
+      case 'message_received':
+        _connectionMetrics['messagesReceived']++;
+        break;
+      case 'error':
+        _connectionMetrics['errors']++;
+        break;
+    }
+
+    // Update uptime
+    if (_isConnected && _connectionMetrics['connectionStartTime'] > 0) {
+      _connectionMetrics['totalUptime'] = now - _connectionMetrics['connectionStartTime'];
+    }
+  }
+
+  void _logConnectionQuality() {
+    final successRate = _connectionMetrics['totalConnections'] > 0 ? (_connectionMetrics['successfulConnections'] / _connectionMetrics['totalConnections'] * 100) : 0.0;
+
+    print('📊 [WebSocket] Quality: ${successRate.toStringAsFixed(1)}% success, '
+        '${_connectionMetrics['messagesSent']} sent, '
+        '${_connectionMetrics['messagesReceived']} received, '
+        '${_connectionMetrics['errors']} errors');
+  }
+
+  // Message queuing and acknowledgment
+  String _generateMessageId() {
+    return (++_lastMessageId).toString();
+  }
+
+  void _queueMessage(Map<String, dynamic> message) {
+    if (_isConnected) {
+      return; // Don't queue if connected
+    }
+
+    _messageQueue.add({
+      ...message,
+      'timestamp': DateTime.now().millisecondsSinceEpoch,
+      'id': _generateMessageId(),
+    });
+
+    print('📝 [WebSocket] Message queued (${_messageQueue.length} in queue)');
+  }
+
+  void _processMessageQueue() {
+    if (_messageQueue.isEmpty || !_isConnected) {
+      return;
+    }
+
+    final messages = List<Map<String, dynamic>>.from(_messageQueue);
+    _messageQueue.clear();
+
+    for (final message in messages) {
+      _sendMessageInternal(message);
+    }
+
+    print('📤 [WebSocket] Processed ${messages.length} queued messages');
+  }
+
+  void _sendMessageInternal(Map<String, dynamic> message) {
+    if (!_isConnected || _channel == null) {
+      _queueMessage(message);
+      return;
+    }
+
+    try {
+      final messageJson = jsonEncode(message);
+      _channel!.sink.add(messageJson);
+      _updateConnectionMetrics('message_sent');
+
+      // Store for acknowledgment tracking
+      if (message['id'] != null) {
+        _pendingMessages[message['id']] = {
+          'message': message,
+          'timestamp': DateTime.now().millisecondsSinceEpoch,
+          'retries': 0,
+        };
+      }
+    } catch (e) {
+      print('❌ [WebSocket] Error sending message: $e');
+      _updateConnectionMetrics('error');
+    }
+  }
+
+  void _retryPendingMessages() {
+    final now = DateTime.now().millisecondsSinceEpoch;
+    const retryTimeout = 5000; // 5 seconds
+    const maxRetries = 3;
+
+    _pendingMessages.removeWhere((messageId, pending) {
+      if (now - pending['timestamp'] > retryTimeout && pending['retries'] < maxRetries) {
+        pending['retries']++;
+        print('🔄 [WebSocket] Retrying message $messageId (attempt ${pending['retries']})');
+
+        if (_isConnected && _channel != null) {
+          try {
+            _channel!.sink.add(jsonEncode(pending['message']));
+            _updateConnectionMetrics('message_sent');
+          } catch (e) {
+            print('❌ [WebSocket] Error retrying message: $e');
+            _updateConnectionMetrics('error');
+          }
+        }
+        return false; // Keep in pending
+      } else if (pending['retries'] >= maxRetries) {
+        print('❌ [WebSocket] Message $messageId failed after $maxRetries retries');
+        _updateConnectionMetrics('error');
+        return true; // Remove from pending
+      }
+      return false; // Keep in pending
+    });
+  }
+
   /// Initialize the WebSocket service
   Future<void> initialize() async {
     try {
       print('🔄 [WebSocket] Initializing WebSocket service...');
-      
+
       // Start Android foreground service if on Android
       if (Platform.isAndroid) {
         await _startAndroidBackgroundService();
       }
-      
+
       _isInitialized = true;
       print('✅ [WebSocket] WebSocket service initialized');
     } catch (e) {
@@ -74,40 +240,54 @@ class WebSocketService {
     Function(String)? onDeletePost,
     Function(String, String)? onDeleteComment,
     Function(String)? onBroadcast,
+    Function()? onAppUpdate,
   }) async {
     _onNewPost = onNewPost;
     _onNewComment = onNewComment;
     _onDeletePost = onDeletePost;
     _onDeleteComment = onDeleteComment;
     _onBroadcast = onBroadcast;
+    _onAppUpdate = onAppUpdate;
 
     if (_isConnected || _isConnecting) {
       return;
     }
-    
+
     _isConnecting = true;
+    _updateConnectionMetrics('connecting');
     _sessionId = _generateSessionId();
     const wsUrl = 'wss://server.skybyn.no:4433';
-    
+
     try {
       _channel = WebSocketChannel.connect(Uri.parse(wsUrl));
       _isConnected = true;
       _isConnecting = false;
-      _reconnectAttempts = 0;
-      
+      _updateConnectionMetrics('connected');
+
       _channel!.stream.listen(
         _handleMessage,
         onDone: _onConnectionClosed,
         onError: _onConnectionError,
         cancelOnError: true,
       );
-      
+
       await _sendConnectMessage();
+      _processMessageQueue(); // Process any queued messages
       print('✅ [WebSocket] Connected to WebSocket server');
+
+      // Start retry timer
+      Timer.periodic(const Duration(seconds: 2), (timer) {
+        if (!_isConnected) {
+          timer.cancel();
+          return;
+        }
+        _retryPendingMessages();
+      });
     } catch (e) {
       print('❌ [WebSocket] Connection error: $e');
       _isConnected = false;
       _isConnecting = false;
+      _updateConnectionMetrics('failed');
       _scheduleReconnect();
     }
   }
@@ -120,10 +300,10 @@ class WebSocketService {
     final userName = user?.username ?? ''; // Use username field as userName
     final deviceService = DeviceService();
     final deviceInfo = await deviceService.getDeviceInfo();
-    
+
     // Remove the 'device' field from deviceInfo to avoid overwriting our device type
     deviceInfo.remove('device');
-    
+
     final connectMessage = {
       'type': 'connect',
       'sessionId': _sessionId,
@@ -142,7 +322,7 @@ class WebSocketService {
   /// Get device type string
   Future<String> _getDeviceType(Map<String, dynamic> deviceInfo) async {
     final platform = deviceInfo['platform'] ?? 'Unknown';
-    
+
     if (platform == 'Android') {
       final brand = deviceInfo['brand'] ?? 'Unknown';
       final model = deviceInfo['model'] ?? 'Unknown';
@@ -162,23 +342,27 @@ class WebSocketService {
     try {
       if (message is String) {
         final data = json.decode(message);
-        
+
         if (data is Map) {
+          _updateConnectionMetrics('message_received');
           final messageType = data['type']?.toString();
-          
+
           // Don't log ping messages to reduce noise
           if (messageType != 'ping') {
             print('📨 [WebSocket] Received message: $message');
           }
-          
+
           switch (messageType) {
             case 'ping':
               _sendPong();
               break;
+            case 'ack':
+              _handleAcknowledgment(Map<String, dynamic>.from(data));
+              break;
             case 'broadcast':
               final broadcastMessage = data['message']?.toString() ?? 'Broadcast message';
               _onBroadcast?.call(broadcastMessage);
-              
+
               // Show notification for broadcast
               _notificationService.showNotification(
                 title: 'Broadcast',
@@ -189,7 +373,7 @@ class WebSocketService {
             case 'new_post':
               final postId = data['id']?.toString();
               _handleNewPost(postId ?? '');
-              
+
               // Show notification for new post
               _notificationService.showNotification(
                 title: 'New Post',
@@ -205,7 +389,7 @@ class WebSocketService {
               final postId = data['pid']?.toString();
               final commentId = data['cid']?.toString();
               _handleNewComment(postId ?? '', commentId ?? '');
-              
+
               // Show notification for new comment
               _notificationService.showNotification(
                 title: 'New Comment',
@@ -217,6 +401,9 @@ class WebSocketService {
               final postId = data['pid']?.toString();
               final commentId = data['id']?.toString();
               _handleDeleteComment(postId ?? '', commentId ?? '');
+              break;
+            case 'app_update':
+              _handleAppUpdate();
               break;
           }
         }
@@ -262,68 +449,97 @@ class WebSocketService {
     _onDeleteComment?.call(postId, commentId);
   }
 
+  /// Handle app update notification
+  void _handleAppUpdate() {
+    print('📱 [WebSocket] Processing app update notification');
+
+    // Show notification for app update
+    _notificationService.showNotification(
+      title: 'App Update Available',
+      body: 'A new version of Skybyn is ready to download',
+      payload: 'app_update',
+    );
+
+    // Trigger update check callback
+    _onAppUpdate?.call();
+  }
+
+  /// Handle acknowledgment
+  void _handleAcknowledgment(Map<String, dynamic> data) {
+    final messageId = data['messageId']?.toString();
+    if (messageId != null && _pendingMessages.containsKey(messageId)) {
+      final pendingMessage = _pendingMessages[messageId];
+      if (pendingMessage != null) {
+        final timestamp = pendingMessage['timestamp'] as int?;
+        if (timestamp != null) {
+          final latency = DateTime.now().millisecondsSinceEpoch - timestamp;
+
+          // Update latency metrics
+          _connectionMetrics['lastLatency'] = latency;
+          if (_connectionMetrics['averageLatency'] == 0) {
+            _connectionMetrics['averageLatency'] = latency;
+          } else {
+            _connectionMetrics['averageLatency'] = (_connectionMetrics['averageLatency'] + latency) / 2;
+          }
+
+          // Remove from pending
+          _pendingMessages.remove(messageId);
+
+          print('✅ [WebSocket] Message $messageId acknowledged (${latency}ms)');
+        }
+      }
+    }
+  }
+
   /// Send pong response
   void _sendPong() {
     final pongMessage = {
       'type': 'pong',
       'sessionId': _sessionId,
     };
-    final messageJson = jsonEncode(pongMessage);
-    _channel?.sink.add(messageJson);
+    _sendMessageInternal(pongMessage);
   }
 
   /// Send delete post message
   void sendDeletePost(String postId) {
-    if (!_isConnected) return;
-    
     final deleteMessage = {
       'type': 'delete_post',
       'sessionId': _sessionId,
       'id': postId,
     };
-    final messageJson = jsonEncode(deleteMessage);
-    _channel?.sink.add(messageJson);
+    _sendMessageInternal(deleteMessage);
   }
 
   /// Send delete comment message
   void sendDeleteComment(String postId, String commentId) {
-    if (!_isConnected) return;
-    
     final deleteMessage = {
       'type': 'delete_comment',
       'sessionId': _sessionId,
       'pid': postId,
       'id': commentId,
     };
-    final messageJson = jsonEncode(deleteMessage);
-    _channel?.sink.add(messageJson);
+    _sendMessageInternal(deleteMessage);
   }
 
   /// Send new post message
   void sendNewPost(String postId) {
-    if (!_isConnected) return;
-    
     final newPostMessage = {
       'type': 'new_post',
       'sessionId': _sessionId,
       'id': postId,
     };
-    final messageJson = jsonEncode(newPostMessage);
-    _channel?.sink.add(messageJson);
+    _sendMessageInternal(newPostMessage);
   }
 
   /// Send new comment message
   void sendNewComment(String postId, String commentId) {
-    if (!_isConnected) return;
-    
     final newCommentMessage = {
       'type': 'new_comment',
       'sessionId': _sessionId,
       'pid': postId,
       'cid': commentId,
     };
-    final messageJson = jsonEncode(newCommentMessage);
-    _channel?.sink.add(messageJson);
+    _sendMessageInternal(newCommentMessage);
   }
 
   /// Send custom message
@@ -354,10 +570,22 @@ class WebSocketService {
     _scheduleReconnect();
   }
 
-  /// Schedule reconnection
+  /// Schedule reconnection with exponential backoff
   void _scheduleReconnect() {
     _reconnectTimer?.cancel();
-    _reconnectTimer = Timer(const Duration(seconds: 30), () {
+
+    if (_reconnectAttempts >= _maxReconnectAttempts) {
+      print('❌ [WebSocket] Max reconnection attempts reached. Giving up.');
+      _updateConnectionMetrics('failed');
+      return;
+    }
+
+    final delay = _getReconnectDelay();
+    _reconnectAttempts++;
+
+    print('🔄 [WebSocket] Scheduling reconnection in ${delay}ms (attempt $_reconnectAttempts/$_maxReconnectAttempts)');
+
+    _reconnectTimer = Timer(Duration(milliseconds: delay), () {
       if (!_isConnected) {
         print('🔄 [WebSocket] Attempting to reconnect...');
         connect();
@@ -378,21 +606,29 @@ class WebSocketService {
   Future<void> stop() async {
     try {
       print('🛑 [WebSocket] Stopping WebSocket service...');
-      
+
       // Stop Android foreground service
       if (Platform.isAndroid) {
         await _methodChannel.invokeMethod('stopBackgroundService');
       }
-      
+
       // Close WebSocket connection
       _channel?.sink.close();
       _reconnectTimer?.cancel();
       _isConnected = false;
       _isInitialized = false;
-      
+
+      // Clear message queues
+      _messageQueue.clear();
+      _pendingMessages.clear();
+
+      // Log final metrics
+      _logConnectionQuality();
+
       print('✅ [WebSocket] WebSocket service stopped');
     } catch (e) {
       print('❌ [WebSocket] Error stopping WebSocket service: $e');
+      _updateConnectionMetrics('error');
     }
   }
 
@@ -402,5 +638,9 @@ class WebSocketService {
     _reconnectTimer?.cancel();
     _isConnected = false;
     _isConnecting = false;
+
+    // Clear message queues
+    _messageQueue.clear();
+    _pendingMessages.clear();
   }
-} 
+}

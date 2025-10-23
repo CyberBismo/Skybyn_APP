@@ -186,7 +186,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
             brightness: Brightness.light,
             primaryColor: webLightPrimary,
             scaffoldBackgroundColor: webLightPrimary,
-            colorScheme: ColorScheme.light(
+            colorScheme: const ColorScheme.light(
               brightness: Brightness.light,
               primary: webLightPrimary,
               secondary: webLightSecondary,
@@ -195,7 +195,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
               onSecondary: Colors.white,
               onSurface: Colors.white,
             ),
-            appBarTheme: AppBarTheme(
+            appBarTheme: const AppBarTheme(
               backgroundColor: Colors.transparent,
               elevation: 0,
               iconTheme: IconThemeData(color: Colors.white),
@@ -204,7 +204,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
             ),
             snackBarTheme: SnackBarThemeData(
               backgroundColor: Colors.transparent,
-              contentTextStyle: TextStyle(color: Colors.white),
+              contentTextStyle: const TextStyle(color: Colors.white),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
               ),
@@ -216,7 +216,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
             brightness: Brightness.dark,
             primaryColor: webDarkPrimary,
             scaffoldBackgroundColor: webDarkPrimary,
-            colorScheme: ColorScheme.dark(
+            colorScheme: const ColorScheme.dark(
               brightness: Brightness.dark,
               primary: webDarkPrimary,
               secondary: webDarkSecondary,
@@ -225,7 +225,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
               onSecondary: Colors.white,
               onSurface: Colors.white,
             ),
-            appBarTheme: AppBarTheme(
+            appBarTheme: const AppBarTheme(
               backgroundColor: Colors.transparent,
               elevation: 0,
               iconTheme: IconThemeData(color: Colors.white),

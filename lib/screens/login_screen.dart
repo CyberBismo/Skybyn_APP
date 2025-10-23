@@ -500,7 +500,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                   child: Container(
                                     padding: const EdgeInsets.symmetric(
                                         vertical: 8), // Even smaller padding
-                                    child: Center(
+                                    child: const Center(
                                       child: Row(
                                         mainAxisAlignment:
                                             MainAxisAlignment.center,
@@ -511,7 +511,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                                 .white, // White icon in both modes
                                             size: 16, // Even smaller icon
                                           ),
-                                          const SizedBox(
+                                          SizedBox(
                                               width: 6), // Smaller spacing
                                           Text(
                                             'Register',
