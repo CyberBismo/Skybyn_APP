@@ -3,6 +3,7 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/user.dart';
 import 'device_service.dart';
+import 'firebase_messaging_service.dart';
 // import 'dart:io' show Platform;
 // import 'package:firebase_auth/firebase_auth.dart' as fb_auth;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -49,7 +50,7 @@ class AuthService {
 
       // Parse response regardless of status code to get actual API message
       final data = json.decode(response.body);
-      
+
       if (response.statusCode == 200) {
         if (data['responseCode'] == '1') {
           print('Login successful, storing user data');
@@ -57,16 +58,24 @@ class AuthService {
           // Convert userID to string to avoid type mismatch
           await _prefs?.setString(userIdKey, data['userID'].toString());
           await _prefs?.setString(usernameKey, username);
-          
+
           // Try to fetch user profile, but don't fail login if it fails
           try {
             await fetchUserProfile(username);
             print('✅ [Login] User profile fetched and stored successfully');
+
+            // Subscribe to user-specific topics after successful login
+            try {
+              final firebaseService = FirebaseMessagingService();
+              await firebaseService.subscribeToUserTopics();
+            } catch (e) {
+              print('⚠️ [Login] Failed to subscribe to user topics: $e');
+            }
           } catch (e) {
             print('⚠️ [Login] Failed to fetch user profile during login: $e');
             print('⚠️ [Login] Login will still succeed, profile can be fetched later');
           }
-          
+
           return data;
         }
 
@@ -165,13 +174,26 @@ class AuthService {
     await _prefs?.remove(userIdKey);
     await _prefs?.remove(userProfileKey);
     await _prefs?.remove(usernameKey);
-    
+
     // Also clear any data stored in FlutterSecureStorage
     const storage = FlutterSecureStorage();
     await storage.delete(key: 'user_profile');
     await storage.delete(key: userIdKey);
     await storage.delete(key: userProfileKey);
     await storage.delete(key: usernameKey);
+
+    // Unsubscribe from user-specific topics on logout
+    try {
+      final firebaseService = FirebaseMessagingService();
+      final userTopics = firebaseService.subscribedTopics.where((topic) => topic.startsWith('user_') || topic.startsWith('rank_') || topic.startsWith('status_')).toList();
+
+      for (final topic in userTopics) {
+        await firebaseService.unsubscribeFromTopic(topic);
+      }
+      print('✅ [Logout] Unsubscribed from user-specific topics');
+    } catch (e) {
+      print('⚠️ [Logout] Failed to unsubscribe from user topics: $e');
+    }
   }
 
   Future<void> updateUserProfile(User updatedUser) async {
@@ -230,8 +252,7 @@ class AuthService {
           'Content-Type': 'application/x-www-form-urlencoded',
         },
       );
-      print(
-          'Send verification POST URL: ${ApiConstants.sendEmailVerification}');
+      print('Send verification POST URL: ${ApiConstants.sendEmailVerification}');
       print('Send verification POST Body: {email: $email, action: register}');
 
       print('Send verification response status: ${response.statusCode}');
@@ -247,8 +268,7 @@ class AuthService {
             'message': data['message'] ?? 'Verification code sent successfully',
             'verificationCode': data['verificationCode'], // For testing only
             'status': data['status']?.toString(),
-            'alreadyVerified':
-                (data['status']?.toString().toLowerCase() == 'verified'),
+            'alreadyVerified': (data['status']?.toString().toLowerCase() == 'verified'),
           };
         } else {
           print('Failed to send verification code: ${data['message']}');
@@ -274,14 +294,12 @@ class AuthService {
   }
 
   /// Verifies the email verification code
-  Future<Map<String, dynamic>> verifyEmailCode(
-      String email, String code) async {
+  Future<Map<String, dynamic>> verifyEmailCode(String email, String code) async {
     try {
       print('Verifying code for email: $email');
 
       print('Verify email POST URL: ${ApiConstants.verifyEmail}');
-      print(
-          'Verify email POST Body: {email: $email, code: [REDACTED], action: register}');
+      print('Verify email POST Body: {email: $email, code: [REDACTED], action: register}');
       http.Response response = await http.post(
         Uri.parse(ApiConstants.verifyEmail),
         body: {

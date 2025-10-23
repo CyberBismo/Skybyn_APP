@@ -32,7 +32,6 @@ class FirebaseMessagingService {
 
   final FirebaseMessaging _messaging = FirebaseMessaging.instance;
   final AuthService _authService = AuthService();
-  final NotificationService _notificationService = NotificationService();
   SharedPreferences? _prefs;
 
   String? _fcmToken;
@@ -40,6 +39,9 @@ class FirebaseMessagingService {
   // Callback for update check trigger
   static VoidCallback? _onUpdateCheckRequested;
   bool _isInitialized = false;
+  
+  // Topic subscriptions
+  final List<String> _subscribedTopics = [];
 
   bool get isInitialized => _isInitialized;
   String? get fcmToken => _fcmToken;
@@ -74,6 +76,9 @@ class FirebaseMessagingService {
       // Set up message handlers
       await _setupMessageHandlers();
       
+      // Auto-subscribe to default topics
+      await autoSubscribeToTopics();
+      
       _isInitialized = true;
       print('✅ [Firebase] Firebase Messaging initialized successfully');
     } catch (e) {
@@ -103,6 +108,7 @@ class FirebaseMessagingService {
     try {
       _fcmToken = await _messaging.getToken();
       print('🔑 [Firebase] FCM Token: ${_fcmToken?.substring(0, 20)}...');
+      print('🔑 [Firebase] FULL FCM Token: $_fcmToken');
       
       // Store token locally (not in Firestore)
       await _storeFCMTokenLocally();
@@ -231,4 +237,91 @@ class FirebaseMessagingService {
       print('⚠️ [Firebase] No update check callback set');
     }
   }
+
+  /// Subscribe to a topic
+  Future<bool> subscribeToTopic(String topic) async {
+    try {
+      await _messaging.subscribeToTopic(topic);
+      if (!_subscribedTopics.contains(topic)) {
+        _subscribedTopics.add(topic);
+      }
+      print('✅ [Firebase] Subscribed to topic: $topic');
+      return true;
+    } catch (e) {
+      print('❌ [Firebase] Error subscribing to topic $topic: $e');
+      return false;
+    }
+  }
+
+  /// Unsubscribe from a topic
+  Future<bool> unsubscribeFromTopic(String topic) async {
+    try {
+      await _messaging.unsubscribeFromTopic(topic);
+      _subscribedTopics.remove(topic);
+      print('✅ [Firebase] Unsubscribed from topic: $topic');
+      return true;
+    } catch (e) {
+      print('❌ [Firebase] Error unsubscribing from topic $topic: $e');
+      return false;
+    }
+  }
+
+  /// Auto-subscribe to default topics on app launch/login
+  Future<void> autoSubscribeToTopics() async {
+    try {
+      print('🔄 [Firebase] Auto-subscribing to default topics...');
+      
+      // Default topics for all users
+      final defaultTopics = [
+        'all',           // All users
+        'app_updates',   // App update notifications
+        'general',       // General announcements
+      ];
+
+      for (final topic in defaultTopics) {
+        await subscribeToTopic(topic);
+        // Small delay to avoid overwhelming the service
+        await Future.delayed(Duration(milliseconds: 100));
+      }
+
+      print('✅ [Firebase] Auto-subscription to default topics completed');
+    } catch (e) {
+      print('❌ [Firebase] Error in auto-subscription: $e');
+    }
+  }
+
+  /// Subscribe to user-specific topics based on user data
+  Future<void> subscribeToUserTopics() async {
+    try {
+      final user = await _authService.getStoredUserProfile();
+      if (user == null) {
+        print('⚠️ [Firebase] No user logged in, skipping user-specific topics');
+        return;
+      }
+
+      print('🔄 [Firebase] Subscribing to user-specific topics...');
+      
+      // User-specific topics
+      final userTopics = [
+        'user_${user.id}',           // User-specific notifications
+        'rank_${user.rank}',         // Rank-based notifications
+        'status_${user.online}',     // Online status notifications
+      ];
+
+      for (final topic in userTopics) {
+        await subscribeToTopic(topic);
+        await Future.delayed(Duration(milliseconds: 100));
+      }
+
+      print('✅ [Firebase] User-specific topic subscription completed');
+    } catch (e) {
+      print('❌ [Firebase] Error subscribing to user topics: $e');
+    }
+  }
+
+  /// Get list of subscribed topics
+  List<String> get subscribedTopics => List.from(_subscribedTopics);
+
+  /// Check if subscribed to a specific topic
+  bool isSubscribedToTopic(String topic) => _subscribedTopics.contains(topic);
 } 
