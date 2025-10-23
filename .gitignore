@@ -99,9 +99,9 @@ coverage/
 *.g.dart
 *.freezed.dart
 
-# Firebase
-google-services.json
-GoogleService-Info.plist
+# Firebase - Configuration files are now included in version control
+# google-services.json
+# GoogleService-Info.plist
 
 # Fastlane
 fastlane/report.xml
