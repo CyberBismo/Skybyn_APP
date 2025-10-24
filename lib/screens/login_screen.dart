@@ -148,7 +148,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             TranslatedText(
-                              TranslationKeys.intro,
+                              'intro',
                               style: TextStyle(
                                 fontSize: 24,
                                 fontWeight: FontWeight.w300,
@@ -181,7 +181,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               ),
                               const SizedBox(width: 8),
                               TranslatedText(
-                                TranslationKeys.introReadMore,
+                                'intro_read_more',
                                 style: TextStyle(
                                   fontSize: 14,
                                   color: Colors.white.withValues(alpha: 0.7),
