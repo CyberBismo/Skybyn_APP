@@ -15,6 +15,7 @@ import 'services/notification_service.dart';
 import 'services/websocket_service.dart';
 import 'services/firebase_messaging_service.dart';
 import 'services/auto_update_service.dart';
+import 'services/translation_service.dart';
 import 'widgets/background_gradient.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -38,6 +39,10 @@ Future<void> main() async {
     // Initialize theme service first - defaults to system theme
     final themeService = ThemeService();
     await themeService.initialize();
+    
+    // Initialize translation service
+    final translationService = TranslationService();
+    await translationService.initialize();
     
     // Auto-update service is now static and doesn't need initialization
     

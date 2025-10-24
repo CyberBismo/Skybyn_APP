@@ -13,6 +13,10 @@ import '../widgets/app_colors.dart';
 import '../services/auth_service.dart';
 import '../services/theme_service.dart';
 import '../services/local_auth_service.dart';
+import '../services/translation_service.dart';
+import '../widgets/language_selector.dart';
+import '../widgets/translated_text.dart';
+import '../utils/translation_keys.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -206,15 +210,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final response = await http.get(Uri.parse(url));
     final bytes = response.bodyBytes;
     final tempDir = await getTemporaryDirectory();
-    final file =
-        File('${tempDir.path}/${DateTime.now().millisecondsSinceEpoch}.jpg');
+    final file = File('${tempDir.path}/${DateTime.now().millisecondsSinceEpoch}.jpg');
     await file.writeAsBytes(bytes);
     return file;
   }
 
   // Update _pickAndCropAvatar to accept source
-  Future<void> _pickAndCropAvatar(
-      {File? existingFile, ImageSource? source}) async {
+  Future<void> _pickAndCropAvatar({File? existingFile, ImageSource? source}) async {
     File? imageFile;
     if (existingFile != null) {
       imageFile = existingFile;
@@ -238,8 +240,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   // Update _pickAndCropBackground to accept source
-  Future<void> _pickAndCropBackground(
-      {File? existingFile, ImageSource? source}) async {
+  Future<void> _pickAndCropBackground({File? existingFile, ImageSource? source}) async {
     File? imageFile;
     if (existingFile != null) {
       imageFile = existingFile;
@@ -534,18 +535,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget build(BuildContext context) {
     final appBarHeight = AppBarConfig.getAppBarHeight(context);
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
-    final transparentColor = isDarkMode
-        ? Colors.white.withValues(alpha: 0.2)
-        : Colors.black.withValues(alpha: 0.3);
-    final iconBackgroundColor = isDarkMode
-        ? const Color.fromRGBO(255, 255, 255, 0.20)
-        : const Color.fromRGBO(0, 0, 0, 0.30);
+    final transparentColor = isDarkMode ? Colors.white.withValues(alpha: 0.2) : Colors.black.withValues(alpha: 0.3);
+    final iconBackgroundColor = isDarkMode ? const Color.fromRGBO(255, 255, 255, 0.20) : const Color.fromRGBO(0, 0, 0, 0.30);
 
     // Define wallpaper logic safely here
     final String wallpaperUrl = user?.wallpaper ?? '';
     final String avatarUrl = user?.avatar ?? '';
-    final bool useDefaultWallpaper =
-        wallpaperUrl.isEmpty || wallpaperUrl == avatarUrl;
+    final bool useDefaultWallpaper = wallpaperUrl.isEmpty || wallpaperUrl == avatarUrl;
 
     return Scaffold(
       extendBodyBehindAppBar: true,
@@ -561,9 +557,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ),
       bottomNavigationBar: Padding(
         padding: EdgeInsets.only(
-          bottom: Theme.of(context).platform == TargetPlatform.iOS
-              ? 8.0
-              : 8.0 + MediaQuery.of(context).padding.bottom,
+          bottom: Theme.of(context).platform == TargetPlatform.iOS ? 8.0 : 8.0 + MediaQuery.of(context).padding.bottom,
         ),
         child: CustomBottomNavigationBar(
           onStarPressed: () {},
@@ -579,9 +573,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           SingleChildScrollView(
             child: Column(
               children: [
-                SizedBox(
-                    height:
-                        appBarHeight + MediaQuery.of(context).padding.top + 20),
+                SizedBox(height: appBarHeight + MediaQuery.of(context).padding.top + 20),
                 Stack(
                   clipBehavior: Clip.none,
                   children: [
@@ -597,8 +589,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             : useDefaultWallpaper
                                 ? null // No image, gradient will show through
                                 : DecorationImage(
-                                    image: CachedNetworkImageProvider(
-                                        wallpaperUrl),
+                                    image: CachedNetworkImageProvider(wallpaperUrl),
                                     fit: BoxFit.cover,
                                   ),
                       ),
@@ -611,31 +602,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         child: Row(
                           children: [
                             GestureDetector(
-                              onTap: () =>
-                                  _showImageSourceDialog(isAvatar: false),
+                              onTap: () => _showImageSourceDialog(isAvatar: false),
                               child: CircleAvatar(
                                 backgroundColor: iconBackgroundColor,
                                 radius: 20,
-                                child: Icon(Icons.edit,
-                                    color: AppColors.getIconColor(context),
-                                    size: 20),
+                                child: Icon(Icons.edit, color: AppColors.getIconColor(context), size: 20),
                               ),
                             ),
-                            if (_newBackgroundFile != null ||
-                                (backgroundImage.isNotEmpty &&
-                                    backgroundImage.startsWith('http'))) ...[
+                            if (_newBackgroundFile != null || (backgroundImage.isNotEmpty && backgroundImage.startsWith('http'))) ...[
                               const SizedBox(width: 8),
                               GestureDetector(
                                 onTap: () {
-                                  _pickAndCropBackground(
-                                      existingFile: _newBackgroundFile);
+                                  _pickAndCropBackground(existingFile: _newBackgroundFile);
                                 },
                                 child: CircleAvatar(
                                   backgroundColor: iconBackgroundColor,
                                   radius: 20,
-                                  child: Icon(Icons.crop,
-                                      color: AppColors.getIconColor(context),
-                                      size: 20),
+                                  child: Icon(Icons.crop, color: AppColors.getIconColor(context), size: 20),
                                 ),
                               ),
                             ]
@@ -656,9 +639,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             decoration: BoxDecoration(
                               color: Colors.black,
                               borderRadius: BorderRadius.circular(16),
-                              border: Border.all(
-                                  color: AppColors.getIconColor(context),
-                                  width: 1),
+                              border: Border.all(color: AppColors.getIconColor(context), width: 1),
                             ),
                             alignment: Alignment.center,
                             child: ClipRRect(
@@ -678,17 +659,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                               width: 100,
                                               height: 100,
                                               fit: BoxFit.cover,
-                                              placeholder: (context, url) =>
-                                                  Center(
-                                                child:
-                                                    CircularProgressIndicator(
-                                                  color: AppColors.getIconColor(
-                                                      context),
+                                              placeholder: (context, url) => Center(
+                                                child: CircularProgressIndicator(
+                                                  color: AppColors.getIconColor(context),
                                                 ),
                                               ),
-                                              errorWidget:
-                                                  (context, url, error) =>
-                                                      Image.asset(
+                                              errorWidget: (context, url, error) => Image.asset(
                                                 'assets/images/logo.png',
                                                 width: 100,
                                                 height: 100,
@@ -709,38 +685,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                       child: Row(
                                         children: [
                                           GestureDetector(
-                                            onTap: () => _showImageSourceDialog(
-                                                isAvatar: true),
+                                            onTap: () => _showImageSourceDialog(isAvatar: true),
                                             child: CircleAvatar(
-                                              backgroundColor:
-                                                  iconBackgroundColor,
+                                              backgroundColor: iconBackgroundColor,
                                               radius: 14,
-                                              child: Icon(Icons.edit,
-                                                  color: AppColors.getIconColor(
-                                                      context),
-                                                  size: 14),
+                                              child: Icon(Icons.edit, color: AppColors.getIconColor(context), size: 14),
                                             ),
                                           ),
-                                          if (_newAvatarFile != null ||
-                                              (profileImage.isNotEmpty &&
-                                                  profileImage
-                                                      .startsWith('http'))) ...[
+                                          if (_newAvatarFile != null || (profileImage.isNotEmpty && profileImage.startsWith('http'))) ...[
                                             const SizedBox(width: 4),
                                             GestureDetector(
                                               onTap: () {
-                                                _pickAndCropAvatar(
-                                                    existingFile:
-                                                        _newAvatarFile);
+                                                _pickAndCropAvatar(existingFile: _newAvatarFile);
                                               },
                                               child: CircleAvatar(
-                                                backgroundColor:
-                                                    iconBackgroundColor,
+                                                backgroundColor: iconBackgroundColor,
                                                 radius: 14,
-                                                child: Icon(Icons.crop,
-                                                    color:
-                                                        AppColors.getIconColor(
-                                                            context),
-                                                    size: 14),
+                                                child: Icon(Icons.crop, color: AppColors.getIconColor(context), size: 14),
                                               ),
                                             ),
                                           ],
@@ -769,16 +730,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       style: TextStyle(color: AppColors.getTextColor(context)),
                       decoration: InputDecoration(
                         labelText: 'Email',
-                        labelStyle: TextStyle(
-                            color: AppColors.getSecondaryTextColor(context)),
+                        labelStyle: TextStyle(color: AppColors.getSecondaryTextColor(context)),
                         enabledBorder: UnderlineInputBorder(
-                          borderSide: BorderSide(
-                              color: AppColors.getSecondaryTextColor(context)
-                                  .withOpacity(0.3)),
+                          borderSide: BorderSide(color: AppColors.getSecondaryTextColor(context).withOpacity(0.3)),
                         ),
                         focusedBorder: UnderlineInputBorder(
-                          borderSide: BorderSide(
-                              color: AppColors.getTextColor(context)),
+                          borderSide: BorderSide(color: AppColors.getTextColor(context)),
                         ),
                       ),
                       onTap: () {
@@ -793,16 +750,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       style: TextStyle(color: AppColors.getTextColor(context)),
                       decoration: InputDecoration(
                         labelText: 'Username',
-                        labelStyle: TextStyle(
-                            color: AppColors.getSecondaryTextColor(context)),
+                        labelStyle: TextStyle(color: AppColors.getSecondaryTextColor(context)),
                         enabledBorder: UnderlineInputBorder(
-                          borderSide: BorderSide(
-                              color: AppColors.getSecondaryTextColor(context)
-                                  .withOpacity(0.3)),
+                          borderSide: BorderSide(color: AppColors.getSecondaryTextColor(context).withOpacity(0.3)),
                         ),
                         focusedBorder: UnderlineInputBorder(
-                          borderSide: BorderSide(
-                              color: AppColors.getTextColor(context)),
+                          borderSide: BorderSide(color: AppColors.getTextColor(context)),
                         ),
                       ),
                       readOnly: true,
@@ -817,16 +770,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       style: TextStyle(color: AppColors.getTextColor(context)),
                       decoration: InputDecoration(
                         labelText: 'Nickname',
-                        labelStyle: TextStyle(
-                            color: AppColors.getSecondaryTextColor(context)),
+                        labelStyle: TextStyle(color: AppColors.getSecondaryTextColor(context)),
                         enabledBorder: UnderlineInputBorder(
-                          borderSide: BorderSide(
-                              color: AppColors.getSecondaryTextColor(context)
-                                  .withOpacity(0.3)),
+                          borderSide: BorderSide(color: AppColors.getSecondaryTextColor(context).withOpacity(0.3)),
                         ),
                         focusedBorder: UnderlineInputBorder(
-                          borderSide: BorderSide(
-                              color: AppColors.getTextColor(context)),
+                          borderSide: BorderSide(color: AppColors.getTextColor(context)),
                         ),
                       ),
                       onTap: () {
@@ -863,16 +812,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       style: TextStyle(color: AppColors.getTextColor(context)),
                       decoration: InputDecoration(
                         labelText: 'Current Password',
-                        labelStyle: TextStyle(
-                            color: AppColors.getSecondaryTextColor(context)),
+                        labelStyle: TextStyle(color: AppColors.getSecondaryTextColor(context)),
                         enabledBorder: UnderlineInputBorder(
-                          borderSide: BorderSide(
-                              color: AppColors.getSecondaryTextColor(context)
-                                  .withOpacity(0.3)),
+                          borderSide: BorderSide(color: AppColors.getSecondaryTextColor(context).withOpacity(0.3)),
                         ),
                         focusedBorder: UnderlineInputBorder(
-                          borderSide: BorderSide(
-                              color: AppColors.getTextColor(context)),
+                          borderSide: BorderSide(color: AppColors.getTextColor(context)),
                         ),
                       ),
                       onTap: () {
@@ -887,16 +832,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       style: TextStyle(color: AppColors.getTextColor(context)),
                       decoration: InputDecoration(
                         labelText: 'New Password',
-                        labelStyle: TextStyle(
-                            color: AppColors.getSecondaryTextColor(context)),
+                        labelStyle: TextStyle(color: AppColors.getSecondaryTextColor(context)),
                         enabledBorder: UnderlineInputBorder(
-                          borderSide: BorderSide(
-                              color: AppColors.getSecondaryTextColor(context)
-                                  .withOpacity(0.3)),
+                          borderSide: BorderSide(color: AppColors.getSecondaryTextColor(context).withOpacity(0.3)),
                         ),
                         focusedBorder: UnderlineInputBorder(
-                          borderSide: BorderSide(
-                              color: AppColors.getTextColor(context)),
+                          borderSide: BorderSide(color: AppColors.getTextColor(context)),
                         ),
                       ),
                       onTap: () {
@@ -911,16 +852,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       style: TextStyle(color: AppColors.getTextColor(context)),
                       decoration: InputDecoration(
                         labelText: 'Confirm New Password',
-                        labelStyle: TextStyle(
-                            color: AppColors.getSecondaryTextColor(context)),
+                        labelStyle: TextStyle(color: AppColors.getSecondaryTextColor(context)),
                         enabledBorder: UnderlineInputBorder(
-                          borderSide: BorderSide(
-                              color: AppColors.getSecondaryTextColor(context)
-                                  .withOpacity(0.3)),
+                          borderSide: BorderSide(color: AppColors.getSecondaryTextColor(context).withOpacity(0.3)),
                         ),
                         focusedBorder: UnderlineInputBorder(
-                          borderSide: BorderSide(
-                              color: AppColors.getTextColor(context)),
+                          borderSide: BorderSide(color: AppColors.getTextColor(context)),
                         ),
                       ),
                       onTap: () {
@@ -955,9 +892,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       items: _pinOptions.map((option) {
                         return DropdownMenuItem<String>(
                           value: option,
-                          child: Text(option,
-                              style: TextStyle(
-                                  color: AppColors.getTextColor(context))),
+                          child: Text(option, style: TextStyle(color: AppColors.getTextColor(context))),
                         );
                       }).toList(),
                       onChanged: (value) {
@@ -967,44 +902,32 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       },
                       decoration: InputDecoration(
                         labelText: 'PIN Type',
-                        labelStyle: TextStyle(
-                            color: AppColors.getSecondaryTextColor(context)),
+                        labelStyle: TextStyle(color: AppColors.getSecondaryTextColor(context)),
                         enabledBorder: UnderlineInputBorder(
-                          borderSide: BorderSide(
-                              color: AppColors.getSecondaryTextColor(context)
-                                  .withOpacity(0.3)),
+                          borderSide: BorderSide(color: AppColors.getSecondaryTextColor(context).withOpacity(0.3)),
                         ),
                         focusedBorder: UnderlineInputBorder(
-                          borderSide: BorderSide(
-                              color: AppColors.getTextColor(context)),
+                          borderSide: BorderSide(color: AppColors.getTextColor(context)),
                         ),
                       ),
                       dropdownColor: AppColors.getCardBackgroundColor(context),
                     ),
-                    if (_selectedPinOption != null &&
-                        _selectedPinOption != 'No PIN') ...[
+                    if (_selectedPinOption != null && _selectedPinOption != 'No PIN') ...[
                       const SizedBox(height: 16),
                       if (user?.pin != null && user!.pin.isNotEmpty) ...[
                         TextField(
                           controller: _currentPinController,
                           focusNode: _currentPinFocusNode,
                           obscureText: true,
-                          style:
-                              TextStyle(color: AppColors.getTextColor(context)),
+                          style: TextStyle(color: AppColors.getTextColor(context)),
                           decoration: InputDecoration(
                             labelText: 'Current PIN',
-                            labelStyle: TextStyle(
-                                color:
-                                    AppColors.getSecondaryTextColor(context)),
+                            labelStyle: TextStyle(color: AppColors.getSecondaryTextColor(context)),
                             enabledBorder: UnderlineInputBorder(
-                              borderSide: BorderSide(
-                                  color:
-                                      AppColors.getSecondaryTextColor(context)
-                                          .withOpacity(0.3)),
+                              borderSide: BorderSide(color: AppColors.getSecondaryTextColor(context).withOpacity(0.3)),
                             ),
                             focusedBorder: UnderlineInputBorder(
-                              borderSide: BorderSide(
-                                  color: AppColors.getTextColor(context)),
+                              borderSide: BorderSide(color: AppColors.getTextColor(context)),
                             ),
                           ),
                           onTap: () {
@@ -1017,20 +940,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         controller: _newPinController,
                         focusNode: _newPinFocusNode,
                         obscureText: true,
-                        style:
-                            TextStyle(color: AppColors.getTextColor(context)),
+                        style: TextStyle(color: AppColors.getTextColor(context)),
                         decoration: InputDecoration(
                           labelText: 'New PIN',
-                          labelStyle: TextStyle(
-                              color: AppColors.getSecondaryTextColor(context)),
+                          labelStyle: TextStyle(color: AppColors.getSecondaryTextColor(context)),
                           enabledBorder: UnderlineInputBorder(
-                            borderSide: BorderSide(
-                                color: AppColors.getSecondaryTextColor(context)
-                                    .withOpacity(0.3)),
+                            borderSide: BorderSide(color: AppColors.getSecondaryTextColor(context).withOpacity(0.3)),
                           ),
                           focusedBorder: UnderlineInputBorder(
-                            borderSide: BorderSide(
-                                color: AppColors.getTextColor(context)),
+                            borderSide: BorderSide(color: AppColors.getTextColor(context)),
                           ),
                         ),
                         onTap: () {
@@ -1042,20 +960,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         controller: _confirmPinController,
                         focusNode: _confirmPinFocusNode,
                         obscureText: true,
-                        style:
-                            TextStyle(color: AppColors.getTextColor(context)),
+                        style: TextStyle(color: AppColors.getTextColor(context)),
                         decoration: InputDecoration(
                           labelText: 'Confirm PIN',
-                          labelStyle: TextStyle(
-                              color: AppColors.getSecondaryTextColor(context)),
+                          labelStyle: TextStyle(color: AppColors.getSecondaryTextColor(context)),
                           enabledBorder: UnderlineInputBorder(
-                            borderSide: BorderSide(
-                                color: AppColors.getSecondaryTextColor(context)
-                                    .withOpacity(0.3)),
+                            borderSide: BorderSide(color: AppColors.getSecondaryTextColor(context).withOpacity(0.3)),
                           ),
                           focusedBorder: UnderlineInputBorder(
-                            borderSide: BorderSide(
-                                color: AppColors.getTextColor(context)),
+                            borderSide: BorderSide(color: AppColors.getTextColor(context)),
                           ),
                         ),
                         onTap: () {
@@ -1092,16 +1005,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       style: TextStyle(color: AppColors.getTextColor(context)),
                       decoration: InputDecoration(
                         labelText: 'Security Question 1',
-                        labelStyle: TextStyle(
-                            color: AppColors.getSecondaryTextColor(context)),
+                        labelStyle: TextStyle(color: AppColors.getSecondaryTextColor(context)),
                         enabledBorder: UnderlineInputBorder(
-                          borderSide: BorderSide(
-                              color: AppColors.getSecondaryTextColor(context)
-                                  .withOpacity(0.3)),
+                          borderSide: BorderSide(color: AppColors.getSecondaryTextColor(context).withOpacity(0.3)),
                         ),
                         focusedBorder: UnderlineInputBorder(
-                          borderSide: BorderSide(
-                              color: AppColors.getTextColor(context)),
+                          borderSide: BorderSide(color: AppColors.getTextColor(context)),
                         ),
                       ),
                       onTap: () {
@@ -1115,16 +1024,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       style: TextStyle(color: AppColors.getTextColor(context)),
                       decoration: InputDecoration(
                         labelText: 'Answer 1',
-                        labelStyle: TextStyle(
-                            color: AppColors.getSecondaryTextColor(context)),
+                        labelStyle: TextStyle(color: AppColors.getSecondaryTextColor(context)),
                         enabledBorder: UnderlineInputBorder(
-                          borderSide: BorderSide(
-                              color: AppColors.getSecondaryTextColor(context)
-                                  .withOpacity(0.3)),
+                          borderSide: BorderSide(color: AppColors.getSecondaryTextColor(context).withOpacity(0.3)),
                         ),
                         focusedBorder: UnderlineInputBorder(
-                          borderSide: BorderSide(
-                              color: AppColors.getTextColor(context)),
+                          borderSide: BorderSide(color: AppColors.getTextColor(context)),
                         ),
                       ),
                       onTap: () {
@@ -1138,16 +1043,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       style: TextStyle(color: AppColors.getTextColor(context)),
                       decoration: InputDecoration(
                         labelText: 'Security Question 2',
-                        labelStyle: TextStyle(
-                            color: AppColors.getSecondaryTextColor(context)),
+                        labelStyle: TextStyle(color: AppColors.getSecondaryTextColor(context)),
                         enabledBorder: UnderlineInputBorder(
-                          borderSide: BorderSide(
-                              color: AppColors.getSecondaryTextColor(context)
-                                  .withOpacity(0.3)),
+                          borderSide: BorderSide(color: AppColors.getSecondaryTextColor(context).withOpacity(0.3)),
                         ),
                         focusedBorder: UnderlineInputBorder(
-                          borderSide: BorderSide(
-                              color: AppColors.getTextColor(context)),
+                          borderSide: BorderSide(color: AppColors.getTextColor(context)),
                         ),
                       ),
                       onTap: () {
@@ -1161,16 +1062,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       style: TextStyle(color: AppColors.getTextColor(context)),
                       decoration: InputDecoration(
                         labelText: 'Answer 2',
-                        labelStyle: TextStyle(
-                            color: AppColors.getSecondaryTextColor(context)),
+                        labelStyle: TextStyle(color: AppColors.getSecondaryTextColor(context)),
                         enabledBorder: UnderlineInputBorder(
-                          borderSide: BorderSide(
-                              color: AppColors.getSecondaryTextColor(context)
-                                  .withOpacity(0.3)),
+                          borderSide: BorderSide(color: AppColors.getSecondaryTextColor(context).withOpacity(0.3)),
                         ),
                         focusedBorder: UnderlineInputBorder(
-                          borderSide: BorderSide(
-                              color: AppColors.getTextColor(context)),
+                          borderSide: BorderSide(color: AppColors.getTextColor(context)),
                         ),
                       ),
                       onTap: () {
@@ -1203,8 +1100,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     SwitchListTile(
                       title: Text(
                         'Enable Notifications',
-                        style:
-                            TextStyle(color: AppColors.getTextColor(context)),
+                        style: TextStyle(color: AppColors.getTextColor(context)),
                       ),
                       value: notificationsEnabled,
                       onChanged: (bool value) {
@@ -1217,8 +1113,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     SwitchListTile(
                       title: Text(
                         'Private Profile',
-                        style:
-                            TextStyle(color: AppColors.getTextColor(context)),
+                        style: TextStyle(color: AppColors.getTextColor(context)),
                       ),
                       value: isPrivate,
                       onChanged: (bool value) {
@@ -1231,14 +1126,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     SwitchListTile(
                       title: Text(
                         'Biometric Lock',
-                        style:
-                            TextStyle(color: AppColors.getTextColor(context)),
+                        style: TextStyle(color: AppColors.getTextColor(context)),
                       ),
                       value: _biometricEnabled,
                       onChanged: (bool value) async {
                         if (value) {
-                          final didAuthenticate =
-                              await LocalAuthService.authenticate();
+                          final didAuthenticate = await LocalAuthService.authenticate();
                           if (didAuthenticate) {
                             await LocalAuthService.setBiometricEnabled(true);
                             setState(() {
@@ -1266,14 +1159,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         ListTile(
                           title: Text(
                             'Theme Mode',
-                            style: TextStyle(
-                                color: AppColors.getTextColor(context)),
+                            style: TextStyle(color: AppColors.getTextColor(context)),
                           ),
                           subtitle: Text(
                             themeService.themeModeString,
-                            style: TextStyle(
-                                color:
-                                    AppColors.getSecondaryTextColor(context)),
+                            style: TextStyle(color: AppColors.getSecondaryTextColor(context)),
                           ),
                           trailing: Icon(
                             Icons.palette,
@@ -1286,6 +1176,29 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       ],
                     );
                   },
+                ),
+                // Language Section
+                LanguageSelector(
+                  onLanguageChanged: (String languageCode) {
+                    // Language will be automatically saved by the LanguageSelector
+                    // The app will need to be restarted to see the changes
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: TranslatedText(
+                          TranslationKeys.languageChanged,
+                          fallback: 'Language changed successfully!',
+                        ),
+                        backgroundColor: Colors.green,
+                        action: SnackBarAction(
+                          label: TranslationKeys.ok.tr,
+                          onPressed: () {
+                            ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                          },
+                        ),
+                      ),
+                    );
+                  },
+                  padding: const EdgeInsets.all(16),
                 ),
                 const SizedBox(height: 125),
               ],
@@ -1352,8 +1265,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
                 subtitle: Text(
                   'Automatically follow device theme',
-                  style: TextStyle(
-                      color: AppColors.getSecondaryTextColor(context)),
+                  style: TextStyle(color: AppColors.getSecondaryTextColor(context)),
                 ),
                 value: ThemeMode.system,
                 groupValue: themeService.themeMode,
@@ -1372,8 +1284,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
                 subtitle: Text(
                   'Always use light theme',
-                  style: TextStyle(
-                      color: AppColors.getSecondaryTextColor(context)),
+                  style: TextStyle(color: AppColors.getSecondaryTextColor(context)),
                 ),
                 value: ThemeMode.light,
                 groupValue: themeService.themeMode,
@@ -1392,8 +1303,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
                 subtitle: Text(
                   'Always use dark theme',
-                  style: TextStyle(
-                      color: AppColors.getSecondaryTextColor(context)),
+                  style: TextStyle(color: AppColors.getSecondaryTextColor(context)),
                 ),
                 value: ThemeMode.dark,
                 groupValue: themeService.themeMode,
@@ -1412,8 +1322,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               onPressed: () => Navigator.of(context).pop(),
               child: Text(
                 'Cancel',
-                style:
-                    TextStyle(color: AppColors.getSecondaryTextColor(context)),
+                style: TextStyle(color: AppColors.getSecondaryTextColor(context)),
               ),
             ),
           ],

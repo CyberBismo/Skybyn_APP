@@ -2,9 +2,12 @@ import 'package:flutter/material.dart';
 import 'dart:ui';
 import '../services/auth_service.dart';
 import '../services/notification_service.dart';
+import '../services/translation_service.dart';
 import 'dart:io';
 import '../widgets/background_gradient.dart';
 import '../widgets/app_colors.dart';
+import '../widgets/translated_text.dart';
+import '../utils/translation_keys.dart';
 import 'home_screen.dart';
 import 'register_screen.dart';
 import 'forgot_password_screen.dart';
@@ -35,7 +38,7 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _handleLogin() async {
     if (_usernameController.text.isEmpty || _passwordController.text.isEmpty) {
       setState(() {
-        _errorMessage = 'Please fill in all fields';
+        _errorMessage = TranslationKeys.fieldRequired.tr;
       });
       return;
     }
@@ -65,8 +68,7 @@ class _LoginScreenState extends State<LoginScreen> {
             await notificationService.requestPermissions();
 
             // Check if notifications are enabled
-            final isEnabled =
-                await notificationService.areNotificationsEnabled();
+            final isEnabled = await notificationService.areNotificationsEnabled();
             print('📱 Notifications enabled: $isEnabled');
 
             // For iOS, check notification status
@@ -93,16 +95,14 @@ class _LoginScreenState extends State<LoginScreen> {
         }
       } else {
         setState(() {
-          _errorMessage = response['message'] ??
-              'Login failed. Please check your credentials and try again.';
+          _errorMessage = response['message'] ?? 'Login failed. Please check your credentials and try again.';
         });
       }
     } catch (e) {
       print('Login error: $e');
       if (!mounted) return;
       setState(() {
-        _errorMessage =
-            'Connection error. Please check your internet connection and try again.';
+        _errorMessage = TranslationKeys.connectionError.tr;
       });
     } finally {
       if (mounted) {
@@ -147,8 +147,8 @@ class _LoginScreenState extends State<LoginScreen> {
                         const Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Text(
-                              'Welcome to ',
+                            TranslatedText(
+                              TranslationKeys.intro,
                               style: TextStyle(
                                 fontSize: 24,
                                 fontWeight: FontWeight.w300,
@@ -180,8 +180,8 @@ class _LoginScreenState extends State<LoginScreen> {
                                 size: 20,
                               ),
                               const SizedBox(width: 8),
-                              Text(
-                                'Click to read more',
+                              TranslatedText(
+                                TranslationKeys.introReadMore,
                                 style: TextStyle(
                                   fontSize: 14,
                                   color: Colors.white.withValues(alpha: 0.7),
@@ -207,13 +207,10 @@ class _LoginScreenState extends State<LoginScreen> {
                         filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
                         child: Container(
                           decoration: BoxDecoration(
-                            color: AppColors.getCardBackgroundColor(context)
-                                .withValues(
-                                    alpha: 0.1), // Keep original background
+                            color: AppColors.getCardBackgroundColor(context).withValues(alpha: 0.1), // Keep original background
                             borderRadius: BorderRadius.circular(10),
                             border: Border.all(
-                              color: Colors.white.withValues(
-                                  alpha: 0.3), // White border in both modes
+                              color: Colors.white.withValues(alpha: 0.3), // White border in both modes
                               width: 1.5,
                             ),
                           ),
@@ -224,21 +221,17 @@ class _LoginScreenState extends State<LoginScreen> {
                             decoration: InputDecoration(
                               filled: true,
                               fillColor: Colors.transparent,
-                              hintText: 'Username',
+                              hintText: TranslationKeys.username.tr,
                               hintStyle: TextStyle(
-                                color: Colors.white.withValues(
-                                    alpha: 0.7), // White hint in both modes
+                                color: Colors.white.withValues(alpha: 0.7), // White hint in both modes
                                 fontSize: 16,
                               ),
-                              prefixIcon: const Icon(Icons.person,
-                                  color:
-                                      Colors.white), // White icon in both modes
+                              prefixIcon: const Icon(Icons.person, color: Colors.white), // White icon in both modes
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(10),
                                 borderSide: BorderSide.none,
                               ),
-                              contentPadding: const EdgeInsets.symmetric(
-                                  horizontal: 16, vertical: 16),
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
                             ),
                             style: const TextStyle(
                               color: Colors.white, // White text in both modes
@@ -264,13 +257,10 @@ class _LoginScreenState extends State<LoginScreen> {
                         filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
                         child: Container(
                           decoration: BoxDecoration(
-                            color: AppColors.getCardBackgroundColor(context)
-                                .withValues(
-                                    alpha: 0.1), // Keep original background
+                            color: AppColors.getCardBackgroundColor(context).withValues(alpha: 0.1), // Keep original background
                             borderRadius: BorderRadius.circular(10),
                             border: Border.all(
-                              color: Colors.white.withValues(
-                                  alpha: 0.3), // White border in both modes
+                              color: Colors.white.withValues(alpha: 0.3), // White border in both modes
                               width: 1.5,
                             ),
                           ),
@@ -282,22 +272,16 @@ class _LoginScreenState extends State<LoginScreen> {
                             decoration: InputDecoration(
                               filled: true,
                               fillColor: Colors.transparent,
-                              hintText: 'Password',
+                              hintText: TranslationKeys.password.tr,
                               hintStyle: TextStyle(
-                                color: Colors.white.withValues(
-                                    alpha: 0.7), // White hint in both modes
+                                color: Colors.white.withValues(alpha: 0.7), // White hint in both modes
                                 fontSize: 16,
                               ),
-                              prefixIcon: const Icon(Icons.lock,
-                                  color:
-                                      Colors.white), // White icon in both modes
+                              prefixIcon: const Icon(Icons.lock, color: Colors.white), // White icon in both modes
                               suffixIcon: IconButton(
                                 icon: Icon(
-                                  _obscurePassword
-                                      ? Icons.visibility
-                                      : Icons.visibility_off,
-                                  color: Colors.white.withValues(
-                                      alpha: 0.7), // White icon in both modes
+                                  _obscurePassword ? Icons.visibility : Icons.visibility_off,
+                                  color: Colors.white.withValues(alpha: 0.7), // White icon in both modes
                                 ),
                                 onPressed: () {
                                   setState(() {
@@ -309,8 +293,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                 borderRadius: BorderRadius.circular(10),
                                 borderSide: BorderSide.none,
                               ),
-                              contentPadding: const EdgeInsets.symmetric(
-                                  horizontal: 16, vertical: 16),
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
                             ),
                             style: const TextStyle(
                               color: Colors.white, // White text in both modes
@@ -335,13 +318,11 @@ class _LoginScreenState extends State<LoginScreen> {
                         decoration: BoxDecoration(
                           color: Colors.red.withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(8),
-                          border: Border.all(
-                              color: Colors.red.withValues(alpha: 0.3)),
+                          border: Border.all(color: Colors.red.withValues(alpha: 0.3)),
                         ),
                         child: Row(
                           children: [
-                            const Icon(Icons.error_outline,
-                                color: Colors.red, size: 20),
+                            const Icon(Icons.error_outline, color: Colors.red, size: 20),
                             const SizedBox(width: 8),
                             Expanded(
                               child: Text(
@@ -371,16 +352,13 @@ class _LoginScreenState extends State<LoginScreen> {
                                 begin: Alignment.topLeft,
                                 end: Alignment.bottomRight,
                                 colors: [
-                                  Color.fromRGBO(
-                                      70, 130, 180, 0.8), // Steel blue
-                                  Color.fromRGBO(
-                                      100, 149, 237, 0.8), // Cornflower blue
+                                  Color.fromRGBO(70, 130, 180, 0.8), // Steel blue
+                                  Color.fromRGBO(100, 149, 237, 0.8), // Cornflower blue
                                 ],
                               ),
                               borderRadius: BorderRadius.circular(10),
                               border: Border.all(
-                                color: Colors.white.withValues(
-                                    alpha: 0.3), // White border in both modes
+                                color: Colors.white.withValues(alpha: 0.3), // White border in both modes
                                 width: 1.5,
                               ),
                             ),
@@ -389,8 +367,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               child: InkWell(
                                 onTap: _isLoading ? null : _handleLogin,
                                 child: Container(
-                                  padding:
-                                      const EdgeInsets.symmetric(vertical: 16),
+                                  padding: const EdgeInsets.symmetric(vertical: 16),
                                   child: Center(
                                     child: _isLoading
                                         ? const SizedBox(
@@ -398,30 +375,24 @@ class _LoginScreenState extends State<LoginScreen> {
                                             width: 24,
                                             child: CircularProgressIndicator(
                                               strokeWidth: 2.5,
-                                              valueColor: AlwaysStoppedAnimation<
-                                                      Color>(
-                                                  Colors
-                                                      .white), // White loading indicator in both modes
+                                              valueColor: AlwaysStoppedAnimation<Color>(Colors.white), // White loading indicator in both modes
                                             ),
                                           )
                                         : const Row(
-                                            mainAxisAlignment:
-                                                MainAxisAlignment.center,
+                                            mainAxisAlignment: MainAxisAlignment.center,
                                             children: [
                                               Icon(
                                                 Icons.login_rounded,
-                                                color: Colors
-                                                    .white, // White icon in both modes
+                                                color: Colors.white, // White icon in both modes
                                                 size: 20,
                                               ),
                                               SizedBox(width: 8),
-                                              Text(
-                                                'Login',
+                                              TranslatedText(
+                                                TranslationKeys.login,
                                                 style: TextStyle(
                                                   fontSize: 18,
                                                   fontWeight: FontWeight.w600,
-                                                  color: Colors
-                                                      .white, // White text in both modes
+                                                  color: Colors.white, // White text in both modes
                                                   letterSpacing: 0.5,
                                                 ),
                                               ),
@@ -442,13 +413,12 @@ class _LoginScreenState extends State<LoginScreen> {
                         onPressed: () {
                           Navigator.of(context).push(
                             MaterialPageRoute(
-                              builder: (context) =>
-                                  const ForgotPasswordScreen(),
+                              builder: (context) => const ForgotPasswordScreen(),
                             ),
                           );
                         },
-                        child: Text(
-                          'Forgot password?',
+                        child: TranslatedText(
+                          TranslationKeys.forgotPassword,
                           style: TextStyle(
                             color: Colors.white.withValues(alpha: 0.8),
                             fontSize: 18,
@@ -460,30 +430,25 @@ class _LoginScreenState extends State<LoginScreen> {
                     // Register button
                     Center(
                       child: SizedBox(
-                        width: MediaQuery.of(context).size.width *
-                            0.7, // 80% of screen width
+                        width: MediaQuery.of(context).size.width * 0.7, // 80% of screen width
                         child: ClipRRect(
                           borderRadius: BorderRadius.circular(10),
                           child: BackdropFilter(
                             filter: ImageFilter.blur(sigmaX: 3, sigmaY: 3),
                             child: Container(
-                              width: double
-                                  .infinity, // Take full width of SizedBox
+                              width: double.infinity, // Take full width of SizedBox
                               decoration: BoxDecoration(
                                 gradient: const LinearGradient(
                                   begin: Alignment.topLeft,
                                   end: Alignment.bottomRight,
                                   colors: [
-                                    Color.fromRGBO(
-                                        50, 205, 50, 0.8), // Lime green
-                                    Color.fromRGBO(
-                                        34, 139, 34, 0.8), // Forest green
+                                    Color.fromRGBO(50, 205, 50, 0.8), // Lime green
+                                    Color.fromRGBO(34, 139, 34, 0.8), // Forest green
                                   ],
                                 ),
                                 borderRadius: BorderRadius.circular(10),
                                 border: Border.all(
-                                  color: Colors.white.withValues(
-                                      alpha: 0.3), // White border in both modes
+                                  color: Colors.white.withValues(alpha: 0.3), // White border in both modes
                                   width: 1.0,
                                 ),
                               ),
@@ -492,34 +457,27 @@ class _LoginScreenState extends State<LoginScreen> {
                                 child: InkWell(
                                   onTap: () {
                                     Navigator.of(context).push(
-                                      MaterialPageRoute(
-                                          builder: (context) =>
-                                              const RegisterScreen()),
+                                      MaterialPageRoute(builder: (context) => const RegisterScreen()),
                                     );
                                   },
                                   child: Container(
-                                    padding: const EdgeInsets.symmetric(
-                                        vertical: 8), // Even smaller padding
+                                    padding: const EdgeInsets.symmetric(vertical: 8), // Even smaller padding
                                     child: const Center(
                                       child: Row(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.center,
+                                        mainAxisAlignment: MainAxisAlignment.center,
                                         children: [
                                           Icon(
                                             Icons.person_add_rounded,
-                                            color: Colors
-                                                .white, // White icon in both modes
+                                            color: Colors.white, // White icon in both modes
                                             size: 16, // Even smaller icon
                                           ),
-                                          SizedBox(
-                                              width: 6), // Smaller spacing
-                                          Text(
-                                            'Register',
+                                          SizedBox(width: 6), // Smaller spacing
+                                          TranslatedText(
+                                            TranslationKeys.register,
                                             style: TextStyle(
                                               fontSize: 14, // Even smaller font
                                               fontWeight: FontWeight.w600,
-                                              color: Colors
-                                                  .white, // White text in both modes
+                                              color: Colors.white, // White text in both modes
                                               letterSpacing: 0.5,
                                             ),
                                           ),

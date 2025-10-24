@@ -24,6 +24,7 @@ class ApiConstants {
   static const String deleteComment = '$apiBase/comment/delete.php';
 
   // Misc
+  static const String language = '$apiBase/translations.php';
   static const String qrCheck = '$apiBase/qr_check.php';
   static const String friend = '$apiBase/friend/friend.php';
   static const String friends = '$apiBase/friend/friends.php';
