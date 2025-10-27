@@ -1184,7 +1184,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     // The app will need to be restarted to see the changes
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
-                        content: TranslatedText(
+                        content: const TranslatedText(
                           TranslationKeys.languageChanged,
                           fallback: 'Language changed successfully!',
                         ),

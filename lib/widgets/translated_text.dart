@@ -11,13 +11,13 @@ class TranslatedText extends StatelessWidget {
 
   const TranslatedText(
     this.textKey, {
-    Key? key,
+    super.key,
     this.style,
     this.textAlign,
     this.maxLines,
     this.overflow,
     this.fallback,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

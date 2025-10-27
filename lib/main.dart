@@ -14,7 +14,6 @@ import 'services/auth_service.dart';
 import 'services/notification_service.dart';
 import 'services/websocket_service.dart';
 import 'services/firebase_messaging_service.dart';
-import 'services/auto_update_service.dart';
 import 'services/translation_service.dart';
 import 'widgets/background_gradient.dart';
 import 'package:shared_preferences/shared_preferences.dart';

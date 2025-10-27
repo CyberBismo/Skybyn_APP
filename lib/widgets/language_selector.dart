@@ -16,7 +16,7 @@ class LanguageSelector extends StatefulWidget {
   final ShapeBorder? shape;
 
   const LanguageSelector({
-    Key? key,
+    super.key,
     this.onLanguageChanged,
     this.showTitle = true,
     this.padding,
@@ -27,7 +27,7 @@ class LanguageSelector extends StatefulWidget {
     this.unselectedColor,
     this.elevation,
     this.shape,
-  }) : super(key: key);
+  });
 
   @override
   State<LanguageSelector> createState() => _LanguageSelectorState();
@@ -117,7 +117,7 @@ class _LanguageSelectorState extends State<LanguageSelector> {
                   onTap: () => _selectLanguage(languageCode),
                 ),
               );
-            }).toList(),
+            }),
           ],
         ),
       ),
@@ -142,7 +142,7 @@ class _LanguageSelectorState extends State<LanguageSelector> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: TranslatedText(
+            content: const TranslatedText(
               TranslationKeys.languageChanged,
               fallback: 'Language changed successfully!',
             ),
@@ -168,12 +168,12 @@ class CompactLanguageSelector extends StatelessWidget {
   final double? iconSize;
 
   const CompactLanguageSelector({
-    Key? key,
+    super.key,
     this.onLanguageChanged,
     this.currentLanguage,
     this.iconColor,
     this.iconSize = 24,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -244,10 +244,10 @@ class LanguageSelectorDialog extends StatefulWidget {
   final Function(String)? onLanguageChanged;
 
   const LanguageSelectorDialog({
-    Key? key,
+    super.key,
     this.currentLanguage,
     this.onLanguageChanged,
-  }) : super(key: key);
+  });
 
   @override
   State<LanguageSelectorDialog> createState() => _LanguageSelectorDialogState();
@@ -276,7 +276,7 @@ class _LanguageSelectorDialogState extends State<LanguageSelectorDialog> {
             size: 24,
           ),
           const SizedBox(width: 8),
-          TranslatedText(TranslationKeys.selectLanguage),
+          const TranslatedText(TranslationKeys.selectLanguage),
         ],
       ),
       content: SizedBox(
@@ -327,13 +327,13 @@ class _LanguageSelectorDialogState extends State<LanguageSelectorDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: TranslatedText(TranslationKeys.cancel),
+          child: const TranslatedText(TranslationKeys.cancel),
         ),
         ElevatedButton(
           onPressed: _selectedLanguage != (widget.currentLanguage ?? _translationService.currentLanguage)
               ? () => _applyLanguage()
               : null,
-          child: TranslatedText(TranslationKeys.apply),
+          child: const TranslatedText(TranslationKeys.apply),
         ),
       ],
     );

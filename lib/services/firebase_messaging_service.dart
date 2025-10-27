@@ -102,9 +102,6 @@ class FirebaseMessagingService {
 
       // Store token locally (not in Firestore)
       await _storeFCMTokenLocally();
-
-      // Send token to server
-      await sendFCMTokenToServer();
     } catch (e) {
       print('❌ [Firebase] Error getting FCM token: $e');
     }
@@ -314,7 +311,7 @@ class FirebaseMessagingService {
       for (final topic in defaultTopics) {
         await subscribeToTopic(topic);
         // Small delay to avoid overwhelming the service
-        await Future.delayed(Duration(milliseconds: 100));
+        await Future.delayed(const Duration(milliseconds: 100));
       }
 
       print('✅ [Firebase] Auto-subscription to default topics completed');
@@ -325,14 +322,9 @@ class FirebaseMessagingService {
 
   /// Try to register FCM token after login
   Future<void> tryRegisterFCMTokenAfterLogin() async {
-    try {
-      if (_fcmToken != null) {
-        print('🔄 [Firebase] Attempting to register FCM token after login...');
-        await sendFCMTokenToServer();
-      }
-    } catch (e) {
-      print('⚠️ [Firebase] Could not register FCM token after login: $e');
-    }
+    // Deprecated: FCM token is now sent via profile API
+    // Kept for backward compatibility
+    print('ℹ️ [Firebase] FCM token registration handled via profile API');
   }
 
   /// Subscribe to user-specific topics based on user data
@@ -355,7 +347,7 @@ class FirebaseMessagingService {
 
       for (final topic in userTopics) {
         await subscribeToTopic(topic);
-        await Future.delayed(Duration(milliseconds: 100));
+        await Future.delayed(const Duration(milliseconds: 100));
       }
 
       print('✅ [Firebase] User-specific topic subscription completed');
@@ -372,18 +364,8 @@ class FirebaseMessagingService {
 
   /// Auto-register FCM token when app opens (called from main.dart)
   Future<void> autoRegisterTokenOnAppOpen() async {
-    try {
-      // Wait a bit for Firebase to initialize
-      await Future.delayed(const Duration(seconds: 2));
-
-      if (_fcmToken != null && _isInitialized) {
-        print('🔄 [Firebase] Auto-registering FCM token on app open...');
-        await sendFCMTokenToServer();
-      } else {
-        print('⚠️ [Firebase] FCM token not ready yet on app open');
-      }
-    } catch (e) {
-      print('⚠️ [Firebase] Could not auto-register token on app open: $e');
-    }
+    // Deprecated: FCM token is now sent via profile API
+    // Kept for backward compatibility
+    print('ℹ️ [Firebase] FCM token registration handled via profile API');
   }
 }

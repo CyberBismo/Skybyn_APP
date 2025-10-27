@@ -33,19 +33,6 @@ class AuthService {
       final deviceService = DeviceService();
       final deviceInfo = await deviceService.getDeviceInfo();
 
-      // Get FCM token if available
-      try {
-        final firebaseService = FirebaseMessagingService();
-        if (firebaseService.isInitialized && firebaseService.fcmToken != null) {
-          deviceInfo['fcmToken'] = firebaseService.fcmToken;
-          print('✅ [Login] FCM token included in device info');
-        } else {
-          print('⚠️ [Login] FCM token not available yet');
-        }
-      } catch (e) {
-        print('⚠️ [Login] Could not get FCM token: $e');
-      }
-
       print('Device info retrieved successfully');
 
       final response = await http.post(Uri.parse(ApiConstants.login), body: {'user': username, 'password': password, 'deviceInfo': json.encode(deviceInfo)});
@@ -77,9 +64,6 @@ class AuthService {
           try {
             final firebaseService = FirebaseMessagingService();
             await firebaseService.subscribeToUserTopics();
-
-            // Try to register FCM token after login
-            await firebaseService.tryRegisterFCMTokenAfterLogin();
           } catch (e) {
             print('⚠️ [Login] Failed to subscribe to user topics: $e');
           }
