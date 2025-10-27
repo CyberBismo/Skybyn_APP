@@ -4,8 +4,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/user.dart';
 import 'device_service.dart';
 import 'firebase_messaging_service.dart';
-// import 'dart:io' show Platform;
-// import 'package:firebase_auth/firebase_auth.dart' as fb_auth;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../config/constants.dart';
 
@@ -34,16 +32,23 @@ class AuthService {
 
       final deviceService = DeviceService();
       final deviceInfo = await deviceService.getDeviceInfo();
+
+      // Get FCM token if available
+      try {
+        final firebaseService = FirebaseMessagingService();
+        if (firebaseService.isInitialized && firebaseService.fcmToken != null) {
+          deviceInfo['fcmToken'] = firebaseService.fcmToken;
+          print('✅ [Login] FCM token included in device info');
+        } else {
+          print('⚠️ [Login] FCM token not available yet');
+        }
+      } catch (e) {
+        print('⚠️ [Login] Could not get FCM token: $e');
+      }
+
       print('Device info retrieved successfully');
 
-      final response = await http.post(
-        Uri.parse(ApiConstants.login),
-        body: {
-          'user': username,
-          'password': password,
-          'deviceInfo': json.encode(deviceInfo),
-        },
-      );
+      final response = await http.post(Uri.parse(ApiConstants.login), body: {'user': username, 'password': password, 'deviceInfo': json.encode(deviceInfo)});
 
       print('Login response status: ${response.statusCode}');
       print('Login response body: ${response.body}');
@@ -63,17 +68,20 @@ class AuthService {
           try {
             await fetchUserProfile(username);
             print('✅ [Login] User profile fetched and stored successfully');
-
-            // Subscribe to user-specific topics after successful login
-            try {
-              final firebaseService = FirebaseMessagingService();
-              await firebaseService.subscribeToUserTopics();
-            } catch (e) {
-              print('⚠️ [Login] Failed to subscribe to user topics: $e');
-            }
           } catch (e) {
             print('⚠️ [Login] Failed to fetch user profile during login: $e');
             print('⚠️ [Login] Login will still succeed, profile can be fetched later');
+          }
+
+          // Subscribe to user-specific topics after successful login
+          try {
+            final firebaseService = FirebaseMessagingService();
+            await firebaseService.subscribeToUserTopics();
+
+            // Try to register FCM token after login
+            await firebaseService.tryRegisterFCMTokenAfterLogin();
+          } catch (e) {
+            print('⚠️ [Login] Failed to subscribe to user topics: $e');
           }
 
           return data;
@@ -88,10 +96,7 @@ class AuthService {
       }
     } catch (e) {
       print('Login exception: $e');
-      return {
-        'responseCode': '0',
-        'message': 'Connection error occurred: ${e.toString()}',
-      };
+      return {'responseCode': '0', 'message': 'Connection error occurred: ${e.toString()}'};
     }
   }
 
@@ -100,13 +105,30 @@ class AuthService {
       print('🔍 [Profile] Fetching user profile for username: $username');
       final userId = await getStoredUserId();
       print('🔍 [Profile] Retrieved userId from storage: $userId');
-      final requestBody = {'userID': userId};
+      final requestBody = <String, String>{'userID': userId!};
+
+      // Get FCM token if available
+      try {
+        final firebaseService = FirebaseMessagingService();
+        if (firebaseService.isInitialized && firebaseService.fcmToken != null) {
+          requestBody['fcmToken'] = firebaseService.fcmToken!;
+          print('✅ [Profile] FCM token included in profile request');
+
+          // Get device ID
+          final deviceService = DeviceService();
+          final deviceInfo = await deviceService.getDeviceInfo();
+          requestBody['deviceId'] = deviceInfo['id'] ?? '';
+          print('✅ [Profile] Device ID included in profile request');
+        } else {
+          print('⚠️ [Profile] FCM token not available');
+        }
+      } catch (e) {
+        print('⚠️ [Profile] Could not get FCM token: $e');
+      }
+
       print('🔍 [Profile] Profile API request body:');
       print(requestBody);
-      final response = await http.post(
-        Uri.parse(ApiConstants.profile),
-        body: requestBody,
-      );
+      final response = await http.post(Uri.parse(ApiConstants.profile), body: requestBody);
       print('Profile API response status: ${response.statusCode}');
       print('Profile API response body: ${response.body}');
       if (response.statusCode == 200) {
@@ -218,10 +240,7 @@ class AuthService {
       } else {
         throw Exception('Must provide either username or userId');
       }
-      final response = await http.post(
-        Uri.parse(ApiConstants.profile),
-        body: requestBody,
-      );
+      final response = await http.post(Uri.parse(ApiConstants.profile), body: requestBody);
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         if (data['responseCode'] == '1') {
@@ -242,16 +261,7 @@ class AuthService {
     try {
       print('Sending verification code to email: $email');
 
-      final response = await http.post(
-        Uri.parse(ApiConstants.sendEmailVerification),
-        body: {
-          'email': email,
-          'action': 'register',
-        },
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-      );
+      final response = await http.post(Uri.parse(ApiConstants.sendEmailVerification), body: {'email': email, 'action': 'register'}, headers: {'Content-Type': 'application/x-www-form-urlencoded'});
       print('Send verification POST URL: ${ApiConstants.sendEmailVerification}');
       print('Send verification POST Body: {email: $email, action: register}');
 
@@ -272,24 +282,15 @@ class AuthService {
           };
         } else {
           print('Failed to send verification code: ${data['message']}');
-          return {
-            'success': false,
-            'message': data['message'] ?? 'Failed to send verification code',
-          };
+          return {'success': false, 'message': data['message'] ?? 'Failed to send verification code'};
         }
       } else {
         print('Server error with status: ${response.statusCode}');
-        return {
-          'success': false,
-          'message': 'Server error occurred (Status: ${response.statusCode})',
-        };
+        return {'success': false, 'message': 'Server error occurred (Status: ${response.statusCode})'};
       }
     } catch (e) {
       print('Send verification exception: $e');
-      return {
-        'success': false,
-        'message': 'Connection error occurred: ${e.toString()}',
-      };
+      return {'success': false, 'message': 'Connection error occurred: ${e.toString()}'};
     }
   }
 
@@ -300,16 +301,7 @@ class AuthService {
 
       print('Verify email POST URL: ${ApiConstants.verifyEmail}');
       print('Verify email POST Body: {email: $email, code: [REDACTED], action: register}');
-      http.Response response = await http.post(
-        Uri.parse(ApiConstants.verifyEmail),
-        body: {
-          'email': email,
-          'code': code,
-        },
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-      );
+      http.Response response = await http.post(Uri.parse(ApiConstants.verifyEmail), body: {'email': email, 'code': code}, headers: {'Content-Type': 'application/x-www-form-urlencoded'});
 
       // No fallback; verify_email.php is the only endpoint
 
@@ -321,30 +313,18 @@ class AuthService {
 
         if (data['responseCode'] == '1') {
           print('Email verification successful');
-          return {
-            'success': true,
-            'message': data['message'] ?? 'Email verified successfully',
-          };
+          return {'success': true, 'message': data['message'] ?? 'Email verified successfully'};
         } else {
           print('Email verification failed: ${data['message']}');
-          return {
-            'success': false,
-            'message': data['message'] ?? 'Email verification failed',
-          };
+          return {'success': false, 'message': data['message'] ?? 'Email verification failed'};
         }
       } else {
         print('Server error with status: ${response.statusCode}');
-        return {
-          'success': false,
-          'message': 'Server error occurred (Status: ${response.statusCode})',
-        };
+        return {'success': false, 'message': 'Server error occurred (Status: ${response.statusCode})'};
       }
     } catch (e) {
       print('Verify email exception: $e');
-      return {
-        'success': false,
-        'message': 'Connection error occurred: ${e.toString()}',
-      };
+      return {'success': false, 'message': 'Connection error occurred: ${e.toString()}'};
     }
   }
 
@@ -372,38 +352,16 @@ class AuthService {
         }
       }
       // As a last resort, return a map with raw message so UI can show something meaningful
-      return {
-        'responseCode': '0',
-        'message': body.length > 200 ? body.substring(0, 200) : body,
-      };
+      return {'responseCode': '0', 'message': body.length > 200 ? body.substring(0, 200) : body};
     }
   }
 
   /// Registers a new user account
-  Future<Map<String, dynamic>> registerUser({
-    required String email,
-    required String username,
-    required String password,
-    required String firstName,
-    required String? middleName,
-    required String lastName,
-    required DateTime dateOfBirth,
-  }) async {
+  Future<Map<String, dynamic>> registerUser({required String email, required String username, required String password, required String firstName, required String? middleName, required String lastName, required DateTime dateOfBirth}) async {
     try {
       print('Registering new user: $username ($email)');
 
-      final response = await http.post(
-        Uri.parse(ApiConstants.register),
-        body: {
-          'email': email,
-          'username': username,
-          'password': password,
-          'firstName': firstName,
-          'middleName': middleName ?? '',
-          'lastName': lastName,
-          'dateOfBirth': dateOfBirth.toIso8601String(),
-        },
-      );
+      final response = await http.post(Uri.parse(ApiConstants.register), body: {'email': email, 'username': username, 'password': password, 'firstName': firstName, 'middleName': middleName ?? '', 'lastName': lastName, 'dateOfBirth': dateOfBirth.toIso8601String()});
 
       print('Registration response status: ${response.statusCode}');
       print('Registration response body: ${response.body}');
@@ -413,32 +371,18 @@ class AuthService {
 
         if (data['responseCode'] == '1') {
           print('User registration successful');
-          return {
-            'success': true,
-            'message': data['message'] ?? 'Registration successful',
-            'userID': data['userID'],
-            'username': username,
-          };
+          return {'success': true, 'message': data['message'] ?? 'Registration successful', 'userID': data['userID'], 'username': username};
         } else {
           print('Registration failed: ${data['message']}');
-          return {
-            'success': false,
-            'message': data['message'] ?? 'Registration failed',
-          };
+          return {'success': false, 'message': data['message'] ?? 'Registration failed'};
         }
       } else {
         print('Server error with status: ${response.statusCode}');
-        return {
-          'success': false,
-          'message': 'Server error occurred (Status: ${response.statusCode})',
-        };
+        return {'success': false, 'message': 'Server error occurred (Status: ${response.statusCode})'};
       }
     } catch (e) {
       print('Registration exception: $e');
-      return {
-        'success': false,
-        'message': 'Connection error occurred: ${e.toString()}',
-      };
+      return {'success': false, 'message': 'Connection error occurred: ${e.toString()}'};
     }
   }
 }
