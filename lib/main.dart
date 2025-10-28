@@ -68,27 +68,53 @@ Future<void> main() async {
 
 Future<void> _initializeFirebase() async {
   try {
+    print('🔄 [Firebase] Starting Firebase initialization...');
+    
     // Check if Firebase is already initialized
     if (Firebase.apps.isEmpty) {
-      await Firebase.initializeApp();
-    }
-
-    // Initialize Firebase Messaging for background notifications (Android only)
-    if (Platform.isAndroid) {
+      print('🔄 [Firebase] Initializing Firebase Core...');
       try {
-        final firebaseMessagingService = FirebaseMessagingService();
-        await firebaseMessagingService.initialize();
-
-        // Auto-register FCM token when app opens if user is logged in
-        await firebaseMessagingService.autoRegisterTokenOnAppOpen();
+        await Firebase.initializeApp();
+        print('✅ [Firebase] Firebase Core initialized successfully');
       } catch (e) {
-        print('❌ [Firebase] Firebase Messaging initialization failed: $e');
+        if (Platform.isIOS) {
+          print('⚠️ [Firebase] Failed to initialize Firebase Core on iOS (APN not configured)');
+          print('⚠️ [Firebase] App will continue without Firebase - using WebSocket only');
+          return; // Exit early - don't try to initialize messaging
+        } else {
+          print('❌ [Firebase] Failed to initialize Firebase Core: $e');
+          rethrow; // Re-throw on Android to be caught by outer catch
+        }
       }
     } else {
-      // iOS uses WebSocket instead
+      print('✅ [Firebase] Firebase Core already initialized');
     }
-  } catch (e) {
-    print('❌ [Firebase] Firebase initialization failed: $e');
+
+    // Initialize Firebase Messaging for push notifications
+    // Note: iOS requires APN to be configured in Firebase Console
+    print('🔄 [Firebase] Starting Firebase Messaging initialization...');
+    try {
+      final firebaseMessagingService = FirebaseMessagingService();
+      await firebaseMessagingService.initialize();
+
+      // Auto-register FCM token when app opens if user is logged in
+      await firebaseMessagingService.autoRegisterTokenOnAppOpen();
+      print('✅ [Firebase] Firebase Messaging initialized successfully');
+    } catch (e) {
+      // If Firebase initialization fails (e.g., APN not configured on iOS),
+      // gracefully fall back to WebSocket only
+      if (Platform.isIOS) {
+        print('⚠️ [Firebase] iOS Firebase not available (APN not configured) - using WebSocket only: $e');
+      } else {
+        print('❌ [Firebase] Firebase Messaging initialization failed: $e');
+      }
+    }
+  } catch (e, stackTrace) {
+    if (!Platform.isIOS) {
+      // Only print detailed error for Android
+      print('❌ [Firebase] Firebase initialization failed: $e');
+      print('Stack trace: $stackTrace');
+    }
     // Continue without Firebase - app will still work
   }
 }

@@ -51,7 +51,6 @@ class DeviceService {
       // Add device ID
       deviceInfo['deviceId'] = await getDeviceId();
       
-      print('Device Info: $deviceInfo'); // Debug log
       return deviceInfo;
     } catch (e) {
       print('Error getting device info: $e');

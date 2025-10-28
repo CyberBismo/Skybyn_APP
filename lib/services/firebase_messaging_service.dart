@@ -31,7 +31,7 @@ class FirebaseMessagingService {
   factory FirebaseMessagingService() => _instance;
   FirebaseMessagingService._internal();
 
-  final FirebaseMessaging _messaging = FirebaseMessaging.instance;
+  FirebaseMessaging? _messaging;
   final AuthService _authService = AuthService();
   SharedPreferences? _prefs;
 
@@ -53,22 +53,58 @@ class FirebaseMessagingService {
 
   Future<void> initialize() async {
     try {
+      print('🔄 [FCM] Initializing Firebase Messaging service...');
+      
+      // Ensure Firebase Core is initialized first
+      if (Firebase.apps.isEmpty) {
+        print('❌ [FCM] Firebase Core is not initialized - cannot proceed');
+        throw Exception('Firebase Core must be initialized before Firebase Messaging');
+      }
+      print('✅ [FCM] Firebase Core is initialized');
+      
+      // On iOS, check if APN is configured before proceeding
+      if (Platform.isIOS) {
+        try {
+          // Attempt to get FirebaseMessaging instance - this will fail if APN not configured
+          _messaging = FirebaseMessaging.instance;
+          print('✅ [FCM] FirebaseMessaging instance obtained for iOS');
+        } catch (e) {
+          print('⚠️ [FCM] Cannot get FirebaseMessaging instance on iOS (APN not configured): $e');
+          // Reset messaging instance and fail gracefully
+          _messaging = null;
+          _isInitialized = false;
+          rethrow;
+        }
+      } else {
+        // Android - initialize normally
+        _messaging = FirebaseMessaging.instance;
+        print('✅ [FCM] FirebaseMessaging instance obtained for Android');
+      }
+
       // Set background message handler
       FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
 
       // Configure foreground notification presentation for iOS
-      if (Platform.isIOS) {
-        await FirebaseMessaging.instance.setForegroundNotificationPresentationOptions(
-          alert: true, // Show alert banner
-          badge: true, // Show badge
-          sound: true, // Play sound
-        );
+      // Note: This will fail if APN is not configured in Firebase
+      if (Platform.isIOS && _messaging != null) {
+        try {
+          await _messaging!.setForegroundNotificationPresentationOptions(
+            alert: true, // Show alert banner
+            badge: true, // Show badge
+            sound: true, // Play sound
+          );
+        } catch (e) {
+          // APN might not be configured - skip iOS notification setup
+          print('⚠️ [FCM] iOS notification setup failed (APN not configured): $e');
+          throw e; // Re-throw to skip rest of initialization
+        }
       }
 
       // Request permissions
       await _requestPermissions();
 
       // Get FCM token
+      // This will fail on iOS if APN is not configured
       await _getFCMToken();
 
       // Set up message handlers
@@ -79,13 +115,27 @@ class FirebaseMessagingService {
 
       _isInitialized = true;
     } catch (e) {
-      print('❌ [FCM] Error initializing Firebase Messaging: $e');
+      if (Platform.isIOS) {
+        print('⚠️ [FCM] iOS Firebase Messaging failed: $e');
+        print('⚠️ [FCM] This is expected if APN is not configured in Firebase Console');
+        print('⚠️ [FCM] App will continue using WebSocket for notifications');
+      } else {
+        print('❌ [FCM] Error initializing Firebase Messaging: $e');
+      }
+      // Reset messaging instance on failure
+      _messaging = null;
+      _isInitialized = false;
     }
   }
 
   Future<void> _requestPermissions() async {
     try {
-      final NotificationSettings settings = await _messaging.requestPermission(
+      if (_messaging == null) {
+        print('❌ [FCM] Cannot request permissions - Firebase Messaging not initialized');
+        return;
+      }
+      
+      final NotificationSettings settings = await _messaging!.requestPermission(
         alert: true,
         announcement: false,
         badge: true,
@@ -111,7 +161,12 @@ class FirebaseMessagingService {
 
   Future<void> _getFCMToken() async {
     try {
-      _fcmToken = await _messaging.getToken();
+      if (_messaging == null) {
+        print('❌ [FCM] Cannot get FCM token - Firebase Messaging not initialized');
+        return;
+      }
+      
+      _fcmToken = await _messaging!.getToken();
       print('✅ [FCM] Token retrieved successfully: ${_fcmToken?.substring(0, 20)}...');
 
       // Store token locally (not in Firestore)
@@ -166,6 +221,10 @@ class FirebaseMessagingService {
   }
 
   Future<void> _setupMessageHandlers() async {
+    if (_messaging == null) {
+      return;
+    }
+    
     // Handle foreground messages
     FirebaseMessaging.onMessage.listen((RemoteMessage message) {
       // Don't show local notification - let FCM handle it
@@ -179,7 +238,7 @@ class FirebaseMessagingService {
     });
 
     // Check if app was opened from notification
-    RemoteMessage? initialMessage = await _messaging.getInitialMessage();
+    RemoteMessage? initialMessage = await _messaging!.getInitialMessage();
     if (initialMessage != null) {
       _handleNotificationTap(initialMessage.data);
     }
@@ -276,7 +335,12 @@ class FirebaseMessagingService {
   /// Subscribe to a topic
   Future<bool> subscribeToTopic(String topic) async {
     try {
-      await _messaging.subscribeToTopic(topic);
+      if (_messaging == null) {
+        print('❌ [FCM] Cannot subscribe to topic - Firebase Messaging not initialized');
+        return false;
+      }
+      
+      await _messaging!.subscribeToTopic(topic);
       if (!_subscribedTopics.contains(topic)) {
         _subscribedTopics.add(topic);
       }
@@ -291,7 +355,12 @@ class FirebaseMessagingService {
   /// Unsubscribe from a topic
   Future<bool> unsubscribeFromTopic(String topic) async {
     try {
-      await _messaging.unsubscribeFromTopic(topic);
+      if (_messaging == null) {
+        print('❌ [FCM] Cannot unsubscribe from topic - Firebase Messaging not initialized');
+        return false;
+      }
+      
+      await _messaging!.unsubscribeFromTopic(topic);
       _subscribedTopics.remove(topic);
       print('✅ [FCM] Unsubscribed from topic: $topic');
       return true;
