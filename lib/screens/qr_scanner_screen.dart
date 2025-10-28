@@ -6,6 +6,8 @@ import 'dart:convert';
 import '../services/auth_service.dart';
 import 'dart:async'; // Required for OverlayEntry
 import '../widgets/background_gradient.dart';
+import '../services/translation_service.dart';
+import '../utils/translation_keys.dart';
 
 class QrScannerScreen extends StatefulWidget {
   const QrScannerScreen({super.key});
@@ -61,7 +63,7 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
     try {
       final response = await http.post(
         Uri.parse('https://api.skybyn.no/qr_check.php'),
-        body: {'user': _userId!,'code': qrCode},
+        body: {'user': _userId!, 'code': qrCode},
       );
 
       final Map<String, dynamic> data = json.decode(response.body);
@@ -150,8 +152,8 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
         backgroundColor: Colors.transparent,
         elevation: 0,
         iconTheme: const IconThemeData(color: Colors.white),
-        title: const Text(
-          'Scan QR Code',
+        title: Text(
+          TranslationKeys.scanQrCode.tr,
           style: TextStyle(
             color: Colors.white,
             fontWeight: FontWeight.bold,
@@ -312,9 +314,7 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Text(
-                        _lastScannedCode == 'VALID'
-                            ? 'VALID'
-                            : (_lastScannedCode ?? 'Scanning..'),
+                        _lastScannedCode == 'VALID' ? 'VALID' : (_lastScannedCode ?? 'Scanning..'),
                         style: const TextStyle(color: Colors.white, fontSize: 18),
                         textAlign: TextAlign.center,
                       ),
@@ -325,4 +325,4 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
       ),
     );
   }
-} 
+}

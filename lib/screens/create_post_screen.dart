@@ -6,6 +6,8 @@ import 'dart:ui';
 import '../services/post_service.dart';
 import '../services/auth_service.dart';
 import '../models/post.dart';
+import '../services/translation_service.dart';
+import '../utils/translation_keys.dart';
 
 class CreatePostScreen extends StatefulWidget {
   final bool isEditing;
@@ -61,9 +63,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
     if (content.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(widget.isEditing
-              ? 'Please enter some content for your post'
-              : 'Please enter some content for your post'),
+          content: Text(TranslationKeys.fieldRequired.tr),
           backgroundColor: Colors.red,
         ),
       );
@@ -109,8 +109,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(
-                'Failed to ${widget.isEditing ? 'update' : 'create'} post: ${e.toString()}'),
+            content: Text('Failed to ${widget.isEditing ? 'update' : 'create'} post: ${e.toString()}'),
             backgroundColor: Colors.red,
           ),
         );
@@ -138,9 +137,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
           automaticallyImplyLeading: false,
           systemOverlayStyle: SystemUiOverlayStyle.light,
           iconTheme: const IconThemeData(color: Colors.white),
-          title: Text(widget.isEditing ? 'Edit Post' : 'Create Post',
-              style: const TextStyle(
-                  color: Colors.white, fontWeight: FontWeight.bold)),
+          title: Text(widget.isEditing ? TranslationKeys.editPost.tr : TranslationKeys.createPost.tr, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
           actions: [
             if (MediaQuery.of(context).viewInsets.bottom > 0)
               Container(
@@ -151,15 +148,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                 ),
                 child: IconButton(
                   onPressed: _isPosting ? null : _submitPost,
-                  icon: _isPosting
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              valueColor:
-                                  AlwaysStoppedAnimation<Color>(Colors.white)))
-                      : const Icon(Icons.send, color: Colors.white, size: 24),
+                  icon: _isPosting ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, valueColor: AlwaysStoppedAnimation<Color>(Colors.white))) : const Icon(Icons.send, color: Colors.white, size: 24),
                   tooltip: 'Post',
                 ),
               ),
@@ -171,8 +160,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
           ),
           child: Padding(
             padding: EdgeInsets.only(
-              top: MediaQuery.of(context).padding.top +
-                  40, // Account for status bar + app bar space
+              top: MediaQuery.of(context).padding.top + 40, // Account for status bar + app bar space
               left: 10,
               right: 10,
               bottom: 0,
@@ -189,8 +177,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                         decoration: BoxDecoration(
                           color: Colors.white.withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                              color: Colors.white.withValues(alpha: 0.2)),
+                          border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
                         ),
                         child: TextField(
                           controller: _contentController,
@@ -216,31 +203,24 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                         Container(
                           decoration: BoxDecoration(
                             borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                                color: Colors.white.withValues(alpha: 0.2)),
+                            border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
                           ),
                           child: ClipRRect(
                             borderRadius: BorderRadius.circular(12),
                             child: Stack(
                               children: [
-                                Image.file(_selectedImage!,
-                                    height: 180,
-                                    fit: BoxFit.cover,
-                                    width: double.infinity),
+                                Image.file(_selectedImage!, height: 180, fit: BoxFit.cover, width: double.infinity),
                                 Positioned(
                                   top: 4,
                                   right: 4,
                                   child: Container(
                                     decoration: BoxDecoration(
-                                      color:
-                                          Colors.white.withValues(alpha: 0.7),
+                                      color: Colors.white.withValues(alpha: 0.7),
                                       borderRadius: BorderRadius.circular(20),
                                     ),
                                     child: IconButton(
-                                      icon: const Icon(Icons.close,
-                                          color: Colors.white, size: 20),
-                                      onPressed: () =>
-                                          setState(() => _selectedImage = null),
+                                      icon: const Icon(Icons.close, color: Colors.white, size: 20),
+                                      onPressed: () => setState(() => _selectedImage = null),
                                     ),
                                   ),
                                 ),
@@ -249,8 +229,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                           ),
                         ),
                       SizedBox(
-                        height: MediaQuery.of(context).size.height *
-                            0.3, // Add some space to push buttons down
+                        height: MediaQuery.of(context).size.height * 0.3, // Add some space to push buttons down
                       ),
                       // Cancel button (only when keyboard is hidden)
                       if (MediaQuery.of(context).viewInsets.bottom == 0)
@@ -262,13 +241,10 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
                               TextButton(
-                                onPressed: _isPosting
-                                    ? null
-                                    : () => Navigator.of(context).pop(),
+                                onPressed: _isPosting ? null : () => Navigator.of(context).pop(),
                                 child: const Text(
-                                  'Cancel',
-                                  style: TextStyle(
-                                      color: Colors.white70, fontSize: 16),
+                                  TranslationKeys.cancel.tr,
+                                  style: TextStyle(color: Colors.white70, fontSize: 16),
                                 ),
                               ),
                               Container(
@@ -278,17 +254,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                                 ),
                                 child: IconButton(
                                   onPressed: _isPosting ? null : _submitPost,
-                                  icon: _isPosting
-                                      ? const SizedBox(
-                                          width: 20,
-                                          height: 20,
-                                          child: CircularProgressIndicator(
-                                              strokeWidth: 2,
-                                              valueColor:
-                                                  AlwaysStoppedAnimation<Color>(
-                                                      Colors.white)))
-                                      : const Icon(Icons.send,
-                                          color: Colors.white, size: 24),
+                                  icon: _isPosting ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, valueColor: AlwaysStoppedAnimation<Color>(Colors.white))) : const Icon(Icons.send, color: Colors.white, size: 24),
                                   tooltip: 'Post',
                                 ),
                               ),
