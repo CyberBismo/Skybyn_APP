@@ -86,7 +86,6 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _loadData();
-    _testHttpConnection(); // Test HTTP connectivity
 
     // Set up Firebase messaging callback for update notifications
     FirebaseMessagingService.setUpdateCheckCallback(_checkForUpdates);
@@ -463,23 +462,6 @@ class _HomeScreenState extends State<HomeScreen> {
         print('⚠️ Post $postId not found in current feed, cannot remove comment');
       }
     });
-  }
-
-  // Test method to verify HTTP functionality
-  Future<void> _testHttpConnection() async {
-    try {
-      print('🧪 Testing HTTP connection to API...');
-      final response = await http.get(
-        Uri.parse('${ApiConstants.apiBase}/'),
-        headers: {
-          'User-Agent': 'Flutter Mobile App',
-        },
-      ).timeout(const Duration(seconds: 5));
-      print('🧪 Test response status: ${response.statusCode}');
-      print('🧪 Test response body: ${response.body}');
-    } catch (e) {
-      print('🧪 Test failed: $e');
-    }
   }
 
   // Check for app updates

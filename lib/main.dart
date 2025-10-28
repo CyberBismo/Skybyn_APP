@@ -42,13 +42,13 @@ Future<void> main() async {
       final translationService = TranslationService();
       await translationService.initialize();
 
+      // Initialize Firebase before running the app
+      await _initializeFirebase();
+
       // Auto-update service is now static and doesn't need initialization
 
       // Run the app
       runApp(ChangeNotifierProvider.value(value: themeService, child: const MyApp()));
-
-      // Initialize Firebase in the background (non-blocking)
-      _initializeFirebaseInBackground();
     },
     (error, stack) {
       if (enableLogging) {
@@ -66,9 +66,9 @@ Future<void> main() async {
   );
 }
 
-Future<void> _initializeFirebaseInBackground() async {
+Future<void> _initializeFirebase() async {
   try {
-    print('🔄 [Firebase] Starting background initialization...');
+    print('🔄 [Firebase] Starting Firebase initialization...');
 
     // Check if Firebase is already initialized
     if (Firebase.apps.isEmpty) {
@@ -94,7 +94,7 @@ Future<void> _initializeFirebaseInBackground() async {
       print('ℹ️ [Firebase] Firebase Messaging skipped for iOS (using WebSocket instead)');
     }
   } catch (e) {
-    print('❌ [Firebase] Background initialization failed: $e');
+    print('❌ [Firebase] Firebase initialization failed: $e');
     // Continue without Firebase - app will still work
   }
 }

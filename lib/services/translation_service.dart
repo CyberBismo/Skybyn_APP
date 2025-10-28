@@ -130,7 +130,7 @@ class TranslationService {
   Future<void> _loadTranslations() async {
     try {
       final response = await http.get(
-        Uri.parse('${ApiConstants.language}?get=1'),
+        Uri.parse('${ApiConstants.language}?lang=en'),
         headers: {'Content-Type': 'application/json'},
       );
 
