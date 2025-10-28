@@ -246,6 +246,11 @@ class TranslationService extends ChangeNotifier {
         'yes': 'Yes',
         'no': 'No',
         'back': 'Back',
+        'create_post': 'Create Post',
+        'edit_post': 'Edit Post',
+        'nickname': 'Nickname',
+        'save_changes': 'Save Changes',
+        'apply': 'Apply',
         'next': 'Next',
         'close': 'Close',
         'search': 'Search',
@@ -312,6 +317,7 @@ class TranslationService extends ChangeNotifier {
         'language': 'Language',
         'select_language': 'Select Language',
         'theme': 'Theme',
+        'general': 'General',
 
         // Update dialog
         'update_available': 'Update Available',

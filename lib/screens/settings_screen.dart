@@ -1042,7 +1042,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       focusNode: _secQTwoFocusNode,
                       style: TextStyle(color: AppColors.getTextColor(context)),
                       decoration: InputDecoration(
-                        labelText: '${TranslationKeys.security.tr} Question 2',
+                        labelText: TranslationKeys.securityQuestion2.tr,
                         labelStyle: TextStyle(color: AppColors.getSecondaryTextColor(context)),
                         enabledBorder: UnderlineInputBorder(
                           borderSide: BorderSide(color: AppColors.getSecondaryTextColor(context).withOpacity(0.3)),
