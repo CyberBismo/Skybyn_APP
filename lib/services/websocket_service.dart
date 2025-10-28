@@ -276,7 +276,7 @@ class WebSocketService {
 
       await _sendConnectMessage();
       _processMessageQueue(); // Process any queued messages
-      print('✅ [WebSocket] Connected to WebSocket server');
+      // Connection success is already logged by the state listener
 
       // Start retry timer
       Timer.periodic(const Duration(seconds: 2), (timer) {

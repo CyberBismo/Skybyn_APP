@@ -286,8 +286,15 @@ class FirebaseMessagingService {
 
       // Store token locally using SharedPreferences
       await _initPrefs();
+      final existingToken = _prefs?.getString('fcm_token');
+      final isNewToken = existingToken != _fcmToken;
+      
       await _prefs?.setString('fcm_token', _fcmToken!);
-      print('✅ [FCM] Token stored locally for user: ${user.id}');
+      
+      // Only log if it's a new token or first time storing
+      if (isNewToken || existingToken == null) {
+        print('✅ [FCM] Token stored locally for user: ${user.id}');
+      }
     } catch (e) {
       print('❌ [FCM] Error storing FCM token locally: $e');
     }
@@ -441,16 +448,19 @@ class FirebaseMessagingService {
   /// Check if subscribed to a specific topic
   bool isSubscribedToTopic(String topic) => _subscribedTopics.contains(topic);
 
-  /// Auto-register FCM token when app opens (called from main.dart)
+  /// Auto-register FCM token when app opens ( apparently not initialized yet
   Future<void> autoRegisterTokenOnAppOpen() async {
-    print('🔍 [FCM] autoRegisterTokenOnAppOpen() called');
     try {
-      // Ensure we have the latest FCM token
-      await _getFCMToken();
-
+      // Token was already retrieved during initialize(), just send it to server
       if (_fcmToken == null) {
-        print('❌ [FCM] Cannot auto-register - FCM token unavailable');
-        return;
+        // If for some reason we don't have a token, try to get it once more
+        print('⚠️ [FCM] No token found, attempting to retrieve...');
+        await _getFCMToken();
+        
+        if (_fcmToken == null) {
+          print('❌ [FCM] Cannot auto-register - FCM token unavailable');
+          return;
+        }
       }
 
       final user = await _authService.getStoredUserProfile();
