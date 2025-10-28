@@ -47,6 +47,9 @@ class TranslationKeys {
   static const String username = 'username';
   static const String password = 'password';
   static const String email = 'email';
+  static const String loginSuccessful = 'login_successful';
+  static const String welcomeToSkybyn = 'welcome_to_skybyn';
+  static const String loginFailedCheckCredentials = 'login_failed_check_credentials';
   static const String confirmPassword = 'confirm_password';
   static const String rememberMe = 'remember_me';
   static const String signIn = 'sign_in';
@@ -60,7 +63,6 @@ class TranslationKeys {
   static const String enterEmail = 'enter_email';
   static const String invalidCredentials = 'invalid_credentials';
   static const String accountCreated = 'account_created';
-  static const String loginSuccessful = 'login_successful';
   static const String loginFailed = 'login_failed';
   static const String registrationFailed = 'registration_failed';
   static const String passwordTooShort = 'password_too_short';
@@ -293,6 +295,11 @@ class TranslationKeys {
   // Validation
   static const String fieldRequired = 'field_required';
   static const String fieldTooShort = 'field_too_short';
+  static const String noPostsDisplay = 'no_posts_display';
+  static const String pullToRefresh = 'pull_to_refresh';
+  static const String testSnackbar = 'test_snackbar';
+  static const String testNotification = 'test_notification';
+  static const String testRefresh = 'test_refresh';
   static const String fieldTooLong = 'field_too_long';
   static const String invalidFormat = 'invalid_format';
   static const String passwordTooWeak = 'password_too_weak';

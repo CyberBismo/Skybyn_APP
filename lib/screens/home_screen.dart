@@ -22,6 +22,7 @@ import '../widgets/search_form.dart';
 import '../widgets/app_colors.dart';
 import '../widgets/update_dialog.dart';
 import '../config/constants.dart';
+import '../services/translation_service.dart';
 
 // Lifecycle event handler for keyboard-aware scrolling
 class LifecycleEventHandler extends WidgetsBindingObserver {
@@ -135,9 +136,10 @@ class _HomeScreenState extends State<HomeScreen> {
       },
       onBroadcast: (String message) {
         if (mounted) {
+          final translationService = TranslationService();
           final notificationService = NotificationService();
           notificationService.showNotification(
-            title: 'Broadcast',
+            title: translationService.translate('broadcast'),
             body: message,
             payload: 'broadcast',
           );
@@ -277,6 +279,8 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _refreshData() async {
+    final translationService = TranslationService();
+
     try {
       final userId = await _authService.getStoredUserId();
       if (userId != null) {
@@ -291,7 +295,7 @@ class _HomeScreenState extends State<HomeScreen> {
           if (newPosts.isNotEmpty) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text('Refreshed! Found ${newPosts.length} posts'),
+                content: Text(translationService.translate('refreshed_found_posts').replaceAll('{count}', newPosts.length.toString())),
                 backgroundColor: Colors.green,
                 duration: const Duration(seconds: 2),
                 behavior: SnackBarBehavior.floating,
@@ -299,10 +303,10 @@ class _HomeScreenState extends State<HomeScreen> {
             );
           } else {
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Refreshed! No new posts found'),
+              SnackBar(
+                content: Text(translationService.translate('refreshed_no_posts')),
                 backgroundColor: Colors.blue,
-                duration: Duration(seconds: 2),
+                duration: const Duration(seconds: 2),
                 behavior: SnackBarBehavior.floating,
               ),
             );
@@ -311,10 +315,10 @@ class _HomeScreenState extends State<HomeScreen> {
       } else {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Please log in to refresh posts'),
+            SnackBar(
+              content: Text(translationService.translate('please_login_to_refresh')),
               backgroundColor: Colors.orange,
-              duration: Duration(seconds: 2),
+              duration: const Duration(seconds: 2),
               behavior: SnackBarBehavior.floating,
             ),
           );
@@ -325,7 +329,7 @@ class _HomeScreenState extends State<HomeScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed to refresh: ${e.toString()}'),
+            content: Text('${translationService.translate('failed_to_refresh')}: ${e.toString()}'),
             backgroundColor: Colors.red,
             duration: const Duration(seconds: 3),
             behavior: SnackBarBehavior.floating,
@@ -417,18 +421,20 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _removeCommentFromPost(String postId, String commentId) {
     setState(() {
-        final postIndex = _posts.indexWhere((p) => p.id == postId);
-        if (postIndex != -1) {
-          _posts[postIndex].commentsList.removeWhere((c) => c.id == commentId);
-        }
+      final postIndex = _posts.indexWhere((p) => p.id == postId);
+      if (postIndex != -1) {
+        _posts[postIndex].commentsList.removeWhere((c) => c.id == commentId);
+      }
     });
   }
 
   // Check for app updates
   Future<void> _checkForUpdates() async {
+    final translationService = TranslationService();
+
     if (!Platform.isAndroid) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Auto-updates are only available on Android')),
+        SnackBar(content: Text(translationService.translate('auto_updates_only_android'))),
       );
       return;
     }
@@ -451,14 +457,14 @@ class _HomeScreenState extends State<HomeScreen> {
       } else {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('No updates available')),
+            SnackBar(content: Text(translationService.translate('no_updates_available'))),
           );
         }
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error checking for updates: $e')),
+          SnackBar(content: Text('${translationService.translate('error_checking_updates')}: $e')),
         );
       }
     }
@@ -472,12 +478,10 @@ class _HomeScreenState extends State<HomeScreen> {
         return;
       }
 
-
       // Try to fetch the new comment data from the API
       try {
         const url = ApiConstants.getComment;
         final body = {'commentID': commentId, 'userID': userId};
-
 
         final response = await http.post(
           Uri.parse(url),
@@ -545,6 +549,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final translationService = TranslationService();
+
     return ScaffoldMessenger(
       key: _scaffoldMessengerKey,
       child: Scaffold(
@@ -632,22 +638,22 @@ class _HomeScreenState extends State<HomeScreen> {
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Text('No posts to display', style: TextStyle(color: AppColors.getSecondaryTextColor(context), fontSize: 18)),
+                            Text(translationService.translate('no_posts_display'), style: TextStyle(color: AppColors.getSecondaryTextColor(context), fontSize: 18)),
                             const SizedBox(height: 10),
-                            Text('Pull down to refresh', style: TextStyle(color: AppColors.getHintColor(context), fontSize: 14)),
+                            Text(translationService.translate('pull_to_refresh'), style: TextStyle(color: AppColors.getHintColor(context), fontSize: 14)),
                             const SizedBox(height: 20),
                             ElevatedButton(
                               onPressed: () {
                                 _scaffoldMessengerKey.currentState?.showSnackBar(
-                                  const SnackBar(
-                                    content: Text('🧪 Test SnackBar'),
+                                  SnackBar(
+                                    content: Text('🧪 ${translationService.translate('test_snackbar')}'),
                                     backgroundColor: Colors.green,
-                                    duration: Duration(seconds: 3),
+                                    duration: const Duration(seconds: 3),
                                     behavior: SnackBarBehavior.fixed,
                                   ),
                                 );
                               },
-                              child: const Text('Test SnackBar'),
+                              child: Text(translationService.translate('test_snackbar')),
                             ),
                             const SizedBox(height: 10),
                             ElevatedButton(
@@ -655,22 +661,21 @@ class _HomeScreenState extends State<HomeScreen> {
                                 final notificationService = NotificationService();
                                 notificationService
                                     .showNotification(
-                                  title: 'Test Notification',
-                                  body: 'This is a test notification',
-                                  payload: 'test',
-                                )
-                                    .then((_) {
-                                }).catchError((error) {
-                                });
+                                      title: translationService.translate('test_notification'),
+                                      body: 'This is a test notification',
+                                      payload: 'test',
+                                    )
+                                    .then((_) {})
+                                    .catchError((error) {});
                               },
-                              child: const Text('Test Notification'),
+                              child: Text(translationService.translate('test_notification')),
                             ),
                             const SizedBox(height: 10),
                             ElevatedButton(
                               onPressed: () {
                                 _refreshData();
                               },
-                              child: const Text('Test Refresh'),
+                              child: Text(translationService.translate('test_refresh')),
                             ),
                           ],
                         ),
@@ -783,21 +788,21 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ),
               ),
-          // Search form overlay
-          if (_showSearchForm)
-            SearchForm(
-              onClose: () {
-                setState(() {
-                  _showSearchForm = false;
-                });
-              },
-              onSearch: (query) {
-                // TODO: Implement search functionality
-                setState(() {
-                  _showSearchForm = false;
-                });
-              },
-            ),
+            // Search form overlay
+            if (_showSearchForm)
+              SearchForm(
+                onClose: () {
+                  setState(() {
+                    _showSearchForm = false;
+                  });
+                },
+                onSearch: (query) {
+                  // TODO: Implement search functionality
+                  setState(() {
+                    _showSearchForm = false;
+                  });
+                },
+              ),
           ],
         ),
       ),

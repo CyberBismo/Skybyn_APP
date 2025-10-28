@@ -78,8 +78,8 @@ class _LoginScreenState extends State<LoginScreen> {
             if (isEnabled) {
               // Show system notification for login success
               await notificationService.showNotification(
-                title: 'Login successful',
-                body: 'Welcome to Skybyn',
+                title: TranslationKeys.loginSuccessful.tr,
+                body: TranslationKeys.welcomeToSkybyn.tr,
                 payload: 'login_success',
               );
               print('✅ Login success notification sent successfully');
@@ -94,7 +94,7 @@ class _LoginScreenState extends State<LoginScreen> {
         }
       } else {
         setState(() {
-          _errorMessage = response['message'] ?? 'Login failed. Please check your credentials and try again.';
+          _errorMessage = response['message'] ?? TranslationKeys.loginFailedCheckCredentials.tr;
         });
       }
     } catch (e) {

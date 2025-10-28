@@ -209,29 +209,130 @@ class TranslationService extends ChangeNotifier {
   Future<void> _loadFallbackTranslations() async {
     _translations = {
       'en': {
+        // Intro and branding
         'intro': 'Welcome to ',
+        'intro_read_more': 'Read more',
+
+        // Authentication
         'btn_login': 'Login',
         'btn_register': 'Register',
+        'btn_forgot': 'Forgot Password?',
         'username': 'Username',
         'password': 'Password',
+        'email': 'Email',
+        'confirm_password': 'Confirm Password',
+        'field_required': 'This field is required',
+        'invalid_email': 'Please enter a valid email address',
+        'password_too_short': 'Password must be at least 8 characters',
+        'passwords_do_not_match': 'Passwords do not match',
+        'connection_error': 'Connection error. Please check your internet and try again.',
+
+        // Navigation
         'home': 'Home',
         'profile': 'Profile',
         'settings': 'Settings',
         'notifications': 'Notifications',
         'chat': 'Chat',
         'groups': 'Groups',
+
+        // Common actions
         'edit': 'Edit',
         'delete': 'Delete',
         'cancel': 'Cancel',
         'save': 'Save',
         'done': 'Done',
+        'ok': 'OK',
+        'yes': 'Yes',
+        'no': 'No',
+        'back': 'Back',
+        'next': 'Next',
+        'close': 'Close',
+        'search': 'Search',
+
+        // Status
         'error': 'Error',
         'success': 'Success',
         'loading': 'Loading...',
         'no_data': 'No data available',
         'try_again': 'Try again',
+
+        // Registration
+        'create_account': 'Create Account',
+        'already_have_account': 'Already have an account? ',
+        'sign_in': 'Sign In',
+        'date_of_birth': 'Date of Birth',
+        'select_date_of_birth': 'Select Date of Birth',
+        'select_date_birth_desc': 'Please select your date of birth. You must be at least 15 years old.',
+        'full_name': 'Full Name',
+        'full_name_desc': 'Please enter your full name as it appears on official documents.',
+        'first_name': 'First Name',
+        'last_name': 'Last Name',
+        'middle_name': 'Middle Name (Optional)',
+        'enter_first_name': 'Enter your first name',
+        'enter_middle_name': 'Enter your middle name (optional)',
+        'enter_last_name': 'Enter your last name',
+        'email_address': 'Email Address',
+        'email_desc': 'Please enter your email address. We\'ll send a verification code to confirm it\'s yours.',
+        'enter_email': 'Enter your email address',
+        'email_sent': 'Email Sent',
+        'verification_code_sent_to': 'Verification code sent to ',
+        'email_verification': 'Email Verification',
+        'enter_code_sent_to': 'Enter the verification code sent to ',
+        'verification_code': 'Verification Code',
+        'enter_verification_code': 'Enter verification code',
+        'resend_code': 'Resend Code',
+        'username_label': 'Username',
+        'username_desc': 'Choose a unique username for your account.',
+        'choose_username': 'Choose a username',
+        'password_label': 'Password',
+        'password_desc': 'Create a strong password for your account security.',
+        'create_password': 'Create a password',
+        'reenter_password': 'Re-enter your password',
+        'continue': 'Continue',
+        'go_back': 'Go Back',
+        'based_on_selection': 'Based on your selection, you are',
+        'years_old': 'years old',
+        'password_requirements': 'Password Requirements',
+        'at_least_8_chars': 'At least 8 characters.',
+        'alpha_char_used': 'Alphabetic character used.',
+        'numeric_char_used': 'Numeric character used.',
+        'special_char_used': 'Special character used.',
+        'passwords_match': 'Passwords match.',
+
+        // Posts
+        'no_posts_display': 'No posts to display',
+        'pull_to_refresh': 'Pull down to refresh',
+        'refreshed_found_posts': 'Refreshed! Found {count} posts',
+        'refreshed_no_posts': 'Refreshed! No new posts found',
+        'please_login_to_refresh': 'Please log in to refresh posts',
+        'failed_to_refresh': 'Failed to refresh',
+
+        // Settings
         'language': 'Language',
         'select_language': 'Select Language',
+        'theme': 'Theme',
+
+        // Update dialog
+        'update_available': 'Update Available',
+        'auto_updates_only_android': 'Auto-updates are only available on Android',
+        'no_updates_available': 'No updates available',
+        'error_checking_updates': 'Error checking for updates',
+
+        // Test buttons (should be removed in production)
+        'test_snackbar': 'Test SnackBar',
+        'test_notification': 'Test Notification',
+        'test_refresh': 'Test Refresh',
+
+        // WebSocket/Broadcast
+        'broadcast': 'Broadcast',
+
+        // Generic messages
+        'must_be_15_years_old': 'You must be at least 15 years old',
+        'registration_successful': 'Registration successful! Please check your email to verify your account.',
+        'registration_failed': 'Registration failed. Please try again.',
+        'login_successful': 'Login successful',
+        'welcome_to_skybyn': 'Welcome to Skybyn',
+        'login_failed_check_credentials': 'Login failed. Please check your credentials and try again.',
       }
     };
   }
