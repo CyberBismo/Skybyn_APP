@@ -46,8 +46,8 @@ class TranslationService {
     'DE': 'de', 'AT': 'de', 'CH': 'de', 'LI': 'de', 'LU': 'de',
     // French
     'FR': 'fr', 'MC': 'fr', 'SN': 'fr', 'CI': 'fr', 'ML': 'fr',
-    'BF': 'fr', 'NE': 'fr', 'TD': 'fr', 'MG': 'fr', 'CM': 'fr', 'CD': 'fr', 'CG': 'fr',
-    'CF': 'fr', 'GA': 'fr', 'DJ': 'fr', 'KM': 'fr', 'RE': 'fr', 'YT': 'fr',
+    'BF': 'fr', 'NE': 'fr', 'TD': 'fr', 'MG': 'fr', 'CM': 'fr',
+    'CD': 'fr', 'CG': 'fr', 'CF': 'fr', 'GA': 'fr', 'DJ': 'fr', 'KM': 'fr', 'RE': 'fr', 'YT': 'fr',
     'NC': 'fr', 'PF': 'fr', 'WF': 'fr', 'VU': 'fr', 'BI': 'fr', 'RW': 'fr', 'SC': 'fr',
     'MU': 'fr', 'HT': 'fr', 'GP': 'fr', 'MQ': 'fr', 'GF': 'fr', 'BL': 'fr', 'MF': 'fr', 'PM': 'fr',
     // Polish
@@ -76,6 +76,9 @@ class TranslationService {
 
     // Load translations
     await _loadTranslations();
+
+    // Verify current language is available, fallback to English if not
+    await _verifyAndSetLanguage();
 
     _isInitialized = true;
   }
@@ -124,6 +127,24 @@ class TranslationService {
       print('❌ Error auto-detecting language: $e');
       _currentLanguage = 'en';
     }
+  }
+
+  // Verify current language is available in translations, fallback to English if not
+  Future<void> _verifyAndSetLanguage() async {
+    // Check if current language exists in loaded translations
+    if (!_translations.containsKey(_currentLanguage)) {
+      print('⚠️ Language $_currentLanguage not available, falling back to English');
+      _currentLanguage = 'en';
+      await _saveLanguage(_currentLanguage);
+    }
+
+    // Double check English exists (it should always be there)
+    if (!_translations.containsKey('en')) {
+      print('❌ English translations not available, using fallback');
+      await _loadFallbackTranslations();
+    }
+
+    print('✅ Using language: $_currentLanguage');
   }
 
   // Load translations from API
