@@ -48,6 +48,7 @@ class TranslationKeys {
   static const String forgotPassword = 'btn_forgot';
   static const String resetPassword = 'reset_password';
   static const String changePassword = 'change_password';
+  static const String requestPwReset = 'request_pw_reset';
   static const String username = 'username';
   static const String password = 'password';
   static const String email = 'email';
