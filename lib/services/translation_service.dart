@@ -221,6 +221,7 @@ class TranslationService extends ChangeNotifier {
         'password': 'Password',
         'email': 'Email',
         'confirm_password': 'Confirm Password',
+        'change_password': 'Change Password',
         'field_required': 'This field is required',
         'invalid_email': 'Please enter a valid email address',
         'password_too_short': 'Password must be at least 8 characters',
