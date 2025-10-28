@@ -11,6 +11,10 @@ class TranslationKeys {
   static const String cancel = 'cancel';
   static const String save = 'save';
   static const String done = 'done';
+  static const String nickname = 'nickname';
+  static const String pinCode = 'pin_code';
+  static const String newPassword = 'new_password';
+  static const String confirmNewPassword = 'confirm_new_password';
   static const String ok = 'ok';
   static const String yes = 'yes';
   static const String no = 'no';

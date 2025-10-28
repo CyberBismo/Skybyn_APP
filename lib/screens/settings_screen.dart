@@ -15,7 +15,6 @@ import '../services/auth_service.dart';
 import '../services/theme_service.dart';
 import '../services/local_auth_service.dart';
 import '../services/translation_service.dart';
-import '../widgets/language_selector.dart';
 import '../widgets/translated_text.dart';
 import '../utils/translation_keys.dart';
 
@@ -722,7 +721,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 const SizedBox(height: 60),
                 // Basic Info Section
                 _buildExpansionTile(
-                  title: 'Basic Information',
+                  title: TranslationKeys.general.tr,
                   tileColor: transparentColor,
                   children: [
                     TextField(
@@ -730,7 +729,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       focusNode: _emailFocusNode,
                       style: TextStyle(color: AppColors.getTextColor(context)),
                       decoration: InputDecoration(
-                        labelText: 'Email',
+                        labelText: TranslationKeys.email.tr,
                         labelStyle: TextStyle(color: AppColors.getSecondaryTextColor(context)),
                         enabledBorder: UnderlineInputBorder(
                           borderSide: BorderSide(color: AppColors.getSecondaryTextColor(context).withOpacity(0.3)),
@@ -750,7 +749,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       focusNode: _usernameFocusNode,
                       style: TextStyle(color: AppColors.getTextColor(context)),
                       decoration: InputDecoration(
-                        labelText: 'Username',
+                        labelText: TranslationKeys.username.tr,
                         labelStyle: TextStyle(color: AppColors.getSecondaryTextColor(context)),
                         enabledBorder: UnderlineInputBorder(
                           borderSide: BorderSide(color: AppColors.getSecondaryTextColor(context).withOpacity(0.3)),
@@ -770,7 +769,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       focusNode: _nicknameFocusNode,
                       style: TextStyle(color: AppColors.getTextColor(context)),
                       decoration: InputDecoration(
-                        labelText: 'Nickname',
+                        labelText: TranslationKeys.nickname.tr,
                         labelStyle: TextStyle(color: AppColors.getSecondaryTextColor(context)),
                         enabledBorder: UnderlineInputBorder(
                           borderSide: BorderSide(color: AppColors.getSecondaryTextColor(context).withOpacity(0.3)),
@@ -796,14 +795,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             borderRadius: BorderRadius.circular(8),
                           ),
                         ),
-                        child: const Text('Save Changes'),
+                        child: Text(TranslationKeys.saveChanges.tr),
                       ),
                     ),
                   ],
                 ),
                 // Password Section
                 _buildExpansionTile(
-                  title: 'Change Password',
+                  title: TranslationKeys.changePassword.tr,
                   tileColor: transparentColor,
                   children: [
                     TextField(
@@ -812,7 +811,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       obscureText: true,
                       style: TextStyle(color: AppColors.getTextColor(context)),
                       decoration: InputDecoration(
-                        labelText: 'Current Password',
+                        labelText: '${TranslationKeys.password.tr} (Current)',
                         labelStyle: TextStyle(color: AppColors.getSecondaryTextColor(context)),
                         enabledBorder: UnderlineInputBorder(
                           borderSide: BorderSide(color: AppColors.getSecondaryTextColor(context).withOpacity(0.3)),
@@ -832,7 +831,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       obscureText: true,
                       style: TextStyle(color: AppColors.getTextColor(context)),
                       decoration: InputDecoration(
-                        labelText: 'New Password',
+                        labelText: TranslationKeys.newPassword.tr,
                         labelStyle: TextStyle(color: AppColors.getSecondaryTextColor(context)),
                         enabledBorder: UnderlineInputBorder(
                           borderSide: BorderSide(color: AppColors.getSecondaryTextColor(context).withOpacity(0.3)),
@@ -852,7 +851,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       obscureText: true,
                       style: TextStyle(color: AppColors.getTextColor(context)),
                       decoration: InputDecoration(
-                        labelText: 'Confirm New Password',
+                        labelText: TranslationKeys.confirmNewPassword.tr,
                         labelStyle: TextStyle(color: AppColors.getSecondaryTextColor(context)),
                         enabledBorder: UnderlineInputBorder(
                           borderSide: BorderSide(color: AppColors.getSecondaryTextColor(context).withOpacity(0.3)),
@@ -878,14 +877,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             borderRadius: BorderRadius.circular(8),
                           ),
                         ),
-                        child: const Text('Change Password'),
+                        child: Text(TranslationKeys.changePassword.tr),
                       ),
                     ),
                   ],
                 ),
                 // PIN Section
                 _buildExpansionTile(
-                  title: 'PIN Code',
+                  title: TranslationKeys.pinCode.tr,
                   tileColor: transparentColor,
                   children: [
                     DropdownButtonFormField<String>(
@@ -902,7 +901,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         });
                       },
                       decoration: InputDecoration(
-                        labelText: 'PIN Type',
+                        labelText: TranslationKeys.pinCode.tr,
                         labelStyle: TextStyle(color: AppColors.getSecondaryTextColor(context)),
                         enabledBorder: UnderlineInputBorder(
                           borderSide: BorderSide(color: AppColors.getSecondaryTextColor(context).withOpacity(0.3)),
@@ -922,7 +921,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           obscureText: true,
                           style: TextStyle(color: AppColors.getTextColor(context)),
                           decoration: InputDecoration(
-                            labelText: 'Current PIN',
+                            labelText: '${TranslationKeys.pinCode.tr} (Current)',
                             labelStyle: TextStyle(color: AppColors.getSecondaryTextColor(context)),
                             enabledBorder: UnderlineInputBorder(
                               borderSide: BorderSide(color: AppColors.getSecondaryTextColor(context).withOpacity(0.3)),
@@ -943,7 +942,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         obscureText: true,
                         style: TextStyle(color: AppColors.getTextColor(context)),
                         decoration: InputDecoration(
-                          labelText: 'New PIN',
+                          labelText: '${TranslationKeys.pinCode.tr} (New)',
                           labelStyle: TextStyle(color: AppColors.getSecondaryTextColor(context)),
                           enabledBorder: UnderlineInputBorder(
                             borderSide: BorderSide(color: AppColors.getSecondaryTextColor(context).withOpacity(0.3)),
@@ -963,7 +962,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         obscureText: true,
                         style: TextStyle(color: AppColors.getTextColor(context)),
                         decoration: InputDecoration(
-                          labelText: 'Confirm PIN',
+                          labelText: '${TranslationKeys.confirm.tr} ${TranslationKeys.pinCode.tr}',
                           labelStyle: TextStyle(color: AppColors.getSecondaryTextColor(context)),
                           enabledBorder: UnderlineInputBorder(
                             borderSide: BorderSide(color: AppColors.getSecondaryTextColor(context).withOpacity(0.3)),
@@ -989,7 +988,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               borderRadius: BorderRadius.circular(8),
                             ),
                           ),
-                          child: const Text('Save PIN'),
+                          child: Text('${TranslationKeys.save.tr} ${TranslationKeys.pinCode.tr}'),
                         ),
                       ),
                     ],
@@ -997,7 +996,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
                 // Security Questions Section
                 _buildExpansionTile(
-                  title: 'Security Questions',
+                  title: '${TranslationKeys.security.tr} Questions',
                   tileColor: transparentColor,
                   children: [
                     TextField(
@@ -1005,7 +1004,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       focusNode: _secQOneFocusNode,
                       style: TextStyle(color: AppColors.getTextColor(context)),
                       decoration: InputDecoration(
-                        labelText: 'Security Question 1',
+                        labelText: '${TranslationKeys.security.tr} Question 1',
                         labelStyle: TextStyle(color: AppColors.getSecondaryTextColor(context)),
                         enabledBorder: UnderlineInputBorder(
                           borderSide: BorderSide(color: AppColors.getSecondaryTextColor(context).withOpacity(0.3)),
@@ -1043,7 +1042,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       focusNode: _secQTwoFocusNode,
                       style: TextStyle(color: AppColors.getTextColor(context)),
                       decoration: InputDecoration(
-                        labelText: 'Security Question 2',
+                        labelText: '${TranslationKeys.security.tr} Question 2',
                         labelStyle: TextStyle(color: AppColors.getSecondaryTextColor(context)),
                         enabledBorder: UnderlineInputBorder(
                           borderSide: BorderSide(color: AppColors.getSecondaryTextColor(context).withOpacity(0.3)),
@@ -1088,7 +1087,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             borderRadius: BorderRadius.circular(8),
                           ),
                         ),
-                        child: const Text('Save Security Questions'),
+                        child: Text('${TranslationKeys.save.tr} ${TranslationKeys.security.tr} Questions'),
                       ),
                     ),
                   ],
@@ -1100,7 +1099,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   children: [
                     SwitchListTile(
                       title: Text(
-                        'Enable Notifications',
+                        'Enable ${TranslationKeys.notifications.tr}',
                         style: TextStyle(color: AppColors.getTextColor(context)),
                       ),
                       value: notificationsEnabled,
@@ -1113,7 +1112,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
                     SwitchListTile(
                       title: Text(
-                        'Private Profile',
+                        'Private ${TranslationKeys.profile.tr}',
                         style: TextStyle(color: AppColors.getTextColor(context)),
                       ),
                       value: isPrivate,
@@ -1159,7 +1158,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       children: [
                         ListTile(
                           title: Text(
-                            'Theme Mode',
+                            '${TranslationKeys.theme.tr} Mode',
                             style: TextStyle(color: AppColors.getTextColor(context)),
                           ),
                           subtitle: Text(
@@ -1180,7 +1179,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
                 // Language Section
                 _buildExpansionTile(
-                  title: 'Language',
+                  title: TranslationKeys.language.tr,
                   tileColor: transparentColor,
                   children: [
                     _buildLanguageDropdown(context),
@@ -1238,7 +1237,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         return AlertDialog(
           backgroundColor: Colors.grey[900],
           title: Text(
-            'Choose Theme Mode',
+            'Choose ${TranslationKeys.theme.tr} Mode',
             style: TextStyle(color: AppColors.getTextColor(context)),
           ),
           content: Column(
@@ -1344,8 +1343,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Widget _buildLanguageDropdown(BuildContext context) {
     final translationService = TranslationService();
-    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
-    
+
     return ClipRRect(
       borderRadius: BorderRadius.circular(8),
       child: BackdropFilter(
@@ -1361,60 +1359,60 @@ class _SettingsScreenState extends State<SettingsScreen> {
               return DropdownButtonFormField<String>(
                 value: translationService.currentLanguage,
                 items: TranslationService.supportedLanguages.map((languageCode) {
-        final languageName = translationService.getLanguageName(languageCode);
-        final flagEmoji = _getFlagEmoji(languageCode);
-        return DropdownMenuItem<String>(
-          value: languageCode,
-          child: Row(
-            children: [
-              if (flagEmoji != null) ...[
-                Text(
-                  flagEmoji,
-                  style: const TextStyle(fontSize: 20),
-                ),
-                const SizedBox(width: 8),
-              ],
-              Text(
-                languageName,
-                style: TextStyle(color: AppColors.getTextColor(context)),
-              ),
-            ],
-          ),
-        );
-      }).toList(),
-      onChanged: (String? value) async {
-        if (value != null) {
-                await translationService.setLanguage(value);
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: const TranslatedText(
-                TranslationKeys.languageChanged,
-                fallback: 'Language changed successfully!',
-              ),
-              backgroundColor: Colors.green,
-              action: SnackBarAction(
-                label: TranslationKeys.ok.tr,
-                onPressed: () {
-                  ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                  final languageName = translationService.getLanguageName(languageCode);
+                  final flagEmoji = _getFlagEmoji(languageCode);
+                  return DropdownMenuItem<String>(
+                    value: languageCode,
+                    child: Row(
+                      children: [
+                        if (flagEmoji != null) ...[
+                          Text(
+                            flagEmoji,
+                            style: const TextStyle(fontSize: 20),
+                          ),
+                          const SizedBox(width: 8),
+                        ],
+                        Text(
+                          languageName,
+                          style: TextStyle(color: AppColors.getTextColor(context)),
+                        ),
+                      ],
+                    ),
+                  );
+                }).toList(),
+                onChanged: (String? value) async {
+                  if (value != null) {
+                    await translationService.setLanguage(value);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: const TranslatedText(
+                          TranslationKeys.languageChanged,
+                          fallback: 'Language changed successfully!',
+                        ),
+                        backgroundColor: Colors.green,
+                        action: SnackBarAction(
+                          label: TranslationKeys.ok.tr,
+                          onPressed: () {
+                            ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                          },
+                        ),
+                      ),
+                    );
+                  }
                 },
-              ),
-            ),
-          );
-        }
-      },
-      decoration: InputDecoration(
-        labelText: 'Select Language',
-        labelStyle: TextStyle(color: AppColors.getSecondaryTextColor(context)),
-        enabledBorder: UnderlineInputBorder(
-          borderSide: BorderSide(color: AppColors.getSecondaryTextColor(context).withOpacity(0.3)),
-        ),
-        focusedBorder: UnderlineInputBorder(
-          borderSide: BorderSide(color: AppColors.getTextColor(context)),
-        ),
-        filled: true,
-        fillColor: Colors.transparent,
-      ),
-      dropdownColor: Colors.black.withValues(alpha: 0.85),
+                decoration: InputDecoration(
+                  labelText: TranslationKeys.selectLanguage.tr,
+                  labelStyle: TextStyle(color: AppColors.getSecondaryTextColor(context)),
+                  enabledBorder: UnderlineInputBorder(
+                    borderSide: BorderSide(color: AppColors.getSecondaryTextColor(context).withOpacity(0.3)),
+                  ),
+                  focusedBorder: UnderlineInputBorder(
+                    borderSide: BorderSide(color: AppColors.getTextColor(context)),
+                  ),
+                  filled: true,
+                  fillColor: Colors.transparent,
+                ),
+                dropdownColor: Colors.black.withValues(alpha: 0.85),
               );
             },
           ),
