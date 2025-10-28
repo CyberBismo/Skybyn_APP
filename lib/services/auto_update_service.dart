@@ -72,6 +72,7 @@ class AutoUpdateService {
       }
     } catch (e) {
       // Update check failed
+      print('❌ [AutoUpdate] Update check failed: $e');
     }
     return null;
   }
@@ -87,6 +88,7 @@ class AutoUpdateService {
       }
     } catch (e) {
       // Download failed
+      print('❌ [AutoUpdate] Download failed: $e');
     }
     return false;
   }
@@ -113,6 +115,7 @@ class AutoUpdateService {
       }
     } catch (e) {
       // Installation failed
+      print('❌ [AutoUpdate] Installation failed: $e');
       return false;
     }
   }
@@ -125,6 +128,7 @@ class AutoUpdateService {
       }
       return false;
     } catch (e) {
+      print('❌ [AutoUpdate] Request install permission failed: $e');
       return false;
     }
   }
@@ -137,6 +141,7 @@ class AutoUpdateService {
       }
       return false;
     } catch (e) {
+      print('❌ [AutoUpdate] Has install permission failed: $e');
       return false;
     }
   }
@@ -161,6 +166,7 @@ class AutoUpdateService {
 
       return true;
     } catch (e) {
+      print('❌ [AutoUpdate] Install APK failed: $e');
       return false;
     }
   }

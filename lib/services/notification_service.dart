@@ -138,7 +138,6 @@ class NotificationService {
             sound: true,
             provisional: false, // Don't request provisional permissions
           );
-          print('🔔 [NotificationService] iOS notification permissions granted: $result');
           
           // Check if permissions were actually granted
           if (result == true) {

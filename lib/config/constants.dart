@@ -9,7 +9,7 @@ class ApiConstants {
   static const String verifyEmail = '$apiBase/verify_email.php';
   static const String register = '$apiBase/register.php';
   static const String resetPassword = '$apiBase/reset.php';
-  static const String checkAccount = '$apiBase/checkAccount.php';
+  static const String token = '$apiBase/token.php';
 
   // Posts
   static const String timeline = '$apiBase/post/timeline.php';

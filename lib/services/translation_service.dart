@@ -135,13 +135,44 @@ class TranslationService {
       );
 
       if (response.statusCode == 200) {
-        final Map<String, dynamic> data = json.decode(response.body);
-        _translations = Map<String, Map<String, String>>.from(
-          data.map((key, value) => MapEntry(
-                key,
-                Map<String, String>.from(value as Map<String, dynamic>),
-              )),
-        );
+        try {
+          final responseData = json.decode(response.body);
+          
+          // Handle both Map<String, dynamic> and Map<dynamic, dynamic>
+          if (responseData is Map) {
+            // Convert the response to the expected format
+            final Map<String, dynamic> stringMap = Map<String, dynamic>.from(responseData);
+            
+            _translations = <String, Map<String, String>>{};
+            
+            for (final entry in stringMap.entries) {
+              if (entry.value is Map) {
+                // Convert inner Map to Map<String, String>
+                final innerMap = Map<String, dynamic>.from(entry.value as Map);
+                _translations[entry.key] = Map<String, String>.from(
+                  innerMap.map((k, v) => MapEntry(k.toString(), v.toString()))
+                );
+              } else {
+                // If value is not a Map, it might be an error message
+                if (entry.key == 'error' || entry.key == 'message') {
+                  print('⚠️ Translation API returned: ${entry.key} = ${entry.value}');
+                }
+              }
+            }
+            
+            // If no translations were loaded, use fallback
+            if (_translations.isEmpty) {
+              print('⚠️ No translations loaded from API, using fallback');
+              await _loadFallbackTranslations();
+            }
+          } else {
+            print('❌ Translation API returned non-Map response: ${responseData.runtimeType}');
+            await _loadFallbackTranslations();
+          }
+        } catch (e) {
+          print('❌ Error parsing translations JSON: $e');
+          await _loadFallbackTranslations();
+        }
       } else {
         print('❌ Failed to load translations: ${response.statusCode}');
         await _loadFallbackTranslations();

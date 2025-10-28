@@ -86,9 +86,11 @@ class WebSocketService {
           _connectionMetrics['totalReconnects']++;
         }
         _reconnectAttempts = 0;
+        print('✅ [WebSocket] Connected to WebSocket server');
         break;
       case 'failed':
         _connectionMetrics['failedConnections']++;
+        print('❌ [WebSocket] Failed to connect to WebSocket server');
         break;
       case 'message_sent':
         _connectionMetrics['messagesSent']++;
@@ -98,6 +100,7 @@ class WebSocketService {
         break;
       case 'error':
         _connectionMetrics['errors']++;
+        print('❌ [WebSocket] Error');
         break;
     }
 

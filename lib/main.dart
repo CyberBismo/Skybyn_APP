@@ -20,8 +20,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 Future<void> main() async {
   // Gate all print calls behind a debug flag using Zone
-  // Logging disabled except for errors
-  const bool enableLogging = false;
+  // Logging enabled for debugging FCM token
+  const bool enableLogging = true;
 
   runZonedGuarded(
     () async {
@@ -80,7 +80,7 @@ Future<void> _initializeFirebase() async {
         await firebaseMessagingService.initialize();
 
         // Auto-register FCM token when app opens if user is logged in
-        firebaseMessagingService.autoRegisterTokenOnAppOpen();
+        await firebaseMessagingService.autoRegisterTokenOnAppOpen();
       } catch (e) {
         print('❌ [Firebase] Firebase Messaging initialization failed: $e');
       }

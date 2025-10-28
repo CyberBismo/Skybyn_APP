@@ -638,15 +638,12 @@ class _PostCardState extends State<PostCard> {
     // Check if keyboard is actually hidden and reposition floating input if needed
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final bottomInset = MediaQuery.of(context).viewInsets.bottom;
-      print(
-          'DEBUG: Build callback - bottomInset: $bottomInset, _isKeyboardVisible: $_isKeyboardVisible, hasFocus: ${_commentFocusNode.hasFocus}');
 
       if (bottomInset == 0 && _isKeyboardVisible) {
         // Keyboard was dismissed, hide floating input
         setState(() {
           _isKeyboardVisible = false;
         });
-        print('DEBUG: Keyboard dismissed, setting _isKeyboardVisible to false');
         _hideFloatingInput();
       } else if (bottomInset > 0 &&
           !_isKeyboardVisible &&
@@ -655,15 +652,9 @@ class _PostCardState extends State<PostCard> {
         setState(() {
           _isKeyboardVisible = true;
         });
-        print('DEBUG: Keyboard appeared, setting _isKeyboardVisible to true');
         _showFloatingInput();
       }
     });
-
-    print(
-        'DEBUG: Build called - viewInsets.bottom: ${MediaQuery.of(context).viewInsets.bottom}');
-    print('DEBUG: Build called - hasFocus: ${_commentFocusNode.hasFocus}');
-    print('DEBUG: Build called - _isKeyboardVisible: $_isKeyboardVisible');
 
     final theme = Theme.of(context);
     final isDarkMode = theme.brightness == Brightness.dark;
@@ -851,15 +842,9 @@ class _PostCardState extends State<PostCard> {
                           padding: const EdgeInsets.all(20.0), // padding: 20px
                           child: Builder(
                             builder: (context) {
-                              print(
-                                  '🔍 PostCard Debug: postId=${_currentPost.id}, postUserId=${_currentPost.userId}, currentUserId=$_currentUserId');
                               if (_currentPost.userId == null) {
-                                print(
-                                    '❌ PostCard: userId is null, hiding menu');
                                 return const SizedBox.shrink();
                               }
-                              print(
-                                  '✅ PostCard: Showing menu, isAuthor=${_currentUserId == _currentPost.userId}');
                               return UnifiedMenu.createPostMenuButton(
                                 context: context,
                                 postId: _currentPost.id,

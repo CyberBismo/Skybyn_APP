@@ -12,14 +12,18 @@ import 'device_service.dart';
 // Handle background messages
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  // Check if Firebase is already initialized
-  if (Firebase.apps.isEmpty) {
-    await Firebase.initializeApp();
-  }
+  try {
+    // Check if Firebase is already initialized
+    if (Firebase.apps.isEmpty) {
+      await Firebase.initializeApp();
+    }
 
-  // Show local notification for background messages
-  final notificationService = NotificationService();
-  await notificationService.showNotification(title: message.notification?.title ?? 'New Message', body: message.notification?.body ?? '', payload: jsonEncode(message.data));
+    // Show local notification for background messages
+    final notificationService = NotificationService();
+    await notificationService.showNotification(title: message.notification?.title ?? 'New Message', body: message.notification?.body ?? '', payload: jsonEncode(message.data));
+  } catch (e) {
+    print('❌ [FCM] Error in background handler: $e');
+  }
 }
 
 class FirebaseMessagingService {
@@ -75,26 +79,46 @@ class FirebaseMessagingService {
 
       _isInitialized = true;
     } catch (e) {
-      print('❌ [Firebase] Error initializing Firebase Messaging: $e');
+      print('❌ [FCM] Error initializing Firebase Messaging: $e');
     }
   }
 
   Future<void> _requestPermissions() async {
     try {
-      await _messaging.requestPermission(alert: true, announcement: false, badge: true, carPlay: false, criticalAlert: false, provisional: false, sound: true);
+      final NotificationSettings settings = await _messaging.requestPermission(
+        alert: true,
+        announcement: false,
+        badge: true,
+        carPlay: false,
+        criticalAlert: false,
+        provisional: false,
+        sound: true
+      );
+      
+      if (settings.authorizationStatus == AuthorizationStatus.authorized) {
+        print('✅ [FCM] Permission granted');
+      } else if (settings.authorizationStatus == AuthorizationStatus.denied) {
+        print('❌ [FCM] Permission denied by user');
+      } else if (settings.authorizationStatus == AuthorizationStatus.notDetermined) {
+        print('⚠️ [FCM] Permission not yet determined');
+      } else if (settings.authorizationStatus == AuthorizationStatus.provisional) {
+        print('⚠️ [FCM] Provisional permission granted');
+      }
     } catch (e) {
-      print('❌ [Firebase] Error requesting permissions: $e');
+      print('❌ [FCM] Error requesting permissions: $e');
     }
   }
 
   Future<void> _getFCMToken() async {
     try {
       _fcmToken = await _messaging.getToken();
+      print('✅ [FCM] Token retrieved successfully: ${_fcmToken?.substring(0, 20)}...');
 
       // Store token locally (not in Firestore)
       await _storeFCMTokenLocally();
     } catch (e) {
-      print('❌ [Firebase] Error getting FCM token: $e');
+      print('❌ [FCM] Error getting FCM token: $e');
+      _fcmToken = null;
     }
   }
 
@@ -102,13 +126,17 @@ class FirebaseMessagingService {
   Future<void> sendFCMTokenToServer() async {
     try {
       if (_fcmToken == null) {
+        print('❌ [FCM] Cannot send token - no FCM token available');
         return;
       }
 
       final user = await _authService.getStoredUserProfile();
       if (user == null) {
+        print('❌ [FCM] Cannot send token - no user logged in');
         return;
       }
+
+      print('📤 [FCM] Sending FCM token to server for user: ${user.id}');
 
       // Use device service to get device info
       final deviceService = DeviceService();
@@ -118,14 +146,22 @@ class FirebaseMessagingService {
 
       // Send to a device update endpoint or via login update
       try {
-        final response = await http.post(Uri.parse('https://api.skybyn.no/api/register_device_token.php'), body: {'userID': user.id, 'deviceInfo': json.encode(deviceInfo)});
+        final response = await http.post(
+          Uri.parse('https://api.skybyn.no/api/register_device_token.php'),
+          body: {'userID': user.id, 'deviceInfo': json.encode(deviceInfo)}
+        );
 
-        // Token sent (or failed silently)
+        if (response.statusCode == 200) {
+          print('✅ [FCM] Token sent to server successfully');
+        } else {
+          print('❌ [FCM] Failed to send token - server returned status: ${response.statusCode}');
+        }
       } catch (e) {
+        print('❌ [FCM] Failed to send token to server: $e');
         // Silently fail - device will be updated on next login
       }
     } catch (e) {
-      print('❌ [Firebase] Error sending FCM token to server: $e');
+      print('❌ [FCM] Error in sendFCMTokenToServer: $e');
     }
   }
 
@@ -169,36 +205,47 @@ class FirebaseMessagingService {
           _triggerUpdateCheck();
           break;
         default:
-          print('❌ [Firebase] Unknown notification type: $type');
+          print('❌ [FCM] Unknown notification type: $type');
       }
     } catch (e) {
-      print('❌ [Firebase] Error handling notification tap: $e');
+      print('❌ [FCM] Error handling notification tap: $e');
     }
   }
 
   Future<void> _storeFCMTokenLocally() async {
     try {
-      if (_fcmToken == null) return;
+      if (_fcmToken == null) {
+        print('⚠️ [FCM] Cannot store token - token is null');
+        return;
+      }
 
       final user = await _authService.getStoredUserProfile();
       if (user == null) {
+        print('⚠️ [FCM] Cannot store token - no user logged in yet');
         return;
       }
 
       // Store token locally using SharedPreferences
       await _initPrefs();
       await _prefs?.setString('fcm_token', _fcmToken!);
+      print('✅ [FCM] Token stored locally for user: ${user.id}');
     } catch (e) {
-      print('❌ [Firebase] Error storing FCM token locally: $e');
+      print('❌ [FCM] Error storing FCM token locally: $e');
     }
   }
 
   Future<String?> getStoredFCMToken() async {
     try {
       await _initPrefs();
-      return _prefs?.getString('fcm_token');
+      final token = _prefs?.getString('fcm_token');
+      if (token != null) {
+        print('✅ [FCM] Retrieved stored token');
+      } else {
+        print('⚠️ [FCM] No stored token found');
+      }
+      return token;
     } catch (e) {
-      print('❌ [Firebase] Error getting stored FCM token: $e');
+      print('❌ [FCM] Error getting stored FCM token: $e');
       return null;
     }
   }
@@ -208,8 +255,9 @@ class FirebaseMessagingService {
       await _initPrefs();
       await _prefs?.remove('fcm_token');
       _fcmToken = null;
+      print('✅ [FCM] Token deleted from local storage');
     } catch (e) {
-      print('❌ [Firebase] Error deleting FCM token: $e');
+      print('❌ [FCM] Error deleting FCM token: $e');
     }
   }
 
@@ -232,9 +280,10 @@ class FirebaseMessagingService {
       if (!_subscribedTopics.contains(topic)) {
         _subscribedTopics.add(topic);
       }
+      print('✅ [FCM] Subscribed to topic: $topic');
       return true;
     } catch (e) {
-      print('❌ [Firebase] Error subscribing to topic $topic: $e');
+      print('❌ [FCM] Error subscribing to topic $topic: $e');
       return false;
     }
   }
@@ -244,9 +293,10 @@ class FirebaseMessagingService {
     try {
       await _messaging.unsubscribeFromTopic(topic);
       _subscribedTopics.remove(topic);
+      print('✅ [FCM] Unsubscribed from topic: $topic');
       return true;
     } catch (e) {
-      print('❌ [Firebase] Error unsubscribing from topic $topic: $e');
+      print('❌ [FCM] Error unsubscribing from topic $topic: $e');
       return false;
     }
   }
@@ -261,13 +311,20 @@ class FirebaseMessagingService {
         'general', // General announcements
       ];
 
+      print('📋 [FCM] Auto-subscribing to ${defaultTopics.length} default topics');
+
       for (final topic in defaultTopics) {
-        await subscribeToTopic(topic);
+        final success = await subscribeToTopic(topic);
+        if (!success) {
+          print('❌ [FCM] Failed to subscribe to topic: $topic');
+        }
         // Small delay to avoid overwhelming the service
         await Future.delayed(const Duration(milliseconds: 100));
       }
+
+      print('✅ [FCM] Auto-subscription to default topics completed');
     } catch (e) {
-      print('❌ [Firebase] Error in auto-subscription: $e');
+      print('❌ [FCM] Error in auto-subscription: $e');
     }
   }
 
@@ -282,6 +339,7 @@ class FirebaseMessagingService {
     try {
       final user = await _authService.getStoredUserProfile();
       if (user == null) {
+        print('❌ [FCM] Cannot subscribe to user topics - no user logged in');
         return;
       }
 
@@ -292,12 +350,19 @@ class FirebaseMessagingService {
         'status_${user.online}', // Online status notifications
       ];
 
+      print('📋 [FCM] Subscribing to ${userTopics.length} user-specific topics for user: ${user.id}');
+
       for (final topic in userTopics) {
-        await subscribeToTopic(topic);
+        final success = await subscribeToTopic(topic);
+        if (!success) {
+          print('❌ [FCM] Failed to subscribe to user topic: $topic');
+        }
         await Future.delayed(const Duration(milliseconds: 100));
       }
+
+      print('✅ [FCM] User-specific topic subscription completed');
     } catch (e) {
-      print('❌ [Firebase] Error subscribing to user topics: $e');
+      print('❌ [FCM] Error subscribing to user topics: $e');
     }
   }
 
@@ -309,7 +374,35 @@ class FirebaseMessagingService {
 
   /// Auto-register FCM token when app opens (called from main.dart)
   Future<void> autoRegisterTokenOnAppOpen() async {
-    // Deprecated: FCM token is now sent via profile API
-    // Kept for backward compatibility
+    print('🔍 [FCM] autoRegisterTokenOnAppOpen() called');
+    try {
+      // Ensure we have the latest FCM token
+      await _getFCMToken();
+
+      if (_fcmToken == null) {
+        print('❌ [FCM] Cannot auto-register - FCM token unavailable');
+        return;
+      }
+
+      final user = await _authService.getStoredUserProfile();
+      if (user == null) {
+        print('❌ [FCM] Cannot auto-register token - user not logged in');
+        return;
+      }
+
+      // Send the token to the token API endpoint
+      final response = await http.post(
+        Uri.parse('https://api.skybyn.no/token.php'),
+        body: {'user_id': user.id, 'token': _fcmToken},
+      );
+
+      if (response.statusCode == 200) {
+        print('✅ [FCM] Token auto-registered successfully via token API');
+      } else {
+        print('❌ [FCM] Auto-registration failed - Status: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('❌ [FCM] Error auto-registering FCM token: $e');
+    }
   }
 }
