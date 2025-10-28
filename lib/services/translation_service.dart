@@ -130,28 +130,26 @@ class TranslationService {
   Future<void> _loadTranslations() async {
     try {
       final response = await http.get(
-        Uri.parse('${ApiConstants.language}?lang=en'),
+        Uri.parse(ApiConstants.language),
         headers: {'Content-Type': 'application/json'},
       );
 
       if (response.statusCode == 200) {
         try {
           final responseData = json.decode(response.body);
-          
+
           // Handle both Map<String, dynamic> and Map<dynamic, dynamic>
           if (responseData is Map) {
             // Convert the response to the expected format
             final Map<String, dynamic> stringMap = Map<String, dynamic>.from(responseData);
-            
+
             _translations = <String, Map<String, String>>{};
-            
+
             for (final entry in stringMap.entries) {
               if (entry.value is Map) {
                 // Convert inner Map to Map<String, String>
                 final innerMap = Map<String, dynamic>.from(entry.value as Map);
-                _translations[entry.key] = Map<String, String>.from(
-                  innerMap.map((k, v) => MapEntry(k.toString(), v.toString()))
-                );
+                _translations[entry.key] = Map<String, String>.from(innerMap.map((k, v) => MapEntry(k.toString(), v.toString())));
               } else {
                 // If value is not a Map, it might be an error message
                 if (entry.key == 'error' || entry.key == 'message') {
@@ -159,11 +157,13 @@ class TranslationService {
                 }
               }
             }
-            
+
             // If no translations were loaded, use fallback
             if (_translations.isEmpty) {
               print('⚠️ No translations loaded from API, using fallback');
               await _loadFallbackTranslations();
+            } else {
+              print('✅ Loaded translations for ${_translations.keys.length} languages');
             }
           } else {
             print('❌ Translation API returned non-Map response: ${responseData.runtimeType}');
