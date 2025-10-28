@@ -13,6 +13,10 @@ class TranslationKeys {
   static const String done = 'done';
   static const String nickname = 'nickname';
   static const String pinCode = 'pin_code';
+  static const String pinCodeCurrent = 'pin_code_current';
+  static const String pinCodeNew = 'pin_code_new';
+  static const String confirmPinCode = 'confirm_pin_code';
+  static const String savePinCode = 'save_pin_code';
   static const String newPassword = 'new_password';
   static const String confirmNewPassword = 'confirm_new_password';
   static const String ok = 'ok';
@@ -52,12 +56,14 @@ class TranslationKeys {
   static const String username = 'username';
   static const String password = 'password';
   static const String email = 'email';
+  static const String signIn = 'sign_in';
+  static const String passwordCurrent = 'password_current';
+  static const String passwordResetSent = 'password_reset_sent';
   static const String loginSuccessful = 'login_successful';
   static const String welcomeToSkybyn = 'welcome_to_skybyn';
   static const String loginFailedCheckCredentials = 'login_failed_check_credentials';
   static const String confirmPassword = 'confirm_password';
   static const String rememberMe = 'remember_me';
-  static const String signIn = 'sign_in';
   static const String signUp = 'sign_up';
   static const String signOut = 'sign_out';
   static const String createAccount = 'create_account';
@@ -75,6 +81,16 @@ class TranslationKeys {
   static const String invalidEmail = 'invalid_email';
   static const String usernameTaken = 'username_taken';
   static const String emailAlreadyExists = 'email_already_exists';
+  static const String serverErrorOccurred = 'server_error_occurred';
+  static const String invalidVerificationCode = 'invalid_verification_code';
+  static const String verificationCodeTooShort = 'verification_code_too_short';
+  static const String pinUpdateSuccess = 'pin_update_success';
+  static const String pinUpdateError = 'pin_update_error';
+  static const String profileUpdateSuccess = 'profile_update_success';
+  static const String profileUpdateError = 'profile_update_error';
+  static const String securityQuestionsUpdateSuccess = 'security_questions_update_success';
+  static const String securityQuestionsUpdateError = 'security_questions_update_error';
+  static const String pinConfirmationMismatch = 'pin_confirmation_mismatch';
 
   // User Profile
   static const String firstName = 'first_name';
@@ -112,6 +128,8 @@ class TranslationKeys {
   static const String addPhoto = 'add_photo';
   static const String addVideo = 'add_video';
   static const String addLocation = 'add_location';
+  static const String post = 'post';
+  static const String noPostsYet = 'no_posts_yet';
   static const String postCreated = 'post_created';
   static const String postUpdated = 'post_updated';
   static const String postDeleted = 'post_deleted';
@@ -166,6 +184,29 @@ class TranslationKeys {
   static const String language = 'language';
   static const String theme = 'theme';
   static const String account = 'account';
+  static const String preferences = 'preferences';
+  static const String appearance = 'appearance';
+  static const String themeMode = 'theme_mode';
+  static const String chooseThemeMode = 'choose_theme_mode';
+  static const String systemRecommended = 'system_recommended';
+  static const String automaticallyFollowDeviceTheme = 'automatically_follow_device_theme';
+  static const String light = 'light';
+  static const String alwaysUseLightTheme = 'always_use_light_theme';
+  static const String dark = 'dark';
+  static const String alwaysUseDarkTheme = 'always_use_dark_theme';
+  static const String enableNotifications = 'enable_notifications';
+  static const String privateProfile = 'private_profile';
+  static const String biometricLock = 'biometric_lock';
+  static const String updateAvatar = 'update_avatar';
+  static const String updateWallpaper = 'update_wallpaper';
+  static const String takePhoto = 'take_photo';
+  static const String chooseFromGallery = 'choose_from_gallery';
+  static const String securityQuestions = 'security_questions';
+  static const String securityQuestion1 = 'security_question_1';
+  static const String securityQuestion2 = 'security_question_2';
+  static const String answer1 = 'answer_1';
+  static const String answer2 = 'answer_2';
+  static const String saveSecurityQuestions = 'save_security_questions';
   static const String about = 'about';
   static const String help = 'help';
   static const String support = 'support';
@@ -279,6 +320,13 @@ class TranslationKeys {
   static const String invalidQrCode = 'invalid_qr_code';
   static const String qrCodeExpired = 'qr_code_expired';
   static const String qrCodeNotFound = 'qr_code_not_found';
+  static const String cameraError = 'camera_error';
+  static const String cameraInitFailed = 'camera_init_failed';
+  static const String qrCodeInvalidLength = 'qr_code_invalid_length';
+  static const String errorCommunicatingServer = 'error_communicating_server';
+  static const String scanning = 'scanning';
+  static const String valid = 'valid';
+  static const String scanAgain = 'scan_again';
 
   // Updates
   static const String updateAvailable = 'update_available';
