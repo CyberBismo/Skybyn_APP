@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
 import 'dart:io';
+import 'dart:ui';
 import '../models/user.dart';
 import '../widgets/background_gradient.dart';
 import '../widgets/custom_app_bar.dart';
@@ -1178,27 +1179,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   },
                 ),
                 // Language Section
-                LanguageSelector(
-                  onLanguageChanged: (String languageCode) {
-                    // Language will be automatically saved by the LanguageSelector
-                    // The app will need to be restarted to see the changes
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: const TranslatedText(
-                          TranslationKeys.languageChanged,
-                          fallback: 'Language changed successfully!',
-                        ),
-                        backgroundColor: Colors.green,
-                        action: SnackBarAction(
-                          label: TranslationKeys.ok.tr,
-                          onPressed: () {
-                            ScaffoldMessenger.of(context).hideCurrentSnackBar();
-                          },
-                        ),
-                      ),
-                    );
-                  },
-                  padding: const EdgeInsets.all(16),
+                _buildExpansionTile(
+                  title: 'Language',
+                  tileColor: transparentColor,
+                  children: [
+                    _buildLanguageDropdown(context),
+                  ],
                 ),
                 const SizedBox(height: 125),
               ],
@@ -1353,6 +1339,119 @@ class _SettingsScreenState extends State<SettingsScreen> {
       if (focusNode != currentFocusNode && focusNode.hasFocus) {
         focusNode.unfocus();
       }
+    }
+  }
+
+  Widget _buildLanguageDropdown(BuildContext context) {
+    final translationService = TranslationService();
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(8),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
+        child: Container(
+          decoration: BoxDecoration(
+            color: Colors.black.withValues(alpha: 0.7),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: ListenableBuilder(
+            listenable: translationService,
+            builder: (context, child) {
+              return DropdownButtonFormField<String>(
+                value: translationService.currentLanguage,
+                items: TranslationService.supportedLanguages.map((languageCode) {
+        final languageName = translationService.getLanguageName(languageCode);
+        final flagEmoji = _getFlagEmoji(languageCode);
+        return DropdownMenuItem<String>(
+          value: languageCode,
+          child: Row(
+            children: [
+              if (flagEmoji != null) ...[
+                Text(
+                  flagEmoji,
+                  style: const TextStyle(fontSize: 20),
+                ),
+                const SizedBox(width: 8),
+              ],
+              Text(
+                languageName,
+                style: TextStyle(color: AppColors.getTextColor(context)),
+              ),
+            ],
+          ),
+        );
+      }).toList(),
+      onChanged: (String? value) async {
+        if (value != null) {
+                await translationService.setLanguage(value);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const TranslatedText(
+                TranslationKeys.languageChanged,
+                fallback: 'Language changed successfully!',
+              ),
+              backgroundColor: Colors.green,
+              action: SnackBarAction(
+                label: TranslationKeys.ok.tr,
+                onPressed: () {
+                  ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                },
+              ),
+            ),
+          );
+        }
+      },
+      decoration: InputDecoration(
+        labelText: 'Select Language',
+        labelStyle: TextStyle(color: AppColors.getSecondaryTextColor(context)),
+        enabledBorder: UnderlineInputBorder(
+          borderSide: BorderSide(color: AppColors.getSecondaryTextColor(context).withOpacity(0.3)),
+        ),
+        focusedBorder: UnderlineInputBorder(
+          borderSide: BorderSide(color: AppColors.getTextColor(context)),
+        ),
+        filled: true,
+        fillColor: Colors.transparent,
+      ),
+      dropdownColor: Colors.black.withValues(alpha: 0.85),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+  }
+
+  // Get flag emoji for each language
+  String? _getFlagEmoji(String languageCode) {
+    switch (languageCode) {
+      case 'en':
+        return '🇬🇧'; // English - UK flag
+      case 'no':
+        return '🇳🇴'; // Norwegian
+      case 'dk':
+        return '🇩🇰'; // Danish
+      case 'se':
+        return '🇸🇪'; // Swedish
+      case 'de':
+        return '🇩🇪'; // German
+      case 'fr':
+        return '🇫🇷'; // French
+      case 'pl':
+        return '🇵🇱'; // Polish
+      case 'es':
+        return '🇪🇸'; // Spanish
+      case 'it':
+        return '🇮🇹'; // Italian
+      case 'pt':
+        return '🇵🇹'; // Portuguese
+      case 'nl':
+        return '🇳🇱'; // Dutch
+      case 'fi':
+        return '🇫🇮'; // Finnish
+      default:
+        return null;
     }
   }
 }

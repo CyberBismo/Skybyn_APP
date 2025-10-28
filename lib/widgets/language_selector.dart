@@ -80,18 +80,24 @@ class _LanguageSelectorState extends State<LanguageSelector> {
             ...TranslationService.supportedLanguages.map((languageCode) {
               final isSelected = _selectedLanguage == languageCode;
               final languageName = _translationService.getLanguageName(languageCode);
+              final flagEmoji = _getFlagEmoji(languageCode);
               
               return Container(
                 margin: const EdgeInsets.only(bottom: 4),
                 child: ListTile(
                   contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  leading: Icon(
-                    Icons.language,
-                    color: isSelected 
-                        ? (widget.selectedColor ?? theme.primaryColor)
-                        : (widget.unselectedColor ?? theme.iconTheme.color),
-                    size: 20,
-                  ),
+                  leading: flagEmoji != null
+                      ? Text(
+                          flagEmoji,
+                          style: const TextStyle(fontSize: 20),
+                        )
+                      : Icon(
+                          Icons.language,
+                          color: isSelected 
+                              ? (widget.selectedColor ?? theme.primaryColor)
+                              : (widget.unselectedColor ?? theme.iconTheme.color),
+                          size: 20,
+                        ),
                   title: Text(
                     languageName,
                     style: widget.itemStyle ?? 
@@ -122,6 +128,38 @@ class _LanguageSelectorState extends State<LanguageSelector> {
         ),
       ),
     );
+  }
+
+  // Get flag emoji for each language
+  String? _getFlagEmoji(String languageCode) {
+    switch (languageCode) {
+      case 'en':
+        return '🇬🇧'; // English - UK flag
+      case 'no':
+        return '🇳🇴'; // Norwegian
+      case 'dk':
+        return '🇩🇰'; // Danish
+      case 'se':
+        return '🇸🇪'; // Swedish
+      case 'de':
+        return '🇩🇪'; // German
+      case 'fr':
+        return '🇫🇷'; // French
+      case 'pl':
+        return '🇵🇱'; // Polish
+      case 'es':
+        return '🇪🇸'; // Spanish
+      case 'it':
+        return '🇮🇹'; // Italian
+      case 'pt':
+        return '🇵🇹'; // Portuguese
+      case 'nl':
+        return '🇳🇱'; // Dutch
+      case 'fi':
+        return '🇫🇮'; // Finnish
+      default:
+        return null;
+    }
   }
 
   void _selectLanguage(String languageCode) async {
@@ -199,18 +237,25 @@ class CompactLanguageSelector extends StatelessWidget {
         return TranslationService.supportedLanguages.map((String languageCode) {
           final isSelected = languageCode == currentLang;
           final name = translationService.getLanguageName(languageCode);
+          final flagEmoji = _getFlagEmoji(languageCode);
           
           return PopupMenuItem<String>(
             value: languageCode,
             child: Row(
               children: [
-                Icon(
-                  Icons.language,
-                  color: isSelected 
-                      ? Theme.of(context).primaryColor
-                      : Theme.of(context).iconTheme.color,
-                  size: 16,
-                ),
+                if (flagEmoji != null)
+                  Text(
+                    flagEmoji,
+                    style: const TextStyle(fontSize: 18),
+                  )
+                else
+                  Icon(
+                    Icons.language,
+                    color: isSelected 
+                        ? Theme.of(context).primaryColor
+                        : Theme.of(context).iconTheme.color,
+                    size: 16,
+                  ),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
@@ -235,6 +280,38 @@ class CompactLanguageSelector extends StatelessWidget {
         }).toList();
       },
     );
+  }
+
+  // Get flag emoji for each language
+  String? _getFlagEmoji(String languageCode) {
+    switch (languageCode) {
+      case 'en':
+        return '🇬🇧'; // English - UK flag
+      case 'no':
+        return '🇳🇴'; // Norwegian
+      case 'dk':
+        return '🇩🇰'; // Danish
+      case 'se':
+        return '🇸🇪'; // Swedish
+      case 'de':
+        return '🇩🇪'; // German
+      case 'fr':
+        return '🇫🇷'; // French
+      case 'pl':
+        return '🇵🇱'; // Polish
+      case 'es':
+        return '🇪🇸'; // Spanish
+      case 'it':
+        return '🇮🇹'; // Italian
+      case 'pt':
+        return '🇵🇹'; // Portuguese
+      case 'nl':
+        return '🇳🇱'; // Dutch
+      case 'fi':
+        return '🇫🇮'; // Finnish
+      default:
+        return null;
+    }
   }
 }
 
@@ -288,15 +365,21 @@ class _LanguageSelectorDialogState extends State<LanguageSelectorDialog> {
             final languageCode = TranslationService.supportedLanguages[index];
             final isSelected = _selectedLanguage == languageCode;
             final languageName = _translationService.getLanguageName(languageCode);
+            final flagEmoji = _getFlagEmoji(languageCode);
             
             return ListTile(
-              leading: Icon(
-                Icons.language,
-                color: isSelected 
-                    ? theme.primaryColor
-                    : theme.iconTheme.color,
-                size: 20,
-              ),
+              leading: flagEmoji != null
+                  ? Text(
+                      flagEmoji,
+                      style: const TextStyle(fontSize: 20),
+                    )
+                  : Icon(
+                      Icons.language,
+                      color: isSelected 
+                          ? theme.primaryColor
+                          : theme.iconTheme.color,
+                      size: 20,
+                    ),
               title: Text(
                 languageName,
                 style: TextStyle(
@@ -346,6 +429,38 @@ class _LanguageSelectorDialogState extends State<LanguageSelectorDialog> {
     }
     if (mounted) {
       Navigator.of(context).pop();
+    }
+  }
+
+  // Get flag emoji for each language
+  String? _getFlagEmoji(String languageCode) {
+    switch (languageCode) {
+      case 'en':
+        return '🇬🇧'; // English - UK flag
+      case 'no':
+        return '🇳🇴'; // Norwegian
+      case 'dk':
+        return '🇩🇰'; // Danish
+      case 'se':
+        return '🇸🇪'; // Swedish
+      case 'de':
+        return '🇩🇪'; // German
+      case 'fr':
+        return '🇫🇷'; // French
+      case 'pl':
+        return '🇵🇱'; // Polish
+      case 'es':
+        return '🇪🇸'; // Spanish
+      case 'it':
+        return '🇮🇹'; // Italian
+      case 'pt':
+        return '🇵🇹'; // Portuguese
+      case 'nl':
+        return '🇳🇱'; // Dutch
+      case 'fi':
+        return '🇫🇮'; // Finnish
+      default:
+        return null;
     }
   }
 }

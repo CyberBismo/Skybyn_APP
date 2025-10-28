@@ -2,9 +2,10 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter/foundation.dart';
 import '../config/constants.dart';
 
-class TranslationService {
+class TranslationService extends ChangeNotifier {
   static final TranslationService _instance = TranslationService._internal();
   factory TranslationService() => _instance;
   TranslationService._internal();
@@ -272,6 +273,7 @@ class TranslationService {
     if (supportedLanguages.contains(languageCode)) {
       _currentLanguage = languageCode;
       await _saveLanguage(languageCode);
+      notifyListeners(); // Notify listeners that the language has changed
     }
   }
 

@@ -22,19 +22,26 @@ class TranslatedText extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final translationService = TranslationService();
-    final translatedText = translationService.translate(textKey);
     
-    // If translation is the same as key and fallback is provided, use fallback
-    final displayText = (translatedText == textKey && fallback != null) 
-        ? fallback! 
-        : translatedText;
+    // Listen to translation service changes
+    return ListenableBuilder(
+      listenable: translationService,
+      builder: (context, child) {
+        final translatedText = translationService.translate(textKey);
+        
+        // If translation is the same as key and fallback is provided, use fallback
+        final displayText = (translatedText == textKey && fallback != null) 
+            ? fallback! 
+            : translatedText;
 
-    return Text(
-      displayText,
-      style: style,
-      textAlign: textAlign,
-      maxLines: maxLines,
-      overflow: overflow,
+        return Text(
+          displayText,
+          style: style,
+          textAlign: textAlign,
+          maxLines: maxLines,
+          overflow: overflow,
+        );
+      },
     );
   }
 }
