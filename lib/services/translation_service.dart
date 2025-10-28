@@ -333,6 +333,77 @@ class TranslationService extends ChangeNotifier {
         'login_successful': 'Login successful',
         'welcome_to_skybyn': 'Welcome to Skybyn',
         'login_failed_check_credentials': 'Login failed. Please check your credentials and try again.',
+
+        // QR Code
+        'scan_qr_code': 'Scan QR Code',
+        'camera_error': 'Camera Error',
+        'camera_init_failed': 'Camera initialization failed',
+        'qr_code_invalid_length': 'QR code must be exactly 10 characters long',
+        'error_communicating_server': 'Error communicating with server',
+        'scanning': 'Scanning..',
+        'valid': 'VALID',
+        'scan_again': 'Scan Again',
+
+        // Posts
+        'what_on_mind': 'What is on your mind?',
+        'post': 'Post',
+        'no_posts_yet': 'No posts yet',
+
+        // Settings - Avatar & Wallpaper
+        'update_avatar': 'Update Avatar',
+        'update_wallpaper': 'Update Wallpaper',
+        'take_photo': 'Take Photo',
+        'choose_from_gallery': 'Choose from Gallery',
+
+        // Settings - Password
+        'password_current': 'Password (Current)',
+        'password_reset_sent': 'Password reset instructions have been sent to your email',
+
+        // Settings - PIN
+        'pin_code': 'PIN code',
+        'pin_code_current': 'PIN code (Current)',
+        'pin_code_new': 'PIN code (New)',
+        'confirm_pin_code': 'Confirm PIN code',
+        'save_pin_code': 'Save PIN code',
+        'pin_update_success': 'PIN updated successfully',
+        'pin_update_error': 'Error updating PIN',
+        'pin_confirmation_mismatch': 'New PIN and confirmation do not match',
+
+        // Settings - Security Questions
+        'security_questions': 'Security Questions',
+        'security_question_1': 'Security Question 1',
+        'security_question_2': 'Security Question 2',
+        'answer_1': 'Answer 1',
+        'answer_2': 'Answer 2',
+        'save_security_questions': 'Save Security Questions',
+        'security_questions_update_success': 'Security questions updated successfully',
+        'security_questions_update_error': 'Error updating security questions',
+
+        // Settings - Preferences
+        'preferences': 'Preferences',
+        'enable_notifications': 'Enable Notifications',
+        'private_profile': 'Private Profile',
+        'biometric_lock': 'Biometric Lock',
+
+        // Settings - Appearance
+        'appearance': 'Appearance',
+        'theme_mode': 'Theme Mode',
+        'choose_theme_mode': 'Choose Theme Mode',
+        'system_recommended': 'System (Recommended)',
+        'automatically_follow_device_theme': 'Automatically follow device theme',
+        'light': 'Light',
+        'always_use_light_theme': 'Always use light theme',
+        'dark': 'Dark',
+        'always_use_dark_theme': 'Always use dark theme',
+
+        // Profile
+        'profile_update_success': 'Profile updated successfully',
+        'profile_update_error': 'Error updating profile',
+
+        // Error messages
+        'server_error_occurred': 'Server error occurred',
+        'invalid_verification_code': 'Invalid verification code. Please try again.',
+        'verification_code_too_short': 'Verification code must be at least 4 characters',
       }
     };
   }

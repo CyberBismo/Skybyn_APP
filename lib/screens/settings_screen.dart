@@ -170,27 +170,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final source = await showDialog<ImageSource>(
       context: context,
       builder: (context) => SimpleDialog(
-        title: Text(isAvatar ? 'Update Avatar' : 'Update Wallpaper'),
+        title: Text(isAvatar ? TranslationKeys.updateAvatar.tr : TranslationKeys.updateWallpaper.tr),
         children: [
           SimpleDialogOption(
             onPressed: () => Navigator.of(context).pop(ImageSource.camera),
             padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
-            child: const Row(
+            child: Row(
               children: [
                 Icon(Icons.camera_alt, size: 28),
                 SizedBox(width: 16),
-                Text('Take Photo', style: TextStyle(fontSize: 18)),
+                Text(TranslationKeys.takePhoto.tr, style: TextStyle(fontSize: 18)),
               ],
             ),
           ),
           SimpleDialogOption(
             onPressed: () => Navigator.of(context).pop(ImageSource.gallery),
             padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
-            child: const Row(
+            child: Row(
               children: [
                 Icon(Icons.photo_library, size: 28),
                 SizedBox(width: 16),
-                Text('Choose from Gallery', style: TextStyle(fontSize: 18)),
+                Text(TranslationKeys.chooseFromGallery.tr, style: TextStyle(fontSize: 18)),
               ],
             ),
           ),
@@ -318,8 +318,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
       if (_newPinController.text != _confirmPinController.text) {
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('New PIN and confirmation do not match'),
+          SnackBar(
+            content: Text(TranslationKeys.pinConfirmationMismatch.tr),
             backgroundColor: Colors.red,
           ),
         );
@@ -368,8 +368,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
       });
       Navigator.pop(context);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('PIN updated successfully'),
+        SnackBar(
+          content: Text(TranslationKeys.pinUpdateSuccess.tr),
           backgroundColor: Colors.green,
         ),
       );
@@ -448,8 +448,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
       // Show success message
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Profile updated successfully'),
+        SnackBar(
+          content: Text(TranslationKeys.profileUpdateSuccess.tr),
           backgroundColor: Colors.green,
         ),
       );
@@ -460,7 +460,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       // Show error message
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Error updating profile: ${e.toString()}'),
+          content: Text('${TranslationKeys.profileUpdateError.tr}: ${e.toString()}'),
           backgroundColor: Colors.red,
         ),
       );
@@ -515,8 +515,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
       });
       Navigator.pop(context);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Security questions updated successfully'),
+        SnackBar(
+          content: Text(TranslationKeys.securityQuestionsUpdateSuccess.tr),
           backgroundColor: Colors.green,
         ),
       );
@@ -811,7 +811,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       obscureText: true,
                       style: TextStyle(color: AppColors.getTextColor(context)),
                       decoration: InputDecoration(
-                        labelText: '${TranslationKeys.password.tr} (Current)',
+                        labelText: TranslationKeys.passwordCurrent.tr,
                         labelStyle: TextStyle(color: AppColors.getSecondaryTextColor(context)),
                         enabledBorder: UnderlineInputBorder(
                           borderSide: BorderSide(color: AppColors.getSecondaryTextColor(context).withOpacity(0.3)),
@@ -921,7 +921,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           obscureText: true,
                           style: TextStyle(color: AppColors.getTextColor(context)),
                           decoration: InputDecoration(
-                            labelText: '${TranslationKeys.pinCode.tr} (Current)',
+                            labelText: TranslationKeys.pinCodeCurrent.tr,
                             labelStyle: TextStyle(color: AppColors.getSecondaryTextColor(context)),
                             enabledBorder: UnderlineInputBorder(
                               borderSide: BorderSide(color: AppColors.getSecondaryTextColor(context).withOpacity(0.3)),
@@ -942,7 +942,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         obscureText: true,
                         style: TextStyle(color: AppColors.getTextColor(context)),
                         decoration: InputDecoration(
-                          labelText: '${TranslationKeys.pinCode.tr} (New)',
+                          labelText: TranslationKeys.pinCodeNew.tr,
                           labelStyle: TextStyle(color: AppColors.getSecondaryTextColor(context)),
                           enabledBorder: UnderlineInputBorder(
                             borderSide: BorderSide(color: AppColors.getSecondaryTextColor(context).withOpacity(0.3)),
@@ -962,7 +962,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         obscureText: true,
                         style: TextStyle(color: AppColors.getTextColor(context)),
                         decoration: InputDecoration(
-                          labelText: '${TranslationKeys.confirm.tr} ${TranslationKeys.pinCode.tr}',
+                          labelText: TranslationKeys.confirmPinCode.tr,
                           labelStyle: TextStyle(color: AppColors.getSecondaryTextColor(context)),
                           enabledBorder: UnderlineInputBorder(
                             borderSide: BorderSide(color: AppColors.getSecondaryTextColor(context).withOpacity(0.3)),
@@ -988,7 +988,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               borderRadius: BorderRadius.circular(8),
                             ),
                           ),
-                          child: Text('${TranslationKeys.save.tr} ${TranslationKeys.pinCode.tr}'),
+                          child: Text(TranslationKeys.savePinCode.tr),
                         ),
                       ),
                     ],
@@ -996,7 +996,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
                 // Security Questions Section
                 _buildExpansionTile(
-                  title: '${TranslationKeys.security.tr} Questions',
+                  title: TranslationKeys.securityQuestions.tr,
                   tileColor: transparentColor,
                   children: [
                     TextField(
@@ -1004,7 +1004,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       focusNode: _secQOneFocusNode,
                       style: TextStyle(color: AppColors.getTextColor(context)),
                       decoration: InputDecoration(
-                        labelText: '${TranslationKeys.security.tr} Question 1',
+                        labelText: TranslationKeys.securityQuestion1.tr,
                         labelStyle: TextStyle(color: AppColors.getSecondaryTextColor(context)),
                         enabledBorder: UnderlineInputBorder(
                           borderSide: BorderSide(color: AppColors.getSecondaryTextColor(context).withOpacity(0.3)),
@@ -1023,7 +1023,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       focusNode: _secAOneFocusNode,
                       style: TextStyle(color: AppColors.getTextColor(context)),
                       decoration: InputDecoration(
-                        labelText: 'Answer 1',
+                        labelText: TranslationKeys.answer1.tr,
                         labelStyle: TextStyle(color: AppColors.getSecondaryTextColor(context)),
                         enabledBorder: UnderlineInputBorder(
                           borderSide: BorderSide(color: AppColors.getSecondaryTextColor(context).withOpacity(0.3)),
@@ -1061,7 +1061,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       focusNode: _secATwoFocusNode,
                       style: TextStyle(color: AppColors.getTextColor(context)),
                       decoration: InputDecoration(
-                        labelText: 'Answer 2',
+                        labelText: TranslationKeys.answer2.tr,
                         labelStyle: TextStyle(color: AppColors.getSecondaryTextColor(context)),
                         enabledBorder: UnderlineInputBorder(
                           borderSide: BorderSide(color: AppColors.getSecondaryTextColor(context).withOpacity(0.3)),
@@ -1087,19 +1087,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             borderRadius: BorderRadius.circular(8),
                           ),
                         ),
-                        child: Text('${TranslationKeys.save.tr} ${TranslationKeys.security.tr} Questions'),
+                        child: Text(TranslationKeys.saveSecurityQuestions.tr),
                       ),
                     ),
                   ],
                 ),
                 // Settings Section
                 _buildExpansionTile(
-                  title: 'Preferences',
+                  title: TranslationKeys.preferences.tr,
                   tileColor: transparentColor,
                   children: [
                     SwitchListTile(
                       title: Text(
-                        'Enable ${TranslationKeys.notifications.tr}',
+                        TranslationKeys.enableNotifications.tr,
                         style: TextStyle(color: AppColors.getTextColor(context)),
                       ),
                       value: notificationsEnabled,
@@ -1112,7 +1112,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
                     SwitchListTile(
                       title: Text(
-                        'Private ${TranslationKeys.profile.tr}',
+                        TranslationKeys.privateProfile.tr,
                         style: TextStyle(color: AppColors.getTextColor(context)),
                       ),
                       value: isPrivate,
@@ -1125,7 +1125,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
                     SwitchListTile(
                       title: Text(
-                        'Biometric Lock',
+                        TranslationKeys.biometricLock.tr,
                         style: TextStyle(color: AppColors.getTextColor(context)),
                       ),
                       value: _biometricEnabled,
@@ -1153,12 +1153,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 Consumer<ThemeService>(
                   builder: (context, themeService, child) {
                     return _buildExpansionTile(
-                      title: 'Appearance',
+                      title: TranslationKeys.appearance.tr,
                       tileColor: transparentColor,
                       children: [
                         ListTile(
                           title: Text(
-                            '${TranslationKeys.theme.tr} Mode',
+                            TranslationKeys.themeMode.tr,
                             style: TextStyle(color: AppColors.getTextColor(context)),
                           ),
                           subtitle: Text(
@@ -1237,7 +1237,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         return AlertDialog(
           backgroundColor: Colors.grey[900],
           title: Text(
-            'Choose ${TranslationKeys.theme.tr} Mode',
+            TranslationKeys.chooseThemeMode.tr,
             style: TextStyle(color: AppColors.getTextColor(context)),
           ),
           content: Column(
@@ -1245,11 +1245,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
             children: [
               RadioListTile<ThemeMode>(
                 title: Text(
-                  'System (Recommended)',
+                  TranslationKeys.systemRecommended.tr,
                   style: TextStyle(color: AppColors.getTextColor(context)),
                 ),
                 subtitle: Text(
-                  'Automatically follow device theme',
+                  TranslationKeys.automaticallyFollowDeviceTheme.tr,
                   style: TextStyle(color: AppColors.getSecondaryTextColor(context)),
                 ),
                 value: ThemeMode.system,
@@ -1264,11 +1264,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
               RadioListTile<ThemeMode>(
                 title: Text(
-                  'Light',
+                  TranslationKeys.light.tr,
                   style: TextStyle(color: AppColors.getTextColor(context)),
                 ),
                 subtitle: Text(
-                  'Always use light theme',
+                  TranslationKeys.alwaysUseLightTheme.tr,
                   style: TextStyle(color: AppColors.getSecondaryTextColor(context)),
                 ),
                 value: ThemeMode.light,
@@ -1283,11 +1283,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
               RadioListTile<ThemeMode>(
                 title: Text(
-                  'Dark',
+                  TranslationKeys.dark.tr,
                   style: TextStyle(color: AppColors.getTextColor(context)),
                 ),
                 subtitle: Text(
-                  'Always use dark theme',
+                  TranslationKeys.alwaysUseDarkTheme.tr,
                   style: TextStyle(color: AppColors.getSecondaryTextColor(context)),
                 ),
                 value: ThemeMode.dark,
@@ -1306,7 +1306,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
               child: Text(
-                'Cancel',
+                TranslationKeys.cancel.tr,
                 style: TextStyle(color: AppColors.getSecondaryTextColor(context)),
               ),
             ),
