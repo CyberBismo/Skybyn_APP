@@ -6,8 +6,8 @@ import 'dart:ui';
 import '../services/post_service.dart';
 import '../services/auth_service.dart';
 import '../models/post.dart';
-import '../services/translation_service.dart';
 import '../utils/translation_keys.dart';
+import '../widgets/translated_text.dart';
 
 class CreatePostScreen extends StatefulWidget {
   final bool isEditing;
@@ -242,9 +242,9 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                             children: [
                               TextButton(
                                 onPressed: _isPosting ? null : () => Navigator.of(context).pop(),
-                                child: const Text(
+                                child: Text(
                                   TranslationKeys.cancel.tr,
-                                  style: TextStyle(color: Colors.white70, fontSize: 16),
+                                  style: const TextStyle(color: Colors.white70, fontSize: 16),
                                 ),
                               ),
                               Container(
