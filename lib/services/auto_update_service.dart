@@ -69,11 +69,9 @@ class AutoUpdateService {
           releaseNotes: data['message']?.toString() ?? '',
           isAvailable: false,
         );
-      } else {
-        debugPrint('Update check failed with status: ${response.statusCode}');
       }
     } catch (e) {
-      debugPrint('Error checking for updates: $e');
+      // Update check failed
     }
     return null;
   }
@@ -86,11 +84,9 @@ class AutoUpdateService {
         final File file = File('${directory.path}/app-update.apk');
         await file.writeAsBytes(response.bodyBytes);
         return true;
-      } else {
-        debugPrint('Download failed with status: ${response.statusCode}');
       }
     } catch (e) {
-      debugPrint('Error downloading update: $e');
+      // Download failed
     }
     return false;
   }
@@ -102,25 +98,21 @@ class AutoUpdateService {
         final PermissionStatus status =
             await Permission.requestInstallPackages.request();
         if (!status.isGranted) {
-          debugPrint('Install permission not granted');
           return false;
         }
 
         final Directory directory = await getApplicationDocumentsDirectory();
         final File file = File('${directory.path}/app-update.apk');
         if (await file.exists()) {
-          debugPrint('APK file found, starting installation...');
           return await _installApk(file.path);
         } else {
-          debugPrint('APK file not found for installation');
           return false;
         }
       } else {
-        debugPrint('APK installation only supported on Android');
         return false;
       }
     } catch (e) {
-      debugPrint('Error installing update: $e');
+      // Installation failed
       return false;
     }
   }
@@ -133,7 +125,6 @@ class AutoUpdateService {
       }
       return false;
     } catch (e) {
-      debugPrint('Error requesting install permission: $e');
       return false;
     }
   }
@@ -146,7 +137,6 @@ class AutoUpdateService {
       }
       return false;
     } catch (e) {
-      debugPrint('Error checking install permission: $e');
       return false;
     }
   }
@@ -161,8 +151,6 @@ class AutoUpdateService {
 
   static Future<bool> _installApk(String apkPath) async {
     try {
-      debugPrint('APK ready for installation: $apkPath');
-
       // For now, we'll just return true as the APK is downloaded
       // In a production app, you would use a package like open_file or
       // implement a platform channel to open the APK file
@@ -171,10 +159,8 @@ class AutoUpdateService {
       // TODO: Implement proper APK opening using open_file package
       // or platform channel to open the APK file
 
-      debugPrint('APK installation ready - user needs to install manually');
       return true;
     } catch (e) {
-      debugPrint('Error preparing APK for installation: $e');
       return false;
     }
   }

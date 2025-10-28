@@ -20,7 +20,7 @@ class AuthService {
       try {
         _prefs = await SharedPreferences.getInstance();
       } catch (e) {
-        print('Error initializing SharedPreferences: $e');
+        print('❌ Error initializing SharedPreferences: $e');
         rethrow;
       }
     }
@@ -28,24 +28,16 @@ class AuthService {
 
   Future<Map<String, dynamic>> login(String username, String password) async {
     try {
-      print('Attempting login for user: $username');
-
       final deviceService = DeviceService();
       final deviceInfo = await deviceService.getDeviceInfo();
 
-      print('Device info retrieved successfully');
-
       final response = await http.post(Uri.parse(ApiConstants.login), body: {'user': username, 'password': password, 'deviceInfo': json.encode(deviceInfo)});
-
-      print('Login response status: ${response.statusCode}');
-      print('Login response body: ${response.body}');
 
       // Parse response regardless of status code to get actual API message
       final data = json.decode(response.body);
 
       if (response.statusCode == 200) {
         if (data['responseCode'] == '1') {
-          print('Login successful, storing user data');
           await initPrefs();
           // Convert userID to string to avoid type mismatch
           await _prefs?.setString(userIdKey, data['userID'].toString());
@@ -54,10 +46,8 @@ class AuthService {
           // Try to fetch user profile, but don't fail login if it fails
           try {
             await fetchUserProfile(username);
-            print('✅ [Login] User profile fetched and stored successfully');
           } catch (e) {
-            print('⚠️ [Login] Failed to fetch user profile during login: $e');
-            print('⚠️ [Login] Login will still succeed, profile can be fetched later');
+            print('❌ [Login] Failed to fetch user profile during login: $e');
           }
 
           // Subscribe to user-specific topics after successful login
@@ -65,30 +55,28 @@ class AuthService {
             final firebaseService = FirebaseMessagingService();
             await firebaseService.subscribeToUserTopics();
           } catch (e) {
-            print('⚠️ [Login] Failed to subscribe to user topics: $e');
+            print('❌ [Login] Failed to subscribe to user topics: $e');
           }
 
           return data;
         }
 
-        print('Login failed with response: $data');
+        print('❌ Login failed with response: $data');
         return data;
       } else {
-        print('Server error with status: ${response.statusCode}, response: $data');
+        print('❌ Server error with status: ${response.statusCode}, response: $data');
         // Return the actual API response even for error status codes
         return data;
       }
     } catch (e) {
-      print('Login exception: $e');
+      print('❌ Login exception: $e');
       return {'responseCode': '0', 'message': 'Connection error occurred: ${e.toString()}'};
     }
   }
 
   Future<User?> fetchUserProfile(String username) async {
     try {
-      print('🔍 [Profile] Fetching user profile for username: $username');
       final userId = await getStoredUserId();
-      print('🔍 [Profile] Retrieved userId from storage: $userId');
       final requestBody = <String, String>{'userID': userId!};
 
       // Get FCM token if available
@@ -96,49 +84,36 @@ class AuthService {
         final firebaseService = FirebaseMessagingService();
         if (firebaseService.isInitialized && firebaseService.fcmToken != null) {
           requestBody['fcmToken'] = firebaseService.fcmToken!;
-          print('✅ [Profile] FCM token included in profile request');
 
           // Get device ID
           final deviceService = DeviceService();
           final deviceInfo = await deviceService.getDeviceInfo();
           requestBody['deviceId'] = deviceInfo['id'] ?? '';
-          print('✅ [Profile] Device ID included in profile request');
-        } else {
-          print('⚠️ [Profile] FCM token not available');
         }
       } catch (e) {
-        print('⚠️ [Profile] Could not get FCM token: $e');
+        print('❌ [Profile] Could not get FCM token: $e');
       }
 
-      print('🔍 [Profile] Profile API request body:');
-      print(requestBody);
       final response = await http.post(Uri.parse(ApiConstants.profile), body: requestBody);
-      print('Profile API response status: ${response.statusCode}');
-      print('Profile API response body: ${response.body}');
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        print('Parsed profile API data:');
-        print(data);
         if (data['responseCode'] == '1') {
           // Manually add the userID to the map before creating the User object
           data['id'] = userId.toString(); // Ensure it's a string
           final user = User.fromJson(data);
-          print('🔍 [Profile] User object created from profile API:');
-          print(user);
           // Store user profile locally
           await initPrefs();
           await _prefs?.setString(userProfileKey, json.encode(user.toJson()));
-          print('🔍 [Profile] User profile stored successfully in SharedPreferences');
           return user;
         } else {
-          print('Profile API did not return responseCode 1');
+          print('❌ Profile API did not return responseCode 1');
         }
       } else {
-        print('Profile API returned non-200 status');
+        print('❌ Profile API returned non-200 status: ${response.statusCode}');
       }
       return null;
     } catch (e) {
-      print('Error fetching user profile: ${e.toString()}');
+      print('❌ Error fetching user profile: ${e.toString()}');
       return null;
     }
   }
@@ -146,32 +121,27 @@ class AuthService {
   Future<String?> getStoredUserId() async {
     await initPrefs();
     final userId = _prefs?.getString(userIdKey);
-    print('🔍 [Auth] getStoredUserId() returned: $userId');
     return userId;
   }
 
   Future<String?> getStoredUsername() async {
     await initPrefs();
     final username = _prefs?.getString(usernameKey);
-    print('🔍 [Auth] getStoredUsername() returned: $username');
     return username;
   }
 
   Future<User?> getStoredUserProfile() async {
     await initPrefs();
     final profileJson = _prefs?.getString(userProfileKey);
-    print('🔍 [Auth] getStoredUserProfile() - profileJson length: ${profileJson?.length ?? 0}');
     if (profileJson != null) {
       try {
         final user = User.fromJson(json.decode(profileJson));
-        print('🔍 [Auth] getStoredUserProfile() successfully parsed user: ${user.toString()}');
         return user;
       } catch (e) {
-        print('🔍 [Auth] getStoredUserProfile() failed to parse user: $e');
+        print('❌ [Auth] getStoredUserProfile() failed to parse user: $e');
         return null;
       }
     }
-    print('🔍 [Auth] getStoredUserProfile() - no profile data found');
     return null;
   }
 
@@ -196,9 +166,8 @@ class AuthService {
       for (final topic in userTopics) {
         await firebaseService.unsubscribeFromTopic(topic);
       }
-      print('✅ [Logout] Unsubscribed from user-specific topics');
     } catch (e) {
-      print('⚠️ [Logout] Failed to unsubscribe from user topics: $e');
+      print('❌ [Logout] Failed to unsubscribe from user topics: $e');
     }
   }
 
@@ -233,7 +202,7 @@ class AuthService {
       }
       return null;
     } catch (e) {
-      print('Error fetching any user profile: ${e.toString()}');
+      print('❌ Error fetching any user profile: ${e.toString()}');
       return null;
     }
   }

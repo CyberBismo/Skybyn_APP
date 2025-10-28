@@ -93,7 +93,7 @@ class TranslationService {
         await _autoDetectLanguage();
       }
     } catch (e) {
-      print('Error loading saved language: $e');
+      print('❌ Error loading saved language: $e');
       _currentLanguage = 'en'; // Fallback to English
     }
   }
@@ -121,7 +121,7 @@ class TranslationService {
       // Save detected language
       await _saveLanguage(_currentLanguage);
     } catch (e) {
-      print('Error auto-detecting language: $e');
+      print('❌ Error auto-detecting language: $e');
       _currentLanguage = 'en';
     }
   }
@@ -143,11 +143,11 @@ class TranslationService {
               )),
         );
       } else {
-        print('Failed to load translations: ${response.statusCode}');
+        print('❌ Failed to load translations: ${response.statusCode}');
         await _loadFallbackTranslations();
       }
     } catch (e) {
-      print('Error loading translations: $e');
+      print('❌ Error loading translations: $e');
       await _loadFallbackTranslations();
     }
   }
@@ -229,7 +229,7 @@ class TranslationService {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('language', languageCode);
     } catch (e) {
-      print('Error saving language: $e');
+      print('❌ Error saving language: $e');
     }
   }
 

@@ -109,7 +109,6 @@ class _HomeScreenState extends State<HomeScreen> {
       }
     });
 
-    print('🔧 [HomeScreen] Connecting to WebSocket...');
     _webSocketService.connect(
       onAppUpdate: _checkForUpdates,
       onNewPost: (Post newPost) {
@@ -124,26 +123,14 @@ class _HomeScreenState extends State<HomeScreen> {
       onDeletePost: (String postId) {
         if (mounted) {
           setState(() {
-            print('Attempting to delete post. Received ID: "$postId" (Type: ${postId.runtimeType})');
-            final postIdsInList = _posts.map((p) => 'ID: "${p.id}" (Type: ${p.id.runtimeType})').join(', ');
-            print('Current post IDs in list: [$postIdsInList]');
-            final initialCount = _posts.length;
             _posts.removeWhere((post) => post.id == postId);
-            final finalCount = _posts.length;
-            if (initialCount == finalCount) {
-              print('Delete failed: No post found with ID "$postId".');
-            } else {
-              print('Delete successful: Post with ID "$postId" removed.');
-            }
           });
         }
       },
       onNewComment: (String postId, String commentId) {
-        print('📥 [WebSocket] Received new comment message: postId=$postId, commentId=$commentId');
         _addCommentToPost(postId, commentId);
       },
       onDeleteComment: (String postId, String commentId) {
-        print('📥 [WebSocket] Received delete comment message: postId=$postId, commentId=$commentId');
         _removeCommentFromPost(postId, commentId);
       },
       onBroadcast: (String message) {
@@ -193,7 +180,6 @@ class _HomeScreenState extends State<HomeScreen> {
         return;
       }
 
-      print('🔄 Updating post $postId for user $userId');
       final updatedPost = await PostService().fetchPost(postId: postId, userId: userId);
 
       if (mounted) {
@@ -201,9 +187,6 @@ class _HomeScreenState extends State<HomeScreen> {
           final postIndex = _posts.indexWhere((p) => p.id == postId);
           if (postIndex != -1) {
             _posts[postIndex] = updatedPost;
-            print('✅ Successfully updated post $postId in feed');
-          } else {
-            print('⚠️ Post $postId not found in current feed, cannot update');
           }
         });
       }
@@ -212,10 +195,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
       // If the error is due to HTML warnings mixed with JSON, try a different approach
       if (e.toString().contains('HTML without JSON') || e.toString().contains('invalid response format')) {
-        print('🔄 Attempting to refresh entire feed due to API response format issues');
         try {
           await _loadData();
-          print('✅ Successfully refreshed feed as fallback');
         } catch (refreshError) {
           print('❌ Feed refresh also failed: $refreshError');
         }
@@ -236,7 +217,6 @@ class _HomeScreenState extends State<HomeScreen> {
           // Add the new post to the beginning of the list
           _posts.insert(0, newPost);
         });
-        print('Added new post to feed: ${newPost.content}');
       }
     } catch (e) {
       print('Error fetching new post $postId: $e');
@@ -257,7 +237,6 @@ class _HomeScreenState extends State<HomeScreen> {
       // Remove the deleted post from the list
       _posts.removeWhere((post) => post.id == postId);
     });
-    print('Removed deleted post from feed: $postId');
   }
 
   Future<void> _loadData() async {
@@ -271,19 +250,14 @@ class _HomeScreenState extends State<HomeScreen> {
           _currentUserId = userId;
         });
 
-        print('Attempting to fetch posts from timeline API...');
         try {
           _posts = await PostService().fetchPostsForUser(userId: userId).timeout(const Duration(seconds: 15));
-          print('Timeline API returned ${_posts.length} posts');
         } catch (timelineError) {
-          print('Timeline API Error: $timelineError');
-          print('No posts available due to API error');
           _posts = [];
         }
 
         // If no posts returned from API, show empty state
         if (_posts.isEmpty) {
-          print('No posts returned from timeline API, showing empty state');
           _posts = [];
         }
       } else {
@@ -294,31 +268,24 @@ class _HomeScreenState extends State<HomeScreen> {
       if (mounted) {
         CustomSnackBar.show(context, 'Error loading data: $e');
       }
-      print('No posts available due to error');
       _posts = [];
     } finally {
       setState(() {
         _isLoading = false;
       });
-      print('Final posts count: ${_posts.length}');
     }
   }
 
   Future<void> _refreshData() async {
-    print('🔄 [HomeScreen] _refreshData() called!');
     try {
       final userId = await _authService.getStoredUserId();
       if (userId != null) {
-        print('🔄 [HomeScreen] Refreshing posts from API for user: $userId');
         final newPosts = await PostService().fetchPostsForUser(userId: userId).timeout(const Duration(seconds: 15));
-
-        print('🔄 [HomeScreen] Got ${newPosts.length} posts from API');
 
         if (mounted) {
           setState(() {
             _posts = newPosts;
           });
-          print('✅ [HomeScreen] setState called, posts updated');
 
           // Show success feedback
           if (newPosts.isNotEmpty) {
@@ -340,12 +307,8 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             );
           }
-        } else {
-          print('⚠️ [HomeScreen] Widget not mounted, cannot update state');
         }
-        print('✅ [HomeScreen] Refresh completed, got ${_posts.length} posts');
       } else {
-        print('❌ [HomeScreen] No user ID found for refresh');
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -454,13 +417,10 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _removeCommentFromPost(String postId, String commentId) {
     setState(() {
-      final postIndex = _posts.indexWhere((p) => p.id == postId);
-      if (postIndex != -1) {
-        _posts[postIndex].commentsList.removeWhere((c) => c.id == commentId);
-        print('✅ Successfully removed comment $commentId from post $postId');
-      } else {
-        print('⚠️ Post $postId not found in current feed, cannot remove comment');
-      }
+        final postIndex = _posts.indexWhere((p) => p.id == postId);
+        if (postIndex != -1) {
+          _posts[postIndex].commentsList.removeWhere((c) => c.id == commentId);
+        }
     });
   }
 
@@ -512,16 +472,12 @@ class _HomeScreenState extends State<HomeScreen> {
         return;
       }
 
-      print('🔄 Adding comment $commentId to post $postId');
-      print('🔄 User ID: $userId');
 
       // Try to fetch the new comment data from the API
       try {
         const url = ApiConstants.getComment;
         final body = {'commentID': commentId, 'userID': userId};
 
-        print('🔄 Making request to: $url');
-        print('🔄 Request body: $body');
 
         final response = await http.post(
           Uri.parse(url),
@@ -532,13 +488,8 @@ class _HomeScreenState extends State<HomeScreen> {
           },
         ).timeout(const Duration(seconds: 10));
 
-        print('🔄 Response status: ${response.statusCode}');
-        print('🔄 Response headers: ${response.headers}');
-        print('🔄 Response body: ${response.body}');
-
         if (response.statusCode == 200) {
           final data = jsonDecode(response.body);
-          print('🔄 Parsed data: $data');
 
           if (data is List && data.isNotEmpty && data.first['responseCode'] == '1') {
             final commentData = data.first;
@@ -556,9 +507,6 @@ class _HomeScreenState extends State<HomeScreen> {
                 if (postIndex != -1) {
                   // Add the new comment to the top of the comment section
                   _posts[postIndex].commentsList.insert(0, comment);
-                  print('✅ Successfully added comment $commentId to post $postId at top');
-                } else {
-                  print('⚠️ Post $postId not found in current feed, cannot add comment');
                 }
               });
             }
@@ -574,7 +522,6 @@ class _HomeScreenState extends State<HomeScreen> {
       }
 
       // Fallback: Update the entire post to get the latest comments
-      print('🔄 Falling back to updating entire post $postId');
       await _updatePost(postId);
     } catch (e) {
       print('❌ Error adding comment $commentId to post $postId: $e');
@@ -653,7 +600,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
               // If a post was created, fetch the specific post
               if (postId != null) {
-                print('Post created with ID: $postId, fetching post details...');
                 await _fetchAndAddPost(postId);
               }
             },
@@ -670,7 +616,6 @@ class _HomeScreenState extends State<HomeScreen> {
             else if (_posts.isEmpty)
               RefreshIndicator(
                 onRefresh: () async {
-                  print('🔄 [HomeScreen] RefreshIndicator onRefresh called (empty state)!');
                   await _refreshData();
                 },
                 color: Colors.white, // White refresh indicator to match theme
@@ -693,7 +638,6 @@ class _HomeScreenState extends State<HomeScreen> {
                             const SizedBox(height: 20),
                             ElevatedButton(
                               onPressed: () {
-                                print('🧪 [Test] Manual SnackBar test');
                                 _scaffoldMessengerKey.currentState?.showSnackBar(
                                   const SnackBar(
                                     content: Text('🧪 Test SnackBar'),
@@ -708,7 +652,6 @@ class _HomeScreenState extends State<HomeScreen> {
                             const SizedBox(height: 10),
                             ElevatedButton(
                               onPressed: () {
-                                print('🧪 [Test] Manual notification test');
                                 final notificationService = NotificationService();
                                 notificationService
                                     .showNotification(
@@ -717,9 +660,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                   payload: 'test',
                                 )
                                     .then((_) {
-                                  print('🧪 [Test] Manual notification completed');
                                 }).catchError((error) {
-                                  print('🧪 [Test] Manual notification error: $error');
                                 });
                               },
                               child: const Text('Test Notification'),
@@ -727,7 +668,6 @@ class _HomeScreenState extends State<HomeScreen> {
                             const SizedBox(height: 10),
                             ElevatedButton(
                               onPressed: () {
-                                print('🧪 [Test] Manual refresh test');
                                 _refreshData();
                               },
                               child: const Text('Test Refresh'),
@@ -742,7 +682,6 @@ class _HomeScreenState extends State<HomeScreen> {
             else
               RefreshIndicator(
                 onRefresh: () async {
-                  print('🔄 [HomeScreen] RefreshIndicator onRefresh called!');
                   await _refreshData();
                 },
                 color: Colors.white, // White refresh indicator to match theme
@@ -854,7 +793,6 @@ class _HomeScreenState extends State<HomeScreen> {
               },
               onSearch: (query) {
                 // TODO: Implement search functionality
-                print('Search query: $query');
                 setState(() {
                   _showSearchForm = false;
                 });

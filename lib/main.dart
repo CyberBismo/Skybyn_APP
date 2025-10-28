@@ -20,8 +20,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 Future<void> main() async {
   // Gate all print calls behind a debug flag using Zone
-  // Temporarily enable logging for debugging
-  const bool enableLogging = true; // bool.fromEnvironment('SKYBYN_DEBUG_LOGS', defaultValue: false);
+  // Logging disabled except for errors
+  const bool enableLogging = false;
 
   runZonedGuarded(
     () async {
@@ -68,14 +68,9 @@ Future<void> main() async {
 
 Future<void> _initializeFirebase() async {
   try {
-    print('🔄 [Firebase] Starting Firebase initialization...');
-
     // Check if Firebase is already initialized
     if (Firebase.apps.isEmpty) {
       await Firebase.initializeApp();
-      print('✅ [Firebase] Firebase initialized successfully');
-    } else {
-      print('ℹ️ [Firebase] Firebase already initialized, skipping...');
     }
 
     // Initialize Firebase Messaging for background notifications (Android only)
@@ -83,7 +78,6 @@ Future<void> _initializeFirebase() async {
       try {
         final firebaseMessagingService = FirebaseMessagingService();
         await firebaseMessagingService.initialize();
-        print('✅ [Firebase] Firebase Messaging initialized for background notifications');
 
         // Auto-register FCM token when app opens if user is logged in
         firebaseMessagingService.autoRegisterTokenOnAppOpen();
@@ -91,7 +85,7 @@ Future<void> _initializeFirebase() async {
         print('❌ [Firebase] Firebase Messaging initialization failed: $e');
       }
     } else {
-      print('ℹ️ [Firebase] Firebase Messaging skipped for iOS (using WebSocket instead)');
+      // iOS uses WebSocket instead
     }
   } catch (e) {
     print('❌ [Firebase] Firebase initialization failed: $e');
@@ -132,9 +126,8 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       // Check for updates after a delay
       if (Platform.isAndroid) {
         Future.delayed(const Duration(seconds: 5), () {
-          // Note: Context not available during app startup
-          // Updates will be checked when user manually checks or when context is available
-          print('ℹ️ [AutoUpdate] Skipping startup update check - no context available');
+      // Note: Context not available during app startup
+      // Updates will be checked when user manually checks or when context is available
         });
       }
     } catch (e) {
@@ -155,20 +148,16 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
 
     switch (state) {
       case AppLifecycleState.resumed:
-        print('🔄 App resumed');
         _isAppInForeground = true;
         break;
       case AppLifecycleState.paused:
       case AppLifecycleState.inactive:
-        print('🔄 App paused/inactive');
         _isAppInForeground = false;
         break;
       case AppLifecycleState.detached:
-        print('🔄 App detached - keeping background service running');
         // Don't stop background service when app is detached
         break;
       case AppLifecycleState.hidden:
-        print('🔄 App hidden');
         _isAppInForeground = false;
         break;
     }
@@ -222,7 +211,6 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
           themeMode: themeService.themeMode,
           home: const _InitialScreen(),
           onUnknownRoute: (settings) {
-            print('⚠️ Unknown route: ${settings.name}, redirecting to home');
             return MaterialPageRoute(builder: (context) => const HomeScreen());
           },
           builder: (context, child) {
@@ -261,68 +249,47 @@ class __InitialScreenState extends State<_InitialScreen> with TickerProviderStat
 
     _fadeAnimation = Tween<double>(begin: 1.0, end: 0.0).animate(CurvedAnimation(parent: _fadeController, curve: Curves.easeOut));
 
-    print('🚀 [Splash] InitialScreen initState called');
     _checkAuthStatus();
   }
 
   Future<void> _checkAuthStatus() async {
-    print('🔍 [Auth] Starting authentication check...');
-
     // Add a small delay to ensure the UI is ready
     await Future.delayed(const Duration(milliseconds: 500));
 
     try {
-      // Debug: Check what's actually stored
       await _authService.initPrefs();
-      final prefs = await SharedPreferences.getInstance();
-      final allKeys = prefs.getKeys();
-      print('🔍 [Auth] All stored keys: $allKeys');
-
       final userId = await _authService.getStoredUserId();
       final userProfile = await _authService.getStoredUserProfile();
-
-      print('🔍 [Auth] User ID: $userId');
-      print('🔍 [Auth] User Profile: $userProfile');
 
       if (mounted) {
         if (userId != null) {
           if (userProfile != null) {
-            print('🔍 [Auth] User is logged in with profile, navigating to home screen');
             Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (context) => const HomeScreen()));
           } else {
-            print('🔍 [Auth] User ID found but no profile, attempting to fetch profile...');
             // Try to fetch the profile again
             try {
               final username = await _authService.getStoredUsername();
               if (username != null) {
                 final profile = await _authService.fetchUserProfile(username);
                 if (profile != null) {
-                  print('🔍 [Auth] Profile fetched successfully, navigating to home screen');
                   Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (context) => const HomeScreen()));
                 } else {
-                  print('🔍 [Auth] Failed to fetch profile, navigating to login screen');
                   Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (context) => const LoginScreen()));
                 }
               } else {
-                print('🔍 [Auth] No username found, navigating to login screen');
                 Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (context) => const LoginScreen()));
               }
             } catch (e) {
-              print('🔍 [Auth] Error fetching profile: $e, navigating to login screen');
               Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (context) => const LoginScreen()));
             }
           }
         } else {
-          print('🔍 [Auth] User is not logged in, navigating to login screen');
           Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (context) => const LoginScreen()));
         }
-      } else {
-        print('🔍 [Auth] Widget not mounted, skipping navigation');
       }
     } catch (e) {
       print('❌ [Auth] Error during authentication check: $e');
       if (mounted) {
-        print('🔍 [Auth] Navigating to login screen due to error');
         Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (context) => const LoginScreen()));
       }
     }
