@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:ui';
-import '../services/auth_service.dart';
 import '../widgets/background_gradient.dart';
 import '../widgets/app_colors.dart';
-import '../services/translation_service.dart';
 import '../utils/translation_keys.dart';
 import '../widgets/translated_text.dart';
 
@@ -19,7 +17,6 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   final TextEditingController _emailController = TextEditingController();
   final FocusNode _usernameFocusNode = FocusNode();
   final FocusNode _emailFocusNode = FocusNode();
-  final AuthService _authService = AuthService();
   bool _isLoading = false;
   String? _errorMessage;
   String? _successMessage;
@@ -315,7 +312,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                                               valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                                             ),
                                           )
-                                        : const Row(
+                                        : Row(
                                             mainAxisAlignment: MainAxisAlignment.center,
                                             children: [
                                               Icon(
@@ -377,7 +374,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                                   },
                                   child: Container(
                                     padding: const EdgeInsets.symmetric(vertical: 8),
-                                    child: const Center(
+                                    child: Center(
                                       child: Row(
                                         mainAxisAlignment: MainAxisAlignment.center,
                                         children: [
@@ -388,7 +385,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                                           ),
                                           SizedBox(width: 6),
                                           TranslatedText(
-                                            TranslationKeys.goBack,
+                                            TranslationKeys.back,
                                             style: TextStyle(
                                               fontSize: 14,
                                               fontWeight: FontWeight.w600,
