@@ -12,6 +12,8 @@ import android.util.Log
 import java.util.concurrent.Executors
 import java.util.concurrent.ScheduledExecutorService
 import java.util.concurrent.TimeUnit
+import android.os.Handler
+import android.os.Looper
 
 class BackgroundService : Service() {
     private val NOTIFICATION_ID = 1001
@@ -34,6 +36,16 @@ class BackgroundService : Service() {
             startForeground(NOTIFICATION_ID, createNotification())
             startBackgroundTasks()
             isRunning = true
+            
+            // Remove notification after 30 seconds
+            Handler(Looper.getMainLooper()).postDelayed({
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                    stopForeground(STOP_FOREGROUND_REMOVE)
+                } else {
+                    @Suppress("DEPRECATION")
+                    stopForeground(true)
+                }
+            }, 30000) // 30 seconds
         }
         
         return START_STICKY // Restart service if killed
@@ -56,7 +68,7 @@ class BackgroundService : Service() {
                 CHANNEL_NAME,
                 NotificationManager.IMPORTANCE_LOW
             ).apply {
-                description = "Keeps Skybyn running in background"
+                description = "" // "Keeps Skybyn running in background"
                 setShowBadge(false)
             }
             
@@ -77,11 +89,11 @@ class BackgroundService : Service() {
 
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("Skybyn")
-            .setContentText("Running in background")
+            .setContentText("")
             .setSmallIcon(R.drawable.notification_icon)
             .setContentIntent(pendingIntent)
             .setOngoing(true)
-            .setSilent(true)
+            .setSilent(false)
             .build()
     }
 
@@ -91,9 +103,8 @@ class BackgroundService : Service() {
         // Schedule periodic task to keep service alive
         executor?.scheduleAtFixedRate({
             try {
-                Log.d("BackgroundService", "Background service is running")
                 // Here you could implement actual background tasks
-                // For now, we just log that the service is running
+                // Service heartbeat removed to reduce log noise
             } catch (e: Exception) {
                 Log.e("BackgroundService", "Error in background task: ${e.message}")
             }
