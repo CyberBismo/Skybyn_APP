@@ -92,7 +92,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                           children: [
                             TranslatedText(
                               'intro',
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 24,
                                 fontWeight: FontWeight.w300,
                                 color: Colors.white,
@@ -315,15 +315,15 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                                         : Row(
                                             mainAxisAlignment: MainAxisAlignment.center,
                                             children: [
-                                              Icon(
+                                              const Icon(
                                                 Icons.email_outlined,
                                                 color: Colors.white,
                                                 size: 20,
                                               ),
-                                              SizedBox(width: 8),
+                                              const SizedBox(width: 8),
                                               Text(
                                                 TranslationKeys.requestPwReset.tr,
-                                                style: TextStyle(
+                                                style: const TextStyle(
                                                   fontSize: 18,
                                                   fontWeight: FontWeight.w600,
                                                   color: Colors.white,
@@ -374,7 +374,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                                   },
                                   child: Container(
                                     padding: const EdgeInsets.symmetric(vertical: 8),
-                                    child: Center(
+                                    child: const Center(
                                       child: Row(
                                         mainAxisAlignment: MainAxisAlignment.center,
                                         children: [

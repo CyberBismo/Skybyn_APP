@@ -177,9 +177,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
             padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
             child: Row(
               children: [
-                Icon(Icons.camera_alt, size: 28),
-                SizedBox(width: 16),
-                Text(TranslationKeys.takePhoto.tr, style: TextStyle(fontSize: 18)),
+                const Icon(Icons.camera_alt, size: 28),
+                const SizedBox(width: 16),
+                Text(TranslationKeys.takePhoto.tr, style: const TextStyle(fontSize: 18)),
               ],
             ),
           ),
@@ -188,9 +188,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
             padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
             child: Row(
               children: [
-                Icon(Icons.photo_library, size: 28),
-                SizedBox(width: 16),
-                Text(TranslationKeys.chooseFromGallery.tr, style: TextStyle(fontSize: 18)),
+                const Icon(Icons.photo_library, size: 28),
+                const SizedBox(width: 16),
+                Text(TranslationKeys.chooseFromGallery.tr, style: const TextStyle(fontSize: 18)),
               ],
             ),
           ),
@@ -1357,7 +1357,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             listenable: translationService,
             builder: (context, child) {
               return DropdownButtonFormField<String>(
-                value: translationService.currentLanguage,
+                initialValue: translationService.currentLanguage,
                 items: TranslationService.supportedLanguages.map((languageCode) {
                   final languageName = translationService.getLanguageName(languageCode);
                   final flagEmoji = _getFlagEmoji(languageCode);

@@ -96,7 +96,7 @@ class FirebaseMessagingService {
         } catch (e) {
           // APN might not be configured - skip iOS notification setup
           print('⚠️ [FCM] iOS notification setup failed (APN not configured): $e');
-          throw e; // Re-throw to skip rest of initialization
+          rethrow; // Re-throw to skip rest of initialization
         }
       }
 

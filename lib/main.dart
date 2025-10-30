@@ -16,7 +16,6 @@ import 'services/websocket_service.dart';
 import 'services/firebase_messaging_service.dart';
 import 'services/translation_service.dart';
 import 'widgets/background_gradient.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 Future<void> main() async {
   // Gate all print calls behind a debug flag using Zone

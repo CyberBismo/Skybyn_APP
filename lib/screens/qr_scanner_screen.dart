@@ -155,7 +155,7 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
         iconTheme: const IconThemeData(color: Colors.white),
         title: Text(
           TranslationKeys.scanQrCode.tr,
-          style: TextStyle(
+          style: const TextStyle(
             color: Colors.white,
             fontWeight: FontWeight.bold,
           ),
