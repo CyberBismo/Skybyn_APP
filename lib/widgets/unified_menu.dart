@@ -163,12 +163,19 @@ class UnifiedMenu {
               },
             ),
             MenuItem(
-              icon: Icons.qr_code,
-              label: 'Auth',
+              icon: Icons.qr_code_scanner,
+              label: 'QR Scanner',
               onTap: () {
                 Navigator.of(context).push(
                   MaterialPageRoute(builder: (context) => const QrScannerScreen()),
                 );
+              },
+            ),
+            MenuItem(
+              icon: Icons.share,
+              label: 'Share App',
+              onTap: () {
+                Share.share('Check out this app: ${ApiConstants.appBase}');
               },
             ),
             MenuItem(
