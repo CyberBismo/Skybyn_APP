@@ -21,6 +21,7 @@ import java.util.Random
 import javax.net.ssl.*
 import java.security.cert.X509Certificate
 import java.security.SecureRandom
+import javax.net.ssl.SSLException
 
 class BackgroundService : Service() {
     private val NOTIFICATION_ID = 1001
@@ -255,6 +256,11 @@ class BackgroundService : Service() {
                 
                 override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
                     Log.e("BackgroundService", "WebSocket failure: ${t.message}")
+                    Log.e("BackgroundService", "WebSocket failure type: ${t.javaClass.name}")
+                    if (t is SSLException || t.cause is SSLException) {
+                        Log.e("BackgroundService", "SSL Exception detected! SSL trust configuration may not be working.")
+                        t.printStackTrace()
+                    }
                     this@BackgroundService.webSocket = null
                     scheduleReconnect()
                 }
