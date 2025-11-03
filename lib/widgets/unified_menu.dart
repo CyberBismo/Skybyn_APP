@@ -4,6 +4,7 @@ import '../screens/home_screen.dart';
 import '../screens/profile_screen.dart';
 import '../screens/settings_screen.dart';
 import '../screens/qr_scanner_screen.dart';
+import '../screens/share_screen.dart';
 import 'app_colors.dart';
 
 /// Menu item definition
@@ -175,7 +176,9 @@ class UnifiedMenu {
               icon: Icons.share,
               label: 'Share App',
               onTap: () {
-                Share.share('Check out this app: ${ApiConstants.appBase}');
+                Navigator.of(context).push(
+                  MaterialPageRoute(builder: (context) => const ShareScreen()),
+                );
               },
             ),
             MenuItem(
