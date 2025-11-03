@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/auto_update_service.dart';
+import 'app_colors.dart';
 
 class UpdateDialog extends StatefulWidget {
   final String currentVersion;
@@ -23,6 +24,13 @@ class _UpdateDialogState extends State<UpdateDialog> {
   bool _isUpdating = false;
   double _updateProgress = 0.0;
   String _updateStatus = '';
+
+  @override
+  void initState() {
+    super.initState();
+    // Mark dialog as showing when it opens
+    AutoUpdateService.setDialogShowing(true);
+  }
 
   Future<void> _installUpdate() async {
     // Check if download URL is available
@@ -102,7 +110,12 @@ class _UpdateDialogState extends State<UpdateDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
     return AlertDialog(
+      backgroundColor: isDark 
+          ? const Color.fromRGBO(36, 59, 85, 1.0) 
+          : Colors.white,
       title: Row(
         children: [
           Icon(
@@ -111,7 +124,13 @@ class _UpdateDialogState extends State<UpdateDialog> {
             size: 28,
           ),
           const SizedBox(width: 12),
-          const Text('Update Available'),
+          Text(
+            'Update Available',
+            style: TextStyle(
+              color: AppColors.getTextColor(context),
+              fontWeight: FontWeight.bold,
+            ),
+          ),
         ],
       ),
       content: Column(
@@ -120,7 +139,10 @@ class _UpdateDialogState extends State<UpdateDialog> {
         children: [
           Text(
             'A new version of Skybyn is available!',
-            style: Theme.of(context).textTheme.bodyLarge,
+            style: TextStyle(
+              color: AppColors.getTextColor(context),
+              fontSize: 16,
+            ),
           ),
           const SizedBox(height: 16),
 
@@ -129,15 +151,18 @@ class _UpdateDialogState extends State<UpdateDialog> {
             children: [
               Text(
                 'Current: ',
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      fontWeight: FontWeight.w500,
-                    ),
+                style: TextStyle(
+                  color: AppColors.getTextColor(context),
+                  fontWeight: FontWeight.w500,
+                  fontSize: 14,
+                ),
               ),
               Text(
                 widget.currentVersion,
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: Colors.white,
-                    ),
+                style: TextStyle(
+                  color: AppColors.getSecondaryTextColor(context),
+                  fontSize: 14,
+                ),
               ),
             ],
           ),
@@ -146,16 +171,19 @@ class _UpdateDialogState extends State<UpdateDialog> {
             children: [
               Text(
                 'Latest: ',
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      fontWeight: FontWeight.w500,
-                    ),
+                style: TextStyle(
+                  color: AppColors.getTextColor(context),
+                  fontWeight: FontWeight.w500,
+                  fontSize: 14,
+                ),
               ),
               Text(
                 widget.latestVersion,
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: Theme.of(context).primaryColor,
-                      fontWeight: FontWeight.bold,
-                    ),
+                style: TextStyle(
+                  color: AppColors.getTextColor(context),
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                ),
               ),
             ],
           ),
@@ -166,20 +194,27 @@ class _UpdateDialogState extends State<UpdateDialog> {
             const SizedBox(height: 16),
             Text(
               'What\'s new:',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    fontWeight: FontWeight.w500,
-                  ),
+              style: TextStyle(
+                color: AppColors.getTextColor(context),
+                fontWeight: FontWeight.w500,
+                fontSize: 14,
+              ),
             ),
             const SizedBox(height: 8),
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.1),
+                color: isDark 
+                    ? Colors.white.withOpacity(0.1)
+                    : Colors.grey.withOpacity(0.1),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Text(
                 widget.releaseNotes!,
-                style: Theme.of(context).textTheme.bodySmall,
+                style: TextStyle(
+                  color: AppColors.getTextColor(context),
+                  fontSize: 12,
+                ),
               ),
             ),
           ],
@@ -189,17 +224,20 @@ class _UpdateDialogState extends State<UpdateDialog> {
             const SizedBox(height: 16),
             LinearProgressIndicator(
               value: _updateProgress,
-              backgroundColor: Colors.white.withOpacity(0.3),
-              valueColor: const AlwaysStoppedAnimation<Color>(
-                Colors.white,
+              backgroundColor: isDark 
+                  ? Colors.white.withOpacity(0.3)
+                  : Colors.grey.withOpacity(0.3),
+              valueColor: AlwaysStoppedAnimation<Color>(
+                Theme.of(context).primaryColor,
               ),
             ),
             const SizedBox(height: 8),
             Text(
               _updateStatus,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Colors.white,
-                  ),
+              style: TextStyle(
+                color: AppColors.getTextColor(context),
+                fontSize: 12,
+              ),
               textAlign: TextAlign.center,
             ),
           ],
@@ -209,16 +247,30 @@ class _UpdateDialogState extends State<UpdateDialog> {
         if (!_isUpdating) ...[
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Ignore'),
+            child: Text(
+              'Ignore',
+              style: TextStyle(
+                color: AppColors.getTextColor(context),
+              ),
+            ),
           ),
           ElevatedButton(
             onPressed: _installUpdate,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Theme.of(context).primaryColor,
+              foregroundColor: Colors.white,
+            ),
             child: const Text('Install'),
           ),
         ] else ...[
-          const TextButton(
+          TextButton(
             onPressed: null,
-            child: Text('Installing...'),
+            child: Text(
+              'Installing...',
+              style: TextStyle(
+                color: AppColors.getHintColor(context),
+              ),
+            ),
           ),
         ],
       ],

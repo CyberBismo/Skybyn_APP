@@ -6,9 +6,52 @@ import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class AutoUpdateService {
   static const String _updateCheckUrl = ApiConstants.appUpdate;
+  static const String _lastShownUpdateVersionKey = 'last_shown_update_version';
+  static const String _lastShownUpdateTimestampKey = 'last_shown_update_timestamp';
+  static bool _isDialogShowing = false;
+  
+  /// Check if update dialog is currently showing
+  static bool get isDialogShowing => _isDialogShowing;
+  
+  /// Mark dialog as showing
+  static void setDialogShowing(bool showing) {
+    _isDialogShowing = showing;
+  }
+  
+  /// Check if we've already shown an update notification/dialog for this version
+  static Future<bool> hasShownUpdateForVersion(String version) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final lastShownVersion = prefs.getString(_lastShownUpdateVersionKey);
+      final lastShownTimestamp = prefs.getInt(_lastShownUpdateTimestampKey) ?? 0;
+      final now = DateTime.now().millisecondsSinceEpoch;
+      
+      // If same version was shown in last 24 hours, don't show again
+      if (lastShownVersion == version && (now - lastShownTimestamp) < 24 * 60 * 60 * 1000) {
+        return true;
+      }
+      
+      return false;
+    } catch (e) {
+      print('⚠️ [AutoUpdate] Error checking shown update: $e');
+      return false;
+    }
+  }
+  
+  /// Mark that we've shown update for this version
+  static Future<void> markUpdateShownForVersion(String version) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_lastShownUpdateVersionKey, version);
+      await prefs.setInt(_lastShownUpdateTimestampKey, DateTime.now().millisecondsSinceEpoch);
+    } catch (e) {
+      print('⚠️ [AutoUpdate] Error marking update shown: $e');
+    }
+  }
 
   static Future<UpdateInfo?> checkForUpdates() async {
     try {

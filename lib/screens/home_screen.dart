@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../models/post.dart';
 import '../models/comment.dart';
 import '../widgets/background_gradient.dart';
@@ -72,6 +73,7 @@ class _HomeScreenState extends State<HomeScreen> {
   final _webSocketService = WebSocketService();
   final _scrollController = ScrollController();
   final _scaffoldMessengerKey = GlobalKey<ScaffoldMessengerState>();
+  static const MethodChannel _notificationChannel = MethodChannel('no.skybyn.app/notification');
   // Removed unused _user field
   String? _currentUserId;
   List<Post> _posts = [];
@@ -91,6 +93,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
     // Set up Firebase messaging callback for update notifications
     FirebaseMessagingService.setUpdateCheckCallback(_checkForUpdates);
+    
+    // Check if app was opened from notification
+    _checkNotificationIntent();
 
     // Listen to keyboard visibility changes
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -105,6 +110,8 @@ class _HomeScreenState extends State<HomeScreen> {
             if (_focusedPostId != null) {
               _scrollToFocusedPost();
             }
+            // Check for notification intent when app resumes
+            _checkNotificationIntent();
           },
         );
         WidgetsBinding.instance.addObserver(_lifecycleEventHandler!);
@@ -429,6 +436,33 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
+  /// Check if app was opened from a notification and handle accordingly
+  Future<void> _checkNotificationIntent() async {
+    if (!Platform.isAndroid) {
+      return; // Only Android supports this
+    }
+    
+    try {
+      final notificationType = await _notificationChannel.invokeMethod<String>('getNotificationType');
+      
+      if (notificationType == 'app_update') {
+        print('📱 [HomeScreen] App opened from app_update notification - showing update dialog');
+        // Wait for next frame to ensure UI is ready
+        WidgetsBinding.instance.addPostFrameCallback((_) async {
+          if (mounted) {
+            await Future.delayed(const Duration(milliseconds: 300));
+            if (mounted) {
+              await _checkForUpdates();
+            }
+          }
+        });
+      }
+    } catch (e) {
+      // Method channel might not be available, ignore silently
+      print('⚠️ [HomeScreen] Could not check notification intent: $e');
+    }
+  }
+
   // Check for app updates
   Future<void> _checkForUpdates() async {
     final translationService = TranslationService();
@@ -440,25 +474,48 @@ class _HomeScreenState extends State<HomeScreen> {
       return;
     }
 
+    // Prevent multiple dialogs from showing at once
+    if (AutoUpdateService.isDialogShowing) {
+      print('⚠️ [HomeScreen] Update dialog already showing, skipping...');
+      return;
+    }
+
     try {
       final updateInfo = await AutoUpdateService.checkForUpdates();
 
       if (updateInfo != null && updateInfo.isAvailable) {
+        // Check if we've already shown this update
+        final alreadyShown = await AutoUpdateService.hasShownUpdateForVersion(updateInfo.version);
+        if (alreadyShown) {
+          print('ℹ️ [HomeScreen] Update for version ${updateInfo.version} already shown, skipping...');
+          return;
+        }
+
         // Show update dialog
-        if (mounted) {
+        if (mounted && !AutoUpdateService.isDialogShowing) {
+          // Mark dialog as showing
+          AutoUpdateService.setDialogShowing(true);
+          
           // Get current version
           final packageInfo = await PackageInfo.fromPlatform();
           final currentVersion = packageInfo.version;
           
-          showDialog(
+          // Mark this version as shown
+          await AutoUpdateService.markUpdateShownForVersion(updateInfo.version);
+          
+          await showDialog(
             context: context,
+            barrierDismissible: false,
             builder: (context) => UpdateDialog(
               currentVersion: currentVersion,
               latestVersion: updateInfo.version,
               releaseNotes: updateInfo.releaseNotes,
               downloadUrl: updateInfo.downloadUrl,
             ),
-          );
+          ).then((_) {
+            // Dialog closed, mark as not showing
+            AutoUpdateService.setDialogShowing(false);
+          });
         }
       } else {
         if (mounted) {
@@ -468,6 +525,9 @@ class _HomeScreenState extends State<HomeScreen> {
         }
       }
     } catch (e) {
+      // Mark dialog as not showing on error
+      AutoUpdateService.setDialogShowing(false);
+      
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('${translationService.translate('error_checking_updates')}: $e')),

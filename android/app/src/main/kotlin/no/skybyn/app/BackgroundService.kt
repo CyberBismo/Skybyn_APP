@@ -2,6 +2,7 @@ package no.skybyn.app
 
 import android.app.*
 import android.content.Intent
+import android.content.SharedPreferences
 import android.os.IBinder
 import android.os.Build
 import androidx.core.app.NotificationCompat
@@ -14,6 +15,12 @@ import java.util.concurrent.ScheduledExecutorService
 import java.util.concurrent.TimeUnit
 import android.os.Handler
 import android.os.Looper
+import okhttp3.*
+import org.json.JSONObject
+import java.util.Random
+import javax.net.ssl.*
+import java.security.cert.X509Certificate
+import java.security.SecureRandom
 
 class BackgroundService : Service() {
     private val NOTIFICATION_ID = 1001
@@ -22,11 +29,89 @@ class BackgroundService : Service() {
     
     private var executor: ScheduledExecutorService? = null
     private var isRunning = false
+    
+    // WebSocket
+    private var webSocket: WebSocket? = null
+    private var okHttpClient: OkHttpClient? = null
+    private var reconnectHandler: Handler? = null
+    private var reconnectRunnable: Runnable? = null
+    private var reconnectAttempts = 0
+    private val maxReconnectAttempts = 10
+    private var sessionId: String? = null
+    private val wsUrl = "wss://server.skybyn.no:4433"
 
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
-        executor = Executors.newScheduledThreadPool(1)
+        executor = Executors.newScheduledThreadPool(2) // Increased for WebSocket thread
+        reconnectHandler = Handler(Looper.getMainLooper())
+        
+        // Initialize OkHttp client for WebSocket with SSL certificate trust
+        okHttpClient = createUnsafeOkHttpClient()
+    }
+    
+    // Create OkHttpClient that trusts all SSL certificates (matching Flutter behavior)
+    private fun createUnsafeOkHttpClient(): OkHttpClient {
+        try {
+            Log.d("BackgroundService", "Creating OkHttpClient with SSL trust-all configuration")
+            
+            // Create a trust manager that accepts all certificates
+            val trustAllCerts = arrayOf<TrustManager>(
+                object : X509TrustManager {
+                    override fun checkClientTrusted(
+                        chain: Array<out X509Certificate>?,
+                        authType: String?
+                    ) {
+                        Log.d("BackgroundService", "Trusting client certificate")
+                        // Trust all client certificates
+                    }
+                    
+                    override fun checkServerTrusted(
+                        chain: Array<out X509Certificate>?,
+                        authType: String?
+                    ) {
+                        Log.d("BackgroundService", "Trusting server certificate")
+                        // Trust all server certificates
+                    }
+                    
+                    override fun getAcceptedIssuers(): Array<X509Certificate> {
+                        return emptyArray()
+                    }
+                }
+            )
+            
+            // Install the all-trusting trust manager
+            val sslContext = SSLContext.getInstance("TLS")
+            sslContext.init(null, trustAllCerts, SecureRandom())
+            
+            // Create an ssl socket factory with our all-trusting manager
+            val sslSocketFactory = sslContext.socketFactory
+            val trustManager = trustAllCerts[0] as X509TrustManager
+            
+            Log.d("BackgroundService", "SSL context initialized, creating OkHttpClient")
+            
+            val client = OkHttpClient.Builder()
+                .sslSocketFactory(sslSocketFactory, trustManager)
+                .hostnameVerifier(HostnameVerifier { _, _ -> 
+                    Log.d("BackgroundService", "Hostname verification: trusting all hostnames")
+                    true 
+                })
+                .readTimeout(30, TimeUnit.SECONDS)
+                .writeTimeout(30, TimeUnit.SECONDS)
+                .build()
+            
+            Log.d("BackgroundService", "OkHttpClient created successfully with SSL trust-all")
+            return client
+        } catch (e: Exception) {
+            Log.e("BackgroundService", "Error creating unsafe OkHttpClient: ${e.message}", e)
+            e.printStackTrace()
+            // Fallback to default client if SSL setup fails
+            Log.w("BackgroundService", "Falling back to default OkHttpClient (SSL validation enabled)")
+            return OkHttpClient.Builder()
+                .readTimeout(30, TimeUnit.SECONDS)
+                .writeTimeout(30, TimeUnit.SECONDS)
+                .build()
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -95,19 +180,216 @@ class BackgroundService : Service() {
     private fun startBackgroundTasks() {
         Log.d("BackgroundService", "Starting background tasks")
         
+        // Start WebSocket connection
+        connectWebSocket()
+        
         // Schedule periodic task to keep service alive
         executor?.scheduleAtFixedRate({
             try {
-                // Here you could implement actual background tasks
-                // Service heartbeat removed to reduce log noise
+                // Check WebSocket connection health
+                if (webSocket == null || reconnectAttempts >= maxReconnectAttempts) {
+                    Log.d("BackgroundService", "WebSocket disconnected, attempting reconnect...")
+                    connectWebSocket()
+                }
             } catch (e: Exception) {
                 Log.e("BackgroundService", "Error in background task: ${e.message}")
             }
-        }, 0, 30, TimeUnit.SECONDS) // Run every 30 seconds
+        }, 0, 60, TimeUnit.SECONDS) // Run every 60 seconds
+    }
+    
+    private fun connectWebSocket() {
+        try {
+            // Flutter SharedPreferences uses "FlutterSharedPreferences" file with "flutter." prefix
+            val prefs = getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
+            // Keys are stored with "flutter." prefix by shared_preferences package
+            val userId = prefs.getString("flutter.user_id", null) ?: prefs.getString("user_id", null)
+            val username = prefs.getString("flutter.username", null) ?: prefs.getString("username", null)
+            
+            if (userId == null || username == null) {
+                Log.w("BackgroundService", "Cannot connect WebSocket: User not logged in")
+                return
+            }
+            
+            // Generate session ID if not exists
+            if (sessionId == null) {
+                sessionId = generateSessionId()
+            }
+            
+            Log.d("BackgroundService", "Connecting to WebSocket: $wsUrl")
+            Log.d("BackgroundService", "Using OkHttpClient: ${okHttpClient != null}")
+            
+            if (okHttpClient == null) {
+                Log.e("BackgroundService", "OkHttpClient is null! Cannot connect WebSocket.")
+                return
+            }
+            
+            val request = Request.Builder()
+                .url(wsUrl)
+                .build()
+            
+            val wsListener = object : WebSocketListener() {
+                override fun onOpen(webSocket: WebSocket, response: Response) {
+                    Log.d("BackgroundService", "WebSocket connected")
+                    this@BackgroundService.webSocket = webSocket
+                    reconnectAttempts = 0
+                    
+                    // Send connect message
+                    sendConnectMessage(webSocket, userId, username)
+                }
+                
+                override fun onMessage(webSocket: WebSocket, text: String) {
+                    Log.d("BackgroundService", "WebSocket message received: $text")
+                    handleWebSocketMessage(text)
+                }
+                
+                override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
+                    Log.d("BackgroundService", "WebSocket closing: $code - $reason")
+                    webSocket.close(1000, null)
+                }
+                
+                override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
+                    Log.d("BackgroundService", "WebSocket closed: $code - $reason")
+                    this@BackgroundService.webSocket = null
+                    scheduleReconnect()
+                }
+                
+                override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
+                    Log.e("BackgroundService", "WebSocket failure: ${t.message}")
+                    this@BackgroundService.webSocket = null
+                    scheduleReconnect()
+                }
+            }
+            
+            webSocket = okHttpClient?.newWebSocket(request, wsListener)
+        } catch (e: Exception) {
+            Log.e("BackgroundService", "Error connecting WebSocket: ${e.message}")
+            scheduleReconnect()
+        }
+    }
+    
+    private fun sendConnectMessage(ws: WebSocket, userId: String, username: String) {
+        try {
+            val connectMessage = JSONObject().apply {
+                put("type", "connect")
+                put("sessionId", sessionId ?: generateSessionId())
+                put("userId", userId)
+                put("userName", username)
+                put("deviceInfo", JSONObject().apply {
+                    put("device", "Android Background Service")
+                    put("browser", "Skybyn App")
+                })
+            }
+            
+            val message = connectMessage.toString()
+            ws.send(message)
+            Log.d("BackgroundService", "Connect message sent")
+        } catch (e: Exception) {
+            Log.e("BackgroundService", "Error sending connect message: ${e.message}")
+        }
+    }
+    
+    private fun handleWebSocketMessage(text: String) {
+        try {
+            val message = JSONObject(text)
+            val type = message.optString("type")
+            
+            when (type) {
+                "app_update" -> {
+                    Log.d("BackgroundService", "App update received via WebSocket")
+                    showNotification("App Update Available", "A new version of Skybyn is ready to download", "app_update")
+                }
+                "broadcast" -> {
+                    val broadcastMessage = message.optString("message", "Broadcast message")
+                    Log.d("BackgroundService", "Broadcast received: $broadcastMessage")
+                    showNotification("Broadcast", broadcastMessage, "broadcast")
+                }
+                "new_post" -> {
+                    Log.d("BackgroundService", "New post notification received")
+                    // Could show notification here if needed
+                }
+                "new_comment" -> {
+                    Log.d("BackgroundService", "New comment notification received")
+                    // Could show notification here if needed
+                }
+                "pong" -> {
+                    // Respond to ping, nothing to do
+                }
+                else -> {
+                    Log.d("BackgroundService", "Unknown message type: $type")
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("BackgroundService", "Error handling WebSocket message: ${e.message}")
+        }
+    }
+    
+    private fun showNotification(title: String, body: String, messageType: String = "websocket") {
+        try {
+            val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            val notificationId = System.currentTimeMillis().toInt()
+            
+            val intent = Intent(this, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                putExtra("notification_type", messageType)
+                putExtra("websocket_message_type", messageType)
+            }
+            
+            val pendingIntent = PendingIntent.getActivity(
+                this, 0, intent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            
+            val notification = NotificationCompat.Builder(this, CHANNEL_ID)
+                .setContentTitle(title)
+                .setContentText(body)
+                .setSmallIcon(R.drawable.notification_icon)
+                .setContentIntent(pendingIntent)
+                .setAutoCancel(true)
+                .setPriority(NotificationCompat.PRIORITY_HIGH)
+                .build()
+            
+            notificationManager.notify(notificationId, notification)
+            Log.d("BackgroundService", "Notification shown: $title")
+        } catch (e: Exception) {
+            Log.e("BackgroundService", "Error showing notification: ${e.message}")
+        }
+    }
+    
+    private fun scheduleReconnect() {
+        reconnectHandler?.removeCallbacks(reconnectRunnable ?: return)
+        
+        if (reconnectAttempts >= maxReconnectAttempts) {
+            Log.w("BackgroundService", "Max reconnection attempts reached. Giving up.")
+            return
+        }
+        
+        reconnectAttempts++
+        val delay = minOf(1000L * (1 shl reconnectAttempts), 30000L) // Exponential backoff, max 30s
+        
+        reconnectRunnable = Runnable {
+            Log.d("BackgroundService", "Attempting WebSocket reconnect (attempt $reconnectAttempts)")
+            connectWebSocket()
+        }
+        
+        reconnectHandler?.postDelayed(reconnectRunnable!!, delay)
+        Log.d("BackgroundService", "Scheduled reconnect in ${delay}ms")
+    }
+    
+    private fun generateSessionId(): String {
+        val chars = "abcdefghijklmnopqrstuvwxyz0123456789"
+        val random = Random()
+        return (1..32).map { chars[random.nextInt(chars.length)] }.joinToString("")
     }
 
     private fun stopBackgroundTasks() {
         Log.d("BackgroundService", "Stopping background tasks")
+        
+        // Close WebSocket connection
+        webSocket?.close(1000, "Service stopping")
+        webSocket = null
+        reconnectHandler?.removeCallbacks(reconnectRunnable ?: return)
+        reconnectRunnable = null
+        
         executor?.let {
             it.shutdownNow()
             try {

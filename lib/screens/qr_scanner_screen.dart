@@ -9,6 +9,7 @@ import '../widgets/background_gradient.dart';
 import '../services/translation_service.dart';
 import '../utils/translation_keys.dart';
 import '../widgets/translated_text.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 class QrScannerScreen extends StatefulWidget {
   const QrScannerScreen({super.key});
@@ -17,7 +18,7 @@ class QrScannerScreen extends StatefulWidget {
   State<QrScannerScreen> createState() => _QrScannerScreenState();
 }
 
-class _QrScannerScreenState extends State<QrScannerScreen> {
+class _QrScannerScreenState extends State<QrScannerScreen> with WidgetsBindingObserver {
   MobileScannerController cameraController = MobileScannerController();
   final AuthService _authService = AuthService();
   String? _userId;
@@ -26,26 +27,59 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
   bool _showSuccessOverlay = false;
   bool _isCameraInitialized = false;
   String? _cameraError;
+  bool _isPermissionDenied = false;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _loadUserId();
     _initializeCamera();
   }
 
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    // Re-check camera when app resumes (user might have granted permission in settings)
+    if (state == AppLifecycleState.resumed && !_isCameraInitialized && _cameraError != null) {
+      _initializeCamera();
+    }
+  }
+
   Future<void> _initializeCamera() async {
     try {
+      // Check camera permission first
+      final permissionStatus = await Permission.camera.status;
+      
+      if (!permissionStatus.isGranted) {
+        // Request permission
+        final requestResult = await Permission.camera.request();
+        
+        if (!requestResult.isGranted) {
+          if (mounted) {
+            setState(() {
+              _cameraError = 'Camera permission is required to scan QR codes. Please grant camera permission in settings.';
+              _isPermissionDenied = true;
+            });
+          }
+          return;
+        }
+      }
+      
+      // Permission granted, start camera
       await cameraController.start();
       if (mounted) {
         setState(() {
           _isCameraInitialized = true;
+          _cameraError = null;
+          _isPermissionDenied = false;
         });
       }
     } catch (e) {
       if (mounted) {
         setState(() {
           _cameraError = 'Camera initialization failed: $e';
+          _isPermissionDenied = false;
         });
       }
     }
@@ -133,6 +167,7 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     try {
       cameraController.dispose();
     } catch (e) {
@@ -196,46 +231,69 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
                       Container(
                         color: Colors.black.withOpacity(0.8),
                         child: Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              const Icon(
-                                Icons.error_outline,
-                                color: Colors.white,
-                                size: 64,
-                              ),
-                              const SizedBox(height: 16),
-                              const Text(
-                                'Camera Error',
-                                style: TextStyle(
+                          child: Padding(
+                            padding: const EdgeInsets.all(24.0),
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Icon(
+                                  Icons.error_outline,
                                   color: Colors.white,
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.bold,
+                                  size: 64,
                                 ),
-                              ),
-                              const SizedBox(height: 8),
-                              Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: 32),
-                                child: Text(
-                                  _cameraError!,
-                                  style: const TextStyle(
-                                    color: Colors.white70,
-                                    fontSize: 14,
+                                const SizedBox(height: 16),
+                                const Text(
+                                  'Camera Error',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.bold,
                                   ),
-                                  textAlign: TextAlign.center,
                                 ),
-                              ),
-                              const SizedBox(height: 24),
-                              ElevatedButton(
-                                onPressed: () {
-                                  setState(() {
-                                    _cameraError = null;
-                                  });
-                                  _initializeCamera();
-                                },
-                                child: const Text('Retry'),
-                              ),
-                            ],
+                                const SizedBox(height: 8),
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(horizontal: 32),
+                                  child: Text(
+                                    _cameraError!,
+                                    style: const TextStyle(
+                                      color: Colors.white70,
+                                      fontSize: 14,
+                                    ),
+                                    textAlign: TextAlign.center,
+                                  ),
+                                ),
+                                const SizedBox(height: 24),
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    ElevatedButton(
+                                      onPressed: () {
+                                        setState(() {
+                                          _cameraError = null;
+                                          _isPermissionDenied = false;
+                                        });
+                                        _initializeCamera();
+                                      },
+                                      child: const Text('Retry'),
+                                    ),
+                                    if (_isPermissionDenied) ...[
+                                      const SizedBox(width: 12),
+                                      ElevatedButton(
+                                        onPressed: () async {
+                                          await openAppSettings();
+                                          // Permission will be re-checked when app resumes via lifecycle observer
+                                        },
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: Colors.blue,
+                                          foregroundColor: Colors.white,
+                                        ),
+                                        child: const Text('Open Settings'),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                       )

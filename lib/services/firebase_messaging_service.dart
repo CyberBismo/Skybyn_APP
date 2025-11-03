@@ -345,6 +345,14 @@ class FirebaseMessagingService {
     }
   }
 
+  /// Public static method to trigger update check (called from NotificationService)
+  /// This avoids circular import issues
+  static void triggerUpdateCheck() {
+    if (_onUpdateCheckRequested != null) {
+      _onUpdateCheckRequested!();
+    }
+  }
+
   /// Subscribe to a topic
   Future<bool> subscribeToTopic(String topic) async {
     try {

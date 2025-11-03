@@ -125,6 +125,9 @@ class MyApp extends StatefulWidget {
   State<MyApp> createState() => _MyAppState();
 }
 
+// Global navigator key for showing dialogs from anywhere
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+
 class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   final NotificationService _notificationService = NotificationService();
   final WebSocketService _webSocketService = WebSocketService();
@@ -199,6 +202,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     return Consumer<ThemeService>(
       builder: (context, themeService, child) {
         return MaterialApp(
+          navigatorKey: navigatorKey,
           title: 'Skybyn',
           theme: ThemeData(
             brightness: Brightness.light,

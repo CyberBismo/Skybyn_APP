@@ -6,6 +6,11 @@ import 'package:device_info_plus/device_info_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:timezone/timezone.dart' as tz;
 import 'package:timezone/data/latest.dart' as tz;
+import 'package:package_info_plus/package_info_plus.dart';
+import 'firebase_messaging_service.dart';
+import 'auto_update_service.dart';
+import '../widgets/update_dialog.dart';
+import '../main.dart';
 
 class NotificationService {
   static final NotificationService _instance = NotificationService._internal();
@@ -77,7 +82,110 @@ class NotificationService {
 
   void _onNotificationTapped(NotificationResponse response) {
     // Handle notification tap
-    print('Notification tapped: ${response.payload}');
+    print('📱 [NotificationService] Notification tapped: ${response.payload}');
+    
+    final payload = response.payload;
+    if (payload == null) {
+      return;
+    }
+    
+    // Handle app_update payload
+    if (payload == 'app_update') {
+      print('🔄 [NotificationService] App update notification tapped - triggering update check');
+      // Trigger update check via Firebase Messaging Service callback
+      // This uses the same callback mechanism that FCM notifications use
+      final fcmService = FirebaseMessagingService();
+      // Access the static callback through a method call
+      // Since we can't directly access the private static, we'll need to make it accessible
+      // Or we can create a public method to trigger it
+      _triggerUpdateCheck();
+    } else if (payload.startsWith('{')) {
+      // JSON payload - try to parse it
+      try {
+        final Map<String, dynamic> data = json.decode(payload);
+        final type = data['type']?.toString();
+        if (type == 'app_update') {
+          print('🔄 [NotificationService] App update notification tapped (from JSON) - triggering update check');
+          _triggerUpdateCheck();
+        }
+      } catch (e) {
+        print('⚠️ [NotificationService] Failed to parse notification payload: $e');
+      }
+    }
+  }
+  
+  /// Trigger update check for app_update notifications
+  /// This shows the update dialog directly when notification is tapped
+  Future<void> _triggerUpdateCheck() async {
+    if (!Platform.isAndroid) {
+      // Only Android supports auto-updates
+      return;
+    }
+
+    // Prevent multiple dialogs from showing at once
+    if (AutoUpdateService.isDialogShowing) {
+      print('⚠️ [NotificationService] Update dialog already showing, skipping...');
+      return;
+    }
+
+    try {
+      print('🔄 [NotificationService] Checking for updates after notification tap...');
+      
+      // Check for updates
+      final updateInfo = await AutoUpdateService.checkForUpdates();
+
+      if (updateInfo != null && updateInfo.isAvailable) {
+        // Check if we've already shown this update
+        final alreadyShown = await AutoUpdateService.hasShownUpdateForVersion(updateInfo.version);
+        if (alreadyShown) {
+          print('ℹ️ [NotificationService] Update for version ${updateInfo.version} already shown, skipping...');
+          return;
+        }
+
+        // Get current version
+        final packageInfo = await PackageInfo.fromPlatform();
+        final currentVersion = packageInfo.version;
+        
+        // Mark this version as shown
+        await AutoUpdateService.markUpdateShownForVersion(updateInfo.version);
+        
+        // Show update dialog using navigator key
+        final navigator = navigatorKey.currentState;
+        if (navigator != null && !AutoUpdateService.isDialogShowing) {
+          // Mark dialog as showing
+          AutoUpdateService.setDialogShowing(true);
+          
+          print('✅ [NotificationService] Showing update dialog...');
+          await showDialog(
+            context: navigator.context,
+            barrierDismissible: false,
+            builder: (context) => UpdateDialog(
+              currentVersion: currentVersion,
+              latestVersion: updateInfo.version,
+              releaseNotes: updateInfo.releaseNotes,
+              downloadUrl: updateInfo.downloadUrl,
+            ),
+          ).then((_) {
+            // Dialog closed, mark as not showing
+            AutoUpdateService.setDialogShowing(false);
+          });
+        } else {
+          print('⚠️ [NotificationService] Navigator not available or dialog already showing, falling back to callback');
+          // Fallback to callback if navigator not available
+          FirebaseMessagingService.triggerUpdateCheck();
+        }
+      } else {
+        print('ℹ️ [NotificationService] No updates available');
+        // Also trigger callback in case HomeScreen wants to show a message
+        FirebaseMessagingService.triggerUpdateCheck();
+      }
+    } catch (e) {
+      // Mark dialog as not showing on error
+      AutoUpdateService.setDialogShowing(false);
+      print('❌ [NotificationService] Error checking for updates: $e');
+      // Fallback to callback
+      FirebaseMessagingService.triggerUpdateCheck();
+    }
   }
 
   Future<void> _createNotificationChannels() async {
@@ -182,6 +290,25 @@ class NotificationService {
     String channelId = _adminChannelId,
   }) async {
     try {
+      // For app_update notifications, check if we've already shown one recently
+      if (payload == 'app_update') {
+        try {
+          final updateInfo = await AutoUpdateService.checkForUpdates();
+          if (updateInfo != null && updateInfo.isAvailable) {
+            final alreadyShown = await AutoUpdateService.hasShownUpdateForVersion(updateInfo.version);
+            if (alreadyShown) {
+              print('ℹ️ [NotificationService] App update notification for version ${updateInfo.version} already shown, skipping...');
+              return;
+            }
+            // Mark as shown when we show the notification
+            await AutoUpdateService.markUpdateShownForVersion(updateInfo.version);
+          }
+        } catch (e) {
+          print('⚠️ [NotificationService] Error checking update version: $e');
+          // Continue to show notification if check fails
+        }
+      }
+      
       print('🔔 [NotificationService] Showing notification: $title - $body');
       print('🔔 [NotificationService] Platform: ${Platform.operatingSystem}');
       print('🔔 [NotificationService] Channel ID: $channelId');

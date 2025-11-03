@@ -5,6 +5,7 @@ import 'app_colors.dart';
 import '../services/auto_update_service.dart';
 import 'permission_dialog.dart';
 import 'update_dialog.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 /// Centralized app bar configuration and styling
 class AppBarConfig {
@@ -107,6 +108,13 @@ class _CustomAppBarState extends State<CustomAppBar> {
   }
 
   void _checkForUpdates() async {
+    // Prevent multiple dialogs from showing at once
+    if (AutoUpdateService.isDialogShowing) {
+      print('⚠️ [CustomAppBar] Update dialog already showing, skipping...');
+      UnifiedMenu.closeCurrentMenu();
+      return;
+    }
+
     try {
       // Check if we have permission to install from unknown sources
       if (!await AutoUpdateService.hasInstallPermission()) {
@@ -125,6 +133,7 @@ class _CustomAppBarState extends State<CustomAppBar> {
         ) ?? false;
         
         if (!userGranted) {
+          UnifiedMenu.closeCurrentMenu();
           return;
         }
         
@@ -136,6 +145,7 @@ class _CustomAppBarState extends State<CustomAppBar> {
               const SnackBar(content: Text('Permission denied. Cannot check for updates.')),
             );
           }
+          UnifiedMenu.closeCurrentMenu();
           return;
         }
       }
@@ -144,22 +154,52 @@ class _CustomAppBarState extends State<CustomAppBar> {
       final updateInfo = await AutoUpdateService.checkForUpdates();
       
       if (mounted && updateInfo != null && updateInfo.isAvailable) {
+        // Check if we've already shown this update
+        final alreadyShown = await AutoUpdateService.hasShownUpdateForVersion(updateInfo.version);
+        if (alreadyShown) {
+          print('ℹ️ [CustomAppBar] Update for version ${updateInfo.version} already shown, skipping...');
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Update dialog already shown. Check again later.')),
+            );
+          }
+          UnifiedMenu.closeCurrentMenu();
+          return;
+        }
+
+        // Mark this version as shown
+        await AutoUpdateService.markUpdateShownForVersion(updateInfo.version);
+        
+        // Mark dialog as showing
+        AutoUpdateService.setDialogShowing(true);
+        
+        // Get current version
+        final packageInfo = await PackageInfo.fromPlatform();
+        final currentVersion = packageInfo.version;
+        
         // Show update dialog
-        showDialog(
+        await showDialog(
           context: context,
           barrierDismissible: false,
           builder: (context) => UpdateDialog(
-            currentVersion: '1.0.0',
+            currentVersion: currentVersion,
             latestVersion: updateInfo.version,
             releaseNotes: updateInfo.releaseNotes,
+            downloadUrl: updateInfo.downloadUrl,
           ),
-        );
+        ).then((_) {
+          // Dialog closed, mark as not showing
+          AutoUpdateService.setDialogShowing(false);
+        });
       } else if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('No updates available.')),
         );
       }
     } catch (e) {
+      // Mark dialog as not showing on error
+      AutoUpdateService.setDialogShowing(false);
+      
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error checking for updates: $e')),

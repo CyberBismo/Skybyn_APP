@@ -9,6 +9,18 @@ import android.os.Bundle
 
 class MainActivity: FlutterActivity() {
     private val CHANNEL = "no.skybyn.app/background_service"
+    private val NOTIFICATION_CHANNEL = "no.skybyn.app/notification"
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        handleNotificationIntent(intent)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleNotificationIntent(intent)
+    }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -27,6 +39,30 @@ class MainActivity: FlutterActivity() {
                     result.notImplemented()
                 }
             }
+        }
+        
+        // Method channel for notification intents
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, NOTIFICATION_CHANNEL).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "getNotificationType" -> {
+                    val notificationType = intent.getStringExtra("websocket_message_type")
+                    // Clear the intent after reading to prevent multiple triggers
+                    if (notificationType != null) {
+                        intent.removeExtra("websocket_message_type")
+                    }
+                    result.success(notificationType)
+                }
+                else -> {
+                    result.notImplemented()
+                }
+            }
+        }
+    }
+    
+    private fun handleNotificationIntent(intent: Intent?) {
+        val notificationType = intent?.getStringExtra("websocket_message_type")
+        if (notificationType != null) {
+            android.util.Log.d("MainActivity", "Notification type received: $notificationType")
         }
     }
 
