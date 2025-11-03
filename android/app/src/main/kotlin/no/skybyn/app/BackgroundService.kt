@@ -33,19 +33,14 @@ class BackgroundService : Service() {
         Log.d("BackgroundService", "Service started")
         
         if (!isRunning) {
-            startForeground(NOTIFICATION_ID, createNotification())
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                // Android 14+ requires foreground service type to be specified
+                startForeground(NOTIFICATION_ID, createNotification(), android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
+            } else {
+                startForeground(NOTIFICATION_ID, createNotification())
+            }
             startBackgroundTasks()
             isRunning = true
-            
-            // Remove notification after 30 seconds
-            Handler(Looper.getMainLooper()).postDelayed({
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                    stopForeground(STOP_FOREGROUND_REMOVE)
-                } else {
-                    @Suppress("DEPRECATION")
-                    stopForeground(true)
-                }
-            }, 30000) // 30 seconds
         }
         
         return START_STICKY // Restart service if killed
@@ -113,7 +108,18 @@ class BackgroundService : Service() {
 
     private fun stopBackgroundTasks() {
         Log.d("BackgroundService", "Stopping background tasks")
-        executor?.shutdown()
+        executor?.let {
+            it.shutdownNow()
+            try {
+                if (!it.awaitTermination(5, TimeUnit.SECONDS)) {
+                    Log.w("BackgroundService", "Executor did not terminate gracefully")
+                }
+            } catch (e: InterruptedException) {
+                it.shutdownNow()
+                Thread.currentThread().interrupt()
+            }
+        }
+        executor = null
         isRunning = false
     }
 } 
