@@ -227,6 +227,12 @@ class FirebaseMessagingService {
     
     // Handle foreground messages
     FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+      // Check if this is an app_update message
+      final type = message.data['type']?.toString();
+      if (type == 'app_update') {
+        // Trigger update check when app_update is received
+        _triggerUpdateCheck();
+      }
       // Don't show local notification - let FCM handle it
       // This will show as a system notification banner on iOS
     });

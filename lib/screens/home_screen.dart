@@ -23,6 +23,7 @@ import '../widgets/app_colors.dart';
 import '../widgets/update_dialog.dart';
 import '../config/constants.dart';
 import '../services/translation_service.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 // Lifecycle event handler for keyboard-aware scrolling
 class LifecycleEventHandler extends WidgetsBindingObserver {
@@ -445,12 +446,17 @@ class _HomeScreenState extends State<HomeScreen> {
       if (updateInfo != null && updateInfo.isAvailable) {
         // Show update dialog
         if (mounted) {
+          // Get current version
+          final packageInfo = await PackageInfo.fromPlatform();
+          final currentVersion = packageInfo.version;
+          
           showDialog(
             context: context,
             builder: (context) => UpdateDialog(
-              currentVersion: '1.0.0',
+              currentVersion: currentVersion,
               latestVersion: updateInfo.version,
               releaseNotes: updateInfo.releaseNotes,
+              downloadUrl: updateInfo.downloadUrl,
             ),
           );
         }

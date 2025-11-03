@@ -1,4 +1,5 @@
 class ApiConstants {
+  static const String appBase = 'https://app.skybyn.no';
   static const String apiBase = 'https://api.skybyn.no';
   static const String webBase = 'https://skybyn.no';
 
@@ -31,8 +32,7 @@ class ApiConstants {
   static const String friends = '$apiBase/friend/friends.php';
 
   // Updates
-  static const String checkUpdate = '$apiBase/appUpdates/check.php';
-  static const String downloadUpdate = '$apiBase/appUpdates/download.php';
+  static const String appUpdate = '$apiBase/app_update.php';
 }
 
 class StorageKeys {
