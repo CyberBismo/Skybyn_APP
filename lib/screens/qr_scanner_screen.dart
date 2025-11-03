@@ -34,7 +34,7 @@ class _QrScannerScreenState extends State<QrScannerScreen> with WidgetsBindingOb
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _loadUserId();
-    _initializeCamera();
+    _checkCameraPermission();
   }
 
   @override
@@ -42,11 +42,11 @@ class _QrScannerScreenState extends State<QrScannerScreen> with WidgetsBindingOb
     super.didChangeAppLifecycleState(state);
     // Re-check camera when app resumes (user might have granted permission in settings)
     if (state == AppLifecycleState.resumed && !_isCameraInitialized && _cameraError != null) {
-      _initializeCamera();
+      _checkCameraPermission();
     }
   }
 
-  Future<void> _initializeCamera() async {
+  Future<void> _checkCameraPermission() async {
     try {
       // Check camera permission first
       final permissionStatus = await Permission.camera.status;
@@ -60,26 +60,28 @@ class _QrScannerScreenState extends State<QrScannerScreen> with WidgetsBindingOb
             setState(() {
               _cameraError = 'Camera permission is required to scan QR codes. Please grant camera permission in settings.';
               _isPermissionDenied = true;
+              _isCameraInitialized = false;
             });
           }
           return;
         }
       }
       
-      // Permission granted, start camera
-      await cameraController.start();
+      // Permission granted, mark as ready
+      // Camera will start automatically when MobileScanner widget is built
       if (mounted) {
         setState(() {
-          _isCameraInitialized = true;
           _cameraError = null;
           _isPermissionDenied = false;
+          _isCameraInitialized = true;
         });
       }
     } catch (e) {
       if (mounted) {
         setState(() {
-          _cameraError = 'Camera initialization failed: $e';
+          _cameraError = 'Camera permission check failed: $e';
           _isPermissionDenied = false;
+          _isCameraInitialized = false;
         });
       }
     }
@@ -211,6 +213,7 @@ class _QrScannerScreenState extends State<QrScannerScreen> with WidgetsBindingOb
                     if (_isCameraInitialized && _cameraError == null)
                       MobileScanner(
                         controller: cameraController,
+                        // MobileScanner auto-starts by default, no need to call start() manually
                         onDetect: (capture) async {
                           final List<Barcode> barcodes = capture.barcodes;
                           for (final barcode in barcodes) {
@@ -271,8 +274,9 @@ class _QrScannerScreenState extends State<QrScannerScreen> with WidgetsBindingOb
                                         setState(() {
                                           _cameraError = null;
                                           _isPermissionDenied = false;
+                                          _isCameraInitialized = false;
                                         });
-                                        _initializeCamera();
+                                        _checkCameraPermission();
                                       },
                                       child: const Text('Retry'),
                                     ),
@@ -362,7 +366,8 @@ class _QrScannerScreenState extends State<QrScannerScreen> with WidgetsBindingOb
                           _showSuccessOverlay = false;
                           _lastScannedCode = null;
                         });
-                        cameraController.start();
+                        // Camera should continue running automatically
+                        // No need to manually resume as MobileScanner handles it
                       },
                       child: const Text('Scan Again', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
                     )

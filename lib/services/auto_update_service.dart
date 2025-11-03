@@ -7,6 +7,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:open_file/open_file.dart';
 
 class AutoUpdateService {
   static const String _updateCheckUrl = ApiConstants.appUpdate;
@@ -163,12 +164,23 @@ class AutoUpdateService {
 
   static Future<bool> downloadUpdate(String downloadUrl) async {
     try {
+      print('📥 [AutoUpdate] Starting download from: $downloadUrl');
       final http.Response response = await http.get(Uri.parse(downloadUrl));
+      
       if (response.statusCode == 200) {
-        final Directory directory = await getApplicationDocumentsDirectory();
+        // Use external storage directory for better compatibility with Android 10+
+        // This location is more accessible for FileProvider
+        final Directory directory = Platform.isAndroid
+            ? await getExternalStorageDirectory() ?? await getApplicationDocumentsDirectory()
+            : await getApplicationDocumentsDirectory();
+            
         final File file = File('${directory.path}/app-update.apk');
         await file.writeAsBytes(response.bodyBytes);
+        print('✅ [AutoUpdate] APK downloaded successfully to: ${file.path}');
+        print('📊 [AutoUpdate] APK size: ${await file.length()} bytes');
         return true;
+      } else {
+        print('❌ [AutoUpdate] Download failed with status code: ${response.statusCode}');
       }
     } catch (e) {
       // Download failed
@@ -187,11 +199,27 @@ class AutoUpdateService {
           return false;
         }
 
-        final Directory directory = await getApplicationDocumentsDirectory();
+        // Check in both possible locations (external storage first, then documents)
+        Directory? directory = Platform.isAndroid
+            ? await getExternalStorageDirectory()
+            : null;
+        if (directory == null) {
+          directory = await getApplicationDocumentsDirectory();
+        }
+        
         final File file = File('${directory.path}/app-update.apk');
         if (await file.exists()) {
+          print('✅ [AutoUpdate] APK file found at: ${file.path}');
           return await _installApk(file.path);
         } else {
+          // Also check in application documents directory as fallback
+          final altDirectory = await getApplicationDocumentsDirectory();
+          final altFile = File('${altDirectory.path}/app-update.apk');
+          if (await altFile.exists()) {
+            print('✅ [AutoUpdate] APK file found at alternate location: ${altFile.path}');
+            return await _installApk(altFile.path);
+          }
+          print('❌ [AutoUpdate] APK file not found in expected locations');
           return false;
         }
       } else {
@@ -232,15 +260,35 @@ class AutoUpdateService {
 
   static Future<bool> _installApk(String apkPath) async {
     try {
-      // For now, we'll just return true as the APK is downloaded
-      // In a production app, you would use a package like open_file or
-      // implement a platform channel to open the APK file
-      // This will prompt the user to install the APK
+      print('📦 [AutoUpdate] Opening APK for installation: $apkPath');
+      
+      // Check if file exists
+      final file = File(apkPath);
+      if (!await file.exists()) {
+        print('❌ [AutoUpdate] APK file does not exist: $apkPath');
+        return false;
+      }
 
-      // TODO: Implement proper APK opening using open_file package
-      // or platform channel to open the APK file
-
-      return true;
+      // Open the APK file using open_file package
+      // On Android, this will trigger the system package installer
+      final result = await OpenFile.open(apkPath);
+      
+      if (result.type == ResultType.done) {
+        print('✅ [AutoUpdate] APK opened successfully, installation dialog should appear');
+        return true;
+      } else if (result.type == ResultType.noAppToOpen) {
+        print('❌ [AutoUpdate] No app available to open APK file');
+        return false;
+      } else if (result.type == ResultType.fileNotFound) {
+        print('❌ [AutoUpdate] APK file not found: $apkPath');
+        return false;
+      } else if (result.type == ResultType.permissionDenied) {
+        print('❌ [AutoUpdate] Permission denied to open APK file');
+        return false;
+      } else {
+        print('❌ [AutoUpdate] Failed to open APK: ${result.message}');
+        return false;
+      }
     } catch (e) {
       print('❌ [AutoUpdate] Install APK failed: $e');
       return false;
