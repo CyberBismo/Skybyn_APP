@@ -463,7 +463,7 @@ class WebSocketService {
       payload: 'app_update',
     );
 
-    // Trigger update check callback
+    // Trigger the update check callback to show dialog
     _onAppUpdate?.call();
   }
 

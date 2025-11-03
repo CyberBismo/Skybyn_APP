@@ -1,14 +1,10 @@
 import 'package:flutter/material.dart';
 import 'dart:ui';
-import 'dart:io';
 import '../screens/home_screen.dart';
 import '../screens/profile_screen.dart';
 import '../screens/settings_screen.dart';
 import '../screens/qr_scanner_screen.dart';
 import 'app_colors.dart';
-import '../services/auto_update_service.dart';
-import 'permission_dialog.dart';
-import 'update_dialog.dart';
 
 /// Menu item definition
 class MenuItem {
@@ -176,16 +172,6 @@ class UnifiedMenu {
               },
             ),
             MenuItem(
-              icon: Icons.system_update,
-              label: 'Check for Updates',
-              onTap: () async {
-                // Close the menu first
-                closeCurrentMenu();
-                // Check for updates
-                await _checkForUpdates(context);
-              },
-            ),
-            MenuItem(
               icon: Icons.logout,
               label: 'Logout',
               onTap: onLogout,
@@ -300,77 +286,6 @@ class UnifiedMenu {
     );
 
     Overlay.of(context).insert(_currentOverlayEntry!);
-  }
-
-  /// Check for app updates
-  static Future<void> _checkForUpdates(BuildContext context) async {
-    try {
-      // Only check on Android
-      if (!Platform.isAndroid) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Auto-updates are only available on Android.')),
-        );
-        return;
-      }
-
-      // Check if we have permission to install from unknown sources
-      if (!await AutoUpdateService.hasInstallPermission()) {
-        // Show permission dialog
-        final bool userGranted = await showDialog<bool>(
-          context: context,
-          barrierDismissible: false,
-          builder: (context) => PermissionDialog(
-            onGranted: () {
-              Navigator.of(context).pop(true);
-            },
-            onDenied: () {
-              Navigator.of(context).pop(false);
-            },
-          ),
-        ) ?? false;
-        
-        if (!userGranted) {
-          return;
-        }
-        
-        // Try to request permission
-        final bool permissionGranted = await AutoUpdateService.requestInstallPermission();
-        if (!permissionGranted) {
-          if (context.mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Permission denied. Cannot check for updates.')),
-            );
-          }
-          return;
-        }
-      }
-      
-      // Check for updates
-      final updateInfo = await AutoUpdateService.checkForUpdates();
-      
-      if (context.mounted && updateInfo != null && updateInfo.isAvailable) {
-        // Show update dialog
-        showDialog(
-          context: context,
-          barrierDismissible: false,
-          builder: (context) => UpdateDialog(
-            currentVersion: '1.0.0',
-            latestVersion: updateInfo.version,
-            releaseNotes: updateInfo.releaseNotes,
-          ),
-        );
-      } else if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('No updates available.')),
-        );
-      }
-    } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error checking for updates: $e')),
-        );
-      }
-    }
   }
 
   /// Build a menu item

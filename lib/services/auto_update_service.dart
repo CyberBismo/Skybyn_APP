@@ -8,8 +8,7 @@ import 'package:device_info_plus/device_info_plus.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 class AutoUpdateService {
-  static const String _updateCheckUrl = ApiConstants.checkUpdate;
-  static const String _updateDownloadUrl = ApiConstants.downloadUpdate;
+  static const String _updateCheckUrl = ApiConstants.appUpdate;
 
   static Future<UpdateInfo?> checkForUpdates() async {
     try {
@@ -29,45 +28,88 @@ class AutoUpdateService {
       final String installedVersionCode =
           packageInfo.buildNumber.isNotEmpty ? packageInfo.buildNumber : '1';
 
-      final response = await http.post(
-        Uri.parse(_updateCheckUrl),
-        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-        body: {
-          'platform': platform,
-          'version': installedVersionCode,
-        },
-      );
+      // Build URL with query parameters: c=platform&v=version
+      final uri = Uri.parse(_updateCheckUrl).replace(queryParameters: {
+        'c': platform,
+        'v': installedVersionCode,
+      });
+
+      final response = await http.get(uri);
+
+      // Log response for debugging
+      print('📡 [AutoUpdate] Response status: ${response.statusCode}');
+      print('📡 [AutoUpdate] Response headers: ${response.headers}');
+      print('📡 [AutoUpdate] Response body (first 200 chars): ${response.body.length > 200 ? response.body.substring(0, 200) : response.body}');
 
       if (response.statusCode == 200) {
-        final Map<String, dynamic> data =
-            jsonDecode(response.body) as Map<String, dynamic>;
+        // Check if response is JSON
+        final contentType = response.headers['content-type'] ?? '';
+        if (!contentType.contains('application/json') && !contentType.contains('text/json')) {
+          print('⚠️ [AutoUpdate] Unexpected content type: $contentType');
+          // Try to parse anyway, but log warning
+        }
 
-        if (data['status'] == 'success' && data['updateAvailable'] == true) {
-          final Map<String, dynamic> info =
-              Map<String, dynamic>.from(data['updateInfo'] as Map);
-          return UpdateInfo(
-            version: info['version'].toString(),
-            buildNumber: int.tryParse(info['buildNumber']?.toString() ??
-                    info['version']?.toString() ??
-                    '1') ??
-                1,
-            downloadUrl: (info['downloadUrl'] as String?) ??
-                _composeDownloadUrl(platform, info['version'].toString()),
-            releaseNotes: (info['releaseNotes'] as String?) ??
-                'Bug fixes and performance improvements',
-            isAvailable: true,
+        // Validate response body is not empty and looks like JSON
+        final trimmedBody = response.body.trim();
+        if (trimmedBody.isEmpty) {
+          print('❌ [AutoUpdate] Empty response body');
+          throw FormatException('Server returned an empty response. The update check endpoint may not be properly configured.');
+        }
+
+        // Check if response starts with HTML tags (common error indicator)
+        if (trimmedBody.startsWith('<')) {
+          print('❌ [AutoUpdate] Server returned HTML instead of JSON. Response: $trimmedBody');
+          throw FormatException(
+            'Server returned HTML instead of JSON. The update check endpoint may not be properly configured.',
+            trimmedBody,
           );
         }
 
-        // No update available
-        return UpdateInfo(
-          version: data['latestVersion']?.toString() ?? '1.0.0',
-          buildNumber:
-              int.tryParse(data['latestVersion']?.toString() ?? '1') ?? 1,
-          downloadUrl: '',
-          releaseNotes: data['message']?.toString() ?? '',
-          isAvailable: false,
-        );
+        try {
+          final Map<String, dynamic> data =
+              jsonDecode(trimmedBody) as Map<String, dynamic>;
+
+          // Parse new JSON format: responseCode, message, optional url
+          final responseCode = data['responseCode'];
+          final message = data['message']?.toString() ?? '';
+
+          if (responseCode == 1) {
+            // Update available
+            final url = data['url']?.toString() ?? '';
+            return UpdateInfo(
+              version: installedVersionCode, // Use current version as placeholder
+              buildNumber: int.tryParse(installedVersionCode) ?? 1,
+              downloadUrl: url,
+              releaseNotes: message,
+              isAvailable: true,
+            );
+          } else if (responseCode == 0) {
+            // No update available
+            return UpdateInfo(
+              version: installedVersionCode,
+              buildNumber: int.tryParse(installedVersionCode) ?? 1,
+              downloadUrl: '',
+              releaseNotes: message,
+              isAvailable: false,
+            );
+          } else {
+            print('⚠️ [AutoUpdate] Unknown responseCode: $responseCode');
+            return UpdateInfo(
+              version: installedVersionCode,
+              buildNumber: int.tryParse(installedVersionCode) ?? 1,
+              downloadUrl: '',
+              releaseNotes: message,
+              isAvailable: false,
+            );
+          }
+        } catch (jsonError) {
+          print('❌ [AutoUpdate] JSON decode error: $jsonError');
+          print('❌ [AutoUpdate] Response body: ${response.body}');
+          rethrow;
+        }
+      } else {
+        print('❌ [AutoUpdate] HTTP error: ${response.statusCode}');
+        print('❌ [AutoUpdate] Response body: ${response.body}');
       }
     } catch (e) {
       // Update check failed
@@ -143,14 +185,6 @@ class AutoUpdateService {
       print('❌ [AutoUpdate] Has install permission failed: $e');
       return false;
     }
-  }
-
-  static String _composeDownloadUrl(String platform, String version) {
-    final uri = Uri.parse(_updateDownloadUrl).replace(queryParameters: {
-      'platform': platform,
-      'version': version,
-    });
-    return uri.toString();
   }
 
   static Future<bool> _installApk(String apkPath) async {

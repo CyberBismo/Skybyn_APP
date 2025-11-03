@@ -5,12 +5,14 @@ class UpdateDialog extends StatefulWidget {
   final String currentVersion;
   final String latestVersion;
   final String? releaseNotes;
+  final String? downloadUrl;
 
   const UpdateDialog({
     super.key,
     required this.currentVersion,
     required this.latestVersion,
     this.releaseNotes,
+    this.downloadUrl,
   });
 
   @override
@@ -22,33 +24,25 @@ class _UpdateDialogState extends State<UpdateDialog> {
   double _updateProgress = 0.0;
   String _updateStatus = '';
 
-  @override
-  void initState() {
-    super.initState();
-    _setupUpdateListener();
-  }
+  Future<void> _installUpdate() async {
+    // Check if download URL is available
+    if (widget.downloadUrl == null || widget.downloadUrl!.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Download URL not available. Cannot install update.'),
+          ),
+        );
+      }
+      return;
+    }
 
-  void _setupUpdateListener() {
-    // This will be implemented when Firebase App Distribution is configured
-    print('ℹ️ [UpdateDialog] Update listener not yet configured');
-  }
-
-  Future<void> _startUpdate() async {
     setState(() {
       _isUpdating = true;
       _updateStatus = 'Preparing update...';
     });
 
     try {
-      // Check for updates first
-      final updateInfo = await AutoUpdateService.checkForUpdates();
-      if (updateInfo == null || !updateInfo.isAvailable) {
-        setState(() {
-          _updateStatus = 'No update available';
-        });
-        return;
-      }
-
       setState(() {
         _updateStatus = 'Downloading update...';
         _updateProgress = 0.3;
@@ -56,7 +50,7 @@ class _UpdateDialogState extends State<UpdateDialog> {
 
       // Download the update
       final downloadSuccess =
-          await AutoUpdateService.downloadUpdate(updateInfo.downloadUrl);
+          await AutoUpdateService.downloadUpdate(widget.downloadUrl!);
       if (!downloadSuccess) {
         throw Exception('Failed to download update');
       }
@@ -93,7 +87,7 @@ class _UpdateDialogState extends State<UpdateDialog> {
           context: context,
           builder: (context) => AlertDialog(
             title: const Text('Update Failed'),
-            content: Text('Failed to start update: $e'),
+            content: Text('Failed to install update: $e'),
             actions: [
               TextButton(
                 onPressed: () => Navigator.of(context).pop(),
@@ -215,16 +209,16 @@ class _UpdateDialogState extends State<UpdateDialog> {
         if (!_isUpdating) ...[
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Later'),
+            child: const Text('Ignore'),
           ),
           ElevatedButton(
-            onPressed: _startUpdate,
-            child: const Text('Update Now'),
+            onPressed: _installUpdate,
+            child: const Text('Install'),
           ),
         ] else ...[
           const TextButton(
             onPressed: null,
-            child: Text('Updating...'),
+            child: Text('Installing...'),
           ),
         ],
       ],
