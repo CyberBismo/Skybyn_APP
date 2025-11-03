@@ -99,23 +99,52 @@ class _PermissionDialogState extends State<PermissionDialog> {
       actions: [
         TextButton(
           onPressed: widget.onDenied,
-          child: const Text('Cancel'),
+          child: Text(
+            'Cancel',
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.primary,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
         ),
         if (!_hasPermission)
           ElevatedButton(
             onPressed: _isRequesting ? null : _requestPermission,
+            style: ElevatedButton.styleFrom(
+              foregroundColor: Colors.white,
+              backgroundColor: Theme.of(context).colorScheme.primary,
+            ),
             child: _isRequesting
                 ? const SizedBox(
                     width: 20,
                     height: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2),
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                    ),
                   )
-                : const Text('Grant Permission'),
+                : const Text(
+                    'Grant Permission',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
           ),
         if (_hasPermission)
           ElevatedButton(
             onPressed: widget.onGranted,
-            child: const Text('Continue'),
+            style: ElevatedButton.styleFrom(
+              foregroundColor: Colors.white,
+              backgroundColor: Theme.of(context).colorScheme.primary,
+            ),
+            child: const Text(
+              'Continue',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
           ),
       ],
     );
