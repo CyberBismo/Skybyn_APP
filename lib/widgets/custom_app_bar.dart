@@ -154,28 +154,27 @@ class _CustomAppBarState extends State<CustomAppBar> {
       final updateInfo = await AutoUpdateService.checkForUpdates();
       
       if (mounted && updateInfo != null && updateInfo.isAvailable) {
-        // Check if we've already shown this update
-        final alreadyShown = await AutoUpdateService.hasShownUpdateForVersion(updateInfo.version);
-        if (alreadyShown) {
-          print('ℹ️ [CustomAppBar] Update for version ${updateInfo.version} already shown, skipping...');
+        // Only show if dialog is not already showing (don't check version history)
+        if (AutoUpdateService.isDialogShowing) {
+          print('⚠️ [CustomAppBar] Update dialog already showing, skipping...');
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Update dialog already shown. Check again later.')),
+              const SnackBar(content: Text('Update dialog is already open.')),
             );
           }
           UnifiedMenu.closeCurrentMenu();
           return;
         }
 
-        // Mark this version as shown
-        await AutoUpdateService.markUpdateShownForVersion(updateInfo.version);
-        
-        // Mark dialog as showing
+        // Mark dialog as showing immediately to prevent duplicates
         AutoUpdateService.setDialogShowing(true);
         
         // Get current version
         final packageInfo = await PackageInfo.fromPlatform();
         final currentVersion = packageInfo.version;
+        
+        // Mark this version as shown (so we don't spam)
+        await AutoUpdateService.markUpdateShownForVersion(updateInfo.version);
         
         // Show update dialog
         await showDialog(

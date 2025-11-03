@@ -135,10 +135,9 @@ class NotificationService {
       final updateInfo = await AutoUpdateService.checkForUpdates();
 
       if (updateInfo != null && updateInfo.isAvailable) {
-        // Check if we've already shown this update
-        final alreadyShown = await AutoUpdateService.hasShownUpdateForVersion(updateInfo.version);
-        if (alreadyShown) {
-          print('ℹ️ [NotificationService] Update for version ${updateInfo.version} already shown, skipping...');
+        // Only show if dialog is not already showing (don't check version history)
+        if (AutoUpdateService.isDialogShowing) {
+          print('ℹ️ [NotificationService] Update dialog already showing, skipping...');
           return;
         }
 
@@ -146,13 +145,13 @@ class NotificationService {
         final packageInfo = await PackageInfo.fromPlatform();
         final currentVersion = packageInfo.version;
         
-        // Mark this version as shown
+        // Mark this version as shown (so we don't spam, but still allow if user dismissed)
         await AutoUpdateService.markUpdateShownForVersion(updateInfo.version);
         
         // Show update dialog using navigator key
         final navigator = navigatorKey.currentState;
         if (navigator != null && !AutoUpdateService.isDialogShowing) {
-          // Mark dialog as showing
+          // Mark dialog as showing immediately to prevent duplicates
           AutoUpdateService.setDialogShowing(true);
           
           print('✅ [NotificationService] Showing update dialog...');
@@ -290,22 +289,12 @@ class NotificationService {
     String channelId = _adminChannelId,
   }) async {
     try {
-      // For app_update notifications, check if we've already shown one recently
+      // For app_update notifications, only check if dialog is showing (not version history)
+      // This allows the notification to be shown if user dismissed it previously
       if (payload == 'app_update') {
-        try {
-          final updateInfo = await AutoUpdateService.checkForUpdates();
-          if (updateInfo != null && updateInfo.isAvailable) {
-            final alreadyShown = await AutoUpdateService.hasShownUpdateForVersion(updateInfo.version);
-            if (alreadyShown) {
-              print('ℹ️ [NotificationService] App update notification for version ${updateInfo.version} already shown, skipping...');
-              return;
-            }
-            // Mark as shown when we show the notification
-            await AutoUpdateService.markUpdateShownForVersion(updateInfo.version);
-          }
-        } catch (e) {
-          print('⚠️ [NotificationService] Error checking update version: $e');
-          // Continue to show notification if check fails
+        if (AutoUpdateService.isDialogShowing) {
+          print('ℹ️ [NotificationService] Update dialog already showing, skipping notification...');
+          return;
         }
       }
       

@@ -484,23 +484,16 @@ class _HomeScreenState extends State<HomeScreen> {
       final updateInfo = await AutoUpdateService.checkForUpdates();
 
       if (updateInfo != null && updateInfo.isAvailable) {
-        // Check if we've already shown this update
-        final alreadyShown = await AutoUpdateService.hasShownUpdateForVersion(updateInfo.version);
-        if (alreadyShown) {
-          print('ℹ️ [HomeScreen] Update for version ${updateInfo.version} already shown, skipping...');
-          return;
-        }
-
-        // Show update dialog
+        // Show update dialog if not already showing
         if (mounted && !AutoUpdateService.isDialogShowing) {
-          // Mark dialog as showing
+          // Mark dialog as showing immediately to prevent duplicates
           AutoUpdateService.setDialogShowing(true);
           
           // Get current version
           final packageInfo = await PackageInfo.fromPlatform();
           final currentVersion = packageInfo.version;
           
-          // Mark this version as shown
+          // Mark this version as shown (so we don't spam the user)
           await AutoUpdateService.markUpdateShownForVersion(updateInfo.version);
           
           await showDialog(

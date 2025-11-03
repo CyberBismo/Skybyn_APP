@@ -43,12 +43,15 @@ class BackgroundService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+        Log.d("BackgroundService", "onCreate called")
         createNotificationChannel()
         executor = Executors.newScheduledThreadPool(2) // Increased for WebSocket thread
         reconnectHandler = Handler(Looper.getMainLooper())
         
         // Initialize OkHttp client for WebSocket with SSL certificate trust
+        Log.d("BackgroundService", "Creating OkHttpClient before onCreate returns")
         okHttpClient = createUnsafeOkHttpClient()
+        Log.d("BackgroundService", "OkHttpClient created: ${okHttpClient != null}")
     }
     
     // Create OkHttpClient that trusts all SSL certificates (matching Flutter behavior)
@@ -200,6 +203,12 @@ class BackgroundService : Service() {
     
     private fun connectWebSocket() {
         try {
+            // Ensure OkHttpClient is initialized (recreate if null)
+            if (okHttpClient == null) {
+                Log.w("BackgroundService", "OkHttpClient is null, recreating...")
+                okHttpClient = createUnsafeOkHttpClient()
+            }
+            
             // Flutter SharedPreferences uses "FlutterSharedPreferences" file with "flutter." prefix
             val prefs = getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
             // Keys are stored with "flutter." prefix by shared_preferences package
@@ -220,7 +229,7 @@ class BackgroundService : Service() {
             Log.d("BackgroundService", "Using OkHttpClient: ${okHttpClient != null}")
             
             if (okHttpClient == null) {
-                Log.e("BackgroundService", "OkHttpClient is null! Cannot connect WebSocket.")
+                Log.e("BackgroundService", "OkHttpClient is null after recreation! Cannot connect WebSocket.")
                 return
             }
             
@@ -317,8 +326,13 @@ class BackgroundService : Service() {
                     Log.d("BackgroundService", "New comment notification received")
                     // Could show notification here if needed
                 }
+                "ping" -> {
+                    Log.d("BackgroundService", "Ping received, sending pong")
+                    sendPong()
+                }
                 "pong" -> {
-                    // Respond to ping, nothing to do
+                    Log.d("BackgroundService", "Pong received")
+                    // Pong response received, nothing to do
                 }
                 else -> {
                     Log.d("BackgroundService", "Unknown message type: $type")
@@ -326,6 +340,21 @@ class BackgroundService : Service() {
             }
         } catch (e: Exception) {
             Log.e("BackgroundService", "Error handling WebSocket message: ${e.message}")
+        }
+    }
+    
+    private fun sendPong() {
+        try {
+            val pongMessage = JSONObject().apply {
+                put("type", "pong")
+                put("sessionId", sessionId ?: generateSessionId())
+            }
+            
+            val message = pongMessage.toString()
+            webSocket?.send(message)
+            Log.d("BackgroundService", "Pong sent")
+        } catch (e: Exception) {
+            Log.e("BackgroundService", "Error sending pong: ${e.message}")
         }
     }
     
