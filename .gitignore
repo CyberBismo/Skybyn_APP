@@ -116,3 +116,4 @@ fastlane/test_output
 /docs
 android/build/reports/problems/problems-report.html
 build_apk.bat
+/linux
