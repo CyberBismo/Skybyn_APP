@@ -121,12 +121,25 @@ class BackgroundService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         Log.d("BackgroundService", "Service started")
         
+        // Handle notification visibility actions
+        when (intent?.action) {
+            "SHOW_NOTIFICATION" -> {
+                updateNotificationVisibility(true)
+                return START_STICKY
+            }
+            "HIDE_NOTIFICATION" -> {
+                updateNotificationVisibility(false)
+                return START_STICKY
+            }
+        }
+        
         if (!isRunning) {
+            // Start with invisible notification
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
                 // Android 14+ requires foreground service type to be specified
-                startForeground(NOTIFICATION_ID, createNotification(), android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
+                startForeground(NOTIFICATION_ID, createNotification(false), android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
             } else {
-                startForeground(NOTIFICATION_ID, createNotification())
+                startForeground(NOTIFICATION_ID, createNotification(false))
             }
             startBackgroundTasks()
             isRunning = true
@@ -147,13 +160,48 @@ class BackgroundService : Service() {
 
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            // Create channel with IMPORTANCE_NONE for invisible notification initially
             val channel = NotificationChannel(
                 CHANNEL_ID,
                 CHANNEL_NAME,
-                NotificationManager.IMPORTANCE_LOW
+                NotificationManager.IMPORTANCE_NONE
             ).apply {
-                description = "" // "Keeps Skybyn running in background"
+                description = "Keeps Skybyn running in background"
                 setShowBadge(false)
+                setSound(null, null)
+                enableVibration(false)
+                enableLights(false)
+            }
+            
+            val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            notificationManager.createNotificationChannel(channel)
+        }
+    }
+    
+    private fun updateNotificationChannel(show: Boolean) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val importance = if (show) {
+                NotificationManager.IMPORTANCE_LOW
+            } else {
+                NotificationManager.IMPORTANCE_NONE
+            }
+            
+            val channel = NotificationChannel(
+                CHANNEL_ID,
+                CHANNEL_NAME,
+                importance
+            ).apply {
+                description = "Keeps Skybyn running in background"
+                setShowBadge(false)
+                if (show) {
+                    setSound(null, null)
+                    enableVibration(false)
+                    enableLights(false)
+                } else {
+                    setSound(null, null)
+                    enableVibration(false)
+                    enableLights(false)
+                }
             }
             
             val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
@@ -161,7 +209,9 @@ class BackgroundService : Service() {
         }
     }
 
-    private fun createNotification(): Notification {
+    private var notificationVisible = false
+    
+    private fun createNotification(visible: Boolean = false): Notification {
         val intent = Intent(this, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
         }
@@ -171,14 +221,38 @@ class BackgroundService : Service() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        return NotificationCompat.Builder(this, CHANNEL_ID)
+        val builder = NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("Skybyn")
-            .setContentText("")
+            .setContentText(if (visible) "Running in background" else "")
             .setSmallIcon(R.drawable.notification_icon)
             .setContentIntent(pendingIntent)
             .setOngoing(true)
-            .setSilent(false)
-            .build()
+            .setSilent(!visible)
+            .setPriority(if (visible) NotificationCompat.PRIORITY_LOW else NotificationCompat.PRIORITY_MIN)
+        
+        if (!visible) {
+            // Make notification invisible/minimal
+            builder.setShowWhen(false)
+                .setCategory(NotificationCompat.CATEGORY_SERVICE)
+        }
+        
+        return builder.build()
+    }
+    
+    private fun updateNotificationVisibility(visible: Boolean) {
+        notificationVisible = visible
+        updateNotificationChannel(visible)
+        
+        val notification = createNotification(visible)
+        val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            startForeground(NOTIFICATION_ID, notification, android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
+        } else {
+            startForeground(NOTIFICATION_ID, notification)
+        }
+        
+        Log.d("BackgroundService", "Notification visibility updated: $visible")
     }
 
     private fun startBackgroundTasks() {
