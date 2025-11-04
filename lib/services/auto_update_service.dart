@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'dart:convert';
+import 'package:flutter/services.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../config/constants.dart';
 import 'package:http/http.dart' as http;
@@ -476,6 +477,8 @@ class AutoUpdateService {
   }
 
   static Future<bool> _installApk(String apkPath) async {
+    final notificationService = NotificationService();
+    
     try {
       print('📦 [AutoUpdate] Opening APK for installation: $apkPath');
 
@@ -483,20 +486,71 @@ class AutoUpdateService {
       final file = File(apkPath);
       if (!await file.exists()) {
         print('❌ [AutoUpdate] APK file does not exist: $apkPath');
+        await notificationService.showUpdateProgressNotification(
+          title: 'Update Failed',
+          status: 'APK file not found',
+          progress: 0,
+        );
         return false;
       }
 
       final fileSize = await file.length();
       if (fileSize == 0) {
         print('❌ [AutoUpdate] APK file is empty: $apkPath');
+        await notificationService.showUpdateProgressNotification(
+          title: 'Update Failed',
+          status: 'APK file is empty',
+          progress: 0,
+        );
         return false;
       }
 
       print('📊 [AutoUpdate] APK file verified (size: $fileSize bytes)');
 
-      // Open the APK file using open_file package
-      // On Android, this will trigger the system package installer
-      print('🚀 [AutoUpdate] Attempting to open APK file...');
+      // Try using platform channel first for better error handling
+      if (Platform.isAndroid) {
+        try {
+          const platform = MethodChannel('no.skybyn.app/installer');
+          final result = await platform.invokeMethod('installApk', {'apkPath': apkPath});
+          if (result == true) {
+            print('✅ [AutoUpdate] Installation intent launched successfully');
+            await notificationService.showUpdateProgressNotification(
+              title: 'Update Ready',
+              status: 'Tap "Install" in the system dialog. If you see a package conflict error, the APK must be signed with the same key as the installed app.',
+              progress: 100,
+            );
+            return true;
+          }
+        } on PlatformException catch (e) {
+          print('❌ [AutoUpdate] Platform channel error: ${e.code} - ${e.message}');
+          
+          String errorMessage = 'Installation failed';
+          if (e.code == 'SECURITY_ERROR' || e.code == 'INSTALL_ERROR') {
+            errorMessage = e.message ?? 'Installation failed';
+            if (e.message?.contains('conflicts', ignoreCase: true) == true ||
+                e.message?.contains('signature', ignoreCase: true) == true ||
+                e.message?.contains('certificate', ignoreCase: true) == true) {
+              errorMessage = 'Package conflict detected: The update APK must be signed with the same certificate as the installed app. Please ensure the server provides an APK signed with the correct key.';
+            }
+          } else if (e.code == 'FILE_NOT_FOUND') {
+            errorMessage = 'APK file not found';
+          }
+          
+          await notificationService.showUpdateProgressNotification(
+            title: 'Update Failed',
+            status: errorMessage,
+            progress: 0,
+          );
+          await Future.delayed(const Duration(seconds: 5));
+          return false;
+        } catch (e) {
+          print('⚠️ [AutoUpdate] Platform channel failed, falling back to OpenFile: $e');
+          // Fall through to OpenFile method
+        }
+      }
+
+      // Fallback to OpenFile package
+      print('🚀 [AutoUpdate] Attempting to open APK file using OpenFile...');
       final result = await OpenFile.open(apkPath);
 
       print('📋 [AutoUpdate] OpenFile result type: ${result.type}');
@@ -505,25 +559,54 @@ class AutoUpdateService {
       if (result.type == ResultType.done) {
         print('✅ [AutoUpdate] APK opened successfully, installation dialog should appear');
         print('ℹ️ [AutoUpdate] User will need to tap "Install" in the system dialog');
+        await notificationService.showUpdateProgressNotification(
+          title: 'Update Ready',
+          status: 'Tap "Install" in the system dialog. If you see a package conflict error, the APK must be signed with the same key as the installed app.',
+          progress: 100,
+        );
         return true;
       } else if (result.type == ResultType.noAppToOpen) {
         print('❌ [AutoUpdate] No app available to open APK file');
-        print('💡 [AutoUpdate] This may indicate the device cannot install APKs');
+        await notificationService.showUpdateProgressNotification(
+          title: 'Update Failed',
+          status: 'No app available to install APK',
+          progress: 0,
+        );
         return false;
       } else if (result.type == ResultType.fileNotFound) {
         print('❌ [AutoUpdate] APK file not found: $apkPath');
+        await notificationService.showUpdateProgressNotification(
+          title: 'Update Failed',
+          status: 'APK file not found',
+          progress: 0,
+        );
         return false;
       } else if (result.type == ResultType.permissionDenied) {
         print('❌ [AutoUpdate] Permission denied to open APK file');
-        print('💡 [AutoUpdate] Check if install permission is granted');
+        await notificationService.showUpdateProgressNotification(
+          title: 'Update Failed',
+          status: 'Installation permission denied',
+          progress: 0,
+        );
         return false;
       } else {
         print('❌ [AutoUpdate] Failed to open APK: ${result.message}');
+        await notificationService.showUpdateProgressNotification(
+          title: 'Update Failed',
+          status: 'Failed to open installer: ${result.message}',
+          progress: 0,
+        );
         return false;
       }
     } catch (e, stackTrace) {
       print('❌ [AutoUpdate] Install APK failed: $e');
       print('❌ [AutoUpdate] Stack trace: $stackTrace');
+      await notificationService.showUpdateProgressNotification(
+        title: 'Update Failed',
+        status: 'Installation error: ${e.toString()}',
+        progress: 0,
+      );
+      await Future.delayed(const Duration(seconds: 5));
       return false;
     }
   }
