@@ -138,6 +138,9 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    
+    // App starts in foreground
+    _isAppInForeground = true;
 
     // Initialize services in the background
     _initializeServices();
@@ -181,20 +184,26 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
 
     switch (state) {
       case AppLifecycleState.resumed:
+        // App is in foreground - hide notification immediately
         _isAppInForeground = true;
         _hideBackgroundNotification();
         break;
       case AppLifecycleState.paused:
+        // App is definitely in background - show notification
+        _isAppInForeground = false;
+        _showBackgroundNotification();
+        break;
       case AppLifecycleState.inactive:
+        // Transitional state - app might still be visible (e.g., overlay, dialog)
+        // Don't change notification state, keep current state
+        break;
+      case AppLifecycleState.hidden:
+        // App is hidden - show notification
         _isAppInForeground = false;
         _showBackgroundNotification();
         break;
       case AppLifecycleState.detached:
-        // Don't stop background service when app is detached
-        _isAppInForeground = false;
-        _showBackgroundNotification();
-        break;
-      case AppLifecycleState.hidden:
+        // App is being destroyed - show notification since app won't be visible
         _isAppInForeground = false;
         _showBackgroundNotification();
         break;
@@ -202,23 +211,27 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   }
   
   Future<void> _showBackgroundNotification() async {
-    if (Platform.isAndroid) {
+    // Only show if app is actually not in foreground
+    if (!_isAppInForeground && Platform.isAndroid) {
       try {
         const platform = MethodChannel('no.skybyn.app/background_service');
         await platform.invokeMethod('showBackgroundNotification');
-        print('✅ [MyApp] Background notification shown');
+        print('✅ [MyApp] Background notification shown (app is in background)');
       } catch (e) {
         print('❌ [MyApp] Error showing background notification: $e');
       }
+    } else {
+      print('ℹ️ [MyApp] Skipping background notification (app is in foreground: $_isAppInForeground)');
     }
   }
   
   Future<void> _hideBackgroundNotification() async {
+    // Always hide when app is in foreground
     if (Platform.isAndroid) {
       try {
         const platform = MethodChannel('no.skybyn.app/background_service');
         await platform.invokeMethod('hideBackgroundNotification');
-        print('✅ [MyApp] Background notification hidden');
+        print('✅ [MyApp] Background notification hidden (app is in foreground)');
       } catch (e) {
         print('❌ [MyApp] Error hiding background notification: $e');
       }
