@@ -151,6 +151,11 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       // Initialize WebSocket service
       await _webSocketService.initialize();
 
+      // Ensure background notification is hidden when app starts (in foreground)
+      if (Platform.isAndroid) {
+        _hideBackgroundNotification();
+      }
+
       // Check for updates after a delay
       if (Platform.isAndroid) {
         Future.delayed(const Duration(seconds: 5), () {
@@ -177,17 +182,46 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     switch (state) {
       case AppLifecycleState.resumed:
         _isAppInForeground = true;
+        _hideBackgroundNotification();
         break;
       case AppLifecycleState.paused:
       case AppLifecycleState.inactive:
         _isAppInForeground = false;
+        _showBackgroundNotification();
         break;
       case AppLifecycleState.detached:
         // Don't stop background service when app is detached
+        _isAppInForeground = false;
+        _showBackgroundNotification();
         break;
       case AppLifecycleState.hidden:
         _isAppInForeground = false;
+        _showBackgroundNotification();
         break;
+    }
+  }
+  
+  Future<void> _showBackgroundNotification() async {
+    if (Platform.isAndroid) {
+      try {
+        const platform = MethodChannel('no.skybyn.app/background_service');
+        await platform.invokeMethod('showBackgroundNotification');
+        print('✅ [MyApp] Background notification shown');
+      } catch (e) {
+        print('❌ [MyApp] Error showing background notification: $e');
+      }
+    }
+  }
+  
+  Future<void> _hideBackgroundNotification() async {
+    if (Platform.isAndroid) {
+      try {
+        const platform = MethodChannel('no.skybyn.app/background_service');
+        await platform.invokeMethod('hideBackgroundNotification');
+        print('✅ [MyApp] Background notification hidden');
+      } catch (e) {
+        print('❌ [MyApp] Error hiding background notification: $e');
+      }
     }
   }
 
