@@ -30,9 +30,12 @@ class ShareScreen extends StatelessWidget {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Image.asset(
-                    'assets/images/dl_qr.png',
-                    fit: BoxFit.contain,
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(16),
+                    child: Image.asset(
+                      'assets/images/dl_qr.png',
+                      fit: BoxFit.contain,
+                    ),
                   ),
                   const SizedBox(height: 32),
                   ElevatedButton.icon(
