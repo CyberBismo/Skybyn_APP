@@ -66,6 +66,13 @@ Future<void> main() async {
 }
 
 Future<void> _initializeFirebase() async {
+  // Skip Firebase on iOS - it requires APN configuration which is not set up
+  if (Platform.isIOS) {
+    print('ℹ️ [Firebase] Skipping Firebase initialization on iOS (APN not configured)');
+    print('ℹ️ [Firebase] iOS will use WebSocket only for notifications');
+    return;
+  }
+
   try {
     print('🔄 [Firebase] Starting Firebase initialization...');
     
@@ -76,21 +83,14 @@ Future<void> _initializeFirebase() async {
         await Firebase.initializeApp();
         print('✅ [Firebase] Firebase Core initialized successfully');
       } catch (e) {
-        if (Platform.isIOS) {
-          print('⚠️ [Firebase] Failed to initialize Firebase Core on iOS (APN not configured)');
-          print('⚠️ [Firebase] App will continue without Firebase - using WebSocket only');
-          return; // Exit early - don't try to initialize messaging
-        } else {
-          print('❌ [Firebase] Failed to initialize Firebase Core: $e');
-          rethrow; // Re-throw on Android to be caught by outer catch
-        }
+        print('❌ [Firebase] Failed to initialize Firebase Core: $e');
+        rethrow; // Re-throw on Android to be caught by outer catch
       }
     } else {
       print('✅ [Firebase] Firebase Core already initialized');
     }
 
-    // Initialize Firebase Messaging for push notifications
-    // Note: iOS requires APN to be configured in Firebase Console
+    // Initialize Firebase Messaging for push notifications (Android only)
     print('🔄 [Firebase] Starting Firebase Messaging initialization...');
     try {
       final firebaseMessagingService = FirebaseMessagingService();
@@ -100,20 +100,12 @@ Future<void> _initializeFirebase() async {
       await firebaseMessagingService.autoRegisterTokenOnAppOpen();
       print('✅ [Firebase] Firebase Messaging initialized successfully');
     } catch (e) {
-      // If Firebase initialization fails (e.g., APN not configured on iOS),
-      // gracefully fall back to WebSocket only
-      if (Platform.isIOS) {
-        print('⚠️ [Firebase] iOS Firebase not available (APN not configured) - using WebSocket only: $e');
-      } else {
-        print('❌ [Firebase] Firebase Messaging initialization failed: $e');
-      }
+      print('❌ [Firebase] Firebase Messaging initialization failed: $e');
     }
   } catch (e, stackTrace) {
-    if (!Platform.isIOS) {
-      // Only print detailed error for Android
-      print('❌ [Firebase] Firebase initialization failed: $e');
-      print('Stack trace: $stackTrace');
-    }
+    // Only print detailed error for Android
+    print('❌ [Firebase] Firebase initialization failed: $e');
+    print('Stack trace: $stackTrace');
     // Continue without Firebase - app will still work
   }
 }

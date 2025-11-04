@@ -29,16 +29,26 @@ class _CallScreenState extends State<CallScreen> {
   bool _isMuted = false;
   bool _isVideoEnabled = true;
   bool _isFrontCamera = true;
+  RTCVideoRenderer? _localRenderer;
+  RTCVideoRenderer? _remoteRenderer;
 
   @override
   void initState() {
     super.initState();
+    _localRenderer = RTCVideoRenderer();
+    _remoteRenderer = RTCVideoRenderer();
+    _initializeRenderers();
     _setupCallService();
     if (!widget.isIncoming && widget.friend != null) {
       _startCall();
     } else if (widget.isIncoming) {
       _callState = CallState.ringing;
     }
+  }
+
+  Future<void> _initializeRenderers() async {
+    await _localRenderer?.initialize();
+    await _remoteRenderer?.initialize();
   }
 
   void _setupCallService() {
@@ -50,19 +60,31 @@ class _CallScreenState extends State<CallScreen> {
       }
     };
 
-    _callService.onLocalStream = (stream) {
+    _callService.onLocalStream = (stream) async {
       if (mounted) {
         setState(() {
           _localStream = stream;
         });
+        if (stream != null && _localRenderer != null) {
+          final videoTrack = stream.getVideoTracks().firstOrNull;
+          if (videoTrack != null) {
+            _localRenderer!.srcObject = stream;
+          }
+        }
       }
     };
 
-    _callService.onRemoteStream = (stream) {
+    _callService.onRemoteStream = (stream) async {
       if (mounted) {
         setState(() {
           _remoteStream = stream;
         });
+        if (stream != null && _remoteRenderer != null) {
+          final videoTrack = stream.getVideoTracks().firstOrNull;
+          if (videoTrack != null) {
+            _remoteRenderer!.srcObject = stream;
+          }
+        }
       }
     };
 
@@ -120,6 +142,8 @@ class _CallScreenState extends State<CallScreen> {
     if (_callState != CallState.ended && _callState != CallState.idle) {
       _callService.endCall();
     }
+    _localRenderer?.dispose();
+    _remoteRenderer?.dispose();
     super.dispose();
   }
 
@@ -168,12 +192,12 @@ class _CallScreenState extends State<CallScreen> {
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             // Remote video (for video calls) or avatar
-                            if (widget.callType == CallType.video && _remoteStream != null)
+                            if (widget.callType == CallType.video && _remoteStream != null && _remoteRenderer != null)
                               Expanded(
                                 child: Container(
                                   width: double.infinity,
                                   child: RTCVideoView(
-                                    _remoteStream!.getVideoTracks().firstOrNull?.renderer() ?? RTCVideoRenderer(),
+                                    _remoteRenderer!,
                                     mirror: false,
                                     objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
                                   ),
@@ -233,11 +257,13 @@ class _CallScreenState extends State<CallScreen> {
                             ),
                             child: ClipRRect(
                               borderRadius: BorderRadius.circular(10),
-                              child: RTCVideoView(
-                                _localStream!.getVideoTracks().firstOrNull?.renderer() ?? RTCVideoRenderer(),
-                                mirror: _isFrontCamera,
-                                objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
-                              ),
+                              child: _localRenderer != null
+                                  ? RTCVideoView(
+                                      _localRenderer!,
+                                      mirror: _isFrontCamera,
+                                      objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
+                                    )
+                                  : const SizedBox(),
                             ),
                           ),
                         ),

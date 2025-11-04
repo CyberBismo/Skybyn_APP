@@ -303,7 +303,7 @@ class CallService {
     if (_localStream != null && _currentCallType == CallType.video) {
       final videoTrack = _localStream!.getVideoTracks().firstOrNull;
       if (videoTrack != null) {
-        await videoTrack.setEnabled(!videoTrack.enabled!);
+        videoTrack.enabled = !videoTrack.enabled!;
       }
     }
   }
@@ -313,7 +313,7 @@ class CallService {
     if (_localStream != null) {
       final audioTrack = _localStream!.getAudioTracks().firstOrNull;
       if (audioTrack != null) {
-        await audioTrack.setEnabled(!audioTrack.enabled!);
+        audioTrack.enabled = !audioTrack.enabled!;
       }
     }
   }

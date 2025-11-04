@@ -58,7 +58,7 @@ class WebSocketService {
   // Callbacks for WebRTC signaling
   Function(String, String, String, String)? _onCallOffer; // callId, fromUserId, offer, callType
   Function(String, String)? _onCallAnswer; // callId, answer
-  Function(String, String, String, String, int)? _onIceCandidate; // callId, candidate, sdpMid, sdpMLineIndex
+  Function(String, String, String, int)? _onIceCandidate; // callId, candidate, sdpMid, sdpMLineIndex
   Function(String)? _onCallEnd; // callId
   Function(String, String, String, String)? _onCallInitiate; // callId, fromUserId, callType, fromUsername
 
@@ -570,7 +570,7 @@ class WebSocketService {
     Function(String, String, String, String)? onCallInitiate,
     Function(String, String, String, String)? onCallOffer,
     Function(String, String)? onCallAnswer,
-    Function(String, String, String, String, int)? onIceCandidate,
+    Function(String, String, String, int)? onIceCandidate,
     Function(String)? onCallEnd,
   }) {
     _onCallInitiate = onCallInitiate;
