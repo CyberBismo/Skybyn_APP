@@ -40,6 +40,10 @@ class BackgroundService : Service() {
     private val maxReconnectAttempts = 10
     private var sessionId: String? = null
     private val wsUrl = "wss://server.skybyn.no:4433"
+    
+    // Notification auto-hide
+    private var notificationHideTask: java.util.concurrent.ScheduledFuture<*>? = null
+    private val NOTIFICATION_AUTO_HIDE_DELAY_SECONDS = 5L // Hide notification after 5 seconds
 
     override fun onCreate() {
         super.onCreate()
@@ -155,6 +159,11 @@ class BackgroundService : Service() {
     override fun onDestroy() {
         super.onDestroy()
         Log.d("BackgroundService", "Service destroyed")
+        
+        // Cancel any pending notification hide task
+        notificationHideTask?.cancel(false)
+        notificationHideTask = null
+        
         stopBackgroundTasks()
     }
 
@@ -240,6 +249,16 @@ class BackgroundService : Service() {
     }
     
     private fun updateNotificationVisibility(visible: Boolean) {
+        // Only update if state actually changed
+        if (notificationVisible == visible) {
+            Log.d("BackgroundService", "Notification visibility unchanged: $visible")
+            return
+        }
+        
+        // Cancel any pending auto-hide task
+        notificationHideTask?.cancel(false)
+        notificationHideTask = null
+        
         notificationVisible = visible
         updateNotificationChannel(visible)
         
@@ -253,6 +272,20 @@ class BackgroundService : Service() {
         }
         
         Log.d("BackgroundService", "Notification visibility updated: $visible")
+        
+        // If showing notification, schedule auto-hide after a few seconds
+        if (visible && executor != null) {
+            notificationHideTask = executor?.schedule({
+                try {
+                    Log.d("BackgroundService", "Auto-hiding background notification after delay")
+                    updateNotificationVisibility(false)
+                } catch (e: Exception) {
+                    Log.e("BackgroundService", "Error auto-hiding notification: ${e.message}")
+                }
+            }, NOTIFICATION_AUTO_HIDE_DELAY_SECONDS, TimeUnit.SECONDS)
+            
+            Log.d("BackgroundService", "Scheduled notification auto-hide in $NOTIFICATION_AUTO_HIDE_DELAY_SECONDS seconds")
+        }
     }
 
     private fun startBackgroundTasks() {
