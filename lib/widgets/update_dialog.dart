@@ -32,6 +32,15 @@ class _UpdateDialogState extends State<UpdateDialog> {
     AutoUpdateService.setDialogShowing(true);
   }
 
+  @override
+  void dispose() {
+    // Cancel progress notification when dialog is closed
+    AutoUpdateService.cancelUpdateProgressNotification();
+    // Mark dialog as not showing when it closes
+    AutoUpdateService.setDialogShowing(false);
+    super.dispose();
+  }
+
   Future<void> _installUpdate() async {
     // Check if download URL is available
     if (widget.downloadUrl == null || widget.downloadUrl!.isEmpty) {
@@ -56,20 +65,38 @@ class _UpdateDialogState extends State<UpdateDialog> {
         _updateProgress = 0.3;
       });
 
-      // Download the update
-      final downloadSuccess =
-          await AutoUpdateService.downloadUpdate(widget.downloadUrl!);
+      // Download the update with progress callback
+      final downloadSuccess = await AutoUpdateService.downloadUpdate(
+        widget.downloadUrl!,
+        onProgress: (progress, status) {
+          if (mounted) {
+            setState(() {
+              _updateProgress = progress / 100.0;
+              _updateStatus = status;
+            });
+          }
+        },
+      );
       if (!downloadSuccess) {
         throw Exception('Failed to download update');
       }
 
       setState(() {
         _updateStatus = 'Installing update...';
-        _updateProgress = 0.7;
+        _updateProgress = 0.95;
       });
 
-      // Install the update
-      final installSuccess = await AutoUpdateService.installUpdate();
+      // Install the update with progress callback
+      final installSuccess = await AutoUpdateService.installUpdate(
+        onProgress: (progress, status) {
+          if (mounted) {
+            setState(() {
+              _updateProgress = 0.95 + (progress / 100.0 * 0.05); // 95-100%
+              _updateStatus = status;
+            });
+          }
+        },
+      );
       if (!installSuccess) {
         throw Exception('Failed to install update');
       }
@@ -79,12 +106,18 @@ class _UpdateDialogState extends State<UpdateDialog> {
         _updateProgress = 1.0;
       });
 
+      // Cancel progress notification on success
+      await AutoUpdateService.cancelUpdateProgressNotification();
+
       // Close dialog after a delay
       await Future.delayed(const Duration(seconds: 1));
       if (mounted) {
         Navigator.of(context).pop();
       }
     } catch (e) {
+      // Cancel progress notification on error
+      await AutoUpdateService.cancelUpdateProgressNotification();
+
       if (mounted) {
         setState(() {
           _updateStatus = 'Error: $e';
@@ -111,11 +144,9 @@ class _UpdateDialogState extends State<UpdateDialog> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    
+
     return AlertDialog(
-      backgroundColor: isDark 
-          ? const Color.fromRGBO(36, 59, 85, 1.0) 
-          : Colors.white,
+      backgroundColor: isDark ? const Color.fromRGBO(36, 59, 85, 1.0) : Colors.white,
       title: Row(
         children: [
           Icon(
@@ -189,8 +220,7 @@ class _UpdateDialogState extends State<UpdateDialog> {
           ),
 
           // Release notes
-          if (widget.releaseNotes != null &&
-              widget.releaseNotes!.isNotEmpty) ...[
+          if (widget.releaseNotes != null && widget.releaseNotes!.isNotEmpty) ...[
             const SizedBox(height: 16),
             Text(
               'What\'s new:',
@@ -204,9 +234,7 @@ class _UpdateDialogState extends State<UpdateDialog> {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: isDark 
-                    ? Colors.white.withOpacity(0.1)
-                    : Colors.grey.withOpacity(0.1),
+                color: isDark ? Colors.white.withOpacity(0.1) : Colors.grey.withOpacity(0.1),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Text(
@@ -224,9 +252,7 @@ class _UpdateDialogState extends State<UpdateDialog> {
             const SizedBox(height: 16),
             LinearProgressIndicator(
               value: _updateProgress,
-              backgroundColor: isDark 
-                  ? Colors.white.withOpacity(0.3)
-                  : Colors.grey.withOpacity(0.3),
+              backgroundColor: isDark ? Colors.white.withOpacity(0.3) : Colors.grey.withOpacity(0.3),
               valueColor: AlwaysStoppedAnimation<Color>(
                 Theme.of(context).primaryColor,
               ),

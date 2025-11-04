@@ -18,20 +18,24 @@ class NotificationService {
   NotificationService._internal();
 
   final FlutterLocalNotificationsPlugin _localNotifications = FlutterLocalNotificationsPlugin();
-  
+
   static const String _notificationSettingsKey = 'notification_settings';
-  
+
   // Notification channels for Android
   static const String _adminChannelId = 'admin_notifications';
   static const String _featureChannelId = 'feature_announcements';
   static const String _maintenanceChannelId = 'maintenance_alerts';
+  static const String _updateProgressChannelId = 'update_progress';
+
+  // Notification ID for update progress (fixed ID so we can update it)
+  static const int _updateProgressNotificationId = 9999;
 
   Future<void> initialize() async {
     try {
       tz.initializeTimeZones();
-      
+
       await _initializeLocalNotifications();
-      
+
       // Request permissions after initialization
       if (Platform.isIOS) {
         await requestIOSPermissions();
@@ -45,12 +49,10 @@ class NotificationService {
 
   Future<void> _initializeLocalNotifications() async {
     // Android initialization settings
-    const AndroidInitializationSettings initializationSettingsAndroid =
-        AndroidInitializationSettings('@mipmap/launcher_icon');
+    const AndroidInitializationSettings initializationSettingsAndroid = AndroidInitializationSettings('@mipmap/launcher_icon');
 
     // iOS initialization settings - updated for better iOS support
-    const DarwinInitializationSettings initializationSettingsIOS =
-        DarwinInitializationSettings(
+    const DarwinInitializationSettings initializationSettingsIOS = DarwinInitializationSettings(
       requestAlertPermission: true, // Request alert permission during initialization
       requestBadgePermission: true, // Request badge permission during initialization
       requestSoundPermission: true, // Request sound permission during initialization
@@ -61,8 +63,7 @@ class NotificationService {
       defaultPresentList: true,
     );
 
-    const InitializationSettings initializationSettings =
-        InitializationSettings(
+    const InitializationSettings initializationSettings = InitializationSettings(
       android: initializationSettingsAndroid,
       iOS: initializationSettingsIOS,
     );
@@ -71,7 +72,7 @@ class NotificationService {
       initializationSettings,
       onDidReceiveNotificationResponse: _onNotificationTapped,
     );
-    
+
     if (initialized == true) {
       await _createNotificationChannels();
       print('✅ [NotificationService] Local notifications initialized successfully');
@@ -83,21 +84,16 @@ class NotificationService {
   void _onNotificationTapped(NotificationResponse response) {
     // Handle notification tap
     print('📱 [NotificationService] Notification tapped: ${response.payload}');
-    
+
     final payload = response.payload;
     if (payload == null) {
       return;
     }
-    
+
     // Handle app_update payload
     if (payload == 'app_update') {
       print('🔄 [NotificationService] App update notification tapped - triggering update check');
-      // Trigger update check via Firebase Messaging Service callback
-      // This uses the same callback mechanism that FCM notifications use
-      final fcmService = FirebaseMessagingService();
-      // Access the static callback through a method call
-      // Since we can't directly access the private static, we'll need to make it accessible
-      // Or we can create a public method to trigger it
+      // Trigger update check
       _triggerUpdateCheck();
     } else if (payload.startsWith('{')) {
       // JSON payload - try to parse it
@@ -113,7 +109,7 @@ class NotificationService {
       }
     }
   }
-  
+
   /// Trigger update check for app_update notifications
   /// This shows the update dialog directly when notification is tapped
   Future<void> _triggerUpdateCheck() async {
@@ -130,7 +126,7 @@ class NotificationService {
 
     try {
       print('🔄 [NotificationService] Checking for updates after notification tap...');
-      
+
       // Check for updates
       final updateInfo = await AutoUpdateService.checkForUpdates();
 
@@ -144,16 +140,16 @@ class NotificationService {
         // Get current version
         final packageInfo = await PackageInfo.fromPlatform();
         final currentVersion = packageInfo.version;
-        
+
         // Mark this version as shown (so we don't spam, but still allow if user dismissed)
         await AutoUpdateService.markUpdateShownForVersion(updateInfo.version);
-        
+
         // Show update dialog using navigator key
         final navigator = navigatorKey.currentState;
         if (navigator != null && !AutoUpdateService.isDialogShowing) {
           // Mark dialog as showing immediately to prevent duplicates
           AutoUpdateService.setDialogShowing(true);
-          
+
           print('✅ [NotificationService] Showing update dialog...');
           await showDialog(
             context: navigator.context,
@@ -218,25 +214,31 @@ class NotificationService {
         enableLights: true,
       );
 
-      await _localNotifications
-          .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
-          ?.createNotificationChannel(adminChannel);
+      await _localNotifications.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()?.createNotificationChannel(adminChannel);
 
-      await _localNotifications
-          .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
-          ?.createNotificationChannel(featureChannel);
+      await _localNotifications.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()?.createNotificationChannel(featureChannel);
 
-      await _localNotifications
-          .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
-          ?.createNotificationChannel(maintenanceChannel);
+      await _localNotifications.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()?.createNotificationChannel(maintenanceChannel);
+
+      // Update progress channel
+      const AndroidNotificationChannel updateProgressChannel = AndroidNotificationChannel(
+        _updateProgressChannelId,
+        'Update Progress',
+        description: 'App update download and installation progress',
+        importance: Importance.low,
+        playSound: false,
+        enableVibration: false,
+        showBadge: false,
+      );
+
+      await _localNotifications.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()?.createNotificationChannel(updateProgressChannel);
     }
   }
 
   Future<void> requestIOSPermissions() async {
     if (Platform.isIOS) {
       try {
-        final IOSFlutterLocalNotificationsPlugin? iOSImplementation =
-            _localNotifications.resolvePlatformSpecificImplementation<IOSFlutterLocalNotificationsPlugin>();
+        final IOSFlutterLocalNotificationsPlugin? iOSImplementation = _localNotifications.resolvePlatformSpecificImplementation<IOSFlutterLocalNotificationsPlugin>();
 
         if (iOSImplementation != null) {
           final bool? result = await iOSImplementation.requestPermissions(
@@ -245,7 +247,7 @@ class NotificationService {
             sound: true,
             provisional: false, // Don't request provisional permissions
           );
-          
+
           // Check if permissions were actually granted
           if (result == true) {
             print('✅ [NotificationService] iOS notification permissions successfully granted');
@@ -263,18 +265,17 @@ class NotificationService {
 
   Future<void> requestAndroidPermissions() async {
     if (Platform.isAndroid) {
-      final AndroidFlutterLocalNotificationsPlugin? androidImplementation =
-          _localNotifications.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+      final AndroidFlutterLocalNotificationsPlugin? androidImplementation = _localNotifications.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
 
       if (androidImplementation != null) {
         // Request notification permissions for Android 13+ (API level 33+)
         final bool? result = await androidImplementation.requestNotificationsPermission();
         print('Android notification permissions requested: $result');
-        
+
         // Check if notifications are enabled
         final bool? areNotificationsEnabled = await androidImplementation.areNotificationsEnabled();
         print('Android notifications are enabled: $areNotificationsEnabled');
-        
+
         if (areNotificationsEnabled != true) {
           print('Android notifications are disabled. User needs to enable them in system settings.');
         }
@@ -297,14 +298,13 @@ class NotificationService {
           return;
         }
       }
-      
+
       print('🔔 [NotificationService] Showing notification: $title - $body');
       print('🔔 [NotificationService] Platform: ${Platform.operatingSystem}');
       print('🔔 [NotificationService] Channel ID: $channelId');
-      
+
       // Android notification details
-      const AndroidNotificationDetails androidPlatformChannelSpecifics =
-          AndroidNotificationDetails(
+      const AndroidNotificationDetails androidPlatformChannelSpecifics = AndroidNotificationDetails(
         _adminChannelId,
         'Admin Notifications',
         channelDescription: 'Important system notifications from administrators',
@@ -323,8 +323,7 @@ class NotificationService {
       );
 
       // iOS notification details
-      const DarwinNotificationDetails iOSPlatformChannelSpecifics =
-          DarwinNotificationDetails(
+      const DarwinNotificationDetails iOSPlatformChannelSpecifics = DarwinNotificationDetails(
         presentAlert: true,
         presentBadge: true,
         presentSound: true,
@@ -339,11 +338,11 @@ class NotificationService {
         android: androidPlatformChannelSpecifics,
         iOS: iOSPlatformChannelSpecifics,
       );
-      
+
       final int notificationId = DateTime.now().millisecondsSinceEpoch ~/ 1000;
       print('🔔 [NotificationService] Notification ID: $notificationId');
       print('🔔 [NotificationService] Notification details: $platformChannelSpecifics');
-      
+
       // Show the notification
       await _localNotifications.show(
         notificationId,
@@ -352,14 +351,14 @@ class NotificationService {
         platformChannelSpecifics,
         payload: payload,
       );
-      
+
       print('✅ [NotificationService] Notification sent successfully');
-      
+
       // For iOS, add additional debugging
       if (Platform.isIOS) {
         print('📱 [NotificationService] iOS notification should appear in Notification Center');
         print('📱 [NotificationService] Swipe down from top of screen to check Notification Center');
-        
+
         // Check if we can get pending notifications to verify it was created
         final pendingNotifications = await _localNotifications.pendingNotificationRequests();
         print('📱 [NotificationService] Pending notifications count: ${pendingNotifications.length}');
@@ -378,8 +377,7 @@ class NotificationService {
     String? payload,
     String channelId = _adminChannelId,
   }) async {
-    const AndroidNotificationDetails androidPlatformChannelSpecifics =
-        AndroidNotificationDetails(
+    const AndroidNotificationDetails androidPlatformChannelSpecifics = AndroidNotificationDetails(
       _adminChannelId,
       'Admin Notifications',
       channelDescription: 'Important system notifications from administrators',
@@ -390,8 +388,7 @@ class NotificationService {
       playSound: true,
     );
 
-    const DarwinNotificationDetails iOSPlatformChannelSpecifics =
-        DarwinNotificationDetails(
+    const DarwinNotificationDetails iOSPlatformChannelSpecifics = DarwinNotificationDetails(
       presentAlert: true,
       presentBadge: true,
       presentSound: true,
@@ -409,8 +406,7 @@ class NotificationService {
       tz.TZDateTime.from(scheduledDate, tz.local),
       platformChannelSpecifics,
       androidAllowWhileIdle: true,
-      uiLocalNotificationDateInterpretation:
-          UILocalNotificationDateInterpretation.absoluteTime,
+      uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
       payload: payload,
     );
   }
@@ -455,16 +451,14 @@ class NotificationService {
 
   Future<bool> areNotificationsEnabled() async {
     if (Platform.isAndroid) {
-      final AndroidFlutterLocalNotificationsPlugin? androidImplementation =
-          _localNotifications.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
-      
+      final AndroidFlutterLocalNotificationsPlugin? androidImplementation = _localNotifications.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+
       if (androidImplementation != null) {
         return await androidImplementation.areNotificationsEnabled() ?? false;
       }
     } else if (Platform.isIOS) {
-      final IOSFlutterLocalNotificationsPlugin? iOSImplementation =
-          _localNotifications.resolvePlatformSpecificImplementation<IOSFlutterLocalNotificationsPlugin>();
-      
+      final IOSFlutterLocalNotificationsPlugin? iOSImplementation = _localNotifications.resolvePlatformSpecificImplementation<IOSFlutterLocalNotificationsPlugin>();
+
       if (iOSImplementation != null) {
         try {
           // For iOS, we need to check the actual permission status
@@ -484,12 +478,11 @@ class NotificationService {
   Future<void> checkIOSNotificationStatus() async {
     if (Platform.isIOS) {
       try {
-        final IOSFlutterLocalNotificationsPlugin? iOSImplementation =
-            _localNotifications.resolvePlatformSpecificImplementation<IOSFlutterLocalNotificationsPlugin>();
-        
+        final IOSFlutterLocalNotificationsPlugin? iOSImplementation = _localNotifications.resolvePlatformSpecificImplementation<IOSFlutterLocalNotificationsPlugin>();
+
         if (iOSImplementation != null) {
           print('📱 [NotificationService] iOS notification plugin available');
-          
+
           // Try to request permissions to see if they're granted
           final bool? result = await iOSImplementation.requestPermissions(
             alert: true,
@@ -497,9 +490,9 @@ class NotificationService {
             sound: true,
             provisional: false,
           );
-          
+
           print('📱 [NotificationService] iOS permission request result: $result');
-          
+
           if (result == true) {
             print('✅ [NotificationService] iOS notifications are enabled');
           } else {
@@ -529,4 +522,77 @@ class NotificationService {
       return false;
     }
   }
-} 
+
+  /// Show or update a progress notification for app updates
+  /// [progress] should be between 0 and 100
+  Future<void> showUpdateProgressNotification({
+    required String title,
+    required String status,
+    required int progress,
+    bool indeterminate = false,
+  }) async {
+    try {
+      if (Platform.isAndroid) {
+        // Android supports progress notifications
+        final AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
+          _updateProgressChannelId,
+          'Update Progress',
+          channelDescription: 'App update download and installation progress',
+          importance: Importance.low,
+          priority: Priority.low,
+          showWhen: false,
+          playSound: false,
+          enableVibration: false,
+          icon: '@drawable/notification_icon',
+          progress: progress,
+          maxProgress: 100,
+          indeterminate: indeterminate,
+          ongoing: true,
+          onlyAlertOnce: true,
+          autoCancel: false,
+        );
+
+        final NotificationDetails notificationDetails = NotificationDetails(
+          android: androidDetails,
+        );
+
+        await _localNotifications.show(
+          _updateProgressNotificationId,
+          title,
+          status,
+          notificationDetails,
+        );
+      } else if (Platform.isIOS) {
+        // iOS doesn't support progress notifications well, show simple status notification
+        final DarwinNotificationDetails iOSDetails = DarwinNotificationDetails(
+          presentAlert: false,
+          presentBadge: false,
+          presentSound: false,
+        );
+
+        final NotificationDetails notificationDetails = NotificationDetails(
+          iOS: iOSDetails,
+        );
+
+        await _localNotifications.show(
+          _updateProgressNotificationId,
+          title,
+          status,
+          notificationDetails,
+        );
+      }
+    } catch (e) {
+      print('❌ [NotificationService] Error showing progress notification: $e');
+    }
+  }
+
+  /// Cancel the update progress notification
+  Future<void> cancelUpdateProgressNotification() async {
+    try {
+      await _localNotifications.cancel(_updateProgressNotificationId);
+      print('✅ [NotificationService] Update progress notification cancelled');
+    } catch (e) {
+      print('❌ [NotificationService] Error cancelling progress notification: $e');
+    }
+  }
+}

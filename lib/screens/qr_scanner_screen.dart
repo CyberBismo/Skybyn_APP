@@ -6,7 +6,6 @@ import 'dart:convert';
 import '../services/auth_service.dart';
 import 'dart:async'; // Required for OverlayEntry
 import '../widgets/background_gradient.dart';
-import '../services/translation_service.dart';
 import '../utils/translation_keys.dart';
 import '../widgets/translated_text.dart';
 import 'package:permission_handler/permission_handler.dart';

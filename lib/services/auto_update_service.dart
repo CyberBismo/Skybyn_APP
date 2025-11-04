@@ -8,21 +8,22 @@ import 'package:device_info_plus/device_info_plus.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:open_file/open_file.dart';
+import 'notification_service.dart';
 
 class AutoUpdateService {
   static const String _updateCheckUrl = ApiConstants.appUpdate;
   static const String _lastShownUpdateVersionKey = 'last_shown_update_version';
   static const String _lastShownUpdateTimestampKey = 'last_shown_update_timestamp';
   static bool _isDialogShowing = false;
-  
+
   /// Check if update dialog is currently showing
   static bool get isDialogShowing => _isDialogShowing;
-  
+
   /// Mark dialog as showing
   static void setDialogShowing(bool showing) {
     _isDialogShowing = showing;
   }
-  
+
   /// Check if we've already shown an update notification/dialog for this version
   static Future<bool> hasShownUpdateForVersion(String version) async {
     try {
@@ -30,19 +31,19 @@ class AutoUpdateService {
       final lastShownVersion = prefs.getString(_lastShownUpdateVersionKey);
       final lastShownTimestamp = prefs.getInt(_lastShownUpdateTimestampKey) ?? 0;
       final now = DateTime.now().millisecondsSinceEpoch;
-      
+
       // If same version was shown in last 24 hours, don't show again
       if (lastShownVersion == version && (now - lastShownTimestamp) < 24 * 60 * 60 * 1000) {
         return true;
       }
-      
+
       return false;
     } catch (e) {
       print('⚠️ [AutoUpdate] Error checking shown update: $e');
       return false;
     }
   }
-  
+
   /// Mark that we've shown update for this version
   static Future<void> markUpdateShownForVersion(String version) async {
     try {
@@ -69,8 +70,7 @@ class AutoUpdateService {
 
       // Use the real build number from package info (version code on Android)
       final PackageInfo packageInfo = await PackageInfo.fromPlatform();
-      final String installedVersionCode =
-          packageInfo.buildNumber.isNotEmpty ? packageInfo.buildNumber : '1';
+      final String installedVersionCode = packageInfo.buildNumber.isNotEmpty ? packageInfo.buildNumber : '1';
 
       // Build URL with query parameters: c=platform&v=version
       final uri = Uri.parse(_updateCheckUrl).replace(queryParameters: {
@@ -97,7 +97,7 @@ class AutoUpdateService {
         final trimmedBody = response.body.trim();
         if (trimmedBody.isEmpty) {
           print('❌ [AutoUpdate] Empty response body');
-          throw FormatException('Server returned an empty response. The update check endpoint may not be properly configured.');
+          throw const FormatException('Server returned an empty response. The update check endpoint may not be properly configured.');
         }
 
         // Check if response starts with HTML tags (common error indicator)
@@ -110,8 +110,7 @@ class AutoUpdateService {
         }
 
         try {
-          final Map<String, dynamic> data =
-              jsonDecode(trimmedBody) as Map<String, dynamic>;
+          final Map<String, dynamic> data = jsonDecode(trimmedBody) as Map<String, dynamic>;
 
           // Parse new JSON format: responseCode, message, optional url
           final responseCode = data['responseCode'];
@@ -162,74 +161,292 @@ class AutoUpdateService {
     return null;
   }
 
-  static Future<bool> downloadUpdate(String downloadUrl) async {
+  static Future<bool> downloadUpdate(String downloadUrl, {Function(int progress, String status)? onProgress}) async {
+    final notificationService = NotificationService();
+
     try {
       print('📥 [AutoUpdate] Starting download from: $downloadUrl');
-      final http.Response response = await http.get(Uri.parse(downloadUrl));
-      
-      if (response.statusCode == 200) {
-        // Use external storage directory for better compatibility with Android 10+
-        // This location is more accessible for FileProvider
-        final Directory directory = Platform.isAndroid
-            ? await getExternalStorageDirectory() ?? await getApplicationDocumentsDirectory()
-            : await getApplicationDocumentsDirectory();
-            
-        final File file = File('${directory.path}/app-update.apk');
-        await file.writeAsBytes(response.bodyBytes);
+
+      // Show initial progress notification
+      await notificationService.showUpdateProgressNotification(
+        title: 'Updating Skybyn',
+        status: 'Preparing download...',
+        progress: 0,
+        indeterminate: true,
+      );
+
+      // Validate URL
+      if (downloadUrl.isEmpty) {
+        print('❌ [AutoUpdate] Download URL is empty');
+        await notificationService.showUpdateProgressNotification(
+          title: 'Update Failed',
+          status: 'Download URL is empty',
+          progress: 0,
+        );
+        return false;
+      }
+
+      // Use application documents directory for better compatibility with Android 10+
+      // This location is always accessible without storage permissions
+      final Directory directory = await getApplicationDocumentsDirectory();
+      final File file = File('${directory.path}/app-update.apk');
+
+      // Delete old APK if exists
+      if (await file.exists()) {
+        await file.delete();
+        print('🗑️ [AutoUpdate] Deleted old APK file');
+      }
+
+      // Update notification
+      await notificationService.showUpdateProgressNotification(
+        title: 'Updating Skybyn',
+        status: 'Connecting to server...',
+        progress: 5,
+      );
+
+      // Create request
+      final request = http.Request('GET', Uri.parse(downloadUrl));
+      final streamedResponse = await http.Client().send(request);
+
+      if (streamedResponse.statusCode == 200) {
+        // Get content length for progress tracking
+        final contentLength = streamedResponse.contentLength;
+        print('📊 [AutoUpdate] Downloading APK (size: ${contentLength ?? 'unknown'} bytes)');
+
+        // Update notification
+        await notificationService.showUpdateProgressNotification(
+          title: 'Updating Skybyn',
+          status: contentLength != null ? 'Downloading... (${_formatBytes(contentLength)})' : 'Downloading...',
+          progress: 10,
+        );
+
+        // Stream the response to file to handle large files efficiently
+        final bytes = <int>[];
+        int downloadedBytes = 0;
+
+        await for (var chunk in streamedResponse.stream) {
+          bytes.addAll(chunk);
+          downloadedBytes += chunk.length;
+
+          // Update progress every 1% or every 100KB, whichever comes first
+          if (contentLength != null && contentLength > 0) {
+            final progress = ((downloadedBytes / contentLength) * 90).round() + 10; // 10-100%
+            if (downloadedBytes % (contentLength ~/ 100) < chunk.length || downloadedBytes % 100000 < chunk.length) {
+              await notificationService.showUpdateProgressNotification(
+                title: 'Updating Skybyn',
+                status: 'Downloading... ${_formatBytes(downloadedBytes)} / ${_formatBytes(contentLength)} (${progress}%)',
+                progress: progress.clamp(0, 95),
+              );
+
+              // Call progress callback if provided
+              onProgress?.call(progress, 'Downloading...');
+            }
+          } else {
+            // Indeterminate progress if content length unknown
+            await notificationService.showUpdateProgressNotification(
+              title: 'Updating Skybyn',
+              status: 'Downloading... ${_formatBytes(downloadedBytes)}',
+              progress: 50,
+              indeterminate: true,
+            );
+          }
+        }
+
+        // Update notification
+        await notificationService.showUpdateProgressNotification(
+          title: 'Updating Skybyn',
+          status: 'Saving file...',
+          progress: 95,
+        );
+
+        // Write to file
+        await file.writeAsBytes(bytes);
+        final fileSize = await file.length();
         print('✅ [AutoUpdate] APK downloaded successfully to: ${file.path}');
-        print('📊 [AutoUpdate] APK size: ${await file.length()} bytes');
+        print('📊 [AutoUpdate] APK size: $fileSize bytes');
+
+        // Verify file was written correctly
+        if (fileSize == 0) {
+          print('❌ [AutoUpdate] Downloaded file is empty');
+          await file.delete();
+          await notificationService.showUpdateProgressNotification(
+            title: 'Update Failed',
+            status: 'Downloaded file is empty',
+            progress: 0,
+          );
+          return false;
+        }
+
+        // Show download complete
+        await notificationService.showUpdateProgressNotification(
+          title: 'Updating Skybyn',
+          status: 'Download complete!',
+          progress: 100,
+        );
+
         return true;
       } else {
-        print('❌ [AutoUpdate] Download failed with status code: ${response.statusCode}');
+        print('❌ [AutoUpdate] Download failed with status code: ${streamedResponse.statusCode}');
+        await notificationService.showUpdateProgressNotification(
+          title: 'Update Failed',
+          status: 'Download failed (HTTP ${streamedResponse.statusCode})',
+          progress: 0,
+        );
+        // Consume the response stream to avoid memory leaks
+        try {
+          await streamedResponse.stream.drain();
+        } catch (_) {
+          // Ignore errors
+        }
       }
-    } catch (e) {
+    } catch (e, stackTrace) {
       // Download failed
       print('❌ [AutoUpdate] Download failed: $e');
+      print('❌ [AutoUpdate] Stack trace: $stackTrace');
+      await notificationService.showUpdateProgressNotification(
+        title: 'Update Failed',
+        status: 'Error: ${e.toString()}',
+        progress: 0,
+      );
     }
     return false;
   }
 
-  static Future<bool> installUpdate() async {
+  /// Format bytes to human-readable string
+  static String _formatBytes(int bytes) {
+    if (bytes < 1024) return '$bytes B';
+    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
+    return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+  }
+
+  static Future<bool> installUpdate({Function(int progress, String status)? onProgress}) async {
+    final notificationService = NotificationService();
+
     try {
       if (Platform.isAndroid) {
-        // Request install permission
-        final PermissionStatus status =
-            await Permission.requestInstallPackages.request();
+        // Request install permission first
+        print('🔐 [AutoUpdate] Checking install permission...');
+
+        await notificationService.showUpdateProgressNotification(
+          title: 'Updating Skybyn',
+          status: 'Requesting installation permission...',
+          progress: 100,
+        );
+
+        final PermissionStatus status = await Permission.requestInstallPackages.request();
+
         if (!status.isGranted) {
+          print('❌ [AutoUpdate] Install permission not granted. Status: $status');
+          await notificationService.showUpdateProgressNotification(
+            title: 'Update Failed',
+            status: 'Installation permission denied',
+            progress: 0,
+          );
           return false;
         }
 
-        // Check in both possible locations (external storage first, then documents)
-        Directory? directory = Platform.isAndroid
-            ? await getExternalStorageDirectory()
-            : null;
-        if (directory == null) {
-          directory = await getApplicationDocumentsDirectory();
-        }
-        
+        print('✅ [AutoUpdate] Install permission granted');
+
+        // Use application documents directory (where we downloaded the file)
+        final Directory directory = await getApplicationDocumentsDirectory();
         final File file = File('${directory.path}/app-update.apk');
+
         if (await file.exists()) {
+          final fileSize = await file.length();
           print('✅ [AutoUpdate] APK file found at: ${file.path}');
-          return await _installApk(file.path);
-        } else {
-          // Also check in application documents directory as fallback
-          final altDirectory = await getApplicationDocumentsDirectory();
-          final altFile = File('${altDirectory.path}/app-update.apk');
-          if (await altFile.exists()) {
-            print('✅ [AutoUpdate] APK file found at alternate location: ${altFile.path}');
-            return await _installApk(altFile.path);
+          print('📊 [AutoUpdate] APK file size: $fileSize bytes');
+
+          // Verify file is not empty
+          if (fileSize == 0) {
+            print('❌ [AutoUpdate] APK file is empty');
+            await notificationService.showUpdateProgressNotification(
+              title: 'Update Failed',
+              status: 'APK file is empty',
+              progress: 0,
+            );
+            return false;
           }
-          print('❌ [AutoUpdate] APK file not found in expected locations');
+
+          await notificationService.showUpdateProgressNotification(
+            title: 'Updating Skybyn',
+            status: 'Opening installer...',
+            progress: 100,
+          );
+
+          onProgress?.call(100, 'Opening installer...');
+
+          final result = await _installApk(file.path);
+
+          if (result) {
+            // Keep notification showing until user installs
+            await notificationService.showUpdateProgressNotification(
+              title: 'Update Ready',
+              status: 'Tap to install in the system dialog',
+              progress: 100,
+            );
+          } else {
+            await notificationService.showUpdateProgressNotification(
+              title: 'Update Failed',
+              status: 'Failed to open installer',
+              progress: 0,
+            );
+          }
+
+          return result;
+        } else {
+          print('❌ [AutoUpdate] APK file not found at: ${file.path}');
+
+          // Try alternate location as fallback (for backwards compatibility)
+          final altDirectory = await getExternalStorageDirectory();
+          if (altDirectory != null) {
+            final altFile = File('${altDirectory.path}/app-update.apk');
+            if (await altFile.exists()) {
+              print('✅ [AutoUpdate] APK file found at alternate location: ${altFile.path}');
+
+              await notificationService.showUpdateProgressNotification(
+                title: 'Updating Skybyn',
+                status: 'Opening installer...',
+                progress: 100,
+              );
+
+              return await _installApk(altFile.path);
+            }
+          }
+
+          print('❌ [AutoUpdate] APK file not found in any expected location');
+          await notificationService.showUpdateProgressNotification(
+            title: 'Update Failed',
+            status: 'APK file not found',
+            progress: 0,
+          );
           return false;
         }
       } else {
+        print('⚠️ [AutoUpdate] Installation not supported on this platform');
+        await notificationService.showUpdateProgressNotification(
+          title: 'Update Failed',
+          status: 'Installation not supported on this platform',
+          progress: 0,
+        );
         return false;
       }
-    } catch (e) {
+    } catch (e, stackTrace) {
       // Installation failed
       print('❌ [AutoUpdate] Installation failed: $e');
+      print('❌ [AutoUpdate] Stack trace: $stackTrace');
+      await notificationService.showUpdateProgressNotification(
+        title: 'Update Failed',
+        status: 'Error: ${e.toString()}',
+        progress: 0,
+      );
       return false;
     }
+  }
+
+  /// Cancel the update progress notification
+  static Future<void> cancelUpdateProgressNotification() async {
+    final notificationService = NotificationService();
+    await notificationService.cancelUpdateProgressNotification();
   }
 
   static Future<bool> requestInstallPermission() async {
@@ -261,36 +478,52 @@ class AutoUpdateService {
   static Future<bool> _installApk(String apkPath) async {
     try {
       print('📦 [AutoUpdate] Opening APK for installation: $apkPath');
-      
-      // Check if file exists
+
+      // Verify file exists and is readable
       final file = File(apkPath);
       if (!await file.exists()) {
         print('❌ [AutoUpdate] APK file does not exist: $apkPath');
         return false;
       }
 
+      final fileSize = await file.length();
+      if (fileSize == 0) {
+        print('❌ [AutoUpdate] APK file is empty: $apkPath');
+        return false;
+      }
+
+      print('📊 [AutoUpdate] APK file verified (size: $fileSize bytes)');
+
       // Open the APK file using open_file package
       // On Android, this will trigger the system package installer
+      print('🚀 [AutoUpdate] Attempting to open APK file...');
       final result = await OpenFile.open(apkPath);
-      
+
+      print('📋 [AutoUpdate] OpenFile result type: ${result.type}');
+      print('📋 [AutoUpdate] OpenFile result message: ${result.message}');
+
       if (result.type == ResultType.done) {
         print('✅ [AutoUpdate] APK opened successfully, installation dialog should appear');
+        print('ℹ️ [AutoUpdate] User will need to tap "Install" in the system dialog');
         return true;
       } else if (result.type == ResultType.noAppToOpen) {
         print('❌ [AutoUpdate] No app available to open APK file');
+        print('💡 [AutoUpdate] This may indicate the device cannot install APKs');
         return false;
       } else if (result.type == ResultType.fileNotFound) {
         print('❌ [AutoUpdate] APK file not found: $apkPath');
         return false;
       } else if (result.type == ResultType.permissionDenied) {
         print('❌ [AutoUpdate] Permission denied to open APK file');
+        print('💡 [AutoUpdate] Check if install permission is granted');
         return false;
       } else {
         print('❌ [AutoUpdate] Failed to open APK: ${result.message}');
         return false;
       }
-    } catch (e) {
+    } catch (e, stackTrace) {
       print('❌ [AutoUpdate] Install APK failed: $e');
+      print('❌ [AutoUpdate] Stack trace: $stackTrace');
       return false;
     }
   }
