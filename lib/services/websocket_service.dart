@@ -55,6 +55,13 @@ class WebSocketService {
   Function(String)? _onBroadcast; // broadcast message
   Function()? _onAppUpdate; // app update notification
 
+  // Callbacks for WebRTC signaling
+  Function(String, String, String, String)? _onCallOffer; // callId, fromUserId, offer, callType
+  Function(String, String)? _onCallAnswer; // callId, answer
+  Function(String, String, String, String, int)? _onIceCandidate; // callId, candidate, sdpMid, sdpMLineIndex
+  Function(String)? _onCallEnd; // callId
+  Function(String, String, String, String)? _onCallInitiate; // callId, fromUserId, callType, fromUsername
+
   // Services
   final NotificationService _notificationService = NotificationService();
   static const MethodChannel _methodChannel = MethodChannel('no.skybyn.app/background_service');
@@ -377,6 +384,36 @@ class WebSocketService {
             case 'app_update':
               _handleAppUpdate();
               break;
+            case 'call_initiate':
+              final callId = data['callId']?.toString() ?? '';
+              final fromUserId = data['fromUserId']?.toString() ?? '';
+              final callType = data['callType']?.toString() ?? 'audio';
+              final fromUsername = data['fromUsername']?.toString() ?? '';
+              _onCallInitiate?.call(callId, fromUserId, callType, fromUsername);
+              break;
+            case 'call_offer':
+              final callId = data['callId']?.toString() ?? '';
+              final fromUserId = data['fromUserId']?.toString() ?? '';
+              final offer = data['offer']?.toString() ?? '';
+              final callType = data['callType']?.toString() ?? 'audio';
+              _onCallOffer?.call(callId, fromUserId, offer, callType);
+              break;
+            case 'call_answer':
+              final callId = data['callId']?.toString() ?? '';
+              final answer = data['answer']?.toString() ?? '';
+              _onCallAnswer?.call(callId, answer);
+              break;
+            case 'ice_candidate':
+              final callId = data['callId']?.toString() ?? '';
+              final candidate = data['candidate']?.toString() ?? '';
+              final sdpMid = data['sdpMid']?.toString() ?? '';
+              final sdpMLineIndex = (data['sdpMLineIndex'] as num?)?.toInt() ?? 0;
+              _onIceCandidate?.call(callId, candidate, sdpMid, sdpMLineIndex);
+              break;
+            case 'call_end':
+              final callId = data['callId']?.toString() ?? '';
+              _onCallEnd?.call(callId);
+              break;
           }
         }
       }
@@ -526,6 +563,89 @@ class WebSocketService {
     } catch (e) {
       print('❌ [WebSocket] Error sending message: $e');
     }
+  }
+
+  /// Set call-related callbacks
+  void setCallCallbacks({
+    Function(String, String, String, String)? onCallInitiate,
+    Function(String, String, String, String)? onCallOffer,
+    Function(String, String)? onCallAnswer,
+    Function(String, String, String, String, int)? onIceCandidate,
+    Function(String)? onCallEnd,
+  }) {
+    _onCallInitiate = onCallInitiate;
+    _onCallOffer = onCallOffer;
+    _onCallAnswer = onCallAnswer;
+    _onIceCandidate = onIceCandidate;
+    _onCallEnd = onCallEnd;
+  }
+
+  /// Send call offer
+  void sendCallOffer({
+    required String callId,
+    required String targetUserId,
+    required String offer,
+    required String callType,
+  }) {
+    final message = {
+      'type': 'call_offer',
+      'callId': callId,
+      'targetUserId': targetUserId,
+      'offer': offer,
+      'callType': callType,
+      'sessionId': _sessionId,
+    };
+    _sendMessageInternal(message);
+  }
+
+  /// Send call answer
+  void sendCallAnswer({
+    required String callId,
+    required String targetUserId,
+    required String answer,
+  }) {
+    final message = {
+      'type': 'call_answer',
+      'callId': callId,
+      'targetUserId': targetUserId,
+      'answer': answer,
+      'sessionId': _sessionId,
+    };
+    _sendMessageInternal(message);
+  }
+
+  /// Send ICE candidate
+  void sendIceCandidate({
+    required String callId,
+    required String targetUserId,
+    required String candidate,
+    required String sdpMid,
+    required int sdpMLineIndex,
+  }) {
+    final message = {
+      'type': 'ice_candidate',
+      'callId': callId,
+      'targetUserId': targetUserId,
+      'candidate': candidate,
+      'sdpMid': sdpMid,
+      'sdpMLineIndex': sdpMLineIndex,
+      'sessionId': _sessionId,
+    };
+    _sendMessageInternal(message);
+  }
+
+  /// Send call end
+  void sendCallEnd({
+    required String callId,
+    required String targetUserId,
+  }) {
+    final message = {
+      'type': 'call_end',
+      'callId': callId,
+      'targetUserId': targetUserId,
+      'sessionId': _sessionId,
+    };
+    _sendMessageInternal(message);
   }
 
   /// Handle connection closed

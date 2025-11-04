@@ -3,6 +3,7 @@ import 'dart:ui';
 import '../services/friend_service.dart';
 import '../services/auth_service.dart';
 import '../models/friend.dart';
+import '../screens/chat_screen.dart';
 
 class ChatListModal extends StatefulWidget {
   const ChatListModal({super.key});
@@ -157,7 +158,14 @@ class _ChatListModalState extends State<ChatListModal> {
                                       ],
                                     ),
                                     onTap: () {
-                                      // TODO: Open chat with friend
+                                      Navigator.of(context).pop(); // Close the modal first
+                                      Navigator.of(context).push(
+                                        MaterialPageRoute(
+                                          builder: (context) => ChatScreen(
+                                            friend: friend,
+                                          ),
+                                        ),
+                                      );
                                     },
                                   ),
                                 ),

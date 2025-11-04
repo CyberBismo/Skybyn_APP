@@ -1,0 +1,335 @@
+import 'package:flutter/material.dart';
+import 'dart:ui';
+import 'package:flutter_webrtc/flutter_webrtc.dart';
+import '../services/call_service.dart';
+import '../models/friend.dart';
+import '../widgets/background_gradient.dart';
+
+class CallScreen extends StatefulWidget {
+  final Friend? friend; // null if receiving call
+  final CallType callType;
+  final bool isIncoming;
+
+  const CallScreen({
+    super.key,
+    this.friend,
+    required this.callType,
+    this.isIncoming = false,
+  });
+
+  @override
+  State<CallScreen> createState() => _CallScreenState();
+}
+
+class _CallScreenState extends State<CallScreen> {
+  final CallService _callService = CallService();
+  MediaStream? _localStream;
+  MediaStream? _remoteStream;
+  CallState _callState = CallState.idle;
+  bool _isMuted = false;
+  bool _isVideoEnabled = true;
+  bool _isFrontCamera = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _setupCallService();
+    if (!widget.isIncoming && widget.friend != null) {
+      _startCall();
+    } else if (widget.isIncoming) {
+      _callState = CallState.ringing;
+    }
+  }
+
+  void _setupCallService() {
+    _callService.onCallStateChanged = (state) {
+      if (mounted) {
+        setState(() {
+          _callState = state;
+        });
+      }
+    };
+
+    _callService.onLocalStream = (stream) {
+      if (mounted) {
+        setState(() {
+          _localStream = stream;
+        });
+      }
+    };
+
+    _callService.onRemoteStream = (stream) {
+      if (mounted) {
+        setState(() {
+          _remoteStream = stream;
+        });
+      }
+    };
+
+    _callService.onCallError = (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Call error: $error')),
+        );
+      }
+    };
+  }
+
+  Future<void> _startCall() async {
+    if (widget.friend != null) {
+      await _callService.startCall(widget.friend!.id, widget.callType);
+    }
+  }
+
+  Future<void> _acceptCall() async {
+    await _callService.acceptCall();
+  }
+
+  Future<void> _endCall() async {
+    await _callService.endCall();
+    if (mounted) {
+      Navigator.of(context).pop();
+    }
+  }
+
+  Future<void> _toggleMute() async {
+    await _callService.toggleMicrophone();
+    setState(() {
+      _isMuted = !_isMuted;
+    });
+  }
+
+  Future<void> _toggleVideo() async {
+    if (widget.callType == CallType.video) {
+      await _callService.toggleCamera();
+      setState(() {
+        _isVideoEnabled = !_isVideoEnabled;
+      });
+    }
+  }
+
+  Future<void> _switchCamera() async {
+    await _callService.switchCamera();
+    setState(() {
+      _isFrontCamera = !_isFrontCamera;
+    });
+  }
+
+  @override
+  void dispose() {
+    if (_callState != CallState.ended && _callState != CallState.idle) {
+      _callService.endCall();
+    }
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final friend = widget.friend;
+    final friendName = friend?.nickname.isNotEmpty == true
+        ? friend!.nickname
+        : friend?.username ?? 'Unknown';
+
+    return Scaffold(
+      extendBodyBehindAppBar: true,
+      body: Stack(
+        children: [
+          const BackgroundGradient(),
+          SafeArea(
+            child: Column(
+              children: [
+                // Header
+                Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Row(
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.close, color: Colors.white),
+                        onPressed: _endCall,
+                      ),
+                      const Spacer(),
+                      if (widget.callType == CallType.video)
+                        IconButton(
+                          icon: Icon(
+                            _isFrontCamera ? Icons.camera_front : Icons.camera_rear,
+                            color: Colors.white,
+                          ),
+                          onPressed: _switchCamera,
+                        ),
+                    ],
+                  ),
+                ),
+                // Main content
+                Expanded(
+                  child: Stack(
+                    children: [
+                      Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            // Remote video (for video calls) or avatar
+                            if (widget.callType == CallType.video && _remoteStream != null)
+                              Expanded(
+                                child: Container(
+                                  width: double.infinity,
+                                  child: RTCVideoView(
+                                    _remoteStream!.getVideoTracks().firstOrNull?.renderer() ?? RTCVideoRenderer(),
+                                    mirror: false,
+                                    objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
+                                  ),
+                                ),
+                              )
+                            else
+                              Container(
+                                width: 120,
+                                height: 120,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  border: Border.all(color: Colors.white, width: 3),
+                                  image: friend?.avatar.isNotEmpty == true
+                                      ? DecorationImage(
+                                          image: NetworkImage(friend!.avatar),
+                                          fit: BoxFit.cover,
+                                        )
+                                      : null,
+                                ),
+                                child: friend?.avatar.isEmpty != false
+                                    ? const Icon(Icons.person, size: 60, color: Colors.white)
+                                    : null,
+                              ),
+                            const SizedBox(height: 32),
+                            // Friend name
+                            Text(
+                              friendName,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 28,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            // Call status
+                            Text(
+                              _getCallStatusText(),
+                              style: TextStyle(
+                                color: Colors.white.withOpacity(0.8),
+                                fontSize: 16,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      // Local video preview (for video calls)
+                      if (widget.callType == CallType.video && _localStream != null)
+                        Positioned(
+                          bottom: 100,
+                          right: 16,
+                          child: Container(
+                            width: 120,
+                            height: 160,
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: Colors.white, width: 2),
+                            ),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(10),
+                              child: RTCVideoView(
+                                _localStream!.getVideoTracks().firstOrNull?.renderer() ?? RTCVideoRenderer(),
+                                mirror: _isFrontCamera,
+                                objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                // Call controls
+                Padding(
+                  padding: const EdgeInsets.all(32.0),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      // Mute button
+                      _buildCallButton(
+                        icon: _isMuted ? Icons.mic_off : Icons.mic,
+                        onPressed: _toggleMute,
+                        backgroundColor: _isMuted
+                            ? Colors.red.withOpacity(0.8)
+                            : Colors.white.withOpacity(0.2),
+                      ),
+                      // Video toggle (for video calls)
+                      if (widget.callType == CallType.video)
+                        _buildCallButton(
+                          icon: _isVideoEnabled ? Icons.videocam : Icons.videocam_off,
+                          onPressed: _toggleVideo,
+                          backgroundColor: _isVideoEnabled
+                              ? Colors.white.withOpacity(0.2)
+                              : Colors.red.withOpacity(0.8),
+                        ),
+                      // Accept/End call button
+                      if (_callState == CallState.ringing && widget.isIncoming)
+                        _buildCallButton(
+                          icon: Icons.call,
+                          onPressed: _acceptCall,
+                          backgroundColor: Colors.green.withOpacity(0.8),
+                          size: 64,
+                        )
+                      else
+                        _buildCallButton(
+                          icon: Icons.call_end,
+                          onPressed: _endCall,
+                          backgroundColor: Colors.red.withOpacity(0.8),
+                          size: 64,
+                        ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCallButton({
+    required IconData icon,
+    required VoidCallback onPressed,
+    required Color backgroundColor,
+    double size = 56,
+  }) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        shape: BoxShape.circle,
+        border: Border.all(
+          color: Colors.white.withOpacity(0.3),
+          width: 2,
+        ),
+      ),
+      child: IconButton(
+        icon: Icon(icon, color: Colors.white, size: size * 0.5),
+        onPressed: onPressed,
+      ),
+    );
+  }
+
+  String _getCallStatusText() {
+    switch (_callState) {
+      case CallState.idle:
+        return 'Connecting...';
+      case CallState.calling:
+        return 'Calling...';
+      case CallState.ringing:
+        return widget.isIncoming ? 'Incoming call' : 'Ringing...';
+      case CallState.connected:
+        return widget.callType == CallType.video ? 'Video call' : 'Audio call';
+      case CallState.ended:
+        return 'Call ended';
+    }
+  }
+}
+

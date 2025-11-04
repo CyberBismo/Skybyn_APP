@@ -62,7 +62,8 @@ dependencies:
   encrypt: ^5.0.3
   html_unescape: ^2.0.0
   share_plus: ^10.1.2
-  # qr_code_scanner: ^1.0.1  # Temporarily disabled for Firebase testing
+  qr_code_scanner: ^1.0.1
+  flutter_webrtc: ^0.9.48
 
   # Firebase dependencies for background push notifications
   firebase_core: ^3.15.1
