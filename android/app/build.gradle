@@ -74,7 +74,9 @@ android {
             if (keystorePropertiesFile.exists()) {
                 keyAlias keystoreProperties['keyAlias']
                 keyPassword keystoreProperties['keyPassword']
-                storeFile file(keystoreProperties['storeFile'])
+                // Resolve keystore path relative to app directory
+                def keystorePath = keystoreProperties['storeFile']
+                storeFile keystorePath ? file(keystorePath) : null
                 storePassword keystoreProperties['storePassword']
             }
         }
