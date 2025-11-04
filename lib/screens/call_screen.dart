@@ -122,35 +122,31 @@ class _CallScreenState extends State<CallScreen> {
     }
   }
 
-  /// Check and request permissions for voice/video calls
+  /// Check and request permissions for voice/video calls using Android system dialogs
   Future<bool> _checkCallPermissions(CallType callType) async {
     try {
-      // Always need microphone for calls
+      // Always need microphone for calls - use Android system dialog
       final micStatus = await Permission.microphone.status;
       if (!micStatus.isGranted) {
         final micRequest = await Permission.microphone.request();
         if (!micRequest.isGranted) {
-          if (mounted) {
-            _showPermissionDeniedDialog(
-              'Microphone Permission Required',
-              'Skybyn needs microphone access to make voice and video calls. Please grant microphone permission in settings.',
-            );
+          if (micRequest.isPermanentlyDenied && mounted) {
+            _showSettingsDialog('Microphone Permission Required',
+                'Skybyn needs microphone access to make voice and video calls. Please enable it in settings.');
           }
           return false;
         }
       }
 
-      // For video calls, also need camera
+      // For video calls, also need camera - use Android system dialog
       if (callType == CallType.video) {
         final cameraStatus = await Permission.camera.status;
         if (!cameraStatus.isGranted) {
           final cameraRequest = await Permission.camera.request();
           if (!cameraRequest.isGranted) {
-            if (mounted) {
-              _showPermissionDeniedDialog(
-                'Camera Permission Required',
-                'Skybyn needs camera access to make video calls. Please grant camera permission in settings.',
-              );
+            if (cameraRequest.isPermanentlyDenied && mounted) {
+              _showSettingsDialog('Camera Permission Required',
+                  'Skybyn needs camera access to make video calls. Please enable it in settings.');
             }
             return false;
           }
@@ -169,8 +165,8 @@ class _CallScreenState extends State<CallScreen> {
     }
   }
 
-  /// Show dialog when permission is denied
-  void _showPermissionDeniedDialog(String title, String message) {
+  /// Show settings dialog when permission is permanently denied
+  void _showSettingsDialog(String title, String message) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(

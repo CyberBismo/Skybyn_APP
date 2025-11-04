@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:permission_handler/permission_handler.dart';
 import '../services/auto_update_service.dart';
 
+/// Permission dialog for install permissions - uses Android system dialog
+/// Only shows custom dialog if permission is permanently denied
 class PermissionDialog extends StatefulWidget {
   final VoidCallback? onGranted;
   final VoidCallback? onDenied;
@@ -16,142 +19,91 @@ class PermissionDialog extends StatefulWidget {
 }
 
 class _PermissionDialogState extends State<PermissionDialog> {
-  bool _isRequesting = false;
-  bool _hasPermission = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _checkPermission();
-  }
-
-  Future<void> _checkPermission() async {
-    final hasPermission = await AutoUpdateService.hasInstallPermission();
-    setState(() {
-      _hasPermission = hasPermission;
-    });
-  }
-
-  Future<void> _requestPermission() async {
-    setState(() {
-      _isRequesting = true;
-    });
-
+  /// Request install permission using Android system dialog
+  Future<bool> _requestPermission() async {
     try {
-      final granted = await AutoUpdateService.requestInstallPermission();
-      setState(() {
-        _hasPermission = granted;
-        _isRequesting = false;
-      });
-
-      if (granted) {
-        widget.onGranted?.call();
-      }
+      final status = await Permission.requestInstallPackages.request();
+      return status.isGranted;
     } catch (e) {
-      setState(() {
-        _isRequesting = false;
-      });
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error requesting permission: $e')),
-        );
-      }
+      print('❌ [PermissionDialog] Error requesting install permission: $e');
+      return false;
     }
   }
 
   @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('Install Permission Required'),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'This app needs permission to install app updates from unknown sources.',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+  void initState() {
+    super.initState();
+    // Request permission directly using Android system dialog
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final hasPermission = await AutoUpdateService.hasInstallPermission();
+      if (hasPermission) {
+        if (mounted) {
+          Navigator.of(context).pop();
+          widget.onGranted?.call();
+        }
+        return;
+      }
+
+      // Close this dialog first so Android system dialog can appear
+      if (mounted) {
+        Navigator.of(context).pop();
+      }
+      
+      // Request permission - this will show Android system dialog
+      final granted = await _requestPermission();
+      
+      if (granted) {
+        widget.onGranted?.call();
+      } else {
+        // Check if permanently denied
+        final status = await Permission.requestInstallPackages.status;
+        if (status.isPermanentlyDenied && mounted) {
+          _showSettingsDialog(context);
+        } else {
+          widget.onDenied?.call();
+        }
+      }
+    });
+  }
+
+  void _showSettingsDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Install Permission Required'),
+        content: const Text(
+          'This permission has been permanently denied. Please enable "Install unknown apps" for Skybyn in your device settings.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              widget.onDenied?.call();
+            },
+            child: const Text('Cancel'),
           ),
-          const SizedBox(height: 12),
-          const Text(
-            'Skybyn uses this permission to automatically download and install updates when new versions are available. This allows you to receive the latest features and security improvements without manually downloading APK files.',
-            style: TextStyle(fontSize: 14, color: Colors.grey),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.of(context).pop();
+              await openAppSettings();
+              widget.onDenied?.call();
+            },
+            child: const Text('Open Settings'),
           ),
-          const SizedBox(height: 16),
-          if (_hasPermission)
-            const Row(
-              children: [
-                Icon(Icons.check_circle, color: Colors.green),
-                SizedBox(width: 8),
-                Text(
-                  'Permission granted!',
-                  style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold),
-                ),
-              ],
-            )
-          else
-            const Row(
-              children: [
-                Icon(Icons.warning, color: Colors.orange),
-                SizedBox(width: 8),
-                Text(
-                  'Permission not granted',
-                  style: TextStyle(color: Colors.orange, fontWeight: FontWeight.bold),
-                ),
-              ],
-            ),
         ],
       ),
-      actions: [
-        TextButton(
-          onPressed: widget.onDenied,
-          child: Text(
-            'Cancel',
-            style: TextStyle(
-              color: Theme.of(context).colorScheme.primary,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ),
-        if (!_hasPermission)
-          ElevatedButton(
-            onPressed: _isRequesting ? null : _requestPermission,
-            style: ElevatedButton.styleFrom(
-              foregroundColor: Colors.white,
-              backgroundColor: Theme.of(context).colorScheme.primary,
-            ),
-            child: _isRequesting
-                ? const SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                    ),
-                  )
-                : const Text(
-                    'Grant Permission',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-          ),
-        if (_hasPermission)
-          ElevatedButton(
-            onPressed: widget.onGranted,
-            style: ElevatedButton.styleFrom(
-              foregroundColor: Colors.white,
-              backgroundColor: Theme.of(context).colorScheme.primary,
-            ),
-            child: const Text(
-              'Continue',
-              style: TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-      ],
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Return minimal dialog that will close immediately
+    return const AlertDialog(
+      content: SizedBox(
+        width: 50,
+        height: 50,
+        child: Center(child: CircularProgressIndicator()),
+      ),
     );
   }
 }
