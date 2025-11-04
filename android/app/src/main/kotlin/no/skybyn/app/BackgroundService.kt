@@ -488,6 +488,7 @@ class BackgroundService : Service() {
                 .setContentIntent(pendingIntent)
                 .setAutoCancel(true)
                 .setPriority(NotificationCompat.PRIORITY_HIGH)
+                .setSilent(true)
                 .build()
             
             notificationManager.notify(notificationId, notification)
