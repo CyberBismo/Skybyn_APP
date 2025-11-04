@@ -18,6 +18,15 @@ allprojects {
         google()
         mavenCentral()
     }
+    
+    // Force all subprojects (including plugins) to use compileSdk 34 or higher
+    afterEvaluate { project ->
+        if (project.hasProperty('android')) {
+            project.android {
+                compileSdk 34
+            }
+        }
+    }
 }
 
 // Fix for Windows path resolution issues
@@ -33,6 +42,15 @@ subprojects {
 }
 subprojects {
     project.evaluationDependsOn(':app')
+    
+    // Force all subprojects to use compileSdk 34
+    afterEvaluate { project ->
+        if (project.hasProperty('android')) {
+            project.android {
+                compileSdk 34
+            }
+        }
+    }
 }
 
 // Fix for Windows path resolution issues with different drives
