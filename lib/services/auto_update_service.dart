@@ -527,9 +527,10 @@ class AutoUpdateService {
           String errorMessage = 'Installation failed';
           if (e.code == 'SECURITY_ERROR' || e.code == 'INSTALL_ERROR') {
             errorMessage = e.message ?? 'Installation failed';
-            if (e.message?.contains('conflicts', ignoreCase: true) == true ||
-                e.message?.contains('signature', ignoreCase: true) == true ||
-                e.message?.contains('certificate', ignoreCase: true) == true) {
+            final messageLower = (e.message ?? '').toLowerCase();
+            if (messageLower.contains('conflicts') ||
+                messageLower.contains('signature') ||
+                messageLower.contains('certificate')) {
               errorMessage = 'Package conflict detected: The update APK must be signed with the same certificate as the installed app. Please ensure the server provides an APK signed with the correct key.';
             }
           } else if (e.code == 'FILE_NOT_FOUND') {
