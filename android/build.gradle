@@ -20,10 +20,11 @@ allprojects {
     }
 }
 
-// Fix for Windows path resolution issues
+// Suppress deprecation warnings from third-party dependencies (flutter_webrtc uses deprecated APIs)
 allprojects {
     tasks.withType(JavaCompile) {
-        options.compilerArgs << "-Xlint:unchecked" << "-Xlint:deprecation" << "-Xlint:-options"
+        // Suppress deprecation and unchecked warnings (they come from dependencies, not our code)
+        options.compilerArgs << "-Xlint:-deprecation" << "-Xlint:-unchecked" << "-Xlint:-options"
     }
 }
 

@@ -38,6 +38,12 @@ android {
             signingConfig = signingConfigs.getByName("debug")
         }
     }
+
+    // Suppress deprecation warnings from third-party dependencies (flutter_webrtc uses deprecated APIs)
+    tasks.withType<JavaCompile>().configureEach {
+        options.compilerArgs.add("-Xlint:-deprecation")
+        options.compilerArgs.add("-Xlint:-unchecked")
+    }
 }
 
 dependencies {
