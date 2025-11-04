@@ -247,7 +247,7 @@ class _ChatScreenState extends State<ChatScreen> {
                 // Chat messages area with rounded container - stretches down to input
                 Expanded(
                   child: Padding(
-                    padding: const EdgeInsets.only(left: 16, right: 16, bottom: 8),
+                    padding: const EdgeInsets.only(left: 16, right: 16, bottom: 16),
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(20),
                       child: BackdropFilter(
@@ -280,13 +280,9 @@ class _ChatScreenState extends State<ChatScreen> {
                   padding: EdgeInsets.only(
                     left: 16,
                     right: 16,
-                    bottom: Theme.of(context).platform == TargetPlatform.iOS
-                        ? 8.0
-                        : 8.0 + MediaQuery.of(context).padding.bottom,
+                    bottom: 16,
                   ),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 8.0),
-                    child: ClipRRect(
+                  child: ClipRRect(
                       borderRadius: BorderRadius.circular(25),
                       child: BackdropFilter(
                         filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
@@ -331,7 +327,7 @@ class _ChatScreenState extends State<ChatScreen> {
                               ),
                             ),
                             Padding(
-                              padding: const EdgeInsets.only(right: 8),
+                              padding: const EdgeInsets.only(right: 4),
                               child: Container(
                                 width: 40,
                                 height: 40,
@@ -360,7 +356,6 @@ class _ChatScreenState extends State<ChatScreen> {
                         ),
                       ),
                     ),
-                  ),
                   ),
                 ),
               ],

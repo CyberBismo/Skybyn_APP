@@ -7,7 +7,7 @@ plugins {
 
 android {
     namespace = "no.skybyn.app"
-    compileSdk = flutter.compileSdkVersion
+    compileSdk = 35  // Required by androidx.camera dependencies
     ndkVersion = "27.0.12077973"
 
     compileOptions {

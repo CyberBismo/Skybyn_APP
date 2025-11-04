@@ -31,11 +31,11 @@ rootProject.buildDir = '../build'
 subprojects {
     project.buildDir = "${rootProject.buildDir}/${project.name}"
     
-    // Force all subprojects to use compileSdk 34
+    // Force all subprojects to use compileSdk 35 (required by some dependencies)
     project.afterEvaluate {
         if (project.hasProperty('android')) {
             project.android {
-                compileSdk 34
+                compileSdk 35
             }
         }
     }
