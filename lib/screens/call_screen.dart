@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:ui';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
+import 'package:permission_handler/permission_handler.dart';
 import '../services/call_service.dart';
 import '../models/friend.dart';
 import '../widgets/background_gradient.dart';
@@ -99,12 +100,97 @@ class _CallScreenState extends State<CallScreen> {
 
   Future<void> _startCall() async {
     if (widget.friend != null) {
-      await _callService.startCall(widget.friend!.id, widget.callType);
+      // Check permissions before starting call
+      final hasPermission = await _checkCallPermissions(widget.callType);
+      if (hasPermission) {
+        await _callService.startCall(widget.friend!.id, widget.callType);
+      } else {
+        // If permissions denied, end the call
+        await _endCall();
+      }
     }
   }
 
   Future<void> _acceptCall() async {
-    await _callService.acceptCall();
+    // Check permissions before accepting call
+    final hasPermission = await _checkCallPermissions(widget.callType);
+    if (hasPermission) {
+      await _callService.acceptCall();
+    } else {
+      // If permissions denied, end the call
+      await _endCall();
+    }
+  }
+
+  /// Check and request permissions for voice/video calls
+  Future<bool> _checkCallPermissions(CallType callType) async {
+    try {
+      // Always need microphone for calls
+      final micStatus = await Permission.microphone.status;
+      if (!micStatus.isGranted) {
+        final micRequest = await Permission.microphone.request();
+        if (!micRequest.isGranted) {
+          if (mounted) {
+            _showPermissionDeniedDialog(
+              'Microphone Permission Required',
+              'Skybyn needs microphone access to make voice and video calls. Please grant microphone permission in settings.',
+            );
+          }
+          return false;
+        }
+      }
+
+      // For video calls, also need camera
+      if (callType == CallType.video) {
+        final cameraStatus = await Permission.camera.status;
+        if (!cameraStatus.isGranted) {
+          final cameraRequest = await Permission.camera.request();
+          if (!cameraRequest.isGranted) {
+            if (mounted) {
+              _showPermissionDeniedDialog(
+                'Camera Permission Required',
+                'Skybyn needs camera access to make video calls. Please grant camera permission in settings.',
+              );
+            }
+            return false;
+          }
+        }
+      }
+
+      return true;
+    } catch (e) {
+      print('❌ [CallScreen] Error checking permissions: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error checking permissions: $e')),
+        );
+      }
+      return false;
+    }
+  }
+
+  /// Show dialog when permission is denied
+  void _showPermissionDeniedDialog(String title, String message) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(title),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.of(context).pop();
+              await openAppSettings();
+            },
+            child: const Text('Open Settings'),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _endCall() async {

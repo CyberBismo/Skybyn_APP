@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:ui';
 import 'dart:io';
+import 'package:permission_handler/permission_handler.dart';
 import '../widgets/custom_app_bar.dart';
 import '../widgets/background_gradient.dart';
 import '../models/friend.dart';
@@ -31,6 +32,79 @@ class _ChatScreenState extends State<ChatScreen> {
     _messageController.dispose();
     _scrollController.dispose();
     super.dispose();
+  }
+
+  /// Check and request permissions for voice/video calls
+  Future<bool> _checkCallPermissions(CallType callType) async {
+    try {
+      // Always need microphone for calls
+      final micStatus = await Permission.microphone.status;
+      if (!micStatus.isGranted) {
+        final micRequest = await Permission.microphone.request();
+        if (!micRequest.isGranted) {
+          if (mounted) {
+            _showPermissionDeniedDialog(
+              'Microphone Permission Required',
+              'Skybyn needs microphone access to make voice and video calls. Please grant microphone permission in settings.',
+              Permission.microphone,
+            );
+          }
+          return false;
+        }
+      }
+
+      // For video calls, also need camera
+      if (callType == CallType.video) {
+        final cameraStatus = await Permission.camera.status;
+        if (!cameraStatus.isGranted) {
+          final cameraRequest = await Permission.camera.request();
+          if (!cameraRequest.isGranted) {
+            if (mounted) {
+              _showPermissionDeniedDialog(
+                'Camera Permission Required',
+                'Skybyn needs camera access to make video calls. Please grant camera permission in settings.',
+                Permission.camera,
+              );
+            }
+            return false;
+          }
+        }
+      }
+
+      return true;
+    } catch (e) {
+      print('❌ [ChatScreen] Error checking permissions: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error checking permissions: $e')),
+        );
+      }
+      return false;
+    }
+  }
+
+  /// Show dialog when permission is denied
+  void _showPermissionDeniedDialog(String title, String message, Permission permission) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(title),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.of(context).pop();
+              await openAppSettings();
+            },
+            child: const Text('Open Settings'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -162,16 +236,20 @@ class _ChatScreenState extends State<ChatScreen> {
                               ),
                             ),
                             child: IconButton(
-                              onPressed: () {
-                                Navigator.of(context).push(
-                                  MaterialPageRoute(
-                                    builder: (context) => CallScreen(
-                                      friend: widget.friend,
-                                      callType: CallType.audio,
-                                      isIncoming: false,
+                              onPressed: () async {
+                                // Check permissions before starting call
+                                final hasPermission = await _checkCallPermissions(CallType.audio);
+                                if (hasPermission && mounted) {
+                                  Navigator.of(context).push(
+                                    MaterialPageRoute(
+                                      builder: (context) => CallScreen(
+                                        friend: widget.friend,
+                                        callType: CallType.audio,
+                                        isIncoming: false,
+                                      ),
                                     ),
-                                  ),
-                                );
+                                  );
+                                }
                               },
                               icon: const Icon(
                                 Icons.call,
@@ -195,16 +273,20 @@ class _ChatScreenState extends State<ChatScreen> {
                               ),
                             ),
                             child: IconButton(
-                              onPressed: () {
-                                Navigator.of(context).push(
-                                  MaterialPageRoute(
-                                    builder: (context) => CallScreen(
-                                      friend: widget.friend,
-                                      callType: CallType.video,
-                                      isIncoming: false,
+                              onPressed: () async {
+                                // Check permissions before starting call
+                                final hasPermission = await _checkCallPermissions(CallType.video);
+                                if (hasPermission && mounted) {
+                                  Navigator.of(context).push(
+                                    MaterialPageRoute(
+                                      builder: (context) => CallScreen(
+                                        friend: widget.friend,
+                                        callType: CallType.video,
+                                        isIncoming: false,
+                                      ),
                                     ),
-                                  ),
-                                );
+                                  );
+                                }
                               },
                               icon: const Icon(
                                 Icons.videocam,
