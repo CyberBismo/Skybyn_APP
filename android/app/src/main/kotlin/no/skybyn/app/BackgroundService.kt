@@ -253,18 +253,20 @@ class BackgroundService : Service() {
         )
 
         val builder = NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("Skybyn")
+            .setContentTitle(if (visible) "Skybyn" else "")
             .setContentText(if (visible) "Running in background" else "")
             .setSmallIcon(R.drawable.notification_icon)
             .setContentIntent(pendingIntent)
             .setOngoing(true)
-            .setSilent(!visible)
-            .setPriority(if (visible) NotificationCompat.PRIORITY_LOW else NotificationCompat.PRIORITY_MIN)
+            .setSilent(true)
+            .setPriority(NotificationCompat.PRIORITY_MIN)
+            .setVisibility(NotificationCompat.VISIBILITY_SECRET)
         
         if (!visible) {
-            // Make notification invisible/minimal
+            // Make notification completely invisible/minimal
             builder.setShowWhen(false)
                 .setCategory(NotificationCompat.CATEGORY_SERVICE)
+                .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
         }
         
         return builder.build()
