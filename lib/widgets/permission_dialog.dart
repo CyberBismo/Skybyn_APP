@@ -68,8 +68,13 @@ class _PermissionDialogState extends State<PermissionDialog> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
-            'To install app updates, Skybyn needs permission to install packages from unknown sources.',
-            style: TextStyle(fontSize: 16),
+            'This app needs permission to install app updates from unknown sources.',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+          ),
+          const SizedBox(height: 12),
+          const Text(
+            'Skybyn uses this permission to automatically download and install updates when new versions are available. This allows you to receive the latest features and security improvements without manually downloading APK files.',
+            style: TextStyle(fontSize: 14, color: Colors.grey),
           ),
           const SizedBox(height: 16),
           if (_hasPermission)

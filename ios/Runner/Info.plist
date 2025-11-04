@@ -50,7 +50,9 @@
 		<key>UIViewControllerBasedStatusBarAppearance</key>
 		<false/>
 		<key>NSCameraUsageDescription</key>
-		<string>This app needs camera access to scan QR codes for authentication.</string>
+		<string>This app needs camera access to scan QR codes for authentication and make video calls.</string>
+		<key>NSMicrophoneUsageDescription</key>
+		<string>This app needs microphone access to make voice and video calls.</string>
 		<key>NSUserNotificationUsageDescription</key>
 		<string>This app needs notification permissions to show broadcast messages and updates.</string>
 		<key>UIBackgroundModes</key>
