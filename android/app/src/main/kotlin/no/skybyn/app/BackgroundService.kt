@@ -27,6 +27,8 @@ class BackgroundService : Service() {
     private val NOTIFICATION_ID = 1001
     private val CHANNEL_ID = "skybyn_background_service"
     private val CHANNEL_NAME = "Skybyn Background Service"
+    private val ADMIN_CHANNEL_ID = "admin_notifications"
+    private val ADMIN_CHANNEL_NAME = "Admin Notifications"
     
     private var executor: ScheduledExecutorService? = null
     private var isRunning = false
@@ -49,6 +51,7 @@ class BackgroundService : Service() {
         super.onCreate()
         Log.d("BackgroundService", "onCreate called")
         createNotificationChannel()
+        createAdminNotificationChannel()
         executor = Executors.newScheduledThreadPool(2) // Increased for WebSocket thread
         reconnectHandler = Handler(Looper.getMainLooper())
         
@@ -180,6 +183,25 @@ class BackgroundService : Service() {
                 setSound(null, null)
                 enableVibration(false)
                 enableLights(false)
+            }
+            
+            val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            notificationManager.createNotificationChannel(channel)
+        }
+    }
+    
+    private fun createAdminNotificationChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                ADMIN_CHANNEL_ID,
+                ADMIN_CHANNEL_NAME,
+                NotificationManager.IMPORTANCE_HIGH
+            ).apply {
+                description = "Important system notifications from administrators"
+                setShowBadge(true)
+                enableVibration(true)
+                enableLights(true)
+                lightColor = android.graphics.Color.parseColor("#2196F3")
             }
             
             val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
@@ -481,18 +503,30 @@ class BackgroundService : Service() {
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
             
-            val notification = NotificationCompat.Builder(this, CHANNEL_ID)
+            // Use admin channel for app_update notifications (with sound and banner)
+            // Use silent background channel for other notifications
+            val channelId = if (messageType == "app_update") ADMIN_CHANNEL_ID else CHANNEL_ID
+            val isSilent = messageType != "app_update"
+            val priority = if (messageType == "app_update") {
+                NotificationCompat.PRIORITY_HIGH
+            } else {
+                NotificationCompat.PRIORITY_HIGH
+            }
+            
+            val notification = NotificationCompat.Builder(this, channelId)
                 .setContentTitle(title)
                 .setContentText(body)
                 .setSmallIcon(R.drawable.notification_icon)
                 .setContentIntent(pendingIntent)
                 .setAutoCancel(true)
-                .setPriority(NotificationCompat.PRIORITY_HIGH)
-                .setSilent(true)
+                .setPriority(priority)
+                .setSilent(isSilent)
+                .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+                .setDefaults(if (messageType == "app_update") NotificationCompat.DEFAULT_ALL else 0)
                 .build()
             
             notificationManager.notify(notificationId, notification)
-            Log.d("BackgroundService", "Notification shown: $title")
+            Log.d("BackgroundService", "Notification shown: $title (channel: $channelId, silent: $isSilent)")
         } catch (e: Exception) {
             Log.e("BackgroundService", "Error showing notification: ${e.message}")
         }
