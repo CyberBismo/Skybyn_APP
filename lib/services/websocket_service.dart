@@ -237,6 +237,8 @@ class WebSocketService {
   }
 
   /// Connect to WebSocket with callbacks
+  /// NOTE: WebSocket connections are now handled by the Android background service only.
+  /// This method stores callbacks but does not create a connection to avoid duplicate connections.
   Future<void> connect({
     Function(Post)? onNewPost,
     Function(String, String)? onNewComment,
@@ -245,6 +247,7 @@ class WebSocketService {
     Function(String)? onBroadcast,
     Function()? onAppUpdate,
   }) async {
+    // Store callbacks for potential future use (e.g., via MethodChannel from background service)
     _onNewPost = onNewPost;
     _onNewComment = onNewComment;
     _onDeletePost = onDeletePost;
@@ -252,47 +255,13 @@ class WebSocketService {
     _onBroadcast = onBroadcast;
     _onAppUpdate = onAppUpdate;
 
-    if (_isConnected || _isConnecting) {
-      return;
-    }
-
-    _isConnecting = true;
-    _updateConnectionMetrics('connecting');
-    _sessionId = _generateSessionId();
-    const wsUrl = 'wss://server.skybyn.no:4433';
-
-    try {
-      _channel = WebSocketChannel.connect(Uri.parse(wsUrl));
-      _isConnected = true;
-      _isConnecting = false;
-      _updateConnectionMetrics('connected');
-
-      _channel!.stream.listen(
-        _handleMessage,
-        onDone: _onConnectionClosed,
-        onError: _onConnectionError,
-        cancelOnError: true,
-      );
-
-      await _sendConnectMessage();
-      _processMessageQueue(); // Process any queued messages
-      // Connection success is already logged by the state listener
-
-      // Start retry timer
-      Timer.periodic(const Duration(seconds: 2), (timer) {
-        if (!_isConnected) {
-          timer.cancel();
-          return;
-        }
-        _retryPendingMessages();
-      });
-    } catch (e) {
-      print('❌ [WebSocket] Connection error: $e');
-      _isConnected = false;
-      _isConnecting = false;
-      _updateConnectionMetrics('failed');
-      _scheduleReconnect();
-    }
+    // Do not create WebSocket connection - background service handles all connections
+    print('ℹ️ [WebSocket] WebSocket connection is handled by Android background service. Callbacks stored for UI updates.');
+    
+    // Mark as initialized but not connected
+    _isInitialized = true;
+    _isConnected = false;
+    _isConnecting = false;
   }
 
   /// Send connection message
