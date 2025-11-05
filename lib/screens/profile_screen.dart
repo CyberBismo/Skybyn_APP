@@ -292,8 +292,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     child: Padding(
                       padding: const EdgeInsets.all(16.0),
                       child: Center(
-                        child: Text(
-                          TranslationKeys.noPostsYet.tr,
+                        child: TranslatedText(
+                          TranslationKeys.noPostsYet,
                           style: const TextStyle(color: Colors.white70, fontSize: 16),
                         ),
                       ),

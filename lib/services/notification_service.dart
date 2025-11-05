@@ -10,6 +10,7 @@ import 'package:timezone/data/latest.dart' as tz;
 import 'package:package_info_plus/package_info_plus.dart';
 import 'firebase_messaging_service.dart';
 import 'auto_update_service.dart';
+import 'background_update_scheduler.dart';
 import '../widgets/update_dialog.dart';
 import '../main.dart';
 
@@ -92,15 +93,15 @@ class NotificationService {
     }
 
     // Handle app_update payload
-    if (payload == 'app_update') {
+    if (payload == 'app_update' || payload == 'update_check') {
       // Skip app update notifications in debug mode
       if (kDebugMode) {
         print('⚠️ [NotificationService] App update notification ignored in debug mode');
         return;
       }
       print('🔄 [NotificationService] App update notification tapped - triggering update check');
-      // Trigger update check
-      _triggerUpdateCheck();
+      // Trigger background update scheduler
+      BackgroundUpdateScheduler().triggerUpdateCheck();
     } else if (payload.startsWith('{')) {
       // JSON payload - try to parse it
       try {

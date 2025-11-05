@@ -7,6 +7,7 @@ import '../models/friend.dart';
 import '../widgets/background_gradient.dart';
 import '../utils/translation_keys.dart';
 import '../widgets/translated_text.dart';
+import '../services/translation_service.dart';
 
 class CallScreen extends StatefulWidget {
   final Friend? friend; // null if receiving call
@@ -94,7 +95,12 @@ class _CallScreenState extends State<CallScreen> {
     _callService.onCallError = (error) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('${TranslationKeys.callError.tr}: $error')),
+          SnackBar(
+            content: ListenableBuilder(
+              listenable: TranslationService(),
+              builder: (context, _) => Text('${TranslationKeys.callError.tr}: $error'),
+            ),
+          ),
         );
       }
     };
@@ -160,7 +166,12 @@ class _CallScreenState extends State<CallScreen> {
       print('❌ [CallScreen] Error checking permissions: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('${TranslationKeys.errorCheckingPermissions.tr}: $e')),
+          SnackBar(
+            content: ListenableBuilder(
+              listenable: TranslationService(),
+              builder: (context, _) => Text('${TranslationKeys.errorCheckingPermissions.tr}: $e'),
+            ),
+          ),
         );
       }
       return false;
@@ -177,14 +188,14 @@ class _CallScreenState extends State<CallScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: Text(TranslationKeys.cancel.tr),
+            child: TranslatedText(TranslationKeys.cancel),
           ),
           ElevatedButton(
             onPressed: () async {
               Navigator.of(context).pop();
               await openAppSettings();
             },
-            child: Text(TranslationKeys.openSettings.tr),
+            child: TranslatedText(TranslationKeys.openSettings),
           ),
         ],
       ),

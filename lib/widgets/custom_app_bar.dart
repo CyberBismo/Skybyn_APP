@@ -6,6 +6,9 @@ import '../services/auto_update_service.dart';
 import 'permission_dialog.dart';
 import 'update_dialog.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import '../utils/translation_keys.dart';
+import '../widgets/translated_text.dart';
+import '../services/translation_service.dart';
 
 /// Centralized app bar configuration and styling
 class AppBarConfig {
@@ -142,7 +145,7 @@ class _CustomAppBarState extends State<CustomAppBar> {
         if (!permissionGranted) {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Permission denied. Cannot check for updates.')),
+              SnackBar(content: TranslatedText(TranslationKeys.permissionDeniedCannotCheckUpdates)),
             );
           }
           UnifiedMenu.closeCurrentMenu();
@@ -159,7 +162,7 @@ class _CustomAppBarState extends State<CustomAppBar> {
           print('⚠️ [CustomAppBar] Update dialog already showing, skipping...');
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Update dialog is already open.')),
+              SnackBar(content: TranslatedText(TranslationKeys.updateDialogAlreadyOpen)),
             );
           }
           UnifiedMenu.closeCurrentMenu();
@@ -192,7 +195,7 @@ class _CustomAppBarState extends State<CustomAppBar> {
         });
       } else if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('No updates available.')),
+          SnackBar(content: TranslatedText(TranslationKeys.noUpdatesAvailable)),
         );
       }
     } catch (e) {
@@ -201,7 +204,12 @@ class _CustomAppBarState extends State<CustomAppBar> {
       
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error checking for updates: $e')),
+          SnackBar(
+            content: ListenableBuilder(
+              listenable: TranslationService(),
+              builder: (context, _) => Text('${TranslationKeys.errorCheckingUpdates.tr}: $e'),
+            ),
+          ),
         );
       }
     } finally {

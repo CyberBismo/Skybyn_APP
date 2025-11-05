@@ -10,6 +10,7 @@ import '../services/auth_service.dart';
 import '../services/call_service.dart';
 import '../utils/translation_keys.dart';
 import '../widgets/translated_text.dart';
+import '../services/translation_service.dart';
 import 'profile_screen.dart';
 import 'call_screen.dart';
 
@@ -73,7 +74,12 @@ class _ChatScreenState extends State<ChatScreen> {
       print('❌ [ChatScreen] Error checking permissions: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('${TranslationKeys.errorCheckingPermissions.tr}: $e')),
+          SnackBar(
+            content: ListenableBuilder(
+              listenable: TranslationService(),
+              builder: (context, _) => Text('${TranslationKeys.errorCheckingPermissions.tr}: $e'),
+            ),
+          ),
         );
       }
       return false;
@@ -90,14 +96,14 @@ class _ChatScreenState extends State<ChatScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: Text(TranslationKeys.cancel.tr),
+            child: TranslatedText(TranslationKeys.cancel),
           ),
           ElevatedButton(
             onPressed: () async {
               Navigator.of(context).pop();
               await openAppSettings();
             },
-            child: Text(TranslationKeys.openSettings.tr),
+            child: TranslatedText(TranslationKeys.openSettings),
           ),
         ],
       ),

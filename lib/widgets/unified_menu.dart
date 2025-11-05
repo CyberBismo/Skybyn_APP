@@ -6,17 +6,20 @@ import '../screens/settings_screen.dart';
 import '../screens/qr_scanner_screen.dart';
 import '../screens/share_screen.dart';
 import 'app_colors.dart';
+import '../utils/translation_keys.dart';
+import '../services/translation_service.dart';
+import 'translated_text.dart';
 
 /// Menu item definition
 class MenuItem {
   final IconData icon;
-  final String label;
+  final String translationKey; // Store translation key instead of translated label
   final VoidCallback onTap;
   final bool isDestructive;
 
   const MenuItem({
     required this.icon,
-    required this.label,
+    required this.translationKey,
     required this.onTap,
     this.isDestructive = false,
   });
@@ -53,12 +56,12 @@ class UnifiedMenu {
         final List<MenuItem> items = [
           MenuItem(
             icon: Icons.share,
-            label: 'Share',
+            translationKey: TranslationKeys.share,
             onTap: onShare,
           ),
           MenuItem(
             icon: Icons.report,
-            label: 'Report',
+            translationKey: TranslationKeys.report,
             onTap: onReport,
           ),
         ];
@@ -67,12 +70,12 @@ class UnifiedMenu {
           items.addAll([
             MenuItem(
               icon: Icons.edit,
-              label: 'Edit',
+              translationKey: TranslationKeys.edit,
               onTap: onEdit,
             ),
             MenuItem(
               icon: Icons.delete_outline,
-              label: 'Delete',
+              translationKey: TranslationKeys.delete,
               onTap: onDelete,
               isDestructive: true,
             ),
@@ -103,7 +106,7 @@ class UnifiedMenu {
         final List<MenuItem> items = [
           MenuItem(
             icon: Icons.delete_outline,
-            label: 'Delete',
+            translationKey: TranslationKeys.delete,
             onTap: onDelete,
             isDestructive: true,
           ),
@@ -138,7 +141,7 @@ class UnifiedMenu {
           final List<MenuItem> items = [
             MenuItem(
               icon: Icons.home,
-              label: 'Home',
+              translationKey: TranslationKeys.home,
               onTap: () {
                 Navigator.of(context).pushReplacement(
                   MaterialPageRoute(builder: (context) => const HomeScreen()),
@@ -147,7 +150,7 @@ class UnifiedMenu {
             ),
             MenuItem(
               icon: Icons.person,
-              label: 'Profile',
+              translationKey: TranslationKeys.profile,
               onTap: () {
                 Navigator.of(context).push(
                   MaterialPageRoute(builder: (context) => const ProfileScreen()),
@@ -156,7 +159,7 @@ class UnifiedMenu {
             ),
             MenuItem(
               icon: Icons.settings,
-              label: 'Settings',
+              translationKey: TranslationKeys.settings,
               onTap: () {
                 Navigator.of(context).push(
                   MaterialPageRoute(builder: (context) => const SettingsScreen()),
@@ -165,7 +168,7 @@ class UnifiedMenu {
             ),
             MenuItem(
               icon: Icons.qr_code_scanner,
-              label: 'QR Scanner',
+              translationKey: TranslationKeys.qrScanner,
               onTap: () {
                 Navigator.of(context).push(
                   MaterialPageRoute(builder: (context) => const QrScannerScreen()),
@@ -174,7 +177,7 @@ class UnifiedMenu {
             ),
             MenuItem(
               icon: Icons.share,
-              label: 'Share App',
+              translationKey: TranslationKeys.shareApp,
               onTap: () {
                 Navigator.of(context).push(
                   MaterialPageRoute(builder: (context) => const ShareScreen()),
@@ -183,7 +186,7 @@ class UnifiedMenu {
             ),
             MenuItem(
               icon: Icons.logout,
-              label: 'Logout',
+              translationKey: TranslationKeys.logout,
               onTap: onLogout,
               isDestructive: true,
             ),
@@ -315,10 +318,13 @@ class UnifiedMenu {
               size: 20,
             ),
             const SizedBox(width: 8),
-            Text(
-              item.label,
-              style: TextStyle(
-                color: item.isDestructive ? Colors.red : AppColors.getTextColor(context),
+            ListenableBuilder(
+              listenable: TranslationService(),
+              builder: (context, _) => Text(
+                TranslationService().translate(item.translationKey),
+                style: TextStyle(
+                  color: item.isDestructive ? Colors.red : AppColors.getTextColor(context),
+                ),
               ),
             ),
           ],

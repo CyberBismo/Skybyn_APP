@@ -47,9 +47,56 @@ class TranslatedText extends StatelessWidget {
 }
 
 // Extension for easy translation on String
+// Note: This extension does NOT listen to language changes.
+// For reactive translations that update when language changes,
+// use TranslatedText widget instead.
 extension StringTranslation on String {
   String get tr {
     return TranslationService().translate(this);
+  }
+}
+
+// Reactive Text widget that updates when language changes
+// Use this instead of Text(key.tr) when you need automatic updates
+class ReactiveTranslatedText extends StatelessWidget {
+  final String translationKey;
+  final TextStyle? style;
+  final TextAlign? textAlign;
+  final int? maxLines;
+  final TextOverflow? overflow;
+  final String? fallback;
+
+  const ReactiveTranslatedText(
+    this.translationKey, {
+    super.key,
+    this.style,
+    this.textAlign,
+    this.maxLines,
+    this.overflow,
+    this.fallback,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final translationService = TranslationService();
+    
+    return ListenableBuilder(
+      listenable: translationService,
+      builder: (context, child) {
+        final translatedText = translationService.translate(translationKey);
+        final displayText = (translatedText == translationKey && fallback != null) 
+            ? fallback! 
+            : translatedText;
+        
+        return Text(
+          displayText,
+          style: style,
+          textAlign: textAlign,
+          maxLines: maxLines,
+          overflow: overflow,
+        );
+      },
+    );
   }
 }
 

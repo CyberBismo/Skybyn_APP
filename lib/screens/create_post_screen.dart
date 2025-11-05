@@ -8,6 +8,7 @@ import '../services/auth_service.dart';
 import '../models/post.dart';
 import '../utils/translation_keys.dart';
 import '../widgets/translated_text.dart';
+import '../services/translation_service.dart';
 
 class CreatePostScreen extends StatefulWidget {
   final bool isEditing;
@@ -63,7 +64,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
     if (content.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(TranslationKeys.fieldRequired.tr),
+          content: TranslatedText(TranslationKeys.fieldRequired),
           backgroundColor: Colors.red,
         ),
       );
@@ -137,7 +138,10 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
           automaticallyImplyLeading: false,
           systemOverlayStyle: SystemUiOverlayStyle.light,
           iconTheme: const IconThemeData(color: Colors.white),
-          title: Text(widget.isEditing ? TranslationKeys.editPost.tr : TranslationKeys.createPost.tr, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          title: TranslatedText(
+            widget.isEditing ? TranslationKeys.editPost : TranslationKeys.createPost,
+            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+          ),
           actions: [
             if (MediaQuery.of(context).viewInsets.bottom > 0)
               Container(
@@ -179,22 +183,27 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
                         ),
-                        child: TextField(
-                          controller: _contentController,
-                          focusNode: _focusNode,
-                          autofocus: true,
-                          maxLines: 5,
-                          minLines: 3,
-                          style: const TextStyle(color: Colors.white),
-                          decoration: InputDecoration(
-                            hintText: TranslationKeys.whatOnMind.tr,
-                            hintStyle: const TextStyle(color: Colors.white70),
-                            border: InputBorder.none,
-                            contentPadding: const EdgeInsets.all(16),
-                          ),
-                          onTap: () {
-                            // Ensure any other context menus are closed
-                            // This helps prevent SystemContextMenu conflicts
+                        child:                         ListenableBuilder(
+                          listenable: TranslationService(),
+                          builder: (context, _) {
+                            return TextField(
+                              controller: _contentController,
+                              focusNode: _focusNode,
+                              autofocus: true,
+                              maxLines: 5,
+                              minLines: 3,
+                              style: const TextStyle(color: Colors.white),
+                              decoration: InputDecoration(
+                                hintText: TranslationService().translate(TranslationKeys.whatOnMind),
+                                hintStyle: const TextStyle(color: Colors.white70),
+                                border: InputBorder.none,
+                                contentPadding: const EdgeInsets.all(16),
+                              ),
+                              onTap: () {
+                                // Ensure any other context menus are closed
+                                // This helps prevent SystemContextMenu conflicts
+                              },
+                            );
                           },
                         ),
                       ),
@@ -242,8 +251,8 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                             children: [
                               TextButton(
                                 onPressed: _isPosting ? null : () => Navigator.of(context).pop(),
-                                child: Text(
-                                  TranslationKeys.cancel.tr,
+                                child: TranslatedText(
+                                  TranslationKeys.cancel,
                                   style: const TextStyle(color: Colors.white70, fontSize: 16),
                                 ),
                               ),

@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import '../services/auto_update_service.dart';
 import 'app_colors.dart';
+import '../utils/translation_keys.dart';
+import '../widgets/translated_text.dart';
+import '../services/translation_service.dart';
 
 class UpdateDialog extends StatefulWidget {
   final String currentVersion;
@@ -47,7 +50,7 @@ class _UpdateDialogState extends State<UpdateDialog> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Download URL not available. Cannot install update.'),
+            content: TranslatedText(TranslationKeys.downloadUrlNotAvailable),
           ),
         );
       }
@@ -127,12 +130,15 @@ class _UpdateDialogState extends State<UpdateDialog> {
         showDialog(
           context: context,
           builder: (context) => AlertDialog(
-            title: const Text('Update Failed'),
-            content: Text('Failed to install update: $e'),
+            title: TranslatedText(TranslationKeys.updateFailed),
+            content: ListenableBuilder(
+              listenable: TranslationService(),
+              builder: (context, _) => Text('${TranslationKeys.failedToInstallUpdate.tr}: $e'),
+            ),
             actions: [
               TextButton(
                 onPressed: () => Navigator.of(context).pop(),
-                child: const Text('OK'),
+                child: TranslatedText(TranslationKeys.ok),
               ),
             ],
           ),
@@ -155,8 +161,8 @@ class _UpdateDialogState extends State<UpdateDialog> {
             size: 28,
           ),
           const SizedBox(width: 12),
-          Text(
-            'Update Available',
+          TranslatedText(
+            TranslationKeys.updateAvailable,
             style: TextStyle(
               color: AppColors.getTextColor(context),
               fontWeight: FontWeight.bold,
@@ -168,8 +174,8 @@ class _UpdateDialogState extends State<UpdateDialog> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'A new version of Skybyn is available!',
+          TranslatedText(
+            TranslationKeys.newVersionAvailable,
             style: TextStyle(
               color: AppColors.getTextColor(context),
               fontSize: 16,
@@ -286,15 +292,18 @@ class _UpdateDialogState extends State<UpdateDialog> {
               backgroundColor: Theme.of(context).primaryColor,
               foregroundColor: Colors.white,
             ),
-            child: const Text('Install'),
+            child: TranslatedText(TranslationKeys.install),
           ),
         ] else ...[
           TextButton(
             onPressed: null,
-            child: Text(
-              'Installing...',
-              style: TextStyle(
-                color: AppColors.getHintColor(context),
+            child: ListenableBuilder(
+              listenable: TranslationService(),
+              builder: (context, _) => Text(
+                TranslationKeys.installingUpdate.tr,
+                style: TextStyle(
+                  color: AppColors.getHintColor(context),
+                ),
               ),
             ),
           ),

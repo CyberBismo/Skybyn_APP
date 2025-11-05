@@ -139,6 +139,17 @@ class TranslationKeys {
   static const String postDeleteFailed = 'post_delete_failed';
   static const String confirmDeletePost = 'confirm_delete_post';
   static const String postDeletedSuccessfully = 'post_deleted_successfully';
+  static const String confirmDeletePostMessage = 'confirm_delete_post_message';
+  static const String reportPost = 'report_post';
+  static const String confirmReportPostMessage = 'confirm_report_post_message';
+  static const String postReportedSuccessfully = 'post_reported_successfully';
+  static const String postLinkCopiedToClipboard = 'post_link_copied_to_clipboard';
+  static const String commentPostedButCouldNotLoadDetails = 'comment_posted_but_could_not_load_details';
+  static const String failedToPostComment = 'failed_to_post_comment';
+  static const String failedToDeleteComment = 'failed_to_delete_comment';
+  static const String failedToDeletePost = 'failed_to_delete_post';
+  static const String allComments = 'all_comments';
+  static const String addCommentPlaceholder = 'add_comment';
 
   // Comments
   static const String addComment = 'add_comment';
@@ -227,6 +238,21 @@ class TranslationKeys {
   static const String accountDeleted = 'account_deleted';
   static const String callError = 'call_error';
   static const String postCreatedButCouldNotLoadDetails = 'post_created_but_could_not_load_details';
+  static const String qrScanner = 'qr_scanner';
+  static const String report = 'report';
+  static const String searchFriends = 'search_friends';
+  static const String noFriendsFound = 'no_friends_found';
+  static const String installPermissionRequired = 'install_permission_required';
+  static const String installPermissionDeniedMessage = 'install_permission_denied_message';
+  static const String permissionNotGranted = 'permission_not_granted';
+  static const String downloadUrlNotAvailable = 'download_url_not_available';
+  static const String updateFailed = 'update_failed';
+  static const String failedToInstallUpdate = 'failed_to_install_update';
+  static const String permissionDeniedCannotCheckUpdates = 'permission_denied_cannot_check_updates';
+  static const String updateDialogAlreadyOpen = 'update_dialog_already_open';
+  static const String selectDate = 'select_date';
+  static const String newVersionAvailable = 'new_version_available';
+  static const String installingUpdate = 'installing_update';
 
   // Language Settings
   static const String selectLanguage = 'select_language';
@@ -342,10 +368,11 @@ class TranslationKeys {
   static const String updateDownloading = 'update_downloading';
   static const String updateInstalling = 'update_installing';
   static const String updateCompleted = 'update_completed';
-  static const String updateFailed = 'update_failed';
   static const String updateCancelled = 'update_cancelled';
+  static const String install = 'install';
   static const String checkingForUpdates = 'checking_for_updates';
   static const String noUpdatesAvailable = 'no_updates_available';
+  static const String errorCheckingUpdates = 'error_checking_updates';
   static const String updateSize = 'update_size';
   static const String downloadProgress = 'download_progress';
   static const String installProgress = 'install_progress';

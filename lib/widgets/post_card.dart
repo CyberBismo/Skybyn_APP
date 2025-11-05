@@ -13,6 +13,9 @@ import '../services/websocket_service.dart';
 import '../screens/create_post_screen.dart';
 import '../widgets/app_colors.dart';
 import '../config/constants.dart';
+import '../utils/translation_keys.dart';
+import '../widgets/translated_text.dart';
+import '../services/translation_service.dart';
 
 /// Centralized styling for the PostCard widget - matches web platform exactly
 class PostCardStyles {
@@ -332,7 +335,10 @@ class _PostCardState extends State<PostCard> {
       // Show error message
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Failed to post comment: ${e.toString()}'),
+          content: ListenableBuilder(
+            listenable: TranslationService(),
+            builder: (context, _) => Text('${TranslationKeys.failedToPostComment.tr}: ${e.toString()}'),
+          ),
           backgroundColor: Colors.red,
         ),
       );
@@ -356,8 +362,8 @@ class _PostCardState extends State<PostCard> {
       // Show error to user
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Comment posted but could not load details'),
+          SnackBar(
+            content: TranslatedText(TranslationKeys.commentPostedButCouldNotLoadDetails),
             backgroundColor: Colors.orange,
           ),
         );
@@ -394,7 +400,10 @@ class _PostCardState extends State<PostCard> {
       Navigator.pop(context); // Dismiss loading indicator
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Failed to delete comment: ${e.toString()}'),
+          content: ListenableBuilder(
+            listenable: TranslationService(),
+            builder: (context, _) => Text('${TranslationKeys.failedToDeleteComment.tr}: ${e.toString()}'),
+          ),
           backgroundColor: Colors.red,
         ),
       );
@@ -406,20 +415,20 @@ class _PostCardState extends State<PostCard> {
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: Colors.grey[900],
-        title: const Text(
-          'Delete Post',
-          style: TextStyle(color: Colors.white),
+        title: TranslatedText(
+          TranslationKeys.deletePost,
+          style: const TextStyle(color: Colors.white),
         ),
-        content: const Text(
-          'Are you sure you want to delete this post?',
-          style: TextStyle(color: Colors.white70),
+        content: TranslatedText(
+          TranslationKeys.confirmDeletePostMessage,
+          style: const TextStyle(color: Colors.white70),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text(
-              'Cancel',
-              style: TextStyle(color: Colors.white),
+            child: TranslatedText(
+              TranslationKeys.cancel,
+              style: const TextStyle(color: Colors.white),
             ),
           ),
           TextButton(
@@ -427,9 +436,9 @@ class _PostCardState extends State<PostCard> {
               Navigator.of(context).pop();
               await _deletePost();
             },
-            child: const Text(
-              'Delete',
-              style: TextStyle(color: Colors.red),
+            child: TranslatedText(
+              TranslationKeys.delete,
+              style: const TextStyle(color: Colors.red),
             ),
           ),
         ],
@@ -464,7 +473,10 @@ class _PostCardState extends State<PostCard> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed to delete post: ${e.toString()}'),
+            content: ListenableBuilder(
+              listenable: TranslationService(),
+              builder: (context, _) => Text('${TranslationKeys.failedToDeletePost.tr}: ${e.toString()}'),
+            ),
             backgroundColor: Colors.red,
           ),
         );
@@ -479,7 +491,7 @@ class _PostCardState extends State<PostCard> {
         final postUrl = '${ApiConstants.webBase}/post/${_currentPost.id}';
         await Clipboard.setData(ClipboardData(text: postUrl));
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Post link copied to clipboard!')),
+          SnackBar(content: TranslatedText(TranslationKeys.postLinkCopiedToClipboard)),
         );
         break;
       case 'view_comments':
@@ -500,7 +512,7 @@ class _PostCardState extends State<PostCard> {
     await Clipboard.setData(ClipboardData(text: postUrl));
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Post link copied to clipboard!')),
+        SnackBar(content: TranslatedText(TranslationKeys.postLinkCopiedToClipboard)),
       );
     }
   }
@@ -511,20 +523,20 @@ class _PostCardState extends State<PostCard> {
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: Colors.grey[900],
-        title: const Text(
-          'Report Post',
-          style: TextStyle(color: Colors.white),
+        title: TranslatedText(
+          TranslationKeys.reportPost,
+          style: const TextStyle(color: Colors.white),
         ),
-        content: const Text(
-          'Are you sure you want to report this post?',
-          style: TextStyle(color: Colors.white70),
+        content: TranslatedText(
+          TranslationKeys.confirmReportPostMessage,
+          style: const TextStyle(color: Colors.white70),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text(
-              'Cancel',
-              style: TextStyle(color: Colors.white),
+            child: TranslatedText(
+              TranslationKeys.cancel,
+              style: const TextStyle(color: Colors.white),
             ),
           ),
           TextButton(
@@ -532,12 +544,12 @@ class _PostCardState extends State<PostCard> {
               Navigator.of(context).pop();
               // TODO: Implement actual report functionality
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Post reported successfully')),
+                SnackBar(content: TranslatedText(TranslationKeys.postReportedSuccessfully)),
               );
             },
-            child: const Text(
-              'Report',
-              style: TextStyle(color: Colors.orange),
+            child: TranslatedText(
+              TranslationKeys.report,
+              style: const TextStyle(color: Colors.orange),
             ),
           ),
         ],
@@ -826,10 +838,13 @@ class _PostCardState extends State<PostCard> {
                                       left: 70.0), // margin-left: 70px
                                   padding: const EdgeInsets.symmetric(
                                       horizontal: 20.0, vertical: 0.0),
-                                  child: Text(
-                                    _formatTimestamp(_currentPost.createdAt),
-                                    style: PostCardStyles.getTimestampTextStyle(
-                                        context), // font-size: 12px
+                                  child: ListenableBuilder(
+                                    listenable: TranslationService(),
+                                    builder: (context, _) => Text(
+                                      _formatTimestamp(_currentPost.createdAt),
+                                      style: PostCardStyles.getTimestampTextStyle(
+                                          context), // font-size: 12px
+                                    ),
                                   ),
                                 ),
                               ),
@@ -960,8 +975,10 @@ class _PostCardState extends State<PostCard> {
                       alignment: Alignment.centerRight,
                       child: TextButton(
                         onPressed: _showAllCommentsPopup,
-                        child:
-                            Text('Expand', style: TextStyle(color: textColor)),
+                        child: TranslatedText(
+                          TranslationKeys.expand,
+                          style: TextStyle(color: textColor),
+                        ),
                       ),
                     ),
                   ),
@@ -976,12 +993,13 @@ class _PostCardState extends State<PostCard> {
   String _formatTimestamp(DateTime dateTime) {
     final now = DateTime.now();
     final diff = now.difference(dateTime);
+    final translationService = TranslationService();
     if (diff.inMinutes < 60) {
-      return '${diff.inMinutes} minutes ago';
+      return '${diff.inMinutes} ${translationService.translate(TranslationKeys.minutesAgo)}';
     } else if (diff.inHours < 24) {
-      return '${diff.inHours} hours ago';
+      return '${diff.inHours} ${translationService.translate(TranslationKeys.hoursAgo)}';
     } else {
-      return '${diff.inDays} days ago';
+      return '${diff.inDays} ${translationService.translate(TranslationKeys.daysAgo)}';
     }
   }
 
@@ -1003,11 +1021,13 @@ class _PostCardState extends State<PostCard> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text('All Comments',
-                        style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold)),
+                    TranslatedText(
+                      TranslationKeys.allComments,
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold),
+                    ),
                     IconButton(
                       icon: const Icon(Icons.close, color: Colors.white),
                       onPressed: () => Navigator.of(context).pop(),
@@ -1075,25 +1095,30 @@ class _PostCardState extends State<PostCard> {
           Expanded(
             child: SizedBox(
               height: 40.0,
-              child: TextField(
-                controller: _commentController,
-                focusNode: _commentFocusNode,
-                decoration: InputDecoration(
-                  hintText: 'Add a comment...',
-                  hintStyle: TextStyle(color: hintColor),
-                  border: InputBorder.none,
-                  contentPadding:
-                      const EdgeInsets.symmetric(vertical: 0, horizontal: 0),
-                ),
-                style: TextStyle(color: textColor),
-                onTap: () {
-                  // Ensure any other context menus are closed
-                  _popupMenuFocusNode.unfocus();
-                  // Show floating input when tapped
-                  _showFloatingInput();
-                },
-                onSubmitted: (_) {
-                  _postComment();
+              child: ListenableBuilder(
+                listenable: TranslationService(),
+                builder: (context, _) {
+                  return TextField(
+                    controller: _commentController,
+                    focusNode: _commentFocusNode,
+                    decoration: InputDecoration(
+                      hintText: TranslationService().translate(TranslationKeys.addCommentPlaceholder),
+                      hintStyle: TextStyle(color: hintColor),
+                      border: InputBorder.none,
+                      contentPadding:
+                          const EdgeInsets.symmetric(vertical: 0, horizontal: 0),
+                    ),
+                    style: TextStyle(color: textColor),
+                    onTap: () {
+                      // Ensure any other context menus are closed
+                      _popupMenuFocusNode.unfocus();
+                      // Show floating input when tapped
+                      _showFloatingInput();
+                    },
+                    onSubmitted: (_) {
+                      _postComment();
+                    },
+                  );
                 },
               ),
             ),
@@ -1170,25 +1195,30 @@ class _PostCardState extends State<PostCard> {
                 child: Row(
                   children: [
                     Expanded(
-                      child: TextField(
-                        controller: _commentController,
-                        focusNode: _commentFocusNode,
-                        decoration: InputDecoration(
-                          hintText: 'Add a comment...',
-                          hintStyle: TextStyle(
-                              color: PostCardStyles.getHintColor(context)),
-                          border: InputBorder.none,
-                          contentPadding: const EdgeInsets.symmetric(
-                              vertical: 8.0, horizontal: 0),
-                        ),
-                        style: TextStyle(
-                            color: PostCardStyles.getTextColor(context)),
-                        onTap: () {
-                          // Ensure any other context menus are closed
-                          _popupMenuFocusNode.unfocus();
-                        },
-                        onSubmitted: (_) {
-                          _postComment();
+                      child: ListenableBuilder(
+                        listenable: TranslationService(),
+                        builder: (context, _) {
+                          return TextField(
+                            controller: _commentController,
+                            focusNode: _commentFocusNode,
+                            decoration: InputDecoration(
+                              hintText: TranslationService().translate(TranslationKeys.addCommentPlaceholder),
+                              hintStyle: TextStyle(
+                                  color: PostCardStyles.getHintColor(context)),
+                              border: InputBorder.none,
+                              contentPadding: const EdgeInsets.symmetric(
+                                  vertical: 8.0, horizontal: 0),
+                            ),
+                            style: TextStyle(
+                                color: PostCardStyles.getTextColor(context)),
+                            onTap: () {
+                              // Ensure any other context menus are closed
+                              _popupMenuFocusNode.unfocus();
+                            },
+                            onSubmitted: (_) {
+                              _postComment();
+                            },
+                          );
                         },
                       ),
                     ),

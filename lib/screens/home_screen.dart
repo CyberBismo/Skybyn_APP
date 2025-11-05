@@ -237,7 +237,10 @@ class _HomeScreenState extends State<HomeScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('${TranslationKeys.postCreatedButCouldNotLoadDetails.tr}: ${e.toString()}'),
+            content: ListenableBuilder(
+              listenable: TranslationService(),
+              builder: (context, _) => Text('${TranslationKeys.postCreatedButCouldNotLoadDetails.tr}: ${e.toString()}'),
+            ),
             backgroundColor: Colors.orange,
           ),
         );

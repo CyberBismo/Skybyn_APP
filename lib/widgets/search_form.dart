@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'dart:ui';
 import 'app_colors.dart';
+import '../utils/translation_keys.dart';
+import '../services/translation_service.dart';
 
 /// Centralized styling for the SearchForm widget
 class SearchFormStyles {
@@ -122,27 +124,32 @@ class SearchFormState extends State<SearchForm> with SingleTickerProviderStateMi
                         child: Stack(
                           children: [
                             // Search input
-                            TextField(
-                              controller: _searchController,
-                              focusNode: _searchFocusNode,
-                              decoration: InputDecoration(
-                                hintText: 'Search...',
-                                hintStyle: TextStyle(color: hintColor),
-                                border: InputBorder.none,
-                                contentPadding: const EdgeInsets.only(
-                                  left: 40, // Space for icon
-                                  right: 40, // Space for close button
-                                  top: 10,
-                                  bottom: 10,
-                                ),
-                              ),
-                              style: TextStyle(color: textColor, fontSize: SearchFormStyles.fontSize),
-                              onSubmitted: (query) {
-                                _searchFocusNode.unfocus();
-                                widget.onSearch(query);
-                              },
-                              onTap: () {
-                                // Ensure any other context menus are closed
+                            ListenableBuilder(
+                              listenable: TranslationService(),
+                              builder: (context, _) {
+                                return TextField(
+                                  controller: _searchController,
+                                  focusNode: _searchFocusNode,
+                                  decoration: InputDecoration(
+                                    hintText: TranslationService().translate(TranslationKeys.search),
+                                    hintStyle: TextStyle(color: hintColor),
+                                    border: InputBorder.none,
+                                    contentPadding: const EdgeInsets.only(
+                                      left: 40, // Space for icon
+                                      right: 40, // Space for close button
+                                      top: 10,
+                                      bottom: 10,
+                                    ),
+                                  ),
+                                  style: TextStyle(color: textColor, fontSize: SearchFormStyles.fontSize),
+                                  onSubmitted: (query) {
+                                    _searchFocusNode.unfocus();
+                                    widget.onSearch(query);
+                                  },
+                                  onTap: () {
+                                    // Ensure any other context menus are closed
+                                  },
+                                );
                               },
                             ),
                             // Search icon (absolute positioned)

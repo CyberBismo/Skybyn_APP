@@ -277,7 +277,7 @@ class _QrScannerScreenState extends State<QrScannerScreen> with WidgetsBindingOb
                                         });
                                         _checkCameraPermission();
                                       },
-                                      child: Text(TranslationKeys.retry.tr),
+                                      child: TranslatedText(TranslationKeys.retry),
                                     ),
                                     if (_isPermissionDenied) ...[
                                       const SizedBox(width: 12),
@@ -290,7 +290,7 @@ class _QrScannerScreenState extends State<QrScannerScreen> with WidgetsBindingOb
                                           backgroundColor: Colors.blue,
                                           foregroundColor: Colors.white,
                                         ),
-                                        child: Text(TranslationKeys.openSettings.tr),
+                                        child: TranslatedText(TranslationKeys.openSettings),
                                       ),
                                     ],
                                   ],
@@ -332,7 +332,7 @@ class _QrScannerScreenState extends State<QrScannerScreen> with WidgetsBindingOb
                                     });
                                     Navigator.of(context).pop();
                                   },
-                                  child: Text(TranslationKeys.done.tr, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                                  child: TranslatedText(TranslationKeys.done, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
                                 ),
                               ],
                             ),
@@ -368,7 +368,7 @@ class _QrScannerScreenState extends State<QrScannerScreen> with WidgetsBindingOb
                         // Camera should continue running automatically
                         // No need to manually resume as MobileScanner handles it
                       },
-                      child: Text(TranslationKeys.scanAgain.tr, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                      child: TranslatedText(TranslationKeys.scanAgain, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
                     )
                   : Container(
                       padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),

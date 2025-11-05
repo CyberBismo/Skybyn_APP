@@ -1,5 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import '../utils/translation_keys.dart';
+import '../widgets/translated_text.dart';
 
 class WheelDatePicker extends StatefulWidget {
   final DateTime initialDate;
@@ -289,18 +291,18 @@ Future<DateTime?> showWheelDatePicker(
                     TextButton(
                       onPressed: () => Navigator.of(context).pop(),
                       style: TextButton.styleFrom(foregroundColor: Colors.white),
-                      child: const Text('Cancel'),
+                      child: TranslatedText(TranslationKeys.cancel),
                     ),
                     const Spacer(),
-                    Text(
-                      'Select Date',
+                    TranslatedText(
+                      TranslationKeys.selectDate,
                       style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600, color: Colors.white),
                     ),
                     const Spacer(),
                     TextButton(
                       onPressed: () => Navigator.of(context).pop(temp),
                       style: TextButton.styleFrom(foregroundColor: Colors.white),
-                      child: const Text('Done'),
+                      child: TranslatedText(TranslationKeys.done),
                     ),
                   ],
                 ),

@@ -5,6 +5,9 @@ import '../services/friend_service.dart';
 import '../services/auth_service.dart';
 import '../models/friend.dart';
 import '../screens/chat_screen.dart';
+import '../utils/translation_keys.dart';
+import '../widgets/translated_text.dart';
+import '../services/translation_service.dart';
 
 class ChatListModal extends StatefulWidget {
   const ChatListModal({super.key});
@@ -75,15 +78,20 @@ class _ChatListModalState extends State<ChatListModal> {
                     filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
                     child: Container(
                       color: Colors.white.withOpacity(0.12),
-                      child: const TextField(
-                        decoration: InputDecoration(
-                          hintText: 'Search friends...',
-                          hintStyle: TextStyle(color: Colors.white70),
-                          border: InputBorder.none,
-                          prefixIcon: Icon(Icons.search, color: Colors.white),
-                          contentPadding: EdgeInsets.symmetric(vertical: 14),
-                        ),
-                        style: TextStyle(color: Colors.white),
+                      child: ListenableBuilder(
+                        listenable: TranslationService(),
+                        builder: (context, _) {
+                          return TextField(
+                            decoration: InputDecoration(
+                              hintText: TranslationKeys.searchFriends.tr,
+                              hintStyle: const TextStyle(color: Colors.white70),
+                              border: InputBorder.none,
+                              prefixIcon: const Icon(Icons.search, color: Colors.white),
+                              contentPadding: const EdgeInsets.symmetric(vertical: 14),
+                            ),
+                            style: const TextStyle(color: Colors.white),
+                          );
+                        },
                       ),
                     ),
                   ),
@@ -104,12 +112,12 @@ class _ChatListModalState extends State<ChatListModal> {
               else
                 Flexible(
                   child: _friends.isEmpty
-                      ? const Padding(
-                          padding: EdgeInsets.all(16.0),
+                      ? Padding(
+                          padding: const EdgeInsets.all(16.0),
                           child: Center(
-                            child: Text(
-                              'No friends found',
-                              style: TextStyle(color: Colors.white70),
+                            child: TranslatedText(
+                              TranslationKeys.noFriendsFound,
+                              style: const TextStyle(color: Colors.white70),
                             ),
                           ),
                         )

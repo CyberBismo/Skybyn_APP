@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../services/auto_update_service.dart';
+import '../utils/translation_keys.dart';
+import '../widgets/translated_text.dart';
 
 /// Permission dialog for install permissions - uses Android system dialog
 /// Only shows custom dialog if permission is permanently denied
@@ -70,17 +72,15 @@ class _PermissionDialogState extends State<PermissionDialog> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Install Permission Required'),
-        content: const Text(
-          'This permission has been permanently denied. Please enable "Install unknown apps" for Skybyn in your device settings.',
-        ),
+        title: TranslatedText(TranslationKeys.installPermissionRequired),
+        content: TranslatedText(TranslationKeys.installPermissionDeniedMessage),
         actions: [
           TextButton(
             onPressed: () {
               Navigator.of(context).pop();
               widget.onDenied?.call();
             },
-            child: const Text('Cancel'),
+            child: TranslatedText(TranslationKeys.cancel),
           ),
           ElevatedButton(
             onPressed: () async {
@@ -88,7 +88,7 @@ class _PermissionDialogState extends State<PermissionDialog> {
               await openAppSettings();
               widget.onDenied?.call();
             },
-            child: const Text('Open Settings'),
+            child: TranslatedText(TranslationKeys.openSettings),
           ),
         ],
       ),

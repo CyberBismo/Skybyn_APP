@@ -15,6 +15,7 @@ import 'services/notification_service.dart';
 import 'services/websocket_service.dart';
 import 'services/firebase_messaging_service.dart';
 import 'services/translation_service.dart';
+import 'services/background_update_scheduler.dart';
 import 'widgets/background_gradient.dart';
 
 Future<void> main() async {
@@ -128,6 +129,7 @@ final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   final NotificationService _notificationService = NotificationService();
   final WebSocketService _webSocketService = WebSocketService();
+  final BackgroundUpdateScheduler _backgroundUpdateScheduler = BackgroundUpdateScheduler();
   bool _isAppInForeground = true;
   Timer? _serviceCheckTimer;
 
@@ -150,6 +152,9 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         _notificationService.initialize(),
         _webSocketService.initialize(),
       ]);
+
+      // Initialize background update scheduler
+      await _backgroundUpdateScheduler.initialize();
 
       // Ensure background notification is hidden when app starts (in foreground)
       if (Platform.isAndroid) {

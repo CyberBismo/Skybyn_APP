@@ -414,7 +414,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         // Show success message and navigate back
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(TranslationKeys.registrationSuccessful.tr),
+            content: TranslatedText(TranslationKeys.registrationSuccessful),
             backgroundColor: Colors.green,
           ),
         );

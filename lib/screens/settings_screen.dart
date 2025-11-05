@@ -722,65 +722,80 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 const SizedBox(height: 60),
                 // Basic Info Section
                 _buildExpansionTile(
-                  title: TranslationKeys.general.tr,
+                  title: TranslationKeys.general,
                   tileColor: transparentColor,
                   children: [
-                    TextField(
-                      controller: _emailController,
-                      focusNode: _emailFocusNode,
-                      style: TextStyle(color: AppColors.getTextColor(context)),
-                      decoration: InputDecoration(
-                        labelText: TranslationKeys.email.tr,
-                        labelStyle: TextStyle(color: AppColors.getSecondaryTextColor(context)),
-                        enabledBorder: UnderlineInputBorder(
-                          borderSide: BorderSide(color: AppColors.getSecondaryTextColor(context).withOpacity(0.3)),
-                        ),
-                        focusedBorder: UnderlineInputBorder(
-                          borderSide: BorderSide(color: AppColors.getTextColor(context)),
-                        ),
-                      ),
-                      onTap: () {
-                        // Unfocus other fields to prevent context menu conflicts
-                        _unfocusOtherFields(_emailFocusNode);
+                    ListenableBuilder(
+                      listenable: TranslationService(),
+                      builder: (context, _) {
+                        return TextField(
+                          controller: _emailController,
+                          focusNode: _emailFocusNode,
+                          style: TextStyle(color: AppColors.getTextColor(context)),
+                          decoration: InputDecoration(
+                            labelText: TranslationKeys.email.tr,
+                            labelStyle: TextStyle(color: AppColors.getSecondaryTextColor(context)),
+                            enabledBorder: UnderlineInputBorder(
+                              borderSide: BorderSide(color: AppColors.getSecondaryTextColor(context).withOpacity(0.3)),
+                            ),
+                            focusedBorder: UnderlineInputBorder(
+                              borderSide: BorderSide(color: AppColors.getTextColor(context)),
+                            ),
+                          ),
+                          onTap: () {
+                            // Unfocus other fields to prevent context menu conflicts
+                            _unfocusOtherFields(_emailFocusNode);
+                          },
+                        );
                       },
                     ),
                     const SizedBox(height: 16),
-                    TextField(
-                      controller: _usernameController,
-                      focusNode: _usernameFocusNode,
-                      style: TextStyle(color: AppColors.getTextColor(context)),
-                      decoration: InputDecoration(
-                        labelText: TranslationKeys.username.tr,
-                        labelStyle: TextStyle(color: AppColors.getSecondaryTextColor(context)),
-                        enabledBorder: UnderlineInputBorder(
-                          borderSide: BorderSide(color: AppColors.getSecondaryTextColor(context).withOpacity(0.3)),
-                        ),
-                        focusedBorder: UnderlineInputBorder(
-                          borderSide: BorderSide(color: AppColors.getTextColor(context)),
-                        ),
-                      ),
-                      readOnly: true,
-                      onTap: () {
-                        _unfocusOtherFields(_usernameFocusNode);
+                    ListenableBuilder(
+                      listenable: TranslationService(),
+                      builder: (context, _) {
+                        return TextField(
+                          controller: _usernameController,
+                          focusNode: _usernameFocusNode,
+                          style: TextStyle(color: AppColors.getTextColor(context)),
+                          decoration: InputDecoration(
+                            labelText: TranslationKeys.username.tr,
+                            labelStyle: TextStyle(color: AppColors.getSecondaryTextColor(context)),
+                            enabledBorder: UnderlineInputBorder(
+                              borderSide: BorderSide(color: AppColors.getSecondaryTextColor(context).withOpacity(0.3)),
+                            ),
+                            focusedBorder: UnderlineInputBorder(
+                              borderSide: BorderSide(color: AppColors.getTextColor(context)),
+                            ),
+                          ),
+                          readOnly: true,
+                          onTap: () {
+                            _unfocusOtherFields(_usernameFocusNode);
+                          },
+                        );
                       },
                     ),
                     const SizedBox(height: 16),
-                    TextField(
-                      controller: _nicknameController,
-                      focusNode: _nicknameFocusNode,
-                      style: TextStyle(color: AppColors.getTextColor(context)),
-                      decoration: InputDecoration(
-                        labelText: TranslationKeys.nickname.tr,
-                        labelStyle: TextStyle(color: AppColors.getSecondaryTextColor(context)),
-                        enabledBorder: UnderlineInputBorder(
-                          borderSide: BorderSide(color: AppColors.getSecondaryTextColor(context).withOpacity(0.3)),
-                        ),
-                        focusedBorder: UnderlineInputBorder(
-                          borderSide: BorderSide(color: AppColors.getTextColor(context)),
-                        ),
-                      ),
-                      onTap: () {
-                        _unfocusOtherFields(_nicknameFocusNode);
+                    ListenableBuilder(
+                      listenable: TranslationService(),
+                      builder: (context, _) {
+                        return TextField(
+                          controller: _nicknameController,
+                          focusNode: _nicknameFocusNode,
+                          style: TextStyle(color: AppColors.getTextColor(context)),
+                          decoration: InputDecoration(
+                            labelText: TranslationKeys.nickname.tr,
+                            labelStyle: TextStyle(color: AppColors.getSecondaryTextColor(context)),
+                            enabledBorder: UnderlineInputBorder(
+                              borderSide: BorderSide(color: AppColors.getSecondaryTextColor(context).withOpacity(0.3)),
+                            ),
+                            focusedBorder: UnderlineInputBorder(
+                              borderSide: BorderSide(color: AppColors.getTextColor(context)),
+                            ),
+                          ),
+                          onTap: () {
+                            _unfocusOtherFields(_nicknameFocusNode);
+                          },
+                        );
                       },
                     ),
                     const SizedBox(height: 24),
@@ -796,14 +811,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             borderRadius: BorderRadius.circular(8),
                           ),
                         ),
-                        child: Text(TranslationKeys.saveChanges.tr),
+                        child: TranslatedText(TranslationKeys.saveChanges),
                       ),
                     ),
                   ],
                 ),
                 // Password Section
                 _buildExpansionTile(
-                  title: TranslationKeys.changePassword.tr,
+                  title: TranslationKeys.changePassword,
                   tileColor: transparentColor,
                   children: [
                     TextField(
@@ -878,14 +893,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             borderRadius: BorderRadius.circular(8),
                           ),
                         ),
-                        child: Text(TranslationKeys.changePassword.tr),
+                        child: TranslatedText(TranslationKeys.changePassword),
                       ),
                     ),
                   ],
                 ),
                 // PIN Section
                 _buildExpansionTile(
-                  title: TranslationKeys.pinCode.tr,
+                  title: TranslationKeys.pinCode,
                   tileColor: transparentColor,
                   children: [
                     DropdownButtonFormField<String>(
@@ -902,7 +917,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         });
                       },
                       decoration: InputDecoration(
-                        labelText: TranslationKeys.pinCode.tr,
+                        labelText: TranslationKeys.pinCode,
                         labelStyle: TextStyle(color: AppColors.getSecondaryTextColor(context)),
                         enabledBorder: UnderlineInputBorder(
                           borderSide: BorderSide(color: AppColors.getSecondaryTextColor(context).withOpacity(0.3)),
@@ -989,7 +1004,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               borderRadius: BorderRadius.circular(8),
                             ),
                           ),
-                          child: Text(TranslationKeys.savePinCode.tr),
+                          child: TranslatedText(TranslationKeys.savePinCode),
                         ),
                       ),
                     ],
@@ -997,7 +1012,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
                 // Security Questions Section
                 _buildExpansionTile(
-                  title: TranslationKeys.securityQuestions.tr,
+                  title: TranslationKeys.securityQuestions,
                   tileColor: transparentColor,
                   children: [
                     TextField(
@@ -1088,19 +1103,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             borderRadius: BorderRadius.circular(8),
                           ),
                         ),
-                        child: Text(TranslationKeys.saveSecurityQuestions.tr),
+                        child: TranslatedText(TranslationKeys.saveSecurityQuestions),
                       ),
                     ),
                   ],
                 ),
                 // Settings Section
                 _buildExpansionTile(
-                  title: TranslationKeys.preferences.tr,
+                  title: TranslationKeys.preferences,
                   tileColor: transparentColor,
                   children: [
                     SwitchListTile(
-                      title: Text(
-                        TranslationKeys.enableNotifications.tr,
+                      title: TranslatedText(
+                        TranslationKeys.enableNotifications,
                         style: TextStyle(color: AppColors.getTextColor(context)),
                       ),
                       value: notificationsEnabled,
@@ -1112,8 +1127,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       activeThumbColor: Colors.blue,
                     ),
                     SwitchListTile(
-                      title: Text(
-                        TranslationKeys.privateProfile.tr,
+                      title: TranslatedText(
+                        TranslationKeys.privateProfile,
                         style: TextStyle(color: AppColors.getTextColor(context)),
                       ),
                       value: isPrivate,
@@ -1125,8 +1140,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       activeThumbColor: Colors.blue,
                     ),
                     SwitchListTile(
-                      title: Text(
-                        TranslationKeys.biometricLock.tr,
+                      title: TranslatedText(
+                        TranslationKeys.biometricLock,
                         style: TextStyle(color: AppColors.getTextColor(context)),
                       ),
                       value: _biometricEnabled,
@@ -1154,12 +1169,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 Consumer<ThemeService>(
                   builder: (context, themeService, child) {
                     return _buildExpansionTile(
-                      title: TranslationKeys.appearance.tr,
+                      title: TranslationKeys.appearance,
                       tileColor: transparentColor,
                       children: [
                         ListTile(
-                          title: Text(
-                            TranslationKeys.themeMode.tr,
+                          title: TranslatedText(
+                            TranslationKeys.themeMode,
                             style: TextStyle(color: AppColors.getTextColor(context)),
                           ),
                           subtitle: Text(
@@ -1180,7 +1195,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
                 // Language Section
                 _buildExpansionTile(
-                  title: TranslationKeys.language.tr,
+                  title: TranslationKeys.language,
                   tileColor: transparentColor,
                   children: [
                     _buildLanguageDropdown(context),
@@ -1210,7 +1225,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       child: Theme(
         data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
         child: ExpansionTile(
-          title: Text(
+          title: TranslatedText(
             title,
             style: TextStyle(
               color: AppColors.getTextColor(context),
@@ -1312,6 +1327,40 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
             ),
           ],
+        );
+      },
+    );
+  }
+
+  // Helper method to build a reactive TextField with translated label
+  Widget _buildReactiveTextField({
+    required TextEditingController controller,
+    required FocusNode focusNode,
+    required String labelKey,
+    bool obscureText = false,
+    bool readOnly = false,
+    VoidCallback? onTap,
+  }) {
+    return ListenableBuilder(
+      listenable: TranslationService(),
+      builder: (context, _) {
+        return TextField(
+          controller: controller,
+          focusNode: focusNode,
+          obscureText: obscureText,
+          readOnly: readOnly,
+          style: TextStyle(color: AppColors.getTextColor(context)),
+          decoration: InputDecoration(
+            labelText: TranslationService().translate(labelKey),
+            labelStyle: TextStyle(color: AppColors.getSecondaryTextColor(context)),
+            enabledBorder: UnderlineInputBorder(
+              borderSide: BorderSide(color: AppColors.getSecondaryTextColor(context).withOpacity(0.3)),
+            ),
+            focusedBorder: UnderlineInputBorder(
+              borderSide: BorderSide(color: AppColors.getTextColor(context)),
+            ),
+          ),
+          onTap: onTap ?? () => _unfocusOtherFields(focusNode),
         );
       },
     );
