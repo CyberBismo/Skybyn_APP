@@ -44,7 +44,7 @@ if (keystorePropertiesFile.exists()) {
 
 android {
     namespace "no.skybyn.app"
-    compileSdk 36
+    compileSdk 36  // Required by sqflite_android (BAKLAVA constant) and androidx.camera dependencies
     ndkVersion "27.0.12077973"
 
     buildFeatures {
@@ -67,10 +67,17 @@ android {
 
     defaultConfig {
         applicationId "no.skybyn.app"
+        // minSdk 21 = Android 5.0 (Lollipop) - supports ~99% of active Android devices
         minSdkVersion flutter.minSdkVersion
-        targetSdkVersion flutter.targetSdkVersion
+        // targetSdk 35 = Android 15 - latest stable version for optimal compatibility
+        targetSdkVersion 35
         versionCode flutterVersionCode.toInteger()
         versionName flutterVersionName
+        
+        // Support all Android architectures for universal device compatibility
+        ndk {
+            abiFilters "armeabi-v7a", "arm64-v8a", "x86", "x86_64"
+        }
     }
 
     signingConfigs {
@@ -84,25 +91,47 @@ android {
                 storePassword keystoreProperties['storePassword']
             }
         }
+        // Ensure debug signing is always available
+        debug {
+            // Debug signing is automatically configured by Android
+        }
     }
 
     buildTypes {
         debug {
             applicationIdSuffix ".debug"
+            // Explicitly set debug signing
+            signingConfig signingConfigs.debug
         }
         release {
-            if (keystorePropertiesFile.exists()) {
+            // Always use a signing config - prefer release, fallback to debug
+            // This ensures APK is always signed (even if with debug key)
+            if (keystorePropertiesFile.exists() && 
+                keystoreProperties.containsKey('keyAlias') &&
+                keystoreProperties.containsKey('storeFile')) {
                 signingConfig signingConfigs.release
             } else {
-                // Fallback to debug signing if keystore not configured
+                // Use debug signing if release keystore not configured
                 signingConfig signingConfigs.debug
             }
+            minifyEnabled false
+            shrinkResources false
         }
     }
 
     testOptions {
         unitTests.all {
             enabled = false
+        }
+    }
+    
+    // Disable APK splits to ensure a single universal APK installable on all devices
+    splits {
+        abi {
+            enable false
+        }
+        density {
+            enable false
         }
     }
 }

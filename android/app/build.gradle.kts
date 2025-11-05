@@ -7,8 +7,11 @@ plugins {
 
 android {
     namespace = "no.skybyn.app"
-    compileSdk = 35  // Required by androidx.camera dependencies
+    compileSdk = 36  // Required by sqflite_android (BAKLAVA constant) and androidx.camera dependencies
     ndkVersion = "27.0.12077973"
+    
+    // Ensure consistent SDK version across all builds
+    buildToolsVersion = "36.0.0"
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
@@ -25,10 +28,17 @@ android {
         applicationId = "no.skybyn.app"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
-        minSdk = flutter.minSdkVersion
-        targetSdk = flutter.targetSdkVersion
+        // minSdk 21 = Android 5.0 (Lollipop) - supports ~99% of active Android devices
+        minSdk = 21
+        // targetSdk 35 = Android 15 - latest stable version for optimal compatibility
+        targetSdk = 35
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+        
+        // Support all Android architectures for universal device compatibility
+        ndk {
+            abiFilters += listOf("armeabi-v7a", "arm64-v8a", "x86", "x86_64")
+        }
     }
 
     // Load keystore properties from key.properties file
@@ -50,16 +60,40 @@ android {
                 storePassword = keystoreProperties["storePassword"] as String
             }
         }
+        // Ensure debug signing is always available
+        getByName("debug") {
+            // Debug signing is automatically configured by Android
+        }
     }
 
     buildTypes {
         release {
-            if (keystorePropertiesFile.exists()) {
-                signingConfig = signingConfigs.getByName("release")
+            // Always use a signing config - prefer release, fallback to debug
+            signingConfig = if (keystorePropertiesFile.exists() && 
+                keystoreProperties.containsKey("keyAlias") &&
+                keystoreProperties.containsKey("storeFile")) {
+                signingConfigs.getByName("release")
             } else {
-                // Fallback to debug signing if keystore not configured
-                signingConfig = signingConfigs.getByName("debug")
+                // Use debug signing if release keystore not configured
+                // This ensures APK is always signed (even if with debug key)
+                signingConfigs.getByName("debug")
             }
+            isMinifyEnabled = false
+            isShrinkResources = false
+        }
+        debug {
+            // Explicitly set debug signing
+            signingConfig = signingConfigs.getByName("debug")
+        }
+    }
+    
+    // Disable APK splits to ensure a single universal APK installable on all devices
+    splits {
+        abi {
+            isEnable = false
+        }
+        density {
+            isEnable = false
         }
     }
 
