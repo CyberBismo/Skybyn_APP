@@ -32,11 +32,14 @@ rootProject.buildDir = '../build'
 subprojects {
     project.buildDir = "${rootProject.buildDir}/${project.name}"
     
-    // Force all subprojects to use compileSdk 35 (required by some dependencies)
+    // Force all subprojects to use compileSdk 36 (required by sqflite_android and other dependencies)
     project.afterEvaluate {
         if (project.hasProperty('android')) {
             project.android {
-                compileSdk 35
+                compileSdk 36
+                
+                // Note: Compatibility shim is only in app module to avoid duplicate class definitions
+                // Plugins will reference it during compilation but won't include it in their builds
             }
         }
     }
