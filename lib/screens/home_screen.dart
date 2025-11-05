@@ -250,39 +250,56 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _loadData() async {
-    setState(() => _isLoading = true);
-
-    try {
-      final userId = await _authService.getStoredUserId();
-      if (userId != null) {
-        // Load user information
-        setState(() {
-          _currentUserId = userId;
-        });
-
-        try {
-          _posts = await PostService().fetchPostsForUser(userId: userId).timeout(const Duration(seconds: 15));
-        } catch (timelineError) {
-          _posts = [];
-        }
-
-        // If no posts returned from API, show empty state
-        if (_posts.isEmpty) {
-          _posts = [];
-        }
-      } else {
+    final userId = await _authService.getStoredUserId();
+    if (userId == null) {
+      setState(() {
         _posts = [];
+        _isLoading = false;
+        _currentUserId = null;
+      });
+      return;
+    }
+
+    // Set user ID immediately
+    setState(() {
+      _currentUserId = userId;
+    });
+
+    // Load cached posts first (fast, non-blocking)
+    final postService = PostService();
+    try {
+      // Try to get cached posts immediately
+      final cachedPosts = await postService.loadTimelineFromCache();
+      if (cachedPosts.isNotEmpty && mounted) {
+        setState(() {
+          _posts = cachedPosts;
+          _isLoading = false; // Show cached data immediately
+        });
+      } else {
+        setState(() => _isLoading = true);
       }
     } catch (e) {
-      print('Error loading data: $e');
+      setState(() => _isLoading = true);
+    }
+
+    // Fetch fresh data in background
+    try {
+      final freshPosts = await postService.fetchPostsForUser(userId: userId).timeout(const Duration(seconds: 15));
       if (mounted) {
-        CustomSnackBar.show(context, 'Error loading data: $e');
+        setState(() {
+          _posts = freshPosts;
+          _isLoading = false;
+        });
       }
-      _posts = [];
-    } finally {
-      setState(() {
-        _isLoading = false;
-      });
+    } catch (timelineError) {
+      print('⚠️ [HomeScreen] Error loading fresh posts: $timelineError');
+      // If we don't have cached posts and fetch fails, show empty state
+      if (mounted && _posts.isEmpty) {
+        setState(() {
+          _posts = [];
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -292,7 +309,11 @@ class _HomeScreenState extends State<HomeScreen> {
     try {
       final userId = await _authService.getStoredUserId();
       if (userId != null) {
-        final newPosts = await PostService().fetchPostsForUser(userId: userId).timeout(const Duration(seconds: 15));
+        // Clear cache to force fresh data
+        final postService = PostService();
+        await postService.clearTimelineCache();
+        
+        final newPosts = await postService.fetchPostsForUser(userId: userId).timeout(const Duration(seconds: 15));
 
         if (mounted) {
           setState(() {

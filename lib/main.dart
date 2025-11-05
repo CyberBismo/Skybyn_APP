@@ -33,21 +33,26 @@ Future<void> main() async {
       // Initialize HTTP overrides to handle SSL certificates
       HttpOverrides.global = MyHttpOverrides();
 
-      // Initialize theme service first - defaults to system theme
+      // Initialize theme and translation services in parallel (non-blocking)
       final themeService = ThemeService();
+      final translationService = TranslationService();
+      
+      // Run theme service initialization (fast, local only)
       await themeService.initialize();
 
-      // Initialize translation service
-      final translationService = TranslationService();
-      await translationService.initialize();
-
-      // Initialize Firebase before running the app
-      await _initializeFirebase();
-
-      // Auto-update service is now static and doesn't need initialization
-
-      // Run the app
+      // Run the app immediately - don't wait for translation service or Firebase
       runApp(ChangeNotifierProvider.value(value: themeService, child: const MyApp()));
+
+      // Initialize translation service and Firebase in background (non-blocking)
+      // These will complete after the app UI is already shown
+      Future.wait([
+        translationService.initialize(),
+        _initializeFirebase(),
+      ]).catchError((error) {
+        if (enableLogging) {
+          print('⚠️ [Startup] Background initialization error: $error');
+        }
+      });
     },
     (error, stack) {
       if (enableLogging) {
@@ -140,11 +145,11 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
 
   Future<void> _initializeServices() async {
     try {
-      // Initialize notification service
-      await _notificationService.initialize();
-
-      // Initialize WebSocket service
-      await _webSocketService.initialize();
+      // Initialize notification and WebSocket services in parallel (non-blocking)
+      await Future.wait([
+        _notificationService.initialize(),
+        _webSocketService.initialize(),
+      ]);
 
       // Ensure background notification is hidden when app starts (in foreground)
       if (Platform.isAndroid) {
@@ -321,9 +326,6 @@ class __InitialScreenState extends State<_InitialScreen> with TickerProviderStat
   }
 
   Future<void> _checkAuthStatus() async {
-    // Add a small delay to ensure the UI is ready
-    await Future.delayed(const Duration(milliseconds: 500));
-
     try {
       await _authService.initPrefs();
       final userId = await _authService.getStoredUserId();

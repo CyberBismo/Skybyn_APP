@@ -1,34 +1,119 @@
 import '../models/post.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 import '../config/constants.dart';
 
 class PostService {
+  static const String _cacheKey = 'cached_timeline_posts';
+  static const String _cacheTimestampKey = 'cached_timeline_posts_timestamp';
+  static const Duration _cacheExpiry = Duration(minutes: 5); // Cache for 5 minutes
+
   Future<List<Post>> fetchPostsForUser({String? userId}) async {
     final userID = userId;
     
     try {
-      final response = await http.post(
-        Uri.parse(ApiConstants.timeline),
-        body: {'userID': userID}, 
-      ).timeout(const Duration(seconds: 10));
-    
-      if (response.statusCode == 200) {
-        final List<dynamic> data = json.decode(response.body);
-        
-        final List<Post> posts = [];
-        for (final item in data) {
-          final postMap = item as Map<String, dynamic>;
-          posts.add(Post.fromJson(postMap));
-        }
-        
-        return posts;
-      } else {
-        throw Exception('Failed to load posts: ${response.statusCode}');
+      // Try to load from cache first
+      final cachedPosts = await loadTimelineFromCache();
+      if (cachedPosts.isNotEmpty) {
+        // Return cached posts immediately, but refresh in background
+        _refreshTimelineInBackground(userID);
+        return cachedPosts;
       }
+
+      // If no cache, fetch from API
+      final posts = await _fetchTimelineFromAPI(userID);
+      
+      // Cache the posts
+      if (posts.isNotEmpty) {
+        await _saveTimelineToCache(posts);
+      }
+      
+      return posts;
     } catch (e) {
       print('❌ [PostService] Error: $e');
+      // If API fails, try to return cached data as fallback
+      final cachedPosts = await loadTimelineFromCache();
+      return cachedPosts;
+    }
+  }
+
+  Future<List<Post>> _fetchTimelineFromAPI(String? userID) async {
+    final response = await http.post(
+      Uri.parse(ApiConstants.timeline),
+      body: {'userID': userID}, 
+    ).timeout(const Duration(seconds: 10));
+  
+    if (response.statusCode == 200) {
+      final List<dynamic> data = json.decode(response.body);
+      
+      final List<Post> posts = [];
+      for (final item in data) {
+        final postMap = item as Map<String, dynamic>;
+        posts.add(Post.fromJson(postMap));
+      }
+      
+      return posts;
+    } else {
+      throw Exception('Failed to load posts: ${response.statusCode}');
+    }
+  }
+
+  Future<void> _refreshTimelineInBackground(String? userID) async {
+    // Refresh in background without blocking
+    Future.delayed(const Duration(milliseconds: 100), () async {
+      try {
+        final posts = await _fetchTimelineFromAPI(userID);
+        if (posts.isNotEmpty) {
+          await _saveTimelineToCache(posts);
+        }
+      } catch (e) {
+        // Silently fail - we already have cached data
+        print('⚠️ [PostService] Background refresh failed: $e');
+      }
+    });
+  }
+
+  Future<void> _saveTimelineToCache(List<Post> posts) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final postsJson = posts.map((p) => p.toJson()).toList();
+      await prefs.setString(_cacheKey, jsonEncode(postsJson));
+      await prefs.setInt(_cacheTimestampKey, DateTime.now().millisecondsSinceEpoch);
+    } catch (e) {
+      // Silently fail if caching fails
+      print('⚠️ [PostService] Failed to save cache: $e');
+    }
+  }
+
+  Future<List<Post>> loadTimelineFromCache() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final timestamp = prefs.getInt(_cacheTimestampKey);
+      
+      // Check if cache is expired
+      if (timestamp == null || 
+          DateTime.now().millisecondsSinceEpoch - timestamp > _cacheExpiry.inMilliseconds) {
+        return [];
+      }
+
+      final postsJson = prefs.getString(_cacheKey);
+      if (postsJson == null) return [];
+
+      final List<dynamic> decoded = jsonDecode(postsJson);
+      return decoded.map((item) => Post.fromJson(item as Map<String, dynamic>)).toList();
+    } catch (e) {
       return [];
+    }
+  }
+
+  Future<void> clearTimelineCache() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_cacheKey);
+      await prefs.remove(_cacheTimestampKey);
+    } catch (e) {
+      // Silently fail if clearing fails
     }
   }
 

@@ -148,13 +148,29 @@ class TranslationService extends ChangeNotifier {
     print('✅ Using language: $_currentLanguage');
   }
 
-  // Load translations from API
+  // Load translations from API or cache
   Future<void> _loadTranslations() async {
+    // Try to load from cache first
+    final cachedTranslations = await _loadTranslationsFromCache();
+    if (cachedTranslations.isNotEmpty) {
+      _translations = cachedTranslations;
+      print('✅ Loaded translations from cache for ${_translations.keys.length} languages');
+      
+      // Refresh translations in background
+      _refreshTranslationsInBackground();
+      return;
+    }
+
+    // If no cache, fetch from API
+    await _fetchTranslationsFromAPI();
+  }
+
+  Future<void> _fetchTranslationsFromAPI() async {
     try {
       final response = await http.get(
         Uri.parse(ApiConstants.language),
         headers: {'Content-Type': 'application/json'},
-      );
+      ).timeout(const Duration(seconds: 10));
 
       if (response.statusCode == 200) {
         try {
@@ -186,6 +202,8 @@ class TranslationService extends ChangeNotifier {
               await _loadFallbackTranslations();
             } else {
               print('✅ Loaded translations for ${_translations.keys.length} languages');
+              // Save to cache
+              await _saveTranslationsToCache(_translations);
             }
           } else {
             print('❌ Translation API returned non-Map response: ${responseData.runtimeType}');
@@ -202,6 +220,67 @@ class TranslationService extends ChangeNotifier {
     } catch (e) {
       print('❌ Error loading translations: $e');
       await _loadFallbackTranslations();
+    }
+  }
+
+  Future<void> _refreshTranslationsInBackground() async {
+    // Refresh in background without blocking
+    Future.delayed(const Duration(milliseconds: 100), () async {
+      try {
+        await _fetchTranslationsFromAPI();
+        notifyListeners(); // Notify listeners that translations have been updated
+      } catch (e) {
+        // Silently fail - we already have cached data
+        print('⚠️ [TranslationService] Background refresh failed: $e');
+      }
+    });
+  }
+
+  static const String _cacheKey = 'cached_translations';
+  static const String _cacheTimestampKey = 'cached_translations_timestamp';
+  static const Duration _cacheExpiry = Duration(hours: 24); // Cache for 24 hours
+
+  Future<void> _saveTranslationsToCache(Map<String, Map<String, String>> translations) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final translationsJson = <String, dynamic>{};
+      for (final entry in translations.entries) {
+        translationsJson[entry.key] = entry.value;
+      }
+      await prefs.setString(_cacheKey, jsonEncode(translationsJson));
+      await prefs.setInt(_cacheTimestampKey, DateTime.now().millisecondsSinceEpoch);
+    } catch (e) {
+      print('⚠️ [TranslationService] Failed to save cache: $e');
+    }
+  }
+
+  Future<Map<String, Map<String, String>>> _loadTranslationsFromCache() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final timestamp = prefs.getInt(_cacheTimestampKey);
+      
+      // Check if cache is expired
+      if (timestamp == null || 
+          DateTime.now().millisecondsSinceEpoch - timestamp > _cacheExpiry.inMilliseconds) {
+        return {};
+      }
+
+      final translationsJson = prefs.getString(_cacheKey);
+      if (translationsJson == null) return {};
+
+      final Map<String, dynamic> decoded = jsonDecode(translationsJson);
+      final Map<String, Map<String, String>> result = {};
+      
+      for (final entry in decoded.entries) {
+        if (entry.value is Map) {
+          final innerMap = Map<String, dynamic>.from(entry.value as Map);
+          result[entry.key] = Map<String, String>.from(innerMap.map((k, v) => MapEntry(k.toString(), v.toString())));
+        }
+      }
+      
+      return result;
+    } catch (e) {
+      return {};
     }
   }
 
