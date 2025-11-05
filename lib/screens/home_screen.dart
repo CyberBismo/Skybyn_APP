@@ -649,10 +649,14 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  void _openNotificationOverlay() {
+  void _toggleNotificationOverlay() {
     setState(() {
-      _showNotificationOverlay = true;
+      _showNotificationOverlay = !_showNotificationOverlay;
     });
+    if (!_showNotificationOverlay) {
+      // If closing, refresh count
+      _fetchUnreadNotificationCount();
+    }
   }
 
   void _closeNotificationOverlay() {
@@ -734,7 +738,7 @@ class _HomeScreenState extends State<HomeScreen> {
             },
             onFriendsPressed: () {},
             onChatPressed: _openChatListModal,
-            onNotificationsPressed: _openNotificationOverlay,
+            onNotificationsPressed: _toggleNotificationOverlay,
             unreadNotificationCount: _unreadNotificationCount,
           ),
         ),
