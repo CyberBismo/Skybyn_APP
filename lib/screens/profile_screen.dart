@@ -10,6 +10,9 @@ import '../widgets/chat_list_modal.dart';
 import '../widgets/search_form.dart';
 import '../widgets/app_colors.dart';
 import 'home_screen.dart';
+import '../widgets/in_app_notification_box.dart';
+import '../services/in_app_notification_service.dart';
+import 'package:provider/provider.dart';
 import '../services/auth_service.dart';
 import '../services/post_service.dart';
 import 'create_post_screen.dart';
@@ -342,6 +345,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 setState(() {
                   _showSearchForm = false;
                 });
+              },
+            ),
+            Consumer<InAppNotificationService>(
+              builder: (context, notificationService, child) {
+                return InAppNotificationBox(
+                  title: notificationService.title,
+                  body: notificationService.body,
+                  visible: notificationService.isVisible,
+                  onClose: () => notificationService.hide(),
+                );
               },
             ),
         ],

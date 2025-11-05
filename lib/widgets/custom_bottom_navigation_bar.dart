@@ -129,7 +129,7 @@ class CustomBottomNavigationBar extends StatelessWidget {
                 ),
                 child: Container(
                   height: 50.0, // Assuming barHeight is 50.0
-                  width: BottomNavBarStyles.addButtonSize,
+                  width: 50.0,
                   decoration: BoxDecoration(
                     color: navBarColor,
                     borderRadius: BorderRadius.circular(BottomNavBarStyles.barRadius),
@@ -157,7 +157,7 @@ class CustomBottomNavigationBar extends StatelessWidget {
                 ),
                 child: Container(
                   height: 50.0, // Assuming barHeight is 50.0
-                  width: BottomNavBarStyles.addButtonSize,
+                  width: 50.0,
                   decoration: BoxDecoration(
                     color: navBarColor,
                     borderRadius: BorderRadius.circular(BottomNavBarStyles.barRadius),

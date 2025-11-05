@@ -29,6 +29,9 @@ import '../services/translation_service.dart';
 import '../utils/translation_keys.dart';
 import '../widgets/translated_text.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import '../widgets/in_app_notification_box.dart';
+import '../services/in_app_notification_service.dart';
+import 'package:provider/provider.dart';
 
 // Lifecycle event handler for keyboard-aware scrolling
 class LifecycleEventHandler extends WidgetsBindingObserver {
@@ -83,9 +86,6 @@ class _HomeScreenState extends State<HomeScreen> {
   List<Post> _posts = [];
   bool _isLoading = true;
 
-  bool _showInAppNotification = false;
-  String _inAppNotificationTitle = '';
-  String _inAppNotificationBody = '';
   bool _showSearchForm = false;
   String? _focusedPostId;
   LifecycleEventHandler? _lifecycleEventHandler;
@@ -388,20 +388,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void displayInAppNotification(String title, String body) {
-    setState(() {
-      _inAppNotificationTitle = title;
-      _inAppNotificationBody = body;
-      _showInAppNotification = true;
-    });
-
-    // Auto-hide after 3 seconds
-    Future.delayed(const Duration(seconds: 3), () {
-      if (mounted) {
-        setState(() {
-          _showInAppNotification = false;
-        });
-      }
-    });
+    InAppNotificationService().show(title, body);
   }
 
   // Method to handle when a post's input field gains focus
@@ -857,81 +844,16 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ),
               ),
-            if (_showInAppNotification)
-              SafeArea(
-                child: Align(
-                  alignment: Alignment.topCenter,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 16.0),
-                    child: AnimatedOpacity(
-                      opacity: _showInAppNotification ? 1.0 : 0.0,
-                      duration: const Duration(milliseconds: 300),
-                      child: Material(
-                        elevation: 8,
-                        borderRadius: BorderRadius.circular(12),
-                        color: Colors.transparent,
-                        child: Container(
-                          decoration: BoxDecoration(
-                            color: const Color.fromRGBO(33, 150, 243, 1.0),
-                            borderRadius: BorderRadius.circular(12),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.15),
-                                blurRadius: 12,
-                                offset: const Offset(0, 4),
-                              ),
-                            ],
-                          ),
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(Icons.notifications, color: AppColors.getIconColor(context), size: 28),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Text(
-                                      _inAppNotificationTitle,
-                                      style: TextStyle(
-                                        color: AppColors.getSecondaryTextColor(context),
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 16,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 2),
-                                    Text(
-                                      _inAppNotificationBody,
-                                      style: TextStyle(
-                                        color: AppColors.getSecondaryTextColor(context),
-                                        fontSize: 14,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              GestureDetector(
-                                onTap: () {
-                                  setState(() {
-                                    _showInAppNotification = false;
-                                  });
-                                },
-                                child: Padding(
-                                  padding: const EdgeInsets.only(left: 8.0, top: 2.0),
-                                  child: Icon(Icons.close, color: AppColors.getIconColor(context), size: 20),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
+            Consumer<InAppNotificationService>(
+              builder: (context, notificationService, child) {
+                return InAppNotificationBox(
+                  title: notificationService.title,
+                  body: notificationService.body,
+                  visible: notificationService.isVisible,
+                  onClose: () => notificationService.hide(),
+                );
+              },
+            ),
             // Search form overlay
             if (_showSearchForm)
               SearchForm(
