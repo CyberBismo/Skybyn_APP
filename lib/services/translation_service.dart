@@ -373,6 +373,8 @@ class TranslationService extends ChangeNotifier {
         'profile': 'Profile',
         'settings': 'Settings',
         'notifications': 'Notifications',
+        'read_all': 'Read All',
+        'delete_all': 'Delete All',
         'chat': 'Chat',
         'groups': 'Groups',
 

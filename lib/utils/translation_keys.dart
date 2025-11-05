@@ -4,6 +4,8 @@ class TranslationKeys {
   static const String profile = 'profile';
   static const String settings = 'settings';
   static const String notifications = 'notifications';
+  static const String readAll = 'read_all';
+  static const String deleteAll = 'delete_all';
   static const String chat = 'chat';
   static const String groups = 'groups';
   static const String edit = 'edit';

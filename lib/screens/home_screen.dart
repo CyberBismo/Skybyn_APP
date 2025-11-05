@@ -23,6 +23,7 @@ import '../widgets/chat_list_modal.dart';
 import '../widgets/search_form.dart';
 import '../widgets/app_colors.dart';
 import '../widgets/update_dialog.dart';
+import '../widgets/notification_overlay.dart';
 import '../config/constants.dart';
 import '../services/translation_service.dart';
 import '../utils/translation_keys.dart';
@@ -88,11 +89,14 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _showSearchForm = false;
   String? _focusedPostId;
   LifecycleEventHandler? _lifecycleEventHandler;
+  bool _showNotificationOverlay = false;
+  int _unreadNotificationCount = 0;
 
   @override
   void initState() {
     super.initState();
     _loadData();
+    _fetchUnreadNotificationCount();
 
     // Set up Firebase messaging callback for update notifications
     FirebaseMessagingService.setUpdateCheckCallback(_checkForUpdates);
@@ -644,6 +648,48 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  Future<void> _fetchUnreadNotificationCount() async {
+    final userId = await _authService.getStoredUserId();
+    if (userId == null || !mounted) return;
+
+    try {
+      final response = await http.post(
+        Uri.parse(ApiConstants.notificationCount),
+        body: {'userID': userId},
+      );
+
+      if (mounted && response.statusCode == 200) {
+        final data = json.decode(response.body);
+        setState(() {
+          _unreadNotificationCount = int.tryParse(data['count']?.toString() ?? '0') ?? 0;
+        });
+      }
+    } catch (e) {
+      // Handle error silently
+    }
+  }
+
+  void _openNotificationOverlay() {
+    setState(() {
+      _showNotificationOverlay = true;
+    });
+  }
+
+  void _closeNotificationOverlay() {
+    setState(() {
+      _showNotificationOverlay = false;
+    });
+    _fetchUnreadNotificationCount(); // Refresh count after closing
+  }
+
+  void _onUnreadCountChanged(int count) {
+    if (mounted) {
+      setState(() {
+        _unreadNotificationCount = count;
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final translationService = TranslationService();
@@ -708,7 +754,8 @@ class _HomeScreenState extends State<HomeScreen> {
             },
             onFriendsPressed: () {},
             onChatPressed: _openChatListModal,
-            onNotificationsPressed: () {},
+            onNotificationsPressed: _openNotificationOverlay,
+            unreadNotificationCount: _unreadNotificationCount,
           ),
         ),
         body: Stack(
@@ -899,6 +946,15 @@ class _HomeScreenState extends State<HomeScreen> {
                     _showSearchForm = false;
                   });
                 },
+              ),
+            // Notification overlay
+            if (_showNotificationOverlay)
+              GestureDetector(
+                onTap: _closeNotificationOverlay,
+                child: NotificationOverlay(
+                  onClose: _closeNotificationOverlay,
+                  onUnreadCountChanged: _onUnreadCountChanged,
+                ),
               ),
           ],
         ),

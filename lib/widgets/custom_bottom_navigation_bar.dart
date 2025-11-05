@@ -32,6 +32,7 @@ class CustomBottomNavigationBar extends StatelessWidget {
   final VoidCallback onFriendsPressed;
   final VoidCallback onChatPressed;
   final VoidCallback onNotificationsPressed;
+  final int unreadNotificationCount;
 
   const CustomBottomNavigationBar({
     super.key,
@@ -40,6 +41,7 @@ class CustomBottomNavigationBar extends StatelessWidget {
     required this.onFriendsPressed,
     required this.onChatPressed,
     required this.onNotificationsPressed,
+    this.unreadNotificationCount = 0,
   });
 
   @override
@@ -160,9 +162,39 @@ class CustomBottomNavigationBar extends StatelessWidget {
                     color: navBarColor,
                     borderRadius: BorderRadius.circular(BottomNavBarStyles.barRadius),
                   ),
-                  child: IconButton(
-                    icon: const Icon(Icons.notifications, color: iconColor, size: BottomNavBarStyles.iconSize),
-                    onPressed: onNotificationsPressed,
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.notifications, color: iconColor, size: BottomNavBarStyles.iconSize),
+                        onPressed: onNotificationsPressed,
+                      ),
+                      if (unreadNotificationCount > 0)
+                        Positioned(
+                          right: 8,
+                          top: 8,
+                          child: Container(
+                            padding: const EdgeInsets.all(4),
+                            decoration: const BoxDecoration(
+                              color: Colors.red,
+                              shape: BoxShape.circle,
+                            ),
+                            constraints: const BoxConstraints(
+                              minWidth: 16,
+                              minHeight: 16,
+                            ),
+                            child: Text(
+                              unreadNotificationCount > 99 ? '99+' : unreadNotificationCount.toString(),
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
+                        ),
+                    ],
                   ),
                 ),
               ),

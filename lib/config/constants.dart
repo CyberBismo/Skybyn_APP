@@ -34,6 +34,9 @@ class ApiConstants {
   static const String createNotification = '$apiBase/notification/create.php';
   static const String deleteNotification = '$apiBase/notification/delete.php';
   static const String readNotification = '$apiBase/notification/read.php';
+  static const String notificationCount = '$apiBase/notification/count.php';
+  static const String readAllNotifications = '$apiBase/notification/read_all.php';
+  static const String deleteAllNotifications = '$apiBase/notification/delete_all.php';
 
   // Updates
   static const String appUpdate = '$apiBase/app_update.php';
