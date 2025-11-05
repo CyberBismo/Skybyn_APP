@@ -659,13 +659,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                               width: 100,
                                               height: 100,
                                               fit: BoxFit.cover,
-                                              placeholder: (context, url) => Center(
-                                                child: CircularProgressIndicator(
-                                                  color: AppColors.getIconColor(context),
-                                                ),
+                                              placeholder: (context, url) => Image.asset(
+                                                'assets/images/icon.png',
+                                                width: 100,
+                                                height: 100,
+                                                fit: BoxFit.cover,
                                               ),
                                               errorWidget: (context, url, error) => Image.asset(
-                                                'assets/images/logo.png',
+                                                'assets/images/icon.png',
                                                 width: 100,
                                                 height: 100,
                                                 fit: BoxFit.cover,

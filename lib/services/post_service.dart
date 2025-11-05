@@ -47,6 +47,23 @@ class PostService {
     if (response.statusCode == 200) {
       final List<dynamic> data = json.decode(response.body);
       
+      // Debug: Log first post structure to understand API response
+      if (data.isNotEmpty) {
+        final firstPost = data.first;
+        print('🔍 [PostService] First post structure: ${firstPost.runtimeType}');
+        if (firstPost is Map) {
+          print('🔍 [PostService] Post keys: ${firstPost.keys.toList()}');
+          if (firstPost.containsKey('user')) {
+            print('🔍 [PostService] User field type: ${firstPost['user'].runtimeType}');
+            print('🔍 [PostService] User field value: ${firstPost['user']}');
+          }
+          if (firstPost.containsKey('comments')) {
+            print('🔍 [PostService] Comments field type: ${firstPost['comments'].runtimeType}');
+            print('🔍 [PostService] Comments field value: ${firstPost['comments']}');
+          }
+        }
+      }
+      
       final List<Post> posts = [];
       for (final item in data) {
         final postMap = item as Map<String, dynamic>;

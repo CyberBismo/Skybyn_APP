@@ -2,11 +2,14 @@ import 'package:flutter/material.dart';
 import 'dart:ui';
 import 'dart:io';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../widgets/custom_app_bar.dart';
 import '../widgets/background_gradient.dart';
 import '../models/friend.dart';
 import '../services/auth_service.dart';
 import '../services/call_service.dart';
+import '../utils/translation_keys.dart';
+import '../widgets/translated_text.dart';
 import 'profile_screen.dart';
 import 'call_screen.dart';
 
@@ -70,7 +73,7 @@ class _ChatScreenState extends State<ChatScreen> {
       print('❌ [ChatScreen] Error checking permissions: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error checking permissions: $e')),
+          SnackBar(content: Text('${TranslationKeys.errorCheckingPermissions.tr}: $e')),
         );
       }
       return false;
@@ -87,14 +90,14 @@ class _ChatScreenState extends State<ChatScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
+            child: Text(TranslationKeys.cancel.tr),
           ),
           ElevatedButton(
             onPressed: () async {
               Navigator.of(context).pop();
               await openAppSettings();
             },
-            child: const Text('Open Settings'),
+            child: Text(TranslationKeys.openSettings.tr),
           ),
         ],
       ),
@@ -153,18 +156,35 @@ class _ChatScreenState extends State<ChatScreen> {
                           child: Row(
                             children: [
                               CircleAvatar(
-                                backgroundImage: widget.friend.avatar.isNotEmpty
-                                    ? NetworkImage(widget.friend.avatar)
-                                    : null,
                                 radius: 24,
                                 backgroundColor: Colors.white.withOpacity(0.2),
-                                child: widget.friend.avatar.isEmpty
-                                    ? const Icon(
-                                        Icons.person,
-                                        color: Colors.white,
-                                        size: 28,
+                                child: widget.friend.avatar.isNotEmpty
+                                    ? ClipOval(
+                                        child: CachedNetworkImage(
+                                          imageUrl: widget.friend.avatar,
+                                          width: 48,
+                                          height: 48,
+                                          fit: BoxFit.cover,
+                                          placeholder: (context, url) => Image.asset(
+                                            'assets/images/icon.png',
+                                            width: 48,
+                                            height: 48,
+                                            fit: BoxFit.cover,
+                                          ),
+                                          errorWidget: (context, url, error) => Image.asset(
+                                            'assets/images/icon.png',
+                                            width: 48,
+                                            height: 48,
+                                            fit: BoxFit.cover,
+                                          ),
+                                        ),
                                       )
-                                    : null,
+                                    : Image.asset(
+                                        'assets/images/icon.png',
+                                        width: 48,
+                                        height: 48,
+                                        fit: BoxFit.cover,
+                                      ),
                               ),
                               const SizedBox(width: 12),
                               Expanded(

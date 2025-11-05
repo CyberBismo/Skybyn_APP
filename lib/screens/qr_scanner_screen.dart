@@ -277,7 +277,7 @@ class _QrScannerScreenState extends State<QrScannerScreen> with WidgetsBindingOb
                                         });
                                         _checkCameraPermission();
                                       },
-                                      child: const Text('Retry'),
+                                      child: Text(TranslationKeys.retry.tr),
                                     ),
                                     if (_isPermissionDenied) ...[
                                       const SizedBox(width: 12),
@@ -290,7 +290,7 @@ class _QrScannerScreenState extends State<QrScannerScreen> with WidgetsBindingOb
                                           backgroundColor: Colors.blue,
                                           foregroundColor: Colors.white,
                                         ),
-                                        child: const Text('Open Settings'),
+                                        child: Text(TranslationKeys.openSettings.tr),
                                       ),
                                     ],
                                   ],
@@ -332,7 +332,7 @@ class _QrScannerScreenState extends State<QrScannerScreen> with WidgetsBindingOb
                                     });
                                     Navigator.of(context).pop();
                                   },
-                                  child: const Text('Done', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                                  child: Text(TranslationKeys.done.tr, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
                                 ),
                               ],
                             ),
@@ -368,7 +368,7 @@ class _QrScannerScreenState extends State<QrScannerScreen> with WidgetsBindingOb
                         // Camera should continue running automatically
                         // No need to manually resume as MobileScanner handles it
                       },
-                      child: const Text('Scan Again', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                      child: Text(TranslationKeys.scanAgain.tr, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
                     )
                   : Container(
                       padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),

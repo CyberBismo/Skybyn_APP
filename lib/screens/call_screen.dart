@@ -5,6 +5,8 @@ import 'package:permission_handler/permission_handler.dart';
 import '../services/call_service.dart';
 import '../models/friend.dart';
 import '../widgets/background_gradient.dart';
+import '../utils/translation_keys.dart';
+import '../widgets/translated_text.dart';
 
 class CallScreen extends StatefulWidget {
   final Friend? friend; // null if receiving call
@@ -92,7 +94,7 @@ class _CallScreenState extends State<CallScreen> {
     _callService.onCallError = (error) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Call error: $error')),
+          SnackBar(content: Text('${TranslationKeys.callError.tr}: $error')),
         );
       }
     };
@@ -158,7 +160,7 @@ class _CallScreenState extends State<CallScreen> {
       print('❌ [CallScreen] Error checking permissions: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error checking permissions: $e')),
+          SnackBar(content: Text('${TranslationKeys.errorCheckingPermissions.tr}: $e')),
         );
       }
       return false;
@@ -175,14 +177,14 @@ class _CallScreenState extends State<CallScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
+            child: Text(TranslationKeys.cancel.tr),
           ),
           ElevatedButton(
             onPressed: () async {
               Navigator.of(context).pop();
               await openAppSettings();
             },
-            child: const Text('Open Settings'),
+            child: Text(TranslationKeys.openSettings.tr),
           ),
         ],
       ),
@@ -300,7 +302,12 @@ class _CallScreenState extends State<CallScreen> {
                                       : null,
                                 ),
                                 child: friend?.avatar.isEmpty != false
-                                    ? const Icon(Icons.person, size: 60, color: Colors.white)
+                                    ? Image.asset(
+                                        'assets/images/icon.png',
+                                        width: 120,
+                                        height: 120,
+                                        fit: BoxFit.cover,
+                                      )
                                     : null,
                               ),
                             const SizedBox(height: 32),

@@ -76,6 +76,7 @@ class TranslationKeys {
   static const String accountCreated = 'account_created';
   static const String loginFailed = 'login_failed';
   static const String registrationFailed = 'registration_failed';
+  static const String registrationSuccessful = 'registration_successful';
   static const String passwordTooShort = 'password_too_short';
   static const String passwordsDoNotMatch = 'passwords_do_not_match';
   static const String invalidEmail = 'invalid_email';
@@ -224,6 +225,8 @@ class TranslationKeys {
   static const String deleteAccount = 'delete_account';
   static const String confirmDeleteAccount = 'confirm_delete_account';
   static const String accountDeleted = 'account_deleted';
+  static const String callError = 'call_error';
+  static const String postCreatedButCouldNotLoadDetails = 'post_created_but_could_not_load_details';
 
   // Language Settings
   static const String selectLanguage = 'select_language';
@@ -310,6 +313,8 @@ class TranslationKeys {
   static const String contactsPermission = 'contacts_permission';
   static const String grantPermission = 'grant_permission';
   static const String goToSettings = 'go_to_settings';
+  static const String errorCheckingPermissions = 'error_checking_permissions';
+  static const String openSettings = 'open_settings';
 
   // QR Code
   static const String qrCode = 'qr_code';

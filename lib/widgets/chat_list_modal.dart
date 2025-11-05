@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:ui';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../services/friend_service.dart';
 import '../services/auth_service.dart';
 import '../models/friend.dart';
@@ -36,7 +37,18 @@ class _ChatListModalState extends State<ChatListModal> {
       return;
     }
 
-    final friends = await _friendService.fetchFriendsForUser(userId: userId);
+    // Load cached data first, then update if changes detected
+    final friends = await _friendService.fetchFriendsForUser(
+      userId: userId,
+      onUpdated: (updatedFriends) {
+        // Update UI when friends list changes in background
+        if (mounted) {
+          setState(() {
+            _friends = updatedFriends;
+          });
+        }
+      },
+    );
     if (!mounted) return;
     setState(() {
       _friends = friends;
@@ -78,9 +90,16 @@ class _ChatListModalState extends State<ChatListModal> {
                 ),
               ),
               if (_isLoading)
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 24),
-                  child: Center(child: CircularProgressIndicator()),
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 24),
+                  child: Center(
+                    child: Image.asset(
+                      'assets/images/icon.png',
+                      width: 64,
+                      height: 64,
+                      fit: BoxFit.contain,
+                    ),
+                  ),
                 )
               else
                 Flexible(
@@ -111,13 +130,35 @@ class _ChatListModalState extends State<ChatListModal> {
                                   ),
                                   child: ListTile(
                                     leading: CircleAvatar(
-                                      backgroundImage: friend.avatar.isNotEmpty
-                                          ? NetworkImage(friend.avatar)
-                                          : null,
                                       radius: 22,
-                                      child: friend.avatar.isEmpty
-                                          ? const Icon(Icons.person, color: Colors.white)
-                                          : null,
+                                      backgroundColor: Colors.white.withOpacity(0.2),
+                                      child: friend.avatar.isNotEmpty
+                                          ? ClipOval(
+                                              child: CachedNetworkImage(
+                                                imageUrl: friend.avatar,
+                                                width: 44,
+                                                height: 44,
+                                                fit: BoxFit.cover,
+                                                placeholder: (context, url) => Image.asset(
+                                                  'assets/images/icon.png',
+                                                  width: 44,
+                                                  height: 44,
+                                                  fit: BoxFit.cover,
+                                                ),
+                                                errorWidget: (context, url, error) => Image.asset(
+                                                  'assets/images/icon.png',
+                                                  width: 44,
+                                                  height: 44,
+                                                  fit: BoxFit.cover,
+                                                ),
+                                              ),
+                                            )
+                                          : Image.asset(
+                                              'assets/images/icon.png',
+                                              width: 44,
+                                              height: 44,
+                                              fit: BoxFit.cover,
+                                            ),
                                     ),
                                     title: Text(
                                       friend.nickname.isNotEmpty ? friend.nickname : friend.username,

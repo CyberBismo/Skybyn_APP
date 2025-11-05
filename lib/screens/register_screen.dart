@@ -3,6 +3,8 @@ import '../widgets/background_gradient.dart';
 import '../services/auth_service.dart';
 import '../widgets/wheel_date_picker.dart';
 import '../services/translation_service.dart';
+import '../utils/translation_keys.dart';
+import '../widgets/translated_text.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -411,8 +413,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
       if (mounted) {
         // Show success message and navigate back
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Registration successful! Please check your email to verify your account.'),
+          SnackBar(
+            content: Text(TranslationKeys.registrationSuccessful.tr),
             backgroundColor: Colors.green,
           ),
         );

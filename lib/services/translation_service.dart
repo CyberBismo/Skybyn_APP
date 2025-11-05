@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/foundation.dart';
 import '../config/constants.dart';
+import 'auth_service.dart';
 
 class TranslationService extends ChangeNotifier {
   static final TranslationService _instance = TranslationService._internal();
@@ -84,7 +85,7 @@ class TranslationService extends ChangeNotifier {
     _isInitialized = true;
   }
 
-  // Load saved language from SharedPreferences
+  // Load saved language from SharedPreferences or API
   Future<void> _loadSavedLanguage() async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -92,14 +93,74 @@ class TranslationService extends ChangeNotifier {
 
       if (savedLanguage != null && supportedLanguages.contains(savedLanguage)) {
         _currentLanguage = savedLanguage;
+        // Try to fetch from API in background to sync
+        _syncLanguageFromAPI();
       } else {
-        // Auto-detect language based on device locale
-        await _autoDetectLanguage();
+        // Try to fetch from API first
+        final apiLanguage = await _fetchLanguageFromAPI();
+        if (apiLanguage != null && supportedLanguages.contains(apiLanguage)) {
+          _currentLanguage = apiLanguage;
+          await _saveLanguage(_currentLanguage);
+        } else {
+          // Auto-detect language based on device locale
+          await _autoDetectLanguage();
+        }
       }
     } catch (e) {
       print('❌ Error loading saved language: $e');
       _currentLanguage = 'en'; // Fallback to English
     }
+  }
+
+  // Fetch language preference from API (user profile)
+  Future<String?> _fetchLanguageFromAPI() async {
+    try {
+      final authService = AuthService();
+      final userId = await authService.getStoredUserId();
+      
+      if (userId == null) {
+        return null;
+      }
+
+      final response = await http.post(
+        Uri.parse(ApiConstants.profile),
+        body: {'userID': userId},
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+      ).timeout(const Duration(seconds: 5));
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data['responseCode'] == '1' && data['language'] != null) {
+          final language = data['language'].toString();
+          if (supportedLanguages.contains(language)) {
+            print('✅ Loaded language from API: $language');
+            return language;
+          }
+        }
+      }
+    } catch (e) {
+      print('⚠️ Could not fetch language from API: $e');
+    }
+    return null;
+  }
+
+  // Fetch language from API in background (non-blocking)
+  void _syncLanguageFromAPI() {
+    Future.delayed(const Duration(milliseconds: 100), () async {
+      try {
+        final apiLanguage = await _fetchLanguageFromAPI();
+        if (apiLanguage != null && 
+            supportedLanguages.contains(apiLanguage) && 
+            apiLanguage != _currentLanguage) {
+          _currentLanguage = apiLanguage;
+          await _saveLanguage(_currentLanguage);
+          notifyListeners();
+          print('✅ Language synced from API: $apiLanguage');
+        }
+      } catch (e) {
+        // Silently fail - we already have a language
+      }
+    });
   }
 
   // Auto-detect language based on device locale
@@ -490,6 +551,11 @@ class TranslationService extends ChangeNotifier {
         'server_error_occurred': 'Server error occurred',
         'invalid_verification_code': 'Invalid verification code. Please try again.',
         'verification_code_too_short': 'Verification code must be at least 4 characters',
+        'error_checking_permissions': 'Error checking permissions',
+        'open_settings': 'Open Settings',
+        'call_error': 'Call error',
+        'post_created_but_could_not_load_details': 'Post created but could not load details',
+        'share_app': 'Share App',
       }
     };
   }
@@ -531,7 +597,47 @@ class TranslationService extends ChangeNotifier {
     if (supportedLanguages.contains(languageCode)) {
       _currentLanguage = languageCode;
       await _saveLanguage(languageCode);
+      
+      // Sync to API in background
+      _saveLanguageToAPI(languageCode);
+      
       notifyListeners(); // Notify listeners that the language has changed
+    }
+  }
+
+  // Save language preference to API
+  Future<void> _saveLanguageToAPI(String languageCode) async {
+    try {
+      final authService = AuthService();
+      final userId = await authService.getStoredUserId();
+      
+      if (userId == null) {
+        print('⚠️ Cannot save language to API: User not logged in');
+        return;
+      }
+
+      final response = await http.post(
+        Uri.parse(ApiConstants.profile),
+        body: {
+          'userID': userId,
+          'language': languageCode,
+        },
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+      ).timeout(const Duration(seconds: 5));
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data['responseCode'] == '1') {
+          print('✅ Language saved to API: $languageCode');
+        } else {
+          print('⚠️ API did not confirm language save: ${data['message']}');
+        }
+      } else {
+        print('⚠️ Failed to save language to API: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('⚠️ Error saving language to API: $e');
+      // Don't throw - language is already saved locally
     }
   }
 

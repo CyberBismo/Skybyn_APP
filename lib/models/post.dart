@@ -101,19 +101,46 @@ class Post {
     }
 
     List<Comment> parseComments(dynamic value) {
-      if (value is! List) return [];
-      try {
-        final comments = value
-            .map((commentJson) =>
-                Comment.fromJson(commentJson as Map<String, dynamic>))
-            .toList();
-        
-        // Reverse the order so newest comments appear first
-        return comments.reversed.toList();
-      } catch (e) {
-        print('Error parsing comments: $e');
-        return [];
+      if (value == null) return [];
+      
+      // If it's already a List, parse it
+      if (value is List) {
+        try {
+          final comments = value
+              .whereType<Map<String, dynamic>>() // Filter out non-map items
+              .map((commentJson) => Comment.fromJson(commentJson))
+              .toList();
+          
+          // Reverse the order so newest comments appear first
+          return comments.reversed.toList();
+        } catch (e) {
+          print('⚠️ [Post] Error parsing comments list: $e');
+          print('⚠️ [Post] Comments data: $value');
+          return [];
+        }
       }
+      
+      // If it's a Map, it might be a single comment or a wrapper
+      if (value is Map) {
+        try {
+          // Check if it's a single comment
+          if (value.containsKey('id') || value.containsKey('content')) {
+            return [Comment.fromJson(value as Map<String, dynamic>)];
+          }
+          // Check if it's a wrapper with a 'data' or 'list' field
+          if (value.containsKey('data') && value['data'] is List) {
+            return parseComments(value['data']);
+          }
+          if (value.containsKey('list') && value['list'] is List) {
+            return parseComments(value['list']);
+          }
+        } catch (e) {
+          print('⚠️ [Post] Error parsing comment map: $e');
+        }
+      }
+      
+      // If it's a number or string (count), return empty list
+      return [];
     }
 
     final userJson = json['user'];
@@ -122,6 +149,26 @@ class Post {
       userMap = userJson.first as Map<String, dynamic>?;
     } else if (userJson is Map) {
       userMap = userJson as Map<String, dynamic>?;
+    }
+    
+    // Debug: Log user parsing
+    if (userMap == null && userJson != null) {
+      print('⚠️ [Post] User field is not in expected format. Type: ${userJson.runtimeType}, Value: $userJson');
+    }
+    
+    // Try alternative field names for username
+    String? username;
+    if (userMap != null) {
+      username = userMap['username']?.toString() ?? 
+                 userMap['name']?.toString() ?? 
+                 userMap['user']?.toString();
+    }
+    
+    // If still no username, try direct fields in json
+    if (username == null || username.isEmpty) {
+      username = json['username']?.toString() ?? 
+                 json['author']?.toString() ??
+                 json['user_name']?.toString();
     }
 
     String? image;
@@ -135,16 +182,56 @@ class Post {
       }
     }
 
+    // Handle comments - check if it's a list or a count
+    final commentsData = json['comments'];
+    final commentsList = parseComments(commentsData);
+    final commentsCount = parseCount(commentsData);
+    
+    // Debug: Log comments parsing
+    if (commentsData != null) {
+      print('🔍 [Post] Comments field type: ${commentsData.runtimeType}');
+      if (commentsList.isEmpty && commentsCount > 0) {
+        print('⚠️ [Post] Comments is a count ($commentsCount) but not a list. Checking for comments_list field...');
+        // Try alternative field name for comments list
+        final commentsListAlt = json['comments_list'] ?? json['commentsList'];
+        if (commentsListAlt != null) {
+          print('✅ [Post] Found comments_list field');
+        }
+      }
+    }
+    
+    // Try alternative field names for comments list
+    List<Comment> finalCommentsList = commentsList;
+    if (finalCommentsList.isEmpty && commentsCount > 0) {
+      final altCommentsList = json['comments_list'] ?? json['commentsList'] ?? json['comment_list'];
+      if (altCommentsList != null) {
+        finalCommentsList = parseComments(altCommentsList);
+      }
+    }
+    
+    // Also check if userId is in the main json
+    final userId = userMap?['id']?.toString() ?? 
+                   userMap?['user_id']?.toString() ?? 
+                   userMap?['userId']?.toString() ??
+                   json['user_id']?.toString() ??
+                   json['userId']?.toString();
+    
+    // Also check avatar in main json
+    final avatarPath = userMap?['avatar']?.toString() ?? 
+                       userMap?['profile_image']?.toString() ??
+                       json['avatar']?.toString() ??
+                       json['profile_image']?.toString();
+    
     return Post(
       id: json['id']?.toString() ?? '',
-      author: userMap?['username']?.toString() ?? 'Unknown User',
-      userId: userMap?['id']?.toString(),
-      avatar: buildAvatarUrl(userMap?['avatar']?.toString()),
+      author: username ?? 'Unknown User',
+      userId: userId,
+      avatar: buildAvatarUrl(avatarPath),
       content: json['content'] ?? '',
       image: image,
       likes: parseCount(json['likes']), // 'likes' is missing in PHP, defaults to 0
-      comments: parseCount(json['comments']),
-      commentsList: parseComments(json['comments']),
+      comments: commentsCount,
+      commentsList: finalCommentsList,
       createdAt: parseCreatedAt(json['created']),
       isLiked: json['ilike'] == '1' || json['ilike'] == 1 || json['ilike'] == true,
     );

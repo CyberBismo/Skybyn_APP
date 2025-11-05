@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:share_plus/share_plus.dart';
 import '../widgets/background_gradient.dart';
+import '../utils/translation_keys.dart';
+import '../widgets/translated_text.dart';
 
 class ShareScreen extends StatelessWidget {
   const ShareScreen({super.key});
@@ -13,9 +15,9 @@ class ShareScreen extends StatelessWidget {
         backgroundColor: Colors.transparent,
         elevation: 0,
         iconTheme: const IconThemeData(color: Colors.white),
-        title: const Text(
-          'Share App',
-          style: TextStyle(
+        title: Text(
+          TranslationKeys.shareApp.tr,
+          style: const TextStyle(
             color: Colors.white,
             fontWeight: FontWeight.bold,
           ),
@@ -43,9 +45,9 @@ class ShareScreen extends StatelessWidget {
                       Share.share('https://app.skybyn.no');
                     },
                     icon: const Icon(Icons.share),
-                    label: const Text(
-                      'Share App',
-                      style: TextStyle(
+                    label: Text(
+                      TranslationKeys.shareApp.tr,
+                      style: const TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
                       ),

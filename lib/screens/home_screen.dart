@@ -25,6 +25,8 @@ import '../widgets/app_colors.dart';
 import '../widgets/update_dialog.dart';
 import '../config/constants.dart';
 import '../services/translation_service.dart';
+import '../utils/translation_keys.dart';
+import '../widgets/translated_text.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 // Lifecycle event handler for keyboard-aware scrolling
@@ -235,7 +237,7 @@ class _HomeScreenState extends State<HomeScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Post created but could not load details: ${e.toString()}'),
+            content: Text('${TranslationKeys.postCreatedButCouldNotLoadDetails.tr}: ${e.toString()}'),
             backgroundColor: Colors.orange,
           ),
         );

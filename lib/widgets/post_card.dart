@@ -674,10 +674,13 @@ class _PostCardState extends State<PostCard> {
           width: PostCardStyles.avatarSize,
           height: PostCardStyles.avatarSize,
           fit: BoxFit.cover,
-          placeholder: (context, url) =>
-              Container(color: Colors.white.withOpacity(0.1)),
+          placeholder: (context, url) => Image.asset(
+              'assets/images/icon.png',
+              width: PostCardStyles.avatarSize,
+              height: PostCardStyles.avatarSize,
+              fit: BoxFit.cover),
           errorWidget: (context, url, error) => Image.asset(
-              'assets/images/logo.png',
+              'assets/images/icon.png',
               width: PostCardStyles.avatarSize,
               height: PostCardStyles.avatarSize,
               fit: BoxFit.cover),
@@ -689,14 +692,14 @@ class _PostCardState extends State<PostCard> {
           height: PostCardStyles.avatarSize,
           fit: BoxFit.cover,
           errorBuilder: (context, error, stackTrace) => Image.asset(
-              'assets/images/logo.png',
+              'assets/images/icon.png',
               width: PostCardStyles.avatarSize,
               height: PostCardStyles.avatarSize,
               fit: BoxFit.cover),
         );
       }
     } else {
-      avatarWidget = Image.asset('assets/images/logo.png',
+      avatarWidget = Image.asset('assets/images/icon.png',
           width: PostCardStyles.avatarSize,
           height: PostCardStyles.avatarSize,
           fit: BoxFit.cover);

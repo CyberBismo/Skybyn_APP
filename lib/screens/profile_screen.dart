@@ -14,6 +14,8 @@ import '../services/auth_service.dart';
 import '../services/post_service.dart';
 import 'create_post_screen.dart';
 import '../config/constants.dart';
+import '../utils/translation_keys.dart';
+import '../widgets/translated_text.dart';
 
 class ProfileScreen extends StatefulWidget {
   final String? userId;
@@ -230,13 +232,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                   ? CachedNetworkImage(
                                       imageUrl: avatarUrl,
                                       fit: BoxFit.cover,
-                                      placeholder: (context, url) =>
-                                          Container(color: Colors.grey[800]),
+                                      placeholder: (context, url) => Image.asset(
+                                          'assets/images/icon.png',
+                                          fit: BoxFit.cover),
                                       errorWidget: (context, url, error) =>
-                                          Image.asset('assets/images/logo.png',
+                                          Image.asset('assets/images/icon.png',
                                               fit: BoxFit.cover),
                                     )
-                                  : Image.asset('assets/images/logo.png',
+                                  : Image.asset('assets/images/icon.png',
                                       fit: BoxFit.cover),
                             ),
                           ),
@@ -285,13 +288,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                   )
                 else if (userPosts.isEmpty)
-                  const SliverToBoxAdapter(
+                  SliverToBoxAdapter(
                     child: Padding(
-                      padding: EdgeInsets.all(16.0),
+                      padding: const EdgeInsets.all(16.0),
                       child: Center(
                         child: Text(
-                          'No posts yet',
-                          style: TextStyle(color: Colors.white70, fontSize: 16),
+                          TranslationKeys.noPostsYet.tr,
+                          style: const TextStyle(color: Colors.white70, fontSize: 16),
                         ),
                       ),
                     ),

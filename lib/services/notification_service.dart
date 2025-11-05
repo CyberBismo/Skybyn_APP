@@ -330,8 +330,8 @@ class NotificationService {
         showWhen: true,
         enableVibration: true,
         playSound: true,
-        icon: '@drawable/notification_icon', // Use logo for small notification icon
-        largeIcon: DrawableResourceAndroidBitmap('@drawable/notification_icon'), // Use logo for large icon
+        icon: '@drawable/notification_icon', // Uses logo.png for notification icon
+        largeIcon: DrawableResourceAndroidBitmap('@drawable/notification_icon'), // Uses logo.png for large icon
         color: Color.fromRGBO(33, 150, 243, 1.0), // Blue color
         enableLights: true,
         ledColor: Color.fromRGBO(33, 150, 243, 1.0),
@@ -400,7 +400,7 @@ class NotificationService {
       channelDescription: 'Important system notifications from administrators',
       importance: Importance.max,
       priority: Priority.high,
-      icon: '@drawable/notification_icon', // Use logo for small notification icon
+      icon: '@drawable/notification_icon', // Uses logo.png for notification icon
       enableVibration: true,
       playSound: true,
     );

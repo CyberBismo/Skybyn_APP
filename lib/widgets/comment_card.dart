@@ -74,12 +74,23 @@ class CommentCard extends StatelessWidget {
         width: CommentCardStyles.avatarSize,
         height: CommentCardStyles.avatarSize,
         fit: BoxFit.cover,
-        placeholder: (context, url) => Container(color: Colors.white.withOpacity(0.1)),
-        errorWidget: (context, url, error) =>
-            Icon(Icons.person, size: CommentCardStyles.iconSize, color: iconColor),
+        placeholder: (context, url) => Image.asset(
+            'assets/images/icon.png',
+            width: CommentCardStyles.avatarSize,
+            height: CommentCardStyles.avatarSize,
+            fit: BoxFit.cover),
+        errorWidget: (context, url, error) => Image.asset(
+            'assets/images/icon.png',
+            width: CommentCardStyles.avatarSize,
+            height: CommentCardStyles.avatarSize,
+            fit: BoxFit.cover),
       );
     } else {
-      avatarWidget = Icon(Icons.person, size: CommentCardStyles.iconSize, color: iconColor);
+      avatarWidget = Image.asset(
+          'assets/images/icon.png',
+          width: CommentCardStyles.avatarSize,
+          height: CommentCardStyles.avatarSize,
+          fit: BoxFit.cover);
     }
 
     return Stack(

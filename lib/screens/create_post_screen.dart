@@ -186,11 +186,11 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                           maxLines: 5,
                           minLines: 3,
                           style: const TextStyle(color: Colors.white),
-                          decoration: const InputDecoration(
-                            hintText: 'What is on your mind?',
-                            hintStyle: TextStyle(color: Colors.white70),
+                          decoration: InputDecoration(
+                            hintText: TranslationKeys.whatOnMind.tr,
+                            hintStyle: const TextStyle(color: Colors.white70),
                             border: InputBorder.none,
-                            contentPadding: EdgeInsets.all(16),
+                            contentPadding: const EdgeInsets.all(16),
                           ),
                           onTap: () {
                             // Ensure any other context menus are closed
