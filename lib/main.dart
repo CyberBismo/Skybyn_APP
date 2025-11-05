@@ -7,7 +7,6 @@ import 'screens/home_screen.dart';
 import 'dart:io';
 import 'package:provider/provider.dart';
 import 'services/theme_service.dart';
-import 'services/in_app_notification_service.dart';
 // Import for SystemChrome
 import 'dart:async';
 import 'services/focus_service.dart';
@@ -38,21 +37,12 @@ Future<void> main() async {
       // Initialize theme and translation services in parallel (non-blocking)
       final themeService = ThemeService();
       final translationService = TranslationService();
-      final notificationService = InAppNotificationService();
       
       // Run theme service initialization (fast, local only)
       await themeService.initialize();
 
       // Run the app immediately - don't wait for translation service or Firebase
-      runApp(
-        MultiProvider(
-          providers: [
-            ChangeNotifierProvider.value(value: themeService),
-            ChangeNotifierProvider.value(value: notificationService),
-          ],
-          child: const MyApp(),
-        ),
-      );
+      runApp(ChangeNotifierProvider.value(value: themeService, child: const MyApp()));
 
       // Initialize translation service and Firebase in background (non-blocking)
       // These will complete after the app UI is already shown

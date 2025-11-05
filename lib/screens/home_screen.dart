@@ -29,9 +29,6 @@ import '../services/translation_service.dart';
 import '../utils/translation_keys.dart';
 import '../widgets/translated_text.dart';
 import 'package:package_info_plus/package_info_plus.dart';
-import '../widgets/in_app_notification_box.dart';
-import '../services/in_app_notification_service.dart';
-import 'package:provider/provider.dart';
 
 // Lifecycle event handler for keyboard-aware scrolling
 class LifecycleEventHandler extends WidgetsBindingObserver {
@@ -385,10 +382,6 @@ class _HomeScreenState extends State<HomeScreen> {
         MaterialPageRoute(builder: (context) => const LoginScreen()),
       );
     }
-  }
-
-  void displayInAppNotification(String title, String body) {
-    InAppNotificationService().show(title, body);
   }
 
   // Method to handle when a post's input field gains focus
@@ -844,16 +837,6 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ),
               ),
-            Consumer<InAppNotificationService>(
-              builder: (context, notificationService, child) {
-                return InAppNotificationBox(
-                  title: notificationService.title,
-                  body: notificationService.body,
-                  visible: notificationService.isVisible,
-                  onClose: () => notificationService.hide(),
-                );
-              },
-            ),
             // Search form overlay
             if (_showSearchForm)
               SearchForm(
