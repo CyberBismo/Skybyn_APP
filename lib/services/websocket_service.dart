@@ -4,6 +4,7 @@ import 'dart:io' show Platform;
 import 'dart:async';
 import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/foundation.dart';
 import '../models/post.dart';
 import 'auth_service.dart';
 import 'device_service.dart';
@@ -460,6 +461,12 @@ class WebSocketService {
 
   /// Handle app update notification
   void _handleAppUpdate() {
+    // Skip app update notifications in debug mode
+    if (kDebugMode) {
+      print('⚠️ [WebSocket] App update notification ignored in debug mode');
+      return;
+    }
+
     print('📱 [WebSocket] Processing app update notification');
 
     // Show notification for app update

@@ -4,6 +4,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'notification_service.dart';
 import 'auth_service.dart';
@@ -230,6 +231,11 @@ class FirebaseMessagingService {
       // Check if this is an app_update message
       final type = message.data['type']?.toString();
       if (type == 'app_update') {
+        // Skip app update notifications in debug mode
+        if (kDebugMode) {
+          print('⚠️ [FCM] App update notification ignored in debug mode');
+          return;
+        }
         // Trigger update check when app_update is received
         _triggerUpdateCheck();
       }
@@ -266,6 +272,11 @@ class FirebaseMessagingService {
           // Show broadcast message
           break;
         case 'app_update':
+          // Skip app update notifications in debug mode
+          if (kDebugMode) {
+            print('⚠️ [FCM] App update notification ignored in debug mode');
+            return;
+          }
           // Trigger update check - the home screen will handle showing the dialog
           _triggerUpdateCheck();
           break;

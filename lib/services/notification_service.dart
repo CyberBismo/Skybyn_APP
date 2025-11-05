@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:timezone/timezone.dart' as tz;
 import 'package:timezone/data/latest.dart' as tz;
 import 'package:package_info_plus/package_info_plus.dart';
@@ -92,6 +93,11 @@ class NotificationService {
 
     // Handle app_update payload
     if (payload == 'app_update') {
+      // Skip app update notifications in debug mode
+      if (kDebugMode) {
+        print('⚠️ [NotificationService] App update notification ignored in debug mode');
+        return;
+      }
       print('🔄 [NotificationService] App update notification tapped - triggering update check');
       // Trigger update check
       _triggerUpdateCheck();
@@ -101,6 +107,11 @@ class NotificationService {
         final Map<String, dynamic> data = json.decode(payload);
         final type = data['type']?.toString();
         if (type == 'app_update') {
+          // Skip app update notifications in debug mode
+          if (kDebugMode) {
+            print('⚠️ [NotificationService] App update notification ignored in debug mode');
+            return;
+          }
           print('🔄 [NotificationService] App update notification tapped (from JSON) - triggering update check');
           _triggerUpdateCheck();
         }
@@ -113,6 +124,12 @@ class NotificationService {
   /// Trigger update check for app_update notifications
   /// This shows the update dialog directly when notification is tapped
   Future<void> _triggerUpdateCheck() async {
+    // Skip app update checks in debug mode
+    if (kDebugMode) {
+      print('⚠️ [NotificationService] Update check ignored in debug mode');
+      return;
+    }
+
     if (!Platform.isAndroid) {
       // Only Android supports auto-updates
       return;

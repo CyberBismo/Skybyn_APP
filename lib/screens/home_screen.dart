@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import '../models/post.dart';
 import '../models/comment.dart';
@@ -467,6 +468,11 @@ class _HomeScreenState extends State<HomeScreen> {
       final notificationType = await _notificationChannel.invokeMethod<String>('getNotificationType');
       
       if (notificationType == 'app_update') {
+        // Skip app update notifications in debug mode
+        if (kDebugMode) {
+          print('⚠️ [HomeScreen] App update notification ignored in debug mode');
+          return;
+        }
         print('📱 [HomeScreen] App opened from app_update notification - showing update dialog');
         // Wait for next frame to ensure UI is ready
         WidgetsBinding.instance.addPostFrameCallback((_) async {
@@ -486,6 +492,12 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // Check for app updates
   Future<void> _checkForUpdates() async {
+    // Skip app update checks in debug mode
+    if (kDebugMode) {
+      print('⚠️ [HomeScreen] Update check ignored in debug mode');
+      return;
+    }
+
     final translationService = TranslationService();
 
     if (!Platform.isAndroid) {

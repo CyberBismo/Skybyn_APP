@@ -443,6 +443,11 @@ class BackgroundService : Service() {
             
             when (type) {
                 "app_update" -> {
+                    // Skip app update notifications in debug mode
+                    if (BuildConfig.DEBUG) {
+                        Log.d("BackgroundService", "App update notification ignored in debug mode")
+                        return
+                    }
                     Log.d("BackgroundService", "App update received via WebSocket")
                     showNotification("App Update Available", "A new version of Skybyn is ready to download", "app_update")
                 }
