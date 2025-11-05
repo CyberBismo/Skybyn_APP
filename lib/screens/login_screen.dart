@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:ui';
+import 'dart:async';
 import '../services/auth_service.dart';
 import '../services/notification_service.dart';
 import 'dart:io';
@@ -7,6 +8,7 @@ import '../widgets/background_gradient.dart';
 import '../widgets/app_colors.dart';
 import '../widgets/translated_text.dart';
 import '../utils/translation_keys.dart';
+import '../services/translation_service.dart';
 import 'home_screen.dart';
 import 'register_screen.dart';
 import 'forgot_password_screen.dart';
@@ -77,12 +79,20 @@ class _LoginScreenState extends State<LoginScreen> {
 
             if (isEnabled) {
               // Show system notification for login success
-              await notificationService.showNotification(
+              final int notificationId = await notificationService.showNotification(
                 title: TranslationKeys.loginSuccessful.tr,
                 body: TranslationKeys.welcomeToSkybyn.tr,
                 payload: 'login_success',
               );
               print('✅ Login success notification sent successfully');
+              
+              // Auto-hide the notification after 3 seconds (only if notification was shown)
+              if (notificationId >= 0) {
+                Timer(const Duration(seconds: 3), () {
+                  notificationService.cancelNotification(notificationId);
+                  print('✅ Login success notification auto-hidden');
+                });
+              }
             }
           } catch (e) {
             print('❌ Error showing login notification: $e');
@@ -200,115 +210,127 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     const SizedBox(height: 10),
                     // Username field
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(10),
-                      child: BackdropFilter(
-                        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                        child: Container(
-                          decoration: BoxDecoration(
-                            color: AppColors.getCardBackgroundColor(context).withValues(alpha: 0.1), // Keep original background
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(
-                              color: Colors.white.withValues(alpha: 0.3), // White border in both modes
-                              width: 1.5,
-                            ),
-                          ),
-                          child: TextField(
-                            controller: _usernameController,
-                            focusNode: _usernameFocusNode,
-                            textInputAction: TextInputAction.next,
-                            decoration: InputDecoration(
-                              filled: true,
-                              fillColor: Colors.transparent,
-                              hintText: TranslationKeys.username.tr,
-                              hintStyle: TextStyle(
-                                color: Colors.white.withValues(alpha: 0.7), // White hint in both modes
-                                fontSize: 16,
-                              ),
-                              prefixIcon: const Icon(Icons.person, color: Colors.white), // White icon in both modes
-                              border: OutlineInputBorder(
+                    ListenableBuilder(
+                      listenable: TranslationService(),
+                      builder: (context, _) {
+                        final translationService = TranslationService();
+                        return ClipRRect(
+                          borderRadius: BorderRadius.circular(10),
+                          child: BackdropFilter(
+                            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: AppColors.getCardBackgroundColor(context).withValues(alpha: 0.1), // Keep original background
                                 borderRadius: BorderRadius.circular(10),
-                                borderSide: BorderSide.none,
+                                border: Border.all(
+                                  color: Colors.white.withValues(alpha: 0.3), // White border in both modes
+                                  width: 1.5,
+                                ),
                               ),
-                              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                              child: TextField(
+                                controller: _usernameController,
+                                focusNode: _usernameFocusNode,
+                                textInputAction: TextInputAction.next,
+                                decoration: InputDecoration(
+                                  filled: true,
+                                  fillColor: Colors.transparent,
+                                  hintText: translationService.translate(TranslationKeys.username),
+                                  hintStyle: TextStyle(
+                                    color: Colors.white.withValues(alpha: 0.7), // White hint in both modes
+                                    fontSize: 16,
+                                  ),
+                                  prefixIcon: const Icon(Icons.person, color: Colors.white), // White icon in both modes
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                    borderSide: BorderSide.none,
+                                  ),
+                                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                                ),
+                                style: const TextStyle(
+                                  color: Colors.white, // White text in both modes
+                                  fontSize: 16,
+                                ),
+                                onTap: () {
+                                  // Unfocus other fields to prevent context menu conflicts
+                                  _passwordFocusNode.unfocus();
+                                },
+                                onSubmitted: (_) {
+                                  // Move focus to password field when username is submitted
+                                  _passwordFocusNode.requestFocus();
+                                },
+                              ),
                             ),
-                            style: const TextStyle(
-                              color: Colors.white, // White text in both modes
-                              fontSize: 16,
-                            ),
-                            onTap: () {
-                              // Unfocus other fields to prevent context menu conflicts
-                              _passwordFocusNode.unfocus();
-                            },
-                            onSubmitted: (_) {
-                              // Move focus to password field when username is submitted
-                              _passwordFocusNode.requestFocus();
-                            },
                           ),
-                        ),
-                      ),
+                        );
+                      },
                     ),
                     const SizedBox(height: 20),
                     // Password field
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(10),
-                      child: BackdropFilter(
-                        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                        child: Container(
-                          decoration: BoxDecoration(
-                            color: AppColors.getCardBackgroundColor(context).withValues(alpha: 0.1), // Keep original background
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(
-                              color: Colors.white.withValues(alpha: 0.3), // White border in both modes
-                              width: 1.5,
-                            ),
-                          ),
-                          child: TextField(
-                            controller: _passwordController,
-                            focusNode: _passwordFocusNode,
-                            obscureText: _obscurePassword,
-                            textInputAction: TextInputAction.go,
-                            decoration: InputDecoration(
-                              filled: true,
-                              fillColor: Colors.transparent,
-                              hintText: TranslationKeys.password.tr,
-                              hintStyle: TextStyle(
-                                color: Colors.white.withValues(alpha: 0.7), // White hint in both modes
-                                fontSize: 16,
-                              ),
-                              prefixIcon: const Icon(Icons.lock, color: Colors.white), // White icon in both modes
-                              suffixIcon: IconButton(
-                                icon: Icon(
-                                  _obscurePassword ? Icons.visibility : Icons.visibility_off,
-                                  color: Colors.white.withValues(alpha: 0.7), // White icon in both modes
+                    ListenableBuilder(
+                      listenable: TranslationService(),
+                      builder: (context, _) {
+                        final translationService = TranslationService();
+                        return ClipRRect(
+                          borderRadius: BorderRadius.circular(10),
+                          child: BackdropFilter(
+                            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: AppColors.getCardBackgroundColor(context).withValues(alpha: 0.1), // Keep original background
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(
+                                  color: Colors.white.withValues(alpha: 0.3), // White border in both modes
+                                  width: 1.5,
                                 ),
-                                onPressed: () {
-                                  setState(() {
-                                    _obscurePassword = !_obscurePassword;
-                                  });
+                              ),
+                              child: TextField(
+                                controller: _passwordController,
+                                focusNode: _passwordFocusNode,
+                                obscureText: _obscurePassword,
+                                textInputAction: TextInputAction.go,
+                                decoration: InputDecoration(
+                                  filled: true,
+                                  fillColor: Colors.transparent,
+                                  hintText: translationService.translate(TranslationKeys.password),
+                                  hintStyle: TextStyle(
+                                    color: Colors.white.withValues(alpha: 0.7), // White hint in both modes
+                                    fontSize: 16,
+                                  ),
+                                  prefixIcon: const Icon(Icons.lock, color: Colors.white), // White icon in both modes
+                                  suffixIcon: IconButton(
+                                    icon: Icon(
+                                      _obscurePassword ? Icons.visibility : Icons.visibility_off,
+                                      color: Colors.white.withValues(alpha: 0.7), // White icon in both modes
+                                    ),
+                                    onPressed: () {
+                                      setState(() {
+                                        _obscurePassword = !_obscurePassword;
+                                      });
+                                    },
+                                  ),
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                    borderSide: BorderSide.none,
+                                  ),
+                                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                                ),
+                                style: const TextStyle(
+                                  color: Colors.white, // White text in both modes
+                                  fontSize: 16,
+                                ),
+                                onTap: () {
+                                  // Unfocus other fields to prevent context menu conflicts
+                                  _usernameFocusNode.unfocus();
+                                },
+                                onSubmitted: (_) {
+                                  // Attempt login when password is submitted
+                                  _handleLogin();
                                 },
                               ),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(10),
-                                borderSide: BorderSide.none,
-                              ),
-                              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
                             ),
-                            style: const TextStyle(
-                              color: Colors.white, // White text in both modes
-                              fontSize: 16,
-                            ),
-                            onTap: () {
-                              // Unfocus other fields to prevent context menu conflicts
-                              _usernameFocusNode.unfocus();
-                            },
-                            onSubmitted: (_) {
-                              // Attempt login when password is submitted
-                              _handleLogin();
-                            },
                           ),
-                        ),
-                      ),
+                        );
+                      },
                     ),
                     if (_errorMessage != null) ...[
                       const SizedBox(height: 10),

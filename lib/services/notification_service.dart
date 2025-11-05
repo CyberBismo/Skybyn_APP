@@ -301,7 +301,7 @@ class NotificationService {
     }
   }
 
-  Future<void> showNotification({
+  Future<int> showNotification({
     required String title,
     required String body,
     String? payload,
@@ -313,7 +313,7 @@ class NotificationService {
       if (payload == 'app_update') {
         if (AutoUpdateService.isDialogShowing) {
           print('ℹ️ [NotificationService] Update dialog already showing, skipping notification...');
-          return;
+          return -1; // Return -1 to indicate notification was not shown
         }
       }
 
@@ -381,6 +381,8 @@ class NotificationService {
         final pendingNotifications = await _localNotifications.pendingNotificationRequests();
         print('📱 [NotificationService] Pending notifications count: ${pendingNotifications.length}');
       }
+      
+      return notificationId;
     } catch (e, stackTrace) {
       print('❌ [NotificationService] Error showing notification: $e');
       print('❌ [NotificationService] Stack trace: $stackTrace');
