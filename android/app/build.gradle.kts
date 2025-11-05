@@ -31,11 +31,35 @@ android {
         versionName = flutter.versionName
     }
 
+    // Load keystore properties from key.properties file
+    // key.properties is located at the project root (Skybyn_APP/key.properties)
+    val keystorePropertiesFile = rootProject.file("../key.properties")
+    val keystoreProperties = java.util.Properties()
+    if (keystorePropertiesFile.exists()) {
+        keystoreProperties.load(java.io.FileInputStream(keystorePropertiesFile))
+    }
+
+    signingConfigs {
+        create("release") {
+            if (keystorePropertiesFile.exists()) {
+                keyAlias = keystoreProperties["keyAlias"] as String
+                keyPassword = keystoreProperties["keyPassword"] as String
+                // storeFile path is relative to android/ directory: "app/upload-keystore.jks"
+                val keystorePath = keystoreProperties["storeFile"] as String?
+                storeFile = keystorePath?.let { file(it) }
+                storePassword = keystoreProperties["storePassword"] as String
+            }
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            if (keystorePropertiesFile.exists()) {
+                signingConfig = signingConfigs.getByName("release")
+            } else {
+                // Fallback to debug signing if keystore not configured
+                signingConfig = signingConfigs.getByName("debug")
+            }
         }
     }
 
