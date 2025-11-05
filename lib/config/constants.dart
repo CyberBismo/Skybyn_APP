@@ -30,6 +30,10 @@ class ApiConstants {
   static const String qrCheck = '$apiBase/qr_check.php';
   static const String friend = '$apiBase/friend/friend.php';
   static const String friends = '$apiBase/friend/friends.php';
+  static const String notifications = '$apiBase/notification/list.php';
+  static const String createNotification = '$apiBase/notification/create.php';
+  static const String deleteNotification = '$apiBase/notification/delete.php';
+  static const String readNotification = '$apiBase/notification/read.php';
 
   // Updates
   static const String appUpdate = '$apiBase/app_update.php';
