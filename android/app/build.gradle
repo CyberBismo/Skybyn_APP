@@ -47,6 +47,10 @@ android {
     compileSdk 36
     ndkVersion "27.0.12077973"
 
+    buildFeatures {
+        buildConfig true
+    }
+
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_11
         targetCompatibility JavaVersion.VERSION_11
@@ -101,13 +105,6 @@ android {
             enabled = false
         }
     }
-    
-    // Completely disable test configuration generation
-    testOptions {
-        unitTests.all {
-            enabled = false
-        }
-    }
 }
 
 flutter {
@@ -123,6 +120,7 @@ tasks.whenTaskAdded { task ->
         task.enabled = false
     }
 }
+
 
 
 dependencies {

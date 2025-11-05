@@ -41,6 +41,42 @@
           ]
         }
       }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:214777449741:android:553e8bd29c48bfc5617444",
+        "android_client_info": {
+          "package_name": "no.skybyn.app.debug"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "214777449741-8i8jf7ghir4vjm6c7k1ldsabmvkv71rg.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCivdTeGKJZlnE5SYjBr1RwyTqFPfb5cTo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "214777449741-8i8jf7ghir4vjm6c7k1ldsabmvkv71rg.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "214777449741-at0un58r8pk03886fnhflgsdtehjtd2n.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "no.skybyn.app"
+              }
+            }
+          ]
+        }
+      }
     }
   ],
   "configuration_version": "1"

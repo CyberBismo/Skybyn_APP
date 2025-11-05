@@ -22,6 +22,7 @@ import javax.net.ssl.*
 import java.security.cert.X509Certificate
 import java.security.SecureRandom
 import javax.net.ssl.SSLException
+import no.skybyn.app.BuildConfig
 
 class BackgroundService : Service() {
     private val NOTIFICATION_ID = 1001
@@ -41,7 +42,8 @@ class BackgroundService : Service() {
     private var reconnectAttempts = 0
     private val maxReconnectAttempts = 10
     private var sessionId: String? = null
-    private val wsUrl = "wss://server.skybyn.no:4433"
+    // Use port 4432 for debug builds, 4433 for release builds
+    private val wsUrl = if (BuildConfig.DEBUG) "wss://server.skybyn.no:4432" else "wss://server.skybyn.no:4433"
     
     // Notification auto-hide
     private var notificationHideTask: java.util.concurrent.ScheduledFuture<*>? = null
