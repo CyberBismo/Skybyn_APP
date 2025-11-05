@@ -254,19 +254,33 @@ class BackgroundService : Service() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
+        // Create a completely invisible notification for foreground service
+        // Only show content if explicitly requested (visible = true)
         val builder = NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("Skybyn")
-            .setContentText("Running in background")
             .setSmallIcon(R.drawable.notification_icon)
             .setContentIntent(pendingIntent)
             .setSilent(true)
             .setPriority(NotificationCompat.PRIORITY_MIN)
             .setVisibility(NotificationCompat.VISIBILITY_SECRET)
-
-            // Make notification dismissible and auto-hide after a few seconds
-            builder.setOngoing(false)
-                .setAutoCancel(true)
+            .setOngoing(false)
+            .setAutoCancel(true)
+            .setShowWhen(false)
+        
+        // Only set title and text if notification should be visible
+        // Otherwise create completely invisible notification (required for foreground service)
+        if (!visible) {
+            // Hide notification completely - use minimal invisible notification
+            // Android requires foreground service to have notification, but we make it invisible
+            builder.setContentTitle(" ")
+                .setContentText(" ")
+                .setShowWhen(false)
+                .setStyle(NotificationCompat.BigTextStyle().bigText(" "))
+        } else {
+            // Only show content when explicitly requested (e.g., when there's actual content to show)
+            builder.setContentTitle("Skybyn")
+                .setContentText("Running in background")
                 .setShowWhen(true)
+        }
         
         return builder.build()
     }
