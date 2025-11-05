@@ -73,16 +73,21 @@ class TranslationService extends ChangeNotifier {
   Future<void> initialize() async {
     if (_isInitialized) return;
 
+    // Load fallback translations first so they're always available
+    await _loadFallbackTranslations();
+    notifyListeners(); // Notify listeners immediately with fallback translations
+
     // Load saved language preference
     await _loadSavedLanguage();
 
-    // Load translations
+    // Load translations from cache or API
     await _loadTranslations();
 
     // Verify current language is available, fallback to English if not
     await _verifyAndSetLanguage();
 
     _isInitialized = true;
+    notifyListeners(); // Notify listeners that initialization is complete
   }
 
   // Load saved language from SharedPreferences or API
@@ -216,6 +221,7 @@ class TranslationService extends ChangeNotifier {
     if (cachedTranslations.isNotEmpty) {
       _translations = cachedTranslations;
       print('✅ Loaded translations from cache for ${_translations.keys.length} languages');
+      notifyListeners(); // Notify listeners that cached translations are loaded
       
       // Refresh translations in background
       _refreshTranslationsInBackground();
@@ -266,21 +272,26 @@ class TranslationService extends ChangeNotifier {
               // Save to cache
               await _saveTranslationsToCache(_translations);
             }
+            notifyListeners(); // Notify listeners that translations have been loaded
           } else {
             print('❌ Translation API returned non-Map response: ${responseData.runtimeType}');
             await _loadFallbackTranslations();
+            notifyListeners(); // Notify listeners that fallback translations are loaded
           }
         } catch (e) {
           print('❌ Error parsing translations JSON: $e');
           await _loadFallbackTranslations();
+          notifyListeners(); // Notify listeners that fallback translations are loaded
         }
       } else {
         print('❌ Failed to load translations: ${response.statusCode}');
         await _loadFallbackTranslations();
+        notifyListeners(); // Notify listeners that fallback translations are loaded
       }
     } catch (e) {
       print('❌ Error loading translations: $e');
       await _loadFallbackTranslations();
+      notifyListeners(); // Notify listeners that fallback translations are loaded
     }
   }
 

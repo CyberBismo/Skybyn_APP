@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:firebase_core/firebase_core.dart';
 // import 'dart:io' show Platform;
@@ -252,7 +253,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       builder: (context, themeService, child) {
         return MaterialApp(
           navigatorKey: navigatorKey,
-          title: 'Skybyn',
+          title: kDebugMode ? 'Skybyn DEV' : 'Skybyn',
           theme: ThemeData(
             brightness: Brightness.light,
             primaryColor: webLightPrimary,
