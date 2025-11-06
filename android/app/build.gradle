@@ -36,7 +36,8 @@ if (flutterVersionName == null) {
 }
 
 // Load keystore properties from key.properties file
-def keystorePropertiesFile = rootProject.file('key.properties')
+// key.properties is located at the project root (Skybyn_APP/key.properties)
+def keystorePropertiesFile = rootProject.file('../key.properties')
 def keystoreProperties = new Properties()
 if (keystorePropertiesFile.exists()) {
     keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
@@ -87,10 +88,13 @@ android {
             if (keystorePropertiesFile.exists()) {
                 keyAlias keystoreProperties['keyAlias']
                 keyPassword keystoreProperties['keyPassword']
-                // Resolve keystore path relative to app directory
+                // Resolve keystore path relative to android/app/ directory: "upload-keystore.jks"
                 def keystorePath = keystoreProperties['storeFile']
                 storeFile keystorePath ? file(keystorePath) : null
                 storePassword keystoreProperties['storePassword']
+                // Enable both v1 and v2 signing for maximum compatibility
+                v1SigningEnabled true
+                v2SigningEnabled true
             }
         }
         // Ensure debug signing is always available
