@@ -44,9 +44,9 @@ if (keystorePropertiesFile.exists()) {
 
 android {
     namespace "no.skybyn.app"
-    // Use compileSdk 34 (Android 14) - stable and widely supported
-    // compileSdk 36 (Android 16) is too new and may cause installation issues
-    compileSdk 34
+    // Use compileSdk 35 (Android 15) - required for sqflite_android 2.4.2+
+    // Note: targetSdk remains at 34 for compatibility
+    compileSdk 35
     ndkVersion "27.0.12077973"
 
     buildFeatures {
