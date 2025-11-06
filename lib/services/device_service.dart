@@ -17,6 +17,9 @@ class DeviceService {
     final timestamp = DateTime.now().toIso8601String();
 
     try {
+      // Get consistent device ID (UUID) first
+      final deviceId = await getDeviceId();
+      
       if (Platform.isAndroid) {
         final androidInfo = await deviceInfoPlugin.androidInfo;
         deviceInfo.addAll({
@@ -30,7 +33,7 @@ class DeviceService {
           'brand': androidInfo.brand,
           'hardware': androidInfo.hardware,
           'product': androidInfo.product,
-          'id': androidInfo.id,
+          'androidId': androidInfo.id, // Keep Android ID separate
           'isPhysicalDevice': androidInfo.isPhysicalDevice,
         });
       } else if (Platform.isIOS) {
@@ -48,17 +51,20 @@ class DeviceService {
         });
       }
 
-      // Add device ID
-      deviceInfo['deviceId'] = await getDeviceId();
+      // Add device ID - use consistent UUID for both 'deviceId' and 'id' (API expects 'id')
+      deviceInfo['deviceId'] = deviceId;
+      deviceInfo['id'] = deviceId; // API expects 'id' field for device identifier
       
       return deviceInfo;
     } catch (e) {
       print('Error getting device info: $e');
       // Return basic device info if there's an error
+      final deviceId = await getDeviceId();
       return {
         'platform': Platform.isAndroid ? 'Android' : 'iOS',
         'timestamp': timestamp,
-        'deviceId': await getDeviceId(),
+        'deviceId': deviceId,
+        'id': deviceId, // API expects 'id' field
         'error': e.toString(),
       };
     }

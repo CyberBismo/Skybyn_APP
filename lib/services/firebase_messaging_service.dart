@@ -200,15 +200,26 @@ class FirebaseMessagingService {
       deviceInfo['fcmToken'] = _fcmToken;
       deviceInfo['userID'] = user.id;
 
-      // Send to a device update endpoint or via login update
+      // Send to token API endpoint
       try {
         final response = await http.post(
-          Uri.parse('https://api.skybyn.no/api/register_device_token.php'),
-          body: {'userID': user.id, 'deviceInfo': json.encode(deviceInfo)}
+          Uri.parse('https://api.skybyn.no/api/token.php'),
+          body: {
+            'userID': user.id.toString(),
+            'fcmToken': _fcmToken!,
+            'deviceId': deviceInfo['id'] ?? deviceInfo['deviceId'] ?? '',
+            'platform': deviceInfo['platform'] ?? 'Unknown',
+            'model': deviceInfo['model'] ?? 'Unknown'
+          }
         );
 
         if (response.statusCode == 200) {
-          print('✅ [FCM] Token sent to server successfully');
+          final data = json.decode(response.body);
+          if (data['responseCode'] == '1') {
+            print('✅ [FCM] Token sent to server successfully');
+          } else {
+            print('❌ [FCM] Failed to send token: ${data['message'] ?? 'Unknown error'}');
+          }
         } else {
           print('❌ [FCM] Failed to send token - server returned status: ${response.statusCode}');
         }
@@ -494,14 +505,29 @@ class FirebaseMessagingService {
         return;
       }
 
+      // Get device info for token registration
+      final deviceService = DeviceService();
+      final deviceInfo = await deviceService.getDeviceInfo();
+      
       // Send the token to the token API endpoint
       final response = await http.post(
-        Uri.parse('https://api.skybyn.no/token.php'),
-        body: {'user_id': user.id, 'token': _fcmToken},
+        Uri.parse('https://api.skybyn.no/api/token.php'),
+        body: {
+          'userID': user.id.toString(),
+          'fcmToken': _fcmToken!,
+          'deviceId': deviceInfo['id'] ?? deviceInfo['deviceId'] ?? '',
+          'platform': deviceInfo['platform'] ?? 'Unknown',
+          'model': deviceInfo['model'] ?? 'Unknown'
+        },
       );
 
       if (response.statusCode == 200) {
-        print('✅ [FCM] Token auto-registered successfully via token API');
+        final data = json.decode(response.body);
+        if (data['responseCode'] == '1') {
+          print('✅ [FCM] Token auto-registered successfully via token API');
+        } else {
+          print('❌ [FCM] Auto-registration failed: ${data['message'] ?? 'Unknown error'}');
+        }
       } else {
         print('❌ [FCM] Auto-registration failed - Status: ${response.statusCode}');
       }

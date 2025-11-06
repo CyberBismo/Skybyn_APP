@@ -31,6 +31,19 @@ class AuthService {
       final deviceService = DeviceService();
       final deviceInfo = await deviceService.getDeviceInfo();
 
+      // Get FCM token if available and add it to deviceInfo
+      try {
+        final firebaseService = FirebaseMessagingService();
+        if (firebaseService.isInitialized && firebaseService.fcmToken != null) {
+          deviceInfo['fcmToken'] = firebaseService.fcmToken!;
+          print('✅ [Login] FCM token included in deviceInfo');
+        } else {
+          print('⚠️ [Login] FCM token not available yet (service not initialized or token not ready)');
+        }
+      } catch (e) {
+        print('⚠️ [Login] Could not get FCM token: $e');
+      }
+
       final response = await http.post(Uri.parse(ApiConstants.login), body: {'user': username, 'password': password, 'deviceInfo': json.encode(deviceInfo)});
 
       // Parse response regardless of status code to get actual API message
