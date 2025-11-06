@@ -9,6 +9,7 @@ import 'package:http/http.dart' as http;
 import 'notification_service.dart';
 import 'auth_service.dart';
 import 'device_service.dart';
+import '../config/constants.dart';
 
 // Handle background messages
 @pragma('vm:entry-point')
@@ -167,13 +168,29 @@ class FirebaseMessagingService {
         return;
       }
       
+      if (kDebugMode) {
+        print('🔄 [FCM] Requesting FCM token from Firebase...');
+      }
+      
       _fcmToken = await _messaging!.getToken();
-      print('✅ [FCM] Token retrieved successfully: ${_fcmToken?.substring(0, 20)}...');
+      
+      if (_fcmToken != null) {
+        print('✅ [FCM] Token retrieved successfully: ${_fcmToken!.substring(0, 20)}...');
+        if (kDebugMode) {
+          print('✅ [FCM] Full token length: ${_fcmToken!.length} characters');
+          print('✅ [FCM] Token preview: ${_fcmToken!.substring(0, 20)}...${_fcmToken!.substring(_fcmToken!.length - 10)}');
+        }
+      } else {
+        print('❌ [FCM] Token retrieval returned null');
+      }
 
       // Store token locally (not in Firestore)
       await _storeFCMTokenLocally();
     } catch (e) {
       print('❌ [FCM] Error getting FCM token: $e');
+      if (kDebugMode) {
+        print('❌ [FCM] This may indicate Firebase is not properly configured');
+      }
       _fcmToken = null;
     }
   }
@@ -203,7 +220,7 @@ class FirebaseMessagingService {
       // Send to token API endpoint
       try {
         final response = await http.post(
-          Uri.parse('https://api.skybyn.no/api/token.php'),
+          Uri.parse(ApiConstants.token),
           body: {
             'userID': user.id.toString(),
             'fcmToken': _fcmToken!,
@@ -486,17 +503,33 @@ class FirebaseMessagingService {
 
   /// Auto-register FCM token when app opens ( apparently not initialized yet
   Future<void> autoRegisterTokenOnAppOpen() async {
+    if (kDebugMode) {
+      print('🔄 [FCM] Starting auto-registration of FCM token...');
+    }
+    
     try {
+      // Check if FCM service is initialized
+      if (!_isInitialized) {
+        print('❌ [FCM] Cannot auto-register - Firebase Messaging not initialized');
+        return;
+      }
+
       // Token was already retrieved during initialize(), just send it to server
       if (_fcmToken == null) {
+        if (kDebugMode) {
+          print('⚠️ [FCM] No token found in cache, attempting to retrieve...');
+        }
         // If for some reason we don't have a token, try to get it once more
-        print('⚠️ [FCM] No token found, attempting to retrieve...');
         await _getFCMToken();
         
         if (_fcmToken == null) {
-          print('❌ [FCM] Cannot auto-register - FCM token unavailable');
+          print('❌ [FCM] Cannot auto-register - FCM token unavailable after retrieval attempt');
           return;
         }
+      }
+
+      if (kDebugMode) {
+        print('✅ [FCM] FCM token is available: ${_fcmToken!.substring(0, 20)}...${_fcmToken!.substring(_fcmToken!.length - 10)}');
       }
 
       final user = await _authService.getStoredUserProfile();
@@ -505,13 +538,22 @@ class FirebaseMessagingService {
         return;
       }
 
+      if (kDebugMode) {
+        print('✅ [FCM] User is logged in: ${user.id}');
+      }
+
       // Get device info for token registration
       final deviceService = DeviceService();
       final deviceInfo = await deviceService.getDeviceInfo();
       
+      if (kDebugMode) {
+        print('📤 [FCM] Attempting to register token to API endpoint: ${ApiConstants.token}');
+        print('📤 [FCM] Registration payload: userID=${user.id}, deviceId=${deviceInfo['id'] ?? deviceInfo['deviceId'] ?? 'N/A'}, platform=${deviceInfo['platform'] ?? 'Unknown'}');
+      }
+      
       // Send the token to the token API endpoint
       final response = await http.post(
-        Uri.parse('https://api.skybyn.no/api/token.php'),
+        Uri.parse(ApiConstants.token),
         body: {
           'userID': user.id.toString(),
           'fcmToken': _fcmToken!,
@@ -521,18 +563,45 @@ class FirebaseMessagingService {
         },
       );
 
+      if (kDebugMode) {
+        print('📥 [FCM] API response status: ${response.statusCode}');
+        print('📥 [FCM] API response body: ${response.body}');
+      }
+
       if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        if (data['responseCode'] == '1') {
-          print('✅ [FCM] Token auto-registered successfully via token API');
-        } else {
-          print('❌ [FCM] Auto-registration failed: ${data['message'] ?? 'Unknown error'}');
+        try {
+          final data = json.decode(response.body);
+          if (data['responseCode'] == '1') {
+            print('✅ [FCM] Token auto-registered successfully via token API');
+            if (kDebugMode) {
+              print('✅ [FCM] Registration confirmed by server');
+            }
+          } else {
+            print('❌ [FCM] Auto-registration failed: ${data['message'] ?? 'Unknown error'}');
+            if (kDebugMode) {
+              print('❌ [FCM] Server response code: ${data['responseCode']}');
+            }
+          }
+        } catch (e) {
+          print('❌ [FCM] Failed to parse API response: $e');
+          if (kDebugMode) {
+            print('❌ [FCM] Raw response: ${response.body}');
+          }
         }
       } else {
-        print('❌ [FCM] Auto-registration failed - Status: ${response.statusCode}');
+        print('❌ [FCM] Auto-registration failed - HTTP Status: ${response.statusCode}');
+        if (kDebugMode) {
+          print('❌ [FCM] Response body: ${response.body}');
+          if (response.statusCode == 404) {
+            print('⚠️ [FCM] Endpoint not found. Check if ${ApiConstants.token} exists on the server.');
+          }
+        }
       }
-    } catch (e) {
+    } catch (e, stackTrace) {
       print('❌ [FCM] Error auto-registering FCM token: $e');
+      if (kDebugMode) {
+        print('❌ [FCM] Stack trace: $stackTrace');
+      }
     }
   }
 }
