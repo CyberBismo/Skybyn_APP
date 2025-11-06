@@ -35,14 +35,6 @@ class MainActivity: FlutterActivity() {
                     stopBackgroundService()
                     result.success("Background service stopped")
                 }
-                "showBackgroundNotification" -> {
-                    showBackgroundNotification()
-                    result.success("Background notification shown")
-                }
-                "hideBackgroundNotification" -> {
-                    hideBackgroundNotification()
-                    result.success("Background notification hidden")
-                }
                 else -> {
                     result.notImplemented()
                 }
@@ -76,6 +68,8 @@ class MainActivity: FlutterActivity() {
 
     private fun startBackgroundService() {
         val serviceIntent = Intent(this, BackgroundService::class.java)
+        // Use startForegroundService on Android 8.0+ for long-running services
+        // The service will handle making the notification invisible
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             startForegroundService(serviceIntent)
         } else {
@@ -86,27 +80,5 @@ class MainActivity: FlutterActivity() {
     private fun stopBackgroundService() {
         val serviceIntent = Intent(this, BackgroundService::class.java)
         stopService(serviceIntent)
-    }
-    
-    private fun showBackgroundNotification() {
-        val serviceIntent = Intent(this, BackgroundService::class.java).apply {
-            action = "SHOW_NOTIFICATION"
-        }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            startForegroundService(serviceIntent)
-        } else {
-            startService(serviceIntent)
-        }
-    }
-    
-    private fun hideBackgroundNotification() {
-        val serviceIntent = Intent(this, BackgroundService::class.java).apply {
-            action = "HIDE_NOTIFICATION"
-        }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            startForegroundService(serviceIntent)
-        } else {
-            startService(serviceIntent)
-        }
     }
 } 

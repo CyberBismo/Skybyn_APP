@@ -98,15 +98,17 @@ class _ChatListModalState extends State<ChatListModal> {
                 ),
               ),
               if (_isLoading)
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 24),
-                  child: Center(
-                    child: Image.asset(
-                      'assets/images/icon.png',
-                      width: 64,
-                      height: 64,
-                      fit: BoxFit.contain,
-                    ),
+                Flexible(
+                  child: ListView.separated(
+                    shrinkWrap: true,
+                    itemCount: 5, // Show 5 skeleton items
+                    separatorBuilder: (context, index) => const SizedBox(height: 8),
+                    itemBuilder: (context, index) {
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: _SkeletonFriendItem(),
+                      );
+                    },
                   ),
                 )
               else
@@ -228,6 +230,140 @@ class _ChatListModalState extends State<ChatListModal> {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Animated skeleton placeholder for friend list items
+class _SkeletonFriendItem extends StatefulWidget {
+  @override
+  State<_SkeletonFriendItem> createState() => _SkeletonFriendItemState();
+}
+
+class _SkeletonFriendItemState extends State<_SkeletonFriendItem>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1500),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.10),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: ListTile(
+        leading: _ShimmerWidget(
+          controller: _controller,
+          child: CircleAvatar(
+            radius: 22,
+            backgroundColor: Colors.white.withOpacity(0.2),
+          ),
+        ),
+        title: _ShimmerWidget(
+          controller: _controller,
+          child: Container(
+            height: 16,
+            width: 120,
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.3),
+              borderRadius: BorderRadius.circular(8),
+            ),
+          ),
+        ),
+        subtitle: Padding(
+          padding: const EdgeInsets.only(top: 6),
+          child: _ShimmerWidget(
+            controller: _controller,
+            child: Container(
+              height: 12,
+              width: 80,
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(6),
+              ),
+            ),
+          ),
+        ),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _ShimmerWidget(
+              controller: _controller,
+              child: Container(
+                width: 10,
+                height: 10,
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.3),
+                  shape: BoxShape.circle,
+                ),
+              ),
+            ),
+            const SizedBox(width: 6),
+            _ShimmerWidget(
+              controller: _controller,
+              child: Container(
+                height: 12,
+                width: 50,
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Shimmer effect widget
+class _ShimmerWidget extends StatelessWidget {
+  final AnimationController controller;
+  final Widget child;
+
+  const _ShimmerWidget({
+    required this.controller,
+    required this.child,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: controller,
+      builder: (context, child) {
+        return ShaderMask(
+          shaderCallback: (bounds) {
+            return LinearGradient(
+              begin: Alignment(-1.0 + (controller.value * 2), 0.0),
+              end: Alignment(1.0 + (controller.value * 2), 0.0),
+              colors: [
+                Colors.white.withOpacity(0.3),
+                Colors.white.withOpacity(0.6),
+                Colors.white.withOpacity(0.3),
+              ],
+              stops: const [0.0, 0.5, 1.0],
+            ).createShader(bounds);
+          },
+          child: child,
+        );
+      },
+      child: child,
     );
   }
 }

@@ -15,6 +15,8 @@ import java.util.concurrent.ScheduledExecutorService
 import java.util.concurrent.TimeUnit
 import android.os.Handler
 import android.os.Looper
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import okhttp3.*
 import org.json.JSONObject
 import java.util.Random
@@ -45,15 +47,16 @@ class BackgroundService : Service() {
     // Use port 4432 for debug builds, 4433 for release builds
     private val wsUrl = if (BuildConfig.DEBUG) "wss://server.skybyn.no:4432" else "wss://server.skybyn.no:4433"
     
-    // Notification auto-hide
-    private var notificationHideTask: java.util.concurrent.ScheduledFuture<*>? = null
-    private val NOTIFICATION_AUTO_HIDE_DELAY_SECONDS = 5L // Hide notification after 5 seconds
+    // Connection state tracking
+    private var isConnected = false
+    private var hasShownDisconnectNotification = false
+    private val CONNECTION_LOST_NOTIFICATION_ID = 1002
 
     override fun onCreate() {
         super.onCreate()
         Log.d("BackgroundService", "onCreate called")
-        createNotificationChannel()
-        createAdminNotificationChannel()
+        createNotificationChannel() // Create invisible channel for foreground service
+        createAdminNotificationChannel() // Create admin channel for actual notifications
         executor = Executors.newScheduledThreadPool(2) // Increased for WebSocket thread
         reconnectHandler = Handler(Looper.getMainLooper())
         
@@ -130,26 +133,19 @@ class BackgroundService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         Log.d("BackgroundService", "Service started")
         
-        // Handle notification visibility actions
-        when (intent?.action) {
-            "SHOW_NOTIFICATION" -> {
-                updateNotificationVisibility(true)
-                return START_STICKY
-            }
-            "HIDE_NOTIFICATION" -> {
-                updateNotificationVisibility(false)
-                return START_STICKY
-            }
-        }
-        
         if (!isRunning) {
-            // Start with invisible notification
+            // Start as foreground service (required for long-running services on Android 8.0+)
+            // Notification uses IMPORTANCE_NONE channel so it won't appear in notification tray
+            val notification = createNotification()
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                // Android 14+ requires foreground service type to be specified
-                startForeground(NOTIFICATION_ID, createNotification(false), android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
+                startForeground(NOTIFICATION_ID, notification, android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
             } else {
-                startForeground(NOTIFICATION_ID, createNotification(false))
+                startForeground(NOTIFICATION_ID, notification)
             }
+            
+            // Keep service as foreground - notification uses IMPORTANCE_NONE so it should be invisible
+            // Don't call stopForeground() as it removes foreground status and service gets killed
+            
             startBackgroundTasks()
             isRunning = true
         }
@@ -164,32 +160,68 @@ class BackgroundService : Service() {
     override fun onDestroy() {
         super.onDestroy()
         Log.d("BackgroundService", "Service destroyed")
-        
-        // Cancel any pending notification hide task
-        notificationHideTask?.cancel(false)
-        notificationHideTask = null
-        
         stopBackgroundTasks()
     }
 
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            // Create channel with IMPORTANCE_NONE for invisible notification initially
+            val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            
+            // Delete existing channel if it exists to ensure clean state
+            try {
+                notificationManager.deleteNotificationChannel(CHANNEL_ID)
+            } catch (e: Exception) {
+                // Channel doesn't exist, that's fine
+            }
+            
+            // Create channel with IMPORTANCE_LOW (IMPORTANCE_NONE doesn't work on all devices)
+            // Set to minimal visibility
             val channel = NotificationChannel(
                 CHANNEL_ID,
                 CHANNEL_NAME,
-                NotificationManager.IMPORTANCE_NONE
+                NotificationManager.IMPORTANCE_LOW
             ).apply {
                 description = "Keeps Skybyn running in background"
                 setShowBadge(false)
                 setSound(null, null)
                 enableVibration(false)
                 enableLights(false)
+                lockscreenVisibility = Notification.VISIBILITY_SECRET
+                // Try to minimize appearance
+                setBypassDnd(false)
             }
             
-            val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             notificationManager.createNotificationChannel(channel)
         }
+    }
+    
+    private fun createNotification(): Notification {
+        val intent = Intent(this, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+        }
+        
+        val pendingIntent = PendingIntent.getActivity(
+            this, 0, intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        // Create minimal notification required for foreground service
+        // On some devices IMPORTANCE_NONE still shows, so we make it as minimal as possible
+        return NotificationCompat.Builder(this, CHANNEL_ID)
+            .setSmallIcon(android.R.drawable.ic_menu_info_details) // Use system icon instead of app icon
+            .setContentIntent(pendingIntent)
+            .setSilent(true)
+            .setPriority(NotificationCompat.PRIORITY_MIN)
+            .setVisibility(NotificationCompat.VISIBILITY_SECRET)
+            .setOngoing(false)
+            .setAutoCancel(false) // Don't auto-cancel to avoid flickering
+            .setShowWhen(false)
+            .setContentTitle("")
+            .setContentText("")
+            .setSubText(null)
+            .setTicker(null)
+            .setStyle(NotificationCompat.BigTextStyle().bigText("")) // Empty style
+            .build()
     }
     
     private fun createAdminNotificationChannel() {
@@ -211,108 +243,6 @@ class BackgroundService : Service() {
         }
     }
     
-    private fun updateNotificationChannel(show: Boolean) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val importance = if (show) {
-                NotificationManager.IMPORTANCE_LOW
-            } else {
-                NotificationManager.IMPORTANCE_NONE
-            }
-            
-            val channel = NotificationChannel(
-                CHANNEL_ID,
-                CHANNEL_NAME,
-                importance
-            ).apply {
-                description = "Keeps Skybyn running in background"
-                setShowBadge(false)
-                if (show) {
-                    setSound(null, null)
-                    enableVibration(false)
-                    enableLights(false)
-                } else {
-                    setSound(null, null)
-                    enableVibration(false)
-                    enableLights(false)
-                }
-            }
-            
-            val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            notificationManager.createNotificationChannel(channel)
-        }
-    }
-
-    private var notificationVisible = false
-    
-    private fun createNotification(visible: Boolean = false): Notification {
-        val intent = Intent(this, MainActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-        }
-        
-        val pendingIntent = PendingIntent.getActivity(
-            this, 0, intent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-
-        // Create a completely invisible notification for foreground service
-        // Only show content if explicitly requested (visible = true)
-        val builder = NotificationCompat.Builder(this, CHANNEL_ID)
-            .setSmallIcon(R.drawable.notification_icon)
-            .setContentIntent(pendingIntent)
-            .setSilent(true)
-            .setPriority(NotificationCompat.PRIORITY_MIN)
-            .setVisibility(NotificationCompat.VISIBILITY_SECRET)
-            .setOngoing(false)
-            .setAutoCancel(true)
-            .setShowWhen(false)
-            
-            builder.setContentTitle("Skybyn")
-                .setContentText("Running in background")
-                .setShowWhen(true)
-        
-        return builder.build()
-    }
-    
-    private fun updateNotificationVisibility(visible: Boolean) {
-        // Only update if state actually changed
-        if (notificationVisible == visible) {
-            Log.d("BackgroundService", "Notification visibility unchanged: $visible")
-            return
-        }
-        
-        // Cancel any pending auto-hide task
-        notificationHideTask?.cancel(false)
-        notificationHideTask = null
-        
-        notificationVisible = visible
-        updateNotificationChannel(visible)
-        
-        val notification = createNotification(visible)
-        val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            startForeground(NOTIFICATION_ID, notification, android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
-        } else {
-            startForeground(NOTIFICATION_ID, notification)
-        }
-        
-        Log.d("BackgroundService", "Notification visibility updated: $visible")
-        
-        // If showing notification, schedule auto-hide after a few seconds
-        if (visible && executor != null) {
-            notificationHideTask = executor?.schedule({
-                try {
-                    Log.d("BackgroundService", "Auto-hiding background notification after delay")
-                    updateNotificationVisibility(false)
-                } catch (e: Exception) {
-                    Log.e("BackgroundService", "Error auto-hiding notification: ${e.message}")
-                }
-            }, NOTIFICATION_AUTO_HIDE_DELAY_SECONDS, TimeUnit.SECONDS)
-            
-            Log.d("BackgroundService", "Scheduled notification auto-hide in $NOTIFICATION_AUTO_HIDE_DELAY_SECONDS seconds")
-        }
-    }
-
     private fun startBackgroundTasks() {
         Log.d("BackgroundService", "Starting background tasks")
         
@@ -375,6 +305,13 @@ class BackgroundService : Service() {
                     this@BackgroundService.webSocket = webSocket
                     reconnectAttempts = 0
                     
+                    // Connection restored - show notification if we had shown disconnect notification
+                    if (hasShownDisconnectNotification) {
+                        showConnectionRestoredNotification()
+                        hasShownDisconnectNotification = false
+                    }
+                    isConnected = true
+                    
                     // Send connect message
                     sendConnectMessage(webSocket, userId, username)
                 }
@@ -392,6 +329,8 @@ class BackgroundService : Service() {
                 override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
                     Log.d("BackgroundService", "WebSocket closed: $code - $reason")
                     this@BackgroundService.webSocket = null
+                    isConnected = false
+                    checkAndShowConnectionLostNotification()
                     scheduleReconnect()
                 }
                 
@@ -403,6 +342,8 @@ class BackgroundService : Service() {
                         t.printStackTrace()
                     }
                     this@BackgroundService.webSocket = null
+                    isConnected = false
+                    checkAndShowConnectionLostNotification()
                     scheduleReconnect()
                 }
             }
@@ -410,6 +351,8 @@ class BackgroundService : Service() {
             webSocket = okHttpClient?.newWebSocket(request, wsListener)
         } catch (e: Exception) {
             Log.e("BackgroundService", "Error connecting WebSocket: ${e.message}")
+            isConnected = false
+            checkAndShowConnectionLostNotification()
             scheduleReconnect()
         }
     }
@@ -495,6 +438,111 @@ class BackgroundService : Service() {
         }
     }
     
+    private fun checkAndShowConnectionLostNotification() {
+        // Only show notification once per disconnection
+        if (hasShownDisconnectNotification) {
+            return
+        }
+        
+        // Check if internet is available
+        val hasInternet = isInternetAvailable()
+        
+        if (!hasInternet) {
+            // No internet connection
+            showConnectionLostNotification("No Internet Connection", "Please check your internet connection and try again.")
+        } else {
+            // Internet available but WebSocket connection lost
+            showConnectionLostNotification("Connection Lost", "Unable to connect to Skybyn server. Reconnecting...")
+        }
+        
+        hasShownDisconnectNotification = true
+    }
+    
+    private fun showConnectionLostNotification(title: String, message: String) {
+        try {
+            val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            
+            val intent = Intent(this, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+            }
+            
+            val pendingIntent = PendingIntent.getActivity(
+                this, 0, intent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            
+            val notification = NotificationCompat.Builder(this, ADMIN_CHANNEL_ID)
+                .setContentTitle(title)
+                .setContentText(message)
+                .setSmallIcon(R.drawable.notification_icon)
+                .setContentIntent(pendingIntent)
+                .setAutoCancel(true)
+                .setPriority(NotificationCompat.PRIORITY_HIGH)
+                .setSilent(false)
+                .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+                .setDefaults(NotificationCompat.DEFAULT_SOUND or NotificationCompat.DEFAULT_VIBRATE)
+                .setOngoing(false)
+                .build()
+            
+            notificationManager.notify(CONNECTION_LOST_NOTIFICATION_ID, notification)
+            Log.d("BackgroundService", "Connection lost notification shown: $title")
+        } catch (e: Exception) {
+            Log.e("BackgroundService", "Error showing connection lost notification: ${e.message}")
+        }
+    }
+    
+    private fun showConnectionRestoredNotification() {
+        try {
+            val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            
+            val intent = Intent(this, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+            }
+            
+            val pendingIntent = PendingIntent.getActivity(
+                this, 0, intent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            
+            val notification = NotificationCompat.Builder(this, ADMIN_CHANNEL_ID)
+                .setContentTitle("Connection Restored")
+                .setContentText("Skybyn is now connected")
+                .setSmallIcon(R.drawable.notification_icon)
+                .setContentIntent(pendingIntent)
+                .setAutoCancel(true)
+                .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+                .setSilent(true)
+                .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+                .setOngoing(false)
+                .build()
+            
+            notificationManager.notify(CONNECTION_LOST_NOTIFICATION_ID + 1, notification)
+            Log.d("BackgroundService", "Connection restored notification shown")
+        } catch (e: Exception) {
+            Log.e("BackgroundService", "Error showing connection restored notification: ${e.message}")
+        }
+    }
+    
+    private fun isInternetAvailable(): Boolean {
+        return try {
+            val connectivityManager = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+            
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                val network = connectivityManager.activeNetwork ?: return false
+                val capabilities = connectivityManager.getNetworkCapabilities(network) ?: return false
+                capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
+                capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+            } else {
+                @Suppress("DEPRECATION")
+                val networkInfo = connectivityManager.activeNetworkInfo
+                networkInfo?.isConnected == true
+            }
+        } catch (e: Exception) {
+            Log.e("BackgroundService", "Error checking internet connectivity: ${e.message}")
+            false
+        }
+    }
+    
     private fun showNotification(title: String, body: String, messageType: String = "websocket") {
         try {
             val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
@@ -511,9 +559,8 @@ class BackgroundService : Service() {
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
             
-            // Use admin channel for app_update notifications (with sound and banner)
-            // Use silent background channel for other notifications
-            val channelId = if (messageType == "app_update") ADMIN_CHANNEL_ID else CHANNEL_ID
+            // Use admin channel for all notifications
+            val channelId = ADMIN_CHANNEL_ID
             val isSilent = messageType != "app_update"
             val priority = if (messageType == "app_update") {
                 NotificationCompat.PRIORITY_HIGH
@@ -545,6 +592,7 @@ class BackgroundService : Service() {
         
         if (reconnectAttempts >= maxReconnectAttempts) {
             Log.w("BackgroundService", "Max reconnection attempts reached. Giving up.")
+            checkAndShowConnectionLostNotification()
             return
         }
         

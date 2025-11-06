@@ -3,7 +3,7 @@ import 'dart:math';
 import 'dart:io' show Platform;
 import 'dart:async';
 import 'package:web_socket_channel/web_socket_channel.dart';
-import 'package:flutter/services.dart';
+import 'package:web_socket_channel/io.dart';
 import 'package:flutter/foundation.dart';
 import '../models/post.dart';
 import 'auth_service.dart';
@@ -65,7 +65,6 @@ class WebSocketService {
 
   // Services
   final NotificationService _notificationService = NotificationService();
-  static const MethodChannel _methodChannel = MethodChannel('no.skybyn.app/background_service');
 
   bool get isConnected => _isConnected;
   bool get isInitialized => _isInitialized;
@@ -219,11 +218,9 @@ class WebSocketService {
   Future<void> initialize() async {
     try {
       print('🔄 [WebSocket] Initializing WebSocket service...');
-
-      // Start Android foreground service if on Android
-      if (Platform.isAndroid) {
-        await _startAndroidBackgroundService();
-      }
+      
+      // Generate session ID
+      _sessionId = _generateSessionId();
 
       _isInitialized = true;
       print('✅ [WebSocket] WebSocket service initialized');
@@ -231,22 +228,16 @@ class WebSocketService {
       print('❌ [WebSocket] Error initializing WebSocket service: $e');
     }
   }
-
-  /// Start Android background service
-  Future<void> _startAndroidBackgroundService() async {
-    try {
-      if (Platform.isAndroid) {
-        await _methodChannel.invokeMethod('startBackgroundService');
-        print('✅ [WebSocket] Android background service started');
-      }
-    } catch (e) {
-      print('❌ [WebSocket] Error starting Android background service: $e');
-    }
+  
+  /// Get WebSocket URL based on build mode
+  String _getWebSocketUrl() {
+    // Use port 4432 for debug builds, 4433 for release builds
+    final port = kDebugMode ? 4432 : 4433;
+    return 'wss://server.skybyn.no:$port';
   }
 
   /// Connect to WebSocket with callbacks
-  /// NOTE: WebSocket connections are now handled by the Android background service only.
-  /// This method stores callbacks but does not create a connection to avoid duplicate connections.
+  /// Only connects when app is in foreground
   Future<void> connect({
     Function(Post)? onNewPost,
     Function(String, String)? onNewComment,
@@ -255,7 +246,7 @@ class WebSocketService {
     Function(String)? onBroadcast,
     Function()? onAppUpdate,
   }) async {
-    // Store callbacks for potential future use (e.g., via MethodChannel from background service)
+    // Store callbacks (always update callbacks even if already connected)
     _onNewPost = onNewPost;
     _onNewComment = onNewComment;
     _onDeletePost = onDeletePost;
@@ -263,13 +254,69 @@ class WebSocketService {
     _onBroadcast = onBroadcast;
     _onAppUpdate = onAppUpdate;
 
-    // Do not create WebSocket connection - background service handles all connections
-    print('ℹ️ [WebSocket] WebSocket connection is handled by Android background service. Callbacks stored for UI updates.');
+    // Don't connect if already connected or connecting
+    // Check and set _isConnecting atomically to prevent race conditions
+    if (_isConnected) {
+      print('ℹ️ [WebSocket] Already connected, skipping connection (callbacks updated)');
+      return;
+    }
     
-    // Mark as initialized but not connected
-    _isInitialized = true;
-    _isConnected = false;
-    _isConnecting = false;
+    if (_isConnecting) {
+      print('ℹ️ [WebSocket] Already connecting, skipping duplicate connection attempt');
+      return;
+    }
+
+    // Set connecting flag immediately to prevent duplicate connections
+    _isConnecting = true;
+
+    try {
+      _updateConnectionMetrics('connecting');
+      
+      // Generate session ID if not exists
+      if (_sessionId == null) {
+        _sessionId = _generateSessionId();
+      }
+
+      final wsUrl = _getWebSocketUrl();
+      print('🔄 [WebSocket] Connecting to WebSocket: $wsUrl');
+
+      // Create WebSocket connection
+      _channel = IOWebSocketChannel.connect(Uri.parse(wsUrl));
+
+      // Listen to messages
+      _channel!.stream.listen(
+        (message) {
+          _handleMessage(message);
+        },
+        onError: (error) {
+          _onConnectionError(error);
+        },
+        onDone: () {
+          _onConnectionClosed();
+        },
+        cancelOnError: false,
+      );
+
+      // Send connect message after a short delay to ensure connection is established
+      await Future.delayed(const Duration(milliseconds: 500));
+      await _sendConnectMessage();
+
+      // Only update state and print if we're still the one connecting (prevent duplicate messages)
+      if (_isConnecting) {
+        _isConnected = true;
+        _isConnecting = false;
+        _reconnectAttempts = 0;
+        _updateConnectionMetrics('connected');
+        
+        print('✅ [WebSocket] Connected to WebSocket server');
+      }
+    } catch (e) {
+      _isConnecting = false;
+      _isConnected = false;
+      _updateConnectionMetrics('failed');
+      print('❌ [WebSocket] Error connecting to WebSocket: $e');
+      _onConnectionError(e);
+    }
   }
 
   /// Send connection message
@@ -670,6 +717,7 @@ class WebSocketService {
   }
 
   /// Schedule reconnection with exponential backoff
+  /// Only reconnects if app is in foreground (not called when disconnected intentionally)
   void _scheduleReconnect() {
     _reconnectTimer?.cancel();
 
@@ -685,7 +733,7 @@ class WebSocketService {
     print('🔄 [WebSocket] Scheduling reconnection in ${delay}ms (attempt $_reconnectAttempts/$_maxReconnectAttempts)');
 
     _reconnectTimer = Timer(Duration(milliseconds: delay), () {
-      if (!_isConnected) {
+      if (!_isConnected && !_isConnecting) {
         print('🔄 [WebSocket] Attempting to reconnect...');
         connect();
       }
@@ -706,20 +754,10 @@ class WebSocketService {
     try {
       print('🛑 [WebSocket] Stopping WebSocket service...');
 
-      // Stop Android foreground service
-      if (Platform.isAndroid) {
-        await _methodChannel.invokeMethod('stopBackgroundService');
-      }
-
       // Close WebSocket connection
-      _channel?.sink.close();
-      _reconnectTimer?.cancel();
-      _isConnected = false;
-      _isInitialized = false;
+      disconnect();
 
-      // Clear message queues
-      _messageQueue.clear();
-      _pendingMessages.clear();
+      _isInitialized = false;
 
       // Log final metrics
       _logConnectionQuality();
@@ -733,13 +771,16 @@ class WebSocketService {
 
   /// Disconnect from WebSocket
   void disconnect() {
-    _channel?.sink.close();
+    print('🔌 [WebSocket] Disconnecting from WebSocket...');
     _reconnectTimer?.cancel();
+    _channel?.sink.close();
+    _channel = null;
     _isConnected = false;
     _isConnecting = false;
 
     // Clear message queues
     _messageQueue.clear();
     _pendingMessages.clear();
+    print('✅ [WebSocket] Disconnected from WebSocket');
   }
 }
