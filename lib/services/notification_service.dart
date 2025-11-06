@@ -28,6 +28,7 @@ class NotificationService {
   static const String _featureChannelId = 'feature_announcements';
   static const String _maintenanceChannelId = 'maintenance_alerts';
   static const String _updateProgressChannelId = 'update_progress';
+  static const String _appUpdatesChannelId = 'app_updates';
 
   // Notification ID for update progress (fixed ID so we can update it)
   static const int _updateProgressNotificationId = 9999;
@@ -250,6 +251,19 @@ class NotificationService {
       );
 
       await _localNotifications.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()?.createNotificationChannel(updateProgressChannel);
+
+      // App updates channel (for FCM app_update notifications)
+      const AndroidNotificationChannel appUpdatesChannel = AndroidNotificationChannel(
+        _appUpdatesChannelId,
+        'App Updates',
+        description: 'App update notifications and new version alerts',
+        importance: Importance.high,
+        playSound: true,
+        enableVibration: true,
+        enableLights: true,
+      );
+
+      await _localNotifications.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()?.createNotificationChannel(appUpdatesChannel);
     }
   }
 
@@ -308,9 +322,26 @@ class NotificationService {
     String channelId = _adminChannelId,
   }) async {
     try {
-      // For app_update notifications, only check if dialog is showing (not version history)
-      // This allows the notification to be shown if user dismissed it previously
-      if (payload == 'app_update') {
+      // Check if this is an app_update notification
+      bool isAppUpdate = false;
+      if (payload != null) {
+        if (payload == 'app_update' || payload == 'update_check') {
+          isAppUpdate = true;
+        } else if (payload.startsWith('{')) {
+          try {
+            final Map<String, dynamic> data = json.decode(payload);
+            if (data['type']?.toString() == 'app_update') {
+              isAppUpdate = true;
+            }
+          } catch (e) {
+            // Not JSON, ignore
+          }
+        }
+      }
+      
+      // For app_update notifications, use app_updates channel
+      if (isAppUpdate) {
+        channelId = _appUpdatesChannelId;
         if (AutoUpdateService.isDialogShowing) {
           print('ℹ️ [NotificationService] Update dialog already showing, skipping notification...');
           return -1; // Return -1 to indicate notification was not shown
@@ -320,13 +351,16 @@ class NotificationService {
       print('🔔 [NotificationService] Showing notification: $title - $body');
       print('🔔 [NotificationService] Platform: ${Platform.operatingSystem}');
       print('🔔 [NotificationService] Channel ID: $channelId');
+      print('🔔 [NotificationService] Is App Update: $isAppUpdate');
 
-      // Android notification details
-      const AndroidNotificationDetails androidPlatformChannelSpecifics = AndroidNotificationDetails(
-        _adminChannelId,
-        'Admin Notifications',
-        channelDescription: 'Important system notifications from administrators',
-        importance: Importance.max,
+      // Android notification details - use appropriate channel
+      final AndroidNotificationDetails androidPlatformChannelSpecifics = AndroidNotificationDetails(
+        channelId,
+        isAppUpdate ? 'App Updates' : 'Admin Notifications',
+        channelDescription: isAppUpdate 
+            ? 'App update notifications and new version alerts'
+            : 'Important system notifications from administrators',
+        importance: isAppUpdate ? Importance.high : Importance.max,
         priority: Priority.high,
         showWhen: true,
         enableVibration: true,
@@ -352,7 +386,7 @@ class NotificationService {
         threadIdentifier: null,
       );
 
-      const NotificationDetails platformChannelSpecifics = NotificationDetails(
+      final NotificationDetails platformChannelSpecifics = NotificationDetails(
         android: androidPlatformChannelSpecifics,
         iOS: iOSPlatformChannelSpecifics,
       );

@@ -255,7 +255,7 @@ class FirebaseMessagingService {
     }
     
     // Handle foreground messages
-    FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+    FirebaseMessaging.onMessage.listen((RemoteMessage message) async {
       // Check if this is an app_update message
       final type = message.data['type']?.toString();
       if (type == 'app_update') {
@@ -264,10 +264,21 @@ class FirebaseMessagingService {
           print('⚠️ [FCM] App update notification ignored in debug mode');
           return;
         }
-        // Trigger update check when app_update is received
+        
+        print('📱 [FCM] App update notification received in foreground');
+        
+        // Show local notification so user sees it in notification tray
+        final notificationService = NotificationService();
+        await notificationService.showNotification(
+          title: message.notification?.title ?? 'App Update Available',
+          body: message.notification?.body ?? 'A new version is available',
+          payload: jsonEncode(message.data),
+        );
+        
+        // Trigger update check immediately to show dialog
         _triggerUpdateCheck();
       }
-      // Don't show local notification - let FCM handle it
+      // For other message types, let FCM handle it
       // This will show as a system notification banner on iOS
     });
 
