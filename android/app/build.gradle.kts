@@ -7,9 +7,9 @@ plugins {
 
 android {
     namespace = "no.skybyn.app"
-    // Use compileSdk 35 (Android 15) - required for sqflite_android 2.4.2+
+    // Use compileSdk 36 (Android 16) - required for sqflite_android 2.4.2+ which hardcodes compileSdk 36
     // Note: targetSdk remains at 34 for compatibility
-    compileSdk = 35
+    compileSdk = 36
     ndkVersion = "27.0.12077973"
 
     compileOptions {
