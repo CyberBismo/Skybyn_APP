@@ -265,22 +265,10 @@ class BackgroundService : Service() {
             .setOngoing(false)
             .setAutoCancel(true)
             .setShowWhen(false)
-        
-        // Only set title and text if notification should be visible
-        // Otherwise create completely invisible notification (required for foreground service)
-        if (!visible) {
-            // Hide notification completely - use minimal invisible notification
-            // Android requires foreground service to have notification, but we make it invisible
-            builder.setContentTitle(" ")
-                .setContentText(" ")
-                .setShowWhen(false)
-                .setStyle(NotificationCompat.BigTextStyle().bigText(" "))
-        } else {
-            // Only show content when explicitly requested (e.g., when there's actual content to show)
+            
             builder.setContentTitle("Skybyn")
                 .setContentText("Running in background")
                 .setShowWhen(true)
-        }
         
         return builder.build()
     }
