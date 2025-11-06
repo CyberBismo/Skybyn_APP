@@ -53,7 +53,7 @@ android {
             if (keystorePropertiesFile.exists()) {
                 keyAlias = keystoreProperties["keyAlias"] as String
                 keyPassword = keystoreProperties["keyPassword"] as String
-                // storeFile path is relative to android/app/ directory: "upload-keystore.jks"
+                // storeFile path is relative to android/app/ directory: "../upload-keystore.jks" (in android/ folder)
                 val keystorePath = keystoreProperties["storeFile"] as String?
                 storeFile = keystorePath?.let { file(it) }
                 storePassword = keystoreProperties["storePassword"] as String
