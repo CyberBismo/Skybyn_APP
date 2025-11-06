@@ -82,6 +82,8 @@ android {
             }
             isMinifyEnabled = false
             isShrinkResources = false
+            // Ensure APK is properly aligned and optimized
+            isDebuggable = false
         }
         debug {
             // Explicitly set debug signing
