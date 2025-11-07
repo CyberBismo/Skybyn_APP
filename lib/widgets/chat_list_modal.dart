@@ -8,6 +8,7 @@ import '../screens/chat_screen.dart';
 import '../utils/translation_keys.dart';
 import '../widgets/translated_text.dart';
 import '../services/translation_service.dart';
+import 'find_friends_widget.dart';
 
 class ChatListModal extends StatefulWidget {
   const ChatListModal({super.key});
@@ -114,13 +115,20 @@ class _ChatListModalState extends State<ChatListModal> {
               else
                 Flexible(
                   child: _friends.isEmpty
-                      ? Padding(
-                          padding: const EdgeInsets.all(16.0),
-                          child: Center(
-                            child: TranslatedText(
-                              TranslationKeys.noFriendsFound,
-                              style: const TextStyle(color: Colors.white70),
-                            ),
+                      ? SingleChildScrollView(
+                          child: Column(
+                            children: [
+                              const FindFriendsWidget(),
+                              Padding(
+                                padding: const EdgeInsets.all(16.0),
+                                child: Center(
+                                  child: TranslatedText(
+                                    TranslationKeys.noFriendsFound,
+                                    style: const TextStyle(color: Colors.white70),
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         )
                       : RefreshIndicator(

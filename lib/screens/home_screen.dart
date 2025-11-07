@@ -1,3 +1,5 @@
+import 'dart:ui';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
@@ -88,6 +90,8 @@ class _HomeScreenState extends State<HomeScreen> {
   LifecycleEventHandler? _lifecycleEventHandler;
   bool _showNotificationOverlay = false;
   int _unreadNotificationCount = 0;
+  bool _showNoPostsMessage = false;
+  Timer? _noPostsTimer;
 
   @override
   void initState() {
@@ -176,8 +180,30 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  void _startNoPostsTimer() {
+    _noPostsTimer?.cancel();
+    _showNoPostsMessage = false;
+    
+    if (_posts.isEmpty && !_isLoading) {
+      _noPostsTimer = Timer(const Duration(seconds: 3), () {
+        if (mounted && _posts.isEmpty && !_isLoading) {
+          setState(() {
+            _showNoPostsMessage = true;
+          });
+        }
+      });
+    }
+  }
+
+  void _stopNoPostsTimer() {
+    _noPostsTimer?.cancel();
+    _noPostsTimer = null;
+    _showNoPostsMessage = false;
+  }
+
   @override
   void dispose() {
+    _noPostsTimer?.cancel();
     _webSocketService.disconnect();
     _scrollController.dispose();
     if (_lifecycleEventHandler != null) {
@@ -282,6 +308,7 @@ class _HomeScreenState extends State<HomeScreen> {
           _posts = cachedPosts;
           _isLoading = false; // Show cached data immediately
         });
+        _stopNoPostsTimer();
       } else {
         setState(() => _isLoading = true);
       }
@@ -297,6 +324,11 @@ class _HomeScreenState extends State<HomeScreen> {
           _posts = freshPosts;
           _isLoading = false;
         });
+        if (_posts.isEmpty) {
+          _startNoPostsTimer();
+        } else {
+          _stopNoPostsTimer();
+        }
       }
     } catch (timelineError) {
       print('⚠️ [HomeScreen] Error loading fresh posts: $timelineError');
@@ -306,6 +338,7 @@ class _HomeScreenState extends State<HomeScreen> {
           _posts = [];
           _isLoading = false;
         });
+        _startNoPostsTimer();
       }
     }
   }
@@ -333,6 +366,12 @@ class _HomeScreenState extends State<HomeScreen> {
             _posts = newPosts;
             _isLoading = false;
           });
+
+          if (_posts.isEmpty) {
+            _startNoPostsTimer();
+          } else {
+            _stopNoPostsTimer();
+          }
 
           // Show success feedback only if there's a significant change
           // (optional - can be removed if too noisy)
@@ -754,6 +793,7 @@ class _HomeScreenState extends State<HomeScreen> {
             else if (_posts.isEmpty)
               RefreshIndicator(
                 onRefresh: () async {
+                  _stopNoPostsTimer();
                   await _refreshData();
                 },
                 color: Colors.white, // White refresh indicator to match theme
@@ -762,57 +802,46 @@ class _HomeScreenState extends State<HomeScreen> {
                 displacement: 40.0, // Position the indicator lower
                 child: SingleChildScrollView(
                   physics: const AlwaysScrollableScrollPhysics(), // Always allow scrolling for refresh
-                  child: SizedBox(
-                    height: MediaQuery.of(context).size.height - 200, // Ensure enough height for refresh
-                    child: Center(
-                      child: Padding(
-                        padding: const EdgeInsets.only(top: 80.0),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Text(translationService.translate('no_posts_display'), style: TextStyle(color: AppColors.getSecondaryTextColor(context), fontSize: 18)),
-                            const SizedBox(height: 10),
-                            Text(translationService.translate('pull_to_refresh'), style: TextStyle(color: AppColors.getHintColor(context), fontSize: 14)),
-                            const SizedBox(height: 20),
-                            ElevatedButton(
-                              onPressed: () {
-                                _scaffoldMessengerKey.currentState?.showSnackBar(
-                                  SnackBar(
-                                    content: Text('🧪 ${translationService.translate('test_snackbar')}'),
-                                    backgroundColor: Colors.green,
-                                    duration: const Duration(seconds: 3),
-                                    behavior: SnackBarBehavior.fixed,
+                  padding: EdgeInsets.only(
+                    top: 60.0 + MediaQuery.of(context).padding.top + 5.0, // App bar height + status bar + 5px gap (matches posts)
+                    bottom: 80.0,
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.only(left: 10.0, right: 10.0),
+                    child: _showNoPostsMessage
+                        ? SizedBox(
+                            height: MediaQuery.of(context).size.height - 200,
+                            child: Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Text(
+                                    TranslationService().translate('no_posts_display'),
+                                    style: TextStyle(
+                                      color: AppColors.getSecondaryTextColor(context),
+                                      fontSize: 18,
+                                    ),
                                   ),
-                                );
-                              },
-                              child: Text(translationService.translate('test_snackbar')),
+                                  const SizedBox(height: 10),
+                                  Text(
+                                    TranslationService().translate('pull_to_refresh'),
+                                    style: TextStyle(
+                                      color: AppColors.getHintColor(context),
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
-                            const SizedBox(height: 10),
-                            ElevatedButton(
-                              onPressed: () {
-                                final notificationService = NotificationService();
-                                notificationService
-                                    .showNotification(
-                                      title: translationService.translate('test_notification'),
-                                      body: 'This is a test notification',
-                                      payload: 'test',
-                                    )
-                                    .then((_) {})
-                                    .catchError((error) {});
-                              },
-                              child: Text(translationService.translate('test_notification')),
-                            ),
-                            const SizedBox(height: 10),
-                            ElevatedButton(
-                              onPressed: () {
-                                _refreshData();
-                              },
-                              child: Text(translationService.translate('test_refresh')),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
+                          )
+                        : Column(
+                            children: [
+                              for (int index = 0; index < 3; index++) ...[
+                                const SizedBox(height: 10),
+                                _SkeletonPostCard(),
+                              ],
+                            ],
+                          ),
                   ),
                 ),
               )
@@ -874,6 +903,219 @@ class _HomeScreenState extends State<HomeScreen> {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Animated skeleton placeholder for post cards
+class _SkeletonPostCard extends StatefulWidget {
+  @override
+  State<_SkeletonPostCard> createState() => _SkeletonPostCardState();
+}
+
+class _SkeletonPostCardState extends State<_SkeletonPostCard>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1500),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: PostCardStyles.getCardBackgroundColor(context),
+        borderRadius: BorderRadius.circular(PostCardStyles.cardRadius),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(PostCardStyles.cardRadius),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(
+            sigmaX: PostCardStyles.blurSigma,
+            sigmaY: PostCardStyles.blurSigma,
+          ),
+          child: Padding(
+            padding: PostCardStyles.contentPadding,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Header with avatar and username
+                Row(
+                  children: [
+                    _ShimmerWidget(
+                      controller: _controller,
+                      child: Container(
+                        width: PostCardStyles.avatarSize,
+                        height: PostCardStyles.avatarSize,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(PostCardStyles.avatarRadius),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 15),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _ShimmerWidget(
+                            controller: _controller,
+                            child: Container(
+                              height: 16,
+                              width: 120,
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.3),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          _ShimmerWidget(
+                            controller: _controller,
+                            child: Container(
+                              height: 12,
+                              width: 80,
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.2),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 15),
+                // Content lines
+                _ShimmerWidget(
+                  controller: _controller,
+                  child: Container(
+                    height: 14,
+                    width: double.infinity,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.3),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                _ShimmerWidget(
+                  controller: _controller,
+                  child: Container(
+                    height: 14,
+                    width: MediaQuery.of(context).size.width * 0.7,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.3),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                _ShimmerWidget(
+                  controller: _controller,
+                  child: Container(
+                    height: 14,
+                    width: MediaQuery.of(context).size.width * 0.5,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.3),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 15),
+                // Action buttons
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  children: [
+                    _ShimmerWidget(
+                      controller: _controller,
+                      child: Container(
+                        height: 20,
+                        width: 60,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                      ),
+                    ),
+                    _ShimmerWidget(
+                      controller: _controller,
+                      child: Container(
+                        height: 20,
+                        width: 60,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                      ),
+                    ),
+                    _ShimmerWidget(
+                      controller: _controller,
+                      child: Container(
+                        height: 20,
+                        width: 60,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Shimmer effect widget
+class _ShimmerWidget extends StatelessWidget {
+  final AnimationController controller;
+  final Widget child;
+
+  const _ShimmerWidget({
+    required this.controller,
+    required this.child,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: controller,
+      builder: (context, child) {
+        return ShaderMask(
+          shaderCallback: (bounds) {
+            return LinearGradient(
+              begin: Alignment(-1.0 + (controller.value * 2), 0.0),
+              end: Alignment(1.0 + (controller.value * 2), 0.0),
+              colors: [
+                Colors.white.withOpacity(0.3),
+                Colors.white.withOpacity(0.6),
+                Colors.white.withOpacity(0.3),
+              ],
+              stops: const [0.0, 0.5, 1.0],
+            ).createShader(bounds);
+          },
+          child: child,
+        );
+      },
+      child: child,
     );
   }
 }

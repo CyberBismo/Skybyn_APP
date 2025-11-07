@@ -244,6 +244,11 @@ class TranslationKeys {
   static const String report = 'report';
   static const String searchFriends = 'search_friends';
   static const String noFriendsFound = 'no_friends_found';
+  static const String findFriendsInArea = 'find_friends_in_area';
+  static const String findFriendsDescription = 'find_friends_description';
+  static const String findFriendsButton = 'find_friends_button';
+  static const String nearbyUsers = 'nearby_users';
+  static const String noNearbyUsers = 'no_nearby_users';
   static const String noMessages = 'no_messages';
   static const String installPermissionRequired = 'install_permission_required';
   static const String installPermissionDeniedMessage = 'install_permission_denied_message';
