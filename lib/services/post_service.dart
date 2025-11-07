@@ -88,7 +88,42 @@ class PostService {
       final List<Post> posts = [];
       for (final item in data) {
         if (item is Map<String, dynamic>) {
-          posts.add(Post.fromJson(item));
+          // Debug: Log post data before parsing
+          final userData = item['user'];
+          final username = userData is Map 
+              ? userData['username']?.toString() 
+              : (item['username']?.toString());
+          final content = item['content']?.toString() ?? '';
+          
+          print('🔍 [PostService] Post data: id=${item['id']}, username=$username, content_length=${content.length}');
+          
+          // Filter out posts with empty username or empty content
+          if (username == null || username.isEmpty || username.trim().isEmpty) {
+            print('⚠️ [PostService] Skipping post ${item['id']}: empty username');
+            continue;
+          }
+          
+          if (content.isEmpty || content.trim().isEmpty) {
+            print('⚠️ [PostService] Skipping post ${item['id']}: empty content');
+            continue;
+          }
+          
+          try {
+            final post = Post.fromJson(item);
+            // Double-check after parsing
+            if (post.author == 'Unknown User' || post.author.isEmpty) {
+              print('⚠️ [PostService] Skipping post ${post.id}: parsed as Unknown User');
+              continue;
+            }
+            if (post.content.isEmpty || post.content.trim().isEmpty) {
+              print('⚠️ [PostService] Skipping post ${post.id}: parsed content is empty');
+              continue;
+            }
+            posts.add(post);
+          } catch (e) {
+            print('❌ [PostService] Error parsing post: $e');
+            print('❌ [PostService] Post data: $item');
+          }
         }
       }
       
@@ -140,7 +175,30 @@ class PostService {
       if (postsJson == null) return [];
 
       final List<dynamic> decoded = jsonDecode(postsJson);
-      return decoded.map((item) => Post.fromJson(item as Map<String, dynamic>)).toList();
+      final List<Post> posts = [];
+      
+      // Filter out posts with empty usernames or content when loading from cache
+      for (final item in decoded) {
+        if (item is Map<String, dynamic>) {
+          try {
+            final post = Post.fromJson(item);
+            // Skip posts with "Unknown User" or empty content
+            if (post.author == 'Unknown User' || post.author.isEmpty) {
+              print('⚠️ [PostService] Filtered cached post ${post.id}: Unknown User');
+              continue;
+            }
+            if (post.content.isEmpty || post.content.trim().isEmpty) {
+              print('⚠️ [PostService] Filtered cached post ${post.id}: empty content');
+              continue;
+            }
+            posts.add(post);
+          } catch (e) {
+            print('❌ [PostService] Error parsing cached post: $e');
+          }
+        }
+      }
+      
+      return posts;
     } catch (e) {
       return [];
     }
