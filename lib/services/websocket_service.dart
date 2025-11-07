@@ -55,6 +55,7 @@ class WebSocketService {
   Function(String, String)? _onDeleteComment; // postId, commentId
   Function(String)? _onBroadcast; // broadcast message
   Function()? _onAppUpdate; // app update notification
+  Function(String, String, String, String)? _onChatMessage; // messageId, fromUserId, toUserId, message
 
   // Callbacks for WebRTC signaling
   Function(String, String, String, String)? _onCallOffer; // callId, fromUserId, offer, callType
@@ -245,14 +246,16 @@ class WebSocketService {
     Function(String, String)? onDeleteComment,
     Function(String)? onBroadcast,
     Function()? onAppUpdate,
+    Function(String, String, String, String)? onChatMessage, // messageId, fromUserId, toUserId, message
   }) async {
-    // Store callbacks (always update callbacks even if already connected)
-    _onNewPost = onNewPost;
-    _onNewComment = onNewComment;
-    _onDeletePost = onDeletePost;
-    _onDeleteComment = onDeleteComment;
-    _onBroadcast = onBroadcast;
-    _onAppUpdate = onAppUpdate;
+    // Store callbacks (merge - only update if non-null, preserve existing if null)
+    if (onNewPost != null) _onNewPost = onNewPost;
+    if (onNewComment != null) _onNewComment = onNewComment;
+    if (onDeletePost != null) _onDeletePost = onDeletePost;
+    if (onDeleteComment != null) _onDeleteComment = onDeleteComment;
+    if (onBroadcast != null) _onBroadcast = onBroadcast;
+    if (onAppUpdate != null) _onAppUpdate = onAppUpdate;
+    if (onChatMessage != null) _onChatMessage = onChatMessage;
 
     // Don't connect if already connected or connecting
     // Check and set _isConnecting atomically to prevent race conditions
@@ -461,6 +464,13 @@ class WebSocketService {
             case 'call_end':
               final callId = data['callId']?.toString() ?? '';
               _onCallEnd?.call(callId);
+              break;
+            case 'chat':
+              final messageId = data['id']?.toString() ?? '';
+              final fromUserId = data['from']?.toString() ?? '';
+              final toUserId = data['to']?.toString() ?? '';
+              final message = data['message']?.toString() ?? '';
+              _onChatMessage?.call(messageId, fromUserId, toUserId, message);
               break;
           }
         }

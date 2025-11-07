@@ -1,0 +1,244 @@
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
+import '../models/message.dart';
+import '../config/constants.dart';
+import 'auth_service.dart';
+import 'package:encrypt/encrypt.dart' as encrypt;
+import 'package:crypto/crypto.dart';
+
+class ChatService {
+  static const String _cacheKeyPrefix = 'cached_messages_';
+  static const String _cacheTimestampPrefix = 'cached_messages_timestamp_';
+  static const Duration _cacheExpiry = Duration(minutes: 2);
+
+  final AuthService _authService = AuthService();
+
+  /// Get encryption key from stored user token
+  Future<String> _getEncryptionKey() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final userProfileJson = prefs.getString(StorageKeys.userProfile);
+      if (userProfileJson != null) {
+        final userProfile = jsonDecode(userProfileJson);
+        final token = userProfile['token'] as String?;
+        if (token != null && token.isNotEmpty) {
+          // Use first 32 characters of token hash as encryption key
+          final bytes = utf8.encode(token);
+          final hash = sha256.convert(bytes);
+          return hash.toString().substring(0, 32);
+        }
+      }
+    } catch (e) {
+      print('❌ [ChatService] Error getting encryption key: $e');
+    }
+    // Fallback key (should not happen in production)
+    return 'defaultkey123456789012345678901234';
+  }
+
+  /// Encrypt message content (server will encrypt, but we send plain text)
+  /// The server's encrypt() function handles encryption
+  Future<String> _encryptMessage(String message) async {
+    // Server handles encryption, so we just return the message
+    return message;
+  }
+
+  /// Decrypt message content (server already decrypts in API response)
+  Future<String> _decryptMessage(String message) async {
+    // Server already returns decrypted content
+    return message;
+  }
+
+  /// Send a message
+  Future<Message?> sendMessage({
+    required String toUserId,
+    required String content,
+  }) async {
+    try {
+      final userId = await _authService.getStoredUserId();
+      if (userId == null) {
+        throw Exception('User not logged in');
+      }
+
+      // Encrypt the message
+      final encryptedContent = await _encryptMessage(content);
+
+      final response = await http.post(
+        Uri.parse(ApiConstants.chatSend),
+        body: {
+          'from': userId,
+          'to': toUserId,
+          'message': encryptedContent,
+        },
+      ).timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data['responseCode'] == 1 && data['messageId'] != null) {
+          // Create message object
+          return Message(
+            id: data['messageId'].toString(),
+            from: userId,
+            to: toUserId,
+            content: content,
+            date: DateTime.now(),
+            viewed: false,
+            isFromMe: true,
+          );
+        }
+        throw Exception(data['message'] ?? 'Failed to send message');
+      }
+      throw Exception('Failed to send message: ${response.statusCode}');
+    } catch (e) {
+      print('❌ [ChatService] Error sending message: $e');
+      rethrow;
+    }
+  }
+
+  /// Get messages between current user and another user
+  Future<List<Message>> getMessages({
+    required String friendId,
+    int? limit,
+    int? offset,
+  }) async {
+    try {
+      final userId = await _authService.getStoredUserId();
+      if (userId == null) {
+        throw Exception('User not logged in');
+      }
+
+      // Try to load from cache first
+      final cachedMessages = await _loadMessagesFromCache(friendId, userId);
+      if (cachedMessages.isNotEmpty) {
+        // Refresh in background
+        _refreshMessagesInBackground(friendId, userId);
+        return cachedMessages;
+      }
+
+      // If no cache, fetch from API
+      final messages = await _fetchMessagesFromAPI(friendId, userId, limit, offset);
+
+      // Cache the messages
+      if (messages.isNotEmpty) {
+        await _saveMessagesToCache(friendId, messages);
+      }
+
+      return messages;
+    } catch (e) {
+      print('❌ [ChatService] Error getting messages: $e');
+      // If API fails, try to return cached data as fallback
+      final userId = await _authService.getStoredUserId();
+      if (userId != null) {
+        final cachedMessages = await _loadMessagesFromCache(friendId, userId);
+        return cachedMessages;
+      }
+      return [];
+    }
+  }
+
+  /// Fetch messages from API
+  Future<List<Message>> _fetchMessagesFromAPI(
+    String friendId,
+    String userId,
+    int? limit,
+    int? offset,
+  ) async {
+    final response = await http.post(
+      Uri.parse(ApiConstants.chatGet),
+      body: {
+        'friend': friendId,
+        'limit': limit?.toString() ?? '50',
+        'offset': offset?.toString() ?? '0',
+      },
+    ).timeout(const Duration(seconds: 10));
+
+    if (response.statusCode == 200) {
+      final List<dynamic> data = json.decode(response.body);
+      final List<Message> messages = [];
+
+      for (final item in data) {
+        final messageMap = item as Map<String, dynamic>;
+        // Content is already decrypted from server
+        messages.add(Message.fromJson(messageMap, userId));
+      }
+
+      return messages;
+    } else {
+      throw Exception('Failed to load messages: ${response.statusCode}');
+    }
+  }
+
+  /// Refresh messages in background
+  void _refreshMessagesInBackground(String friendId, String userId) {
+    Future.delayed(const Duration(milliseconds: 100), () async {
+      try {
+        final messages = await _fetchMessagesFromAPI(friendId, userId, null, null);
+        if (messages.isNotEmpty) {
+          await _saveMessagesToCache(friendId, messages);
+        }
+      } catch (e) {
+        print('⚠️ [ChatService] Background refresh failed: $e');
+      }
+    });
+  }
+
+  /// Save messages to cache
+  Future<void> _saveMessagesToCache(String friendId, List<Message> messages) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final messagesJson = messages.map((m) => m.toJson()).toList();
+      await prefs.setString(
+        '$_cacheKeyPrefix$friendId',
+        jsonEncode(messagesJson),
+      );
+      await prefs.setInt(
+        '$_cacheTimestampPrefix$friendId',
+        DateTime.now().millisecondsSinceEpoch,
+      );
+    } catch (e) {
+      print('❌ [ChatService] Error saving to cache: $e');
+    }
+  }
+
+  /// Load messages from cache
+  Future<List<Message>> _loadMessagesFromCache(String friendId, String userId) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final cacheKey = '$_cacheKeyPrefix$friendId';
+      final timestampKey = '$_cacheTimestampPrefix$friendId';
+
+      final messagesJson = prefs.getString(cacheKey);
+      final timestamp = prefs.getInt(timestampKey);
+
+      if (messagesJson != null && timestamp != null) {
+        final cacheAge = DateTime.now().millisecondsSinceEpoch - timestamp;
+        if (cacheAge < _cacheExpiry.inMilliseconds) {
+          final List<dynamic> data = json.decode(messagesJson);
+          final List<Message> messages = [];
+          for (final item in data) {
+            final messageMap = item as Map<String, dynamic>;
+            // Cached content is already decrypted
+            messages.add(Message.fromJson(messageMap, userId));
+          }
+          return messages;
+        }
+      }
+      return [];
+    } catch (e) {
+      print('❌ [ChatService] Error loading from cache: $e');
+      return [];
+    }
+  }
+
+  /// Clear cache for a specific friend
+  Future<void> clearCache(String friendId) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('$_cacheKeyPrefix$friendId');
+      await prefs.remove('$_cacheTimestampPrefix$friendId');
+    } catch (e) {
+      print('❌ [ChatService] Error clearing cache: $e');
+    }
+  }
+}
+
