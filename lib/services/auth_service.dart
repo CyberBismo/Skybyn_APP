@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter/foundation.dart';
 import '../models/user.dart';
 import 'device_service.dart';
 import 'firebase_messaging_service.dart';
@@ -337,6 +338,39 @@ class AuthService {
   }
 
   /// Update user online status
+  /// Update user activity timestamp (for online status tracking)
+  Future<void> updateActivity() async {
+    try {
+      final userId = await getStoredUserId();
+      if (userId == null) {
+        return; // User not logged in, silently fail
+      }
+
+      final requestBody = <String, String>{
+        'userID': userId,
+      };
+
+      final response = await http.post(
+        Uri.parse(ApiConstants.updateActivity),
+        body: requestBody,
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data['responseCode'] == '1') {
+          // Activity updated successfully
+          return;
+        }
+      }
+    } catch (e) {
+      // Silently fail - activity updates are not critical
+      // Only log in debug mode
+      if (kDebugMode) {
+        print('⚠️ [Auth] Failed to update activity: $e');
+      }
+    }
+  }
+
   Future<void> updateOnlineStatus(bool isOnline) async {
     try {
       final userId = await getStoredUserId();

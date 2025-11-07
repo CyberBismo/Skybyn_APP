@@ -139,6 +139,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   final WebSocketService _webSocketService = WebSocketService();
   final BackgroundUpdateScheduler _backgroundUpdateScheduler = BackgroundUpdateScheduler();
   Timer? _serviceCheckTimer;
+  Timer? _activityUpdateTimer;
 
   @override
   void initState() {
@@ -162,6 +163,9 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       
       // WebSocket will be connected by home_screen.dart when it mounts with proper callbacks
 
+      // Start periodic activity updates (every 2 minutes)
+      _startActivityUpdates();
+
       // Check for updates after a delay
       if (Platform.isAndroid) {
         Future.delayed(const Duration(seconds: 5), () {
@@ -174,10 +178,38 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     }
   }
 
+  /// Start periodic activity updates
+  void _startActivityUpdates() {
+    // Cancel any existing timer
+    _activityUpdateTimer?.cancel();
+    
+    // Update activity immediately
+    _updateActivity();
+    
+    // Then update every 2 minutes (120 seconds)
+    _activityUpdateTimer = Timer.periodic(const Duration(minutes: 2), (timer) {
+      _updateActivity();
+    });
+  }
+
+  /// Update user activity
+  Future<void> _updateActivity() async {
+    try {
+      final authService = AuthService();
+      await authService.updateActivity();
+    } catch (e) {
+      // Silently fail - activity updates are not critical
+      if (kDebugMode) {
+        print('⚠️ [MyApp] Failed to update activity: $e');
+      }
+    }
+  }
+
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _serviceCheckTimer?.cancel(); // This can be removed if _serviceCheckTimer is not used elsewhere
+    _activityUpdateTimer?.cancel();
     super.dispose();
   }
 

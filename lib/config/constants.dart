@@ -50,6 +50,9 @@ class ApiConstants {
   // Chat
   static const String chatSend = '$apiBase/chat/send.php';
   static const String chatGet = '$apiBase/chat/get.php';
+
+  // Activity
+  static const String updateActivity = '$apiBase/update_activity.php';
 }
 
 class StorageKeys {
