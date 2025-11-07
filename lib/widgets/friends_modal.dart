@@ -8,15 +8,16 @@ import '../screens/chat_screen.dart';
 import '../utils/translation_keys.dart';
 import '../widgets/translated_text.dart';
 import '../services/translation_service.dart';
+import 'find_friends_widget.dart';
 
-class ChatListModal extends StatefulWidget {
-  const ChatListModal({super.key});
+class FriendsModal extends StatefulWidget {
+  const FriendsModal({super.key});
 
   @override
-  State<ChatListModal> createState() => _ChatListModalState();
+  State<FriendsModal> createState() => _FriendsModalState();
 }
 
-class _ChatListModalState extends State<ChatListModal> {
+class _FriendsModalState extends State<FriendsModal> {
   final FriendService _friendService = FriendService();
   final AuthService _authService = AuthService();
 
@@ -61,44 +62,49 @@ class _ChatListModalState extends State<ChatListModal> {
 
   @override
   Widget build(BuildContext context) {
-    return ConstrainedBox(
-      constraints: BoxConstraints(
-        maxHeight: MediaQuery.of(context).size.height * 0.5,
-      ),
-      child: ClipRRect(
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-          child: Container(
-            color: Colors.white.withOpacity(0.05),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
+    return ClipRRect(
+      borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+        child: Container(
+          color: Colors.white.withOpacity(0.05),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Handle bar
+              Container(
+                margin: const EdgeInsets.only(top: 12, bottom: 8),
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.3),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              // Title
               Padding(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: BackdropFilter(
-                    filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
-                    child: Container(
-                      color: Colors.white.withOpacity(0.12),
-                      child: ListenableBuilder(
-                        listenable: TranslationService(),
-                        builder: (context, _) {
-                          return TextField(
-                            decoration: InputDecoration(
-                              hintText: TranslationKeys.searchFriends.tr,
-                              hintStyle: const TextStyle(color: Colors.white70),
-                              border: InputBorder.none,
-                              prefixIcon: const Icon(Icons.search, color: Colors.white),
-                              contentPadding: const EdgeInsets.symmetric(vertical: 14),
-                            ),
-                            style: const TextStyle(color: Colors.white),
-                          );
-                        },
-                      ),
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    ListenableBuilder(
+                      listenable: TranslationService(),
+                      builder: (context, _) {
+                        return Text(
+                          TranslationService().translate('friends'),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        );
+                      },
                     ),
-                  ),
+                    IconButton(
+                      icon: const Icon(Icons.close, color: Colors.white),
+                      onPressed: () => Navigator.of(context).pop(),
+                    ),
+                  ],
                 ),
               ),
               if (_isLoading)
@@ -118,13 +124,20 @@ class _ChatListModalState extends State<ChatListModal> {
               else
                 Flexible(
                   child: _friends.isEmpty
-                      ? Padding(
-                          padding: const EdgeInsets.all(16.0),
-                          child: Center(
-                            child: TranslatedText(
-                              TranslationKeys.noFriendsFound,
-                              style: const TextStyle(color: Colors.white70),
-                            ),
+                      ? SingleChildScrollView(
+                          child: Column(
+                            children: [
+                              const FindFriendsWidget(),
+                              Padding(
+                                padding: const EdgeInsets.all(16.0),
+                                child: Center(
+                                  child: TranslatedText(
+                                    TranslationKeys.noFriendsFound,
+                                    style: const TextStyle(color: Colors.white70),
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         )
                       : RefreshIndicator(
@@ -153,67 +166,39 @@ class _ChatListModalState extends State<ChatListModal> {
                                                 width: 44,
                                                 height: 44,
                                                 fit: BoxFit.cover,
-                                                placeholder: (context, url) => Image.asset(
-                                                  'assets/images/icon.png',
-                                                  width: 44,
-                                                  height: 44,
-                                                  fit: BoxFit.cover,
+                                                placeholder: (context, url) => Container(
+                                                  color: Colors.white.withOpacity(0.1),
                                                 ),
-                                                errorWidget: (context, url, error) => Image.asset(
-                                                  'assets/images/icon.png',
-                                                  width: 44,
-                                                  height: 44,
-                                                  fit: BoxFit.cover,
+                                                errorWidget: (context, url, error) => const Icon(
+                                                  Icons.person,
+                                                  color: Colors.white,
                                                 ),
                                               ),
                                             )
-                                          : Image.asset(
-                                              'assets/images/icon.png',
-                                              width: 44,
-                                              height: 44,
-                                              fit: BoxFit.cover,
-                                            ),
+                                          : const Icon(Icons.person, color: Colors.white),
                                     ),
                                     title: Text(
                                       friend.nickname.isNotEmpty ? friend.nickname : friend.username,
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 16,
-                                      ),
+                                      style: const TextStyle(color: Colors.white),
                                     ),
-                                    subtitle: friend.nickname.isNotEmpty
-                                        ? Text(
-                                            '@${friend.username}',
-                                            style: const TextStyle(
-                                              color: Colors.white70,
-                                              fontSize: 13,
-                                            ),
-                                          )
-                                        : null,
                                     trailing: Row(
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
-                                        Container(
-                                          width: 10,
-                                          height: 10,
-                                          decoration: BoxDecoration(
-                                            color: friend.online ? Colors.greenAccent : Colors.white,
-                                            shape: BoxShape.circle,
+                                        if (friend.online)
+                                          Container(
+                                            width: 10,
+                                            height: 10,
+                                            decoration: const BoxDecoration(
+                                              color: Colors.green,
+                                              shape: BoxShape.circle,
+                                            ),
                                           ),
-                                        ),
-                                        const SizedBox(width: 6),
-                                        Text(
-                                          friend.online ? 'Online' : 'Offline',
-                                          style: TextStyle(
-                                            color: friend.online ? Colors.greenAccent : Colors.white,
-                                            fontSize: 12,
-                                          ),
-                                        ),
+                                        const SizedBox(width: 8),
+                                        const Icon(Icons.chevron_right, color: Colors.white70),
                                       ],
                                     ),
                                     onTap: () {
-                                      Navigator.of(context).pop(); // Close the modal first
+                                      Navigator.of(context).pop();
                                       Navigator.of(context).push(
                                         MaterialPageRoute(
                                           builder: (context) => ChatScreen(
@@ -229,11 +214,9 @@ class _ChatListModalState extends State<ChatListModal> {
                           ),
                         ),
                 ),
-              const SizedBox(height: 24),
             ],
           ),
         ),
-      ),
       ),
     );
   }
@@ -372,3 +355,4 @@ class _ShimmerWidget extends StatelessWidget {
     );
   }
 }
+

@@ -22,6 +22,9 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'dart:io';
 import '../widgets/chat_list_modal.dart';
+import '../widgets/friends_modal.dart';
+import '../widgets/find_friends_widget.dart';
+import '../services/friend_service.dart';
 import '../widgets/search_form.dart';
 import '../widgets/app_colors.dart';
 import '../widgets/update_dialog.dart';
@@ -84,6 +87,9 @@ class _HomeScreenState extends State<HomeScreen> {
   String? _currentUserId;
   List<Post> _posts = [];
   bool _isLoading = true;
+  int _friendsCount = -1; // -1 means not loaded yet
+  bool _showFindFriendsBox = false;
+  Timer? _findFriendsTimer;
 
   bool _showSearchForm = false;
   String? _focusedPostId;
@@ -98,6 +104,7 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     _loadData();
     _fetchUnreadNotificationCount();
+    _loadFriendsCount();
 
     // Set up Firebase messaging callback for update notifications
     FirebaseMessagingService.setUpdateCheckCallback(_checkForUpdates);
@@ -204,6 +211,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void dispose() {
     _noPostsTimer?.cancel();
+    _findFriendsTimer?.cancel();
     _webSocketService.disconnect();
     _scrollController.dispose();
     if (_lifecycleEventHandler != null) {
@@ -671,6 +679,76 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  void _openFriendsModal() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => const FriendsModal(),
+    );
+  }
+
+  Future<void> _loadFriendsCount() async {
+    try {
+      final userId = await _authService.getStoredUserId();
+      if (userId == null) {
+        if (mounted) {
+          setState(() {
+            _friendsCount = 0;
+          });
+          _startFindFriendsTimer();
+        }
+        return;
+      }
+
+      final friendService = FriendService();
+      final friends = await friendService.fetchFriendsForUser(userId: userId);
+      if (mounted) {
+        setState(() {
+          _friendsCount = friends.length;
+        });
+        print('✅ [HomeScreen] Friends count loaded: $_friendsCount');
+        if (_friendsCount <= 0) {
+          _startFindFriendsTimer();
+        } else {
+          _stopFindFriendsTimer();
+        }
+      }
+    } catch (e) {
+      print('⚠️ [HomeScreen] Error loading friends count: $e');
+      if (mounted) {
+        setState(() {
+          _friendsCount = 0;
+        });
+        _startFindFriendsTimer();
+      }
+    }
+  }
+
+  void _startFindFriendsTimer() {
+    _findFriendsTimer?.cancel();
+    _showFindFriendsBox = false;
+    
+    // Show the find friends box after 2 seconds delay
+    _findFriendsTimer = Timer(const Duration(seconds: 2), () {
+      if (mounted && _friendsCount <= 0 && !_isLoading) {
+        setState(() {
+          _showFindFriendsBox = true;
+        });
+      }
+    });
+  }
+
+  void _stopFindFriendsTimer() {
+    _findFriendsTimer?.cancel();
+    _findFriendsTimer = null;
+    if (mounted) {
+      setState(() {
+        _showFindFriendsBox = false;
+      });
+    }
+  }
+
   Future<void> _fetchUnreadNotificationCount() async {
     final userId = await _authService.getStoredUserId();
     if (userId == null || !mounted) return;
@@ -779,7 +857,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 await _fetchAndAddPost(postId);
               }
             },
-            onFriendsPressed: () {},
+            onFriendsPressed: _openFriendsModal,
             onChatPressed: _openChatListModal,
             onNotificationsPressed: _toggleNotificationOverlay,
             unreadNotificationCount: _unreadNotificationCount,
@@ -870,7 +948,8 @@ class _HomeScreenState extends State<HomeScreen> {
                           PostCard(key: ValueKey(post.id), post: post, currentUserId: _currentUserId, onPostDeleted: _handlePostDeleted, onPostUpdated: _updatePost, onInputFocused: () => _onPostInputFocused(post.id), onInputUnfocused: () => _onPostInputUnfocused(post.id)),
                         ],
                         // Add extra space at bottom to ensure pull-to-refresh works even with few posts
-                        SizedBox(height: MediaQuery.of(context).size.height * 0.1),
+                        // Also add space for the Find Friends overlay if it's shown
+                        SizedBox(height: _friendsCount <= 0 ? 200.0 : MediaQuery.of(context).size.height * 0.1),
                       ],
                     ),
                   ),
@@ -898,6 +977,22 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: NotificationOverlay(
                   onClose: _closeNotificationOverlay,
                   onUnreadCountChanged: _onUnreadCountChanged,
+                ),
+              ),
+            // Find Friends overlay at the bottom (with delay)
+            if (_showFindFriendsBox && _friendsCount <= 0 && !_isLoading)
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 80.0 + (Theme.of(context).platform == TargetPlatform.iOS ? 8.0 : 8.0 + MediaQuery.of(context).padding.bottom),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 10.0),
+                  child: FindFriendsWidget(
+                    onLocationUpdated: () {
+                      // Refresh friends count after location update
+                      _loadFriendsCount();
+                    },
+                  ),
                 ),
               ),
           ],

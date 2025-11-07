@@ -1,16 +1,20 @@
 import 'package:flutter/material.dart';
 import 'dart:ui';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
 import '../services/location_service.dart';
 import '../services/auth_service.dart';
 import '../widgets/app_colors.dart';
 import '../utils/translation_keys.dart';
 import '../widgets/translated_text.dart';
 import '../services/translation_service.dart';
+import '../config/constants.dart';
 
 class FindFriendsWidget extends StatefulWidget {
   final VoidCallback? onFriendsFound;
+  final VoidCallback? onLocationUpdated;
 
-  const FindFriendsWidget({super.key, this.onFriendsFound});
+  const FindFriendsWidget({super.key, this.onFriendsFound, this.onLocationUpdated});
 
   @override
   State<FindFriendsWidget> createState() => _FindFriendsWidgetState();
@@ -19,9 +23,12 @@ class FindFriendsWidget extends StatefulWidget {
 class _FindFriendsWidgetState extends State<FindFriendsWidget> {
   final LocationService _locationService = LocationService();
   final AuthService _authService = AuthService();
+  final TextEditingController _referralController = TextEditingController();
   bool _isLoading = false;
+  bool _isAddingFriend = false;
   List<Map<String, dynamic>> _nearbyUsers = [];
   bool _hasSearched = false;
+  String? _addFriendError;
 
   Future<void> _findFriendsInArea() async {
     setState(() {
@@ -71,6 +78,10 @@ class _FindFriendsWidgetState extends State<FindFriendsWidget> {
         position.latitude,
         position.longitude,
       );
+
+      if (locationUpdated && widget.onLocationUpdated != null) {
+        widget.onLocationUpdated!();
+      }
 
       if (!locationUpdated) {
         print('⚠️ [FindFriendsWidget] Failed to update location, but continuing search...');
@@ -122,6 +133,135 @@ class _FindFriendsWidgetState extends State<FindFriendsWidget> {
         );
       }
     }
+  }
+
+  Future<Map<String, dynamic>?> _searchUserByUsername(String username) async {
+    try {
+      final response = await http.post(
+        Uri.parse('${ApiConstants.apiBase}/search.php'),
+        body: {
+          'userID': await _authService.getStoredUserId() ?? '',
+          'keyword': username,
+        },
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+      ).timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data is List && data.isNotEmpty) {
+          // Find exact username match (case-insensitive)
+          for (var user in data) {
+            if (user['username']?.toString().toLowerCase() == username.toLowerCase()) {
+              return user as Map<String, dynamic>;
+            }
+          }
+          // If no exact match, return first result
+          return data[0] as Map<String, dynamic>;
+        }
+      }
+      return null;
+    } catch (e) {
+      print('❌ [FindFriendsWidget] Error searching user: $e');
+      return null;
+    }
+  }
+
+  Future<bool> _sendFriendRequest(String friendId) async {
+    try {
+      final userId = await _authService.getStoredUserId();
+      if (userId == null) return false;
+
+      final response = await http.post(
+        Uri.parse(ApiConstants.friend),
+        body: {
+          'userID': userId,
+          'friendID': friendId,
+          'action': 'add',
+        },
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+      ).timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        return data['responseCode'] == '1' || data['responseCode'] == 1;
+      }
+      return false;
+    } catch (e) {
+      print('❌ [FindFriendsWidget] Error sending friend request: $e');
+      return false;
+    }
+  }
+
+  Future<void> _addFriendByUsername() async {
+    final username = _referralController.text.trim();
+    if (username.isEmpty) {
+      setState(() {
+        _addFriendError = TranslationService().translate(TranslationKeys.enterUsernameOrCode);
+      });
+      return;
+    }
+
+    setState(() {
+      _isAddingFriend = true;
+      _addFriendError = null;
+    });
+
+    try {
+      // Search for user by username
+      final user = await _searchUserByUsername(username);
+      
+      if (user == null) {
+        setState(() {
+          _addFriendError = TranslationService().translate(TranslationKeys.userNotFound);
+          _isAddingFriend = false;
+        });
+        return;
+      }
+
+      // Check if user is public (visible = 1)
+      // Note: The search API might not return visible status, so we'll try to send the request anyway
+      // The friend API will reject if the user is not visible
+
+      // Send friend request
+      final success = await _sendFriendRequest(user['id'].toString());
+      
+      if (mounted) {
+        if (success) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(TranslationService().translate(TranslationKeys.friendRequestSent)),
+              backgroundColor: Colors.green,
+            ),
+          );
+          _referralController.clear();
+          widget.onFriendsFound?.call();
+        } else {
+          setState(() {
+            _addFriendError = TranslationService().translate(TranslationKeys.failedToAddFriend);
+          });
+        }
+        setState(() {
+          _isAddingFriend = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _addFriendError = TranslationService().translate(TranslationKeys.errorOccurred);
+          _isAddingFriend = false;
+        });
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _referralController.dispose();
+    super.dispose();
   }
 
   @override
@@ -267,6 +407,93 @@ class _FindFriendsWidgetState extends State<FindFriendsWidget> {
                           ],
                         ),
                       )),
+                ],
+                if (_hasSearched && _nearbyUsers.isEmpty) ...[
+                  const SizedBox(height: 20),
+                  const Divider(color: Colors.white30),
+                  const SizedBox(height: 16),
+                  TranslatedText(
+                    TranslationKeys.noNearbyUsers,
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.8),
+                      fontSize: 14,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  TranslatedText(
+                    TranslationKeys.addFriendByUsername,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _referralController,
+                    style: const TextStyle(color: Colors.white),
+                    decoration: InputDecoration(
+                      hintText: TranslationService().translate(TranslationKeys.enterUsernameOrCode),
+                      hintStyle: TextStyle(color: Colors.white.withOpacity(0.6)),
+                      filled: true,
+                      fillColor: Colors.white.withOpacity(0.1),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: Colors.white.withOpacity(0.3)),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: Colors.white.withOpacity(0.3)),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: Colors.white.withOpacity(0.5)),
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                    ),
+                    onSubmitted: (_) => _addFriendByUsername(),
+                  ),
+                  if (_addFriendError != null) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      _addFriendError!,
+                      style: const TextStyle(
+                        color: Colors.redAccent,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: _isAddingFriend ? null : _addFriendByUsername,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primaryColor,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: _isAddingFriend
+                          ? const SizedBox(
+                              height: 20,
+                              width: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                              ),
+                            )
+                          : TranslatedText(
+                              TranslationKeys.sendFriendRequest,
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                    ),
+                  ),
                 ],
               ],
             ),

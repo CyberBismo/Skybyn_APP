@@ -187,6 +187,12 @@ class TranslationKeys {
   static const String friendRequestSent = 'friend_request_sent';
   static const String friendRequestAccepted = 'friend_request_accepted';
   static const String friendRequestDeclined = 'friend_request_declined';
+  static const String enterUsernameOrCode = 'enter_username_or_code';
+  static const String addFriendByUsername = 'add_friend_by_username';
+  static const String userNotFound = 'user_not_found';
+  static const String failedToAddFriend = 'failed_to_add_friend';
+  static const String errorOccurred = 'error_occurred';
+  static const String sendFriendRequest = 'send_friend_request';
   static const String userBlocked = 'user_blocked';
   static const String userUnblocked = 'user_unblocked';
   static const String userReported = 'user_reported';
