@@ -561,7 +561,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
       // Try to fetch the new comment data from the API
       try {
-        const url = ApiConstants.getComment;
+        final url = ApiConstants.getComment;
         final body = {'commentID': commentId, 'userID': userId};
 
         final response = await http.post(

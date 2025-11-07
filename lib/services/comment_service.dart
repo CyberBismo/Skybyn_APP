@@ -85,7 +85,7 @@ class CommentService {
     String? userId,
   }) async {
     try {
-      const url = ApiConstants.getComment;
+      final url = ApiConstants.getComment;
       final body = {
         'commentID': commentId,
         if (userId != null) 'userID': userId,

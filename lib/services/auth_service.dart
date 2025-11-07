@@ -9,7 +9,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../config/constants.dart';
 
 class AuthService {
-  static const String baseUrl = ApiConstants.apiBase;
+  static String get baseUrl => ApiConstants.apiBase;
   static const String userIdKey = StorageKeys.userId;
   static const String userProfileKey = StorageKeys.userProfile;
   static const String usernameKey = StorageKeys.username;
@@ -406,7 +406,17 @@ class AuthService {
   }
 
   /// Registers a new user account
-  Future<Map<String, dynamic>> registerUser({required String email, required String username, required String password, required String firstName, required String? middleName, required String lastName, required DateTime dateOfBirth}) async {
+  Future<Map<String, dynamic>> registerUser({
+    required String email, 
+    required String username, 
+    required String password, 
+    required String firstName, 
+    required String? middleName, 
+    required String lastName, 
+    required DateTime dateOfBirth,
+    bool isPrivate = false,
+    bool isVisible = true,
+  }) async {
     try {
       print('Registering new user: $username ($email)');
 
@@ -422,7 +432,9 @@ class AuthService {
           'fname': firstName, 
           'mname': middleName ?? '', 
           'lname': lastName, 
-          'dob': dobString
+          'dob': dobString,
+          'private': isPrivate ? '1' : '0',
+          'visible': isVisible ? '1' : '0',
         },
         headers: {'Content-Type': 'application/x-www-form-urlencoded'}
       );

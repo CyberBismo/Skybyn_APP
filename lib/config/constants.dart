@@ -7,9 +7,9 @@ class ApiConstants {
   static const String _prodWebBase = 'https://skybyn.no';
 
   // Development URLs
-  static const String _devBase = 'http://server.skybyn.no';
-  static const String _devApiBase = 'http://server.skybyn.no/api';
-  static const String _devAppBase = 'http://server.skybyn.no/app';
+  static const String _devBase = 'https://server.skybyn.no';
+  static const String _devApiBase = 'https://server.skybyn.no/api';
+  static const String _devAppBase = 'https://server.skybyn.no/app';
 
   // Use dev URLs in debug mode, production URLs in release mode
   static String get appBase => kDebugMode ? _devAppBase : _prodAppBase;

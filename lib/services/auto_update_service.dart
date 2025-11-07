@@ -12,7 +12,7 @@ import 'package:open_file/open_file.dart';
 import 'notification_service.dart';
 
 class AutoUpdateService {
-  static const String _updateCheckUrl = ApiConstants.appUpdate;
+  static String get _updateCheckUrl => ApiConstants.appUpdate;
   static const String _lastShownUpdateVersionKey = 'last_shown_update_version';
   static const String _lastShownUpdateTimestampKey = 'last_shown_update_timestamp';
   static bool _isDialogShowing = false;

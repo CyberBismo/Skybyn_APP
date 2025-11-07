@@ -43,7 +43,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
   bool _emailAlreadyVerified = false;
   String? _expectedVerificationCode;
   String? _errorMessage;
-  int _currentGroup = 0; // 0: date, 1: full name, 2: email, 3: email verification, 4: username, 5: password
+  int _currentGroup = 0; // 0: date, 1: full name, 2: email, 3: email verification, 4: username, 5: password, 6: profile package
+  
+  // Profile package selection
+  String? _selectedPackage; // 'op' = Open Profile, 'pp' = Private Profile, 'cp' = Custom
+  bool _isPrivate = false; // For custom package
+  bool _isVisible = true; // For custom package
 
   // Live password metrics
   double _passwordStrength = 0.0;
@@ -52,6 +57,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   bool _pwHasNum = false;
   bool _pwHasSpecial = false;
   bool _pwMatch = false;
+  bool _pwHasInvalidChars = false;
 
   @override
   void initState() {
@@ -147,6 +153,18 @@ class _RegisterScreenState extends State<RegisterScreen> {
     if (value.length < 8) {
       return 'Password must be at least 8 characters long';
     }
+    // API requires at least one English letter (A-Z, a-z) and one number (0-9)
+    // Allow only English characters and common English keyboard special characters
+    // Common English keyboard special characters: ~!@#\$%^&*()_+-=[]{}|;:'",.<>?/
+    if (!RegExp(r'^[A-Za-z0-9~!@#\$%^&*()_+\-=\[\]{}|;:\'",.<>?/\\]+$').hasMatch(value)) {
+      return 'Password can only contain English letters, numbers, and common keyboard symbols';
+    }
+    if (!RegExp(r'[A-Za-z]').hasMatch(value)) {
+      return 'Password must contain at least one letter (A-Z)';
+    }
+    if (!RegExp(r'[0-9]').hasMatch(value)) {
+      return 'Password must contain at least one number';
+    }
     return null;
   }
 
@@ -172,7 +190,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }
 
   void _nextGroup() async {
-    if (_currentGroup < 5) {
+    if (_currentGroup < 6) {
       // If on email step, send verification email
       if (_currentGroup == 2) {
         final success = await _sendVerificationEmail();
@@ -355,16 +373,23 @@ class _RegisterScreenState extends State<RegisterScreen> {
     final String pwd = _passwordController.text;
     final String confirm = _confirmPasswordController.text;
     final bool hasMinLen = pwd.length >= 8;
+    // Check for English letters (A-Z, a-z)
     final bool hasAlpha = RegExp(r'[A-Za-z]').hasMatch(pwd);
+    // Check for numbers (0-9)
     final bool hasNum = RegExp(r'[0-9]').hasMatch(pwd);
-    final bool hasSpecial = RegExp(r'''[!@#\$%^&*(),.?":{}|<>_\-\[\]\\/;'`~+=]''').hasMatch(pwd);
+    // Check for special characters (common English keyboard symbols)
+    // Common English keyboard special characters: ~!@#\$%^&*()_+-=[]{}|;:'",.<>?/
+    final bool hasSpecial = RegExp(r'[~!@#\$%^&*()_+\-=\[\]{}|;:\'",.<>?/\\]').hasMatch(pwd);
+    // Check for invalid characters (anything not English letters, numbers, or allowed special chars)
+    final bool hasInvalidChars = !RegExp(r'^[A-Za-z0-9~!@#\$%^&*()_+\-=\[\]{}|;:\'",.<>?/\\]+$').hasMatch(pwd);
     final int met = [hasMinLen, hasAlpha, hasNum, hasSpecial].where((b) => b).length;
-    final double strength = met / 4.0;
+    final double strength = hasInvalidChars ? 0.0 : (met / 4.0); // Set strength to 0 if invalid chars exist
     setState(() {
       _pwHasMinLen = hasMinLen;
       _pwHasAlpha = hasAlpha;
       _pwHasNum = hasNum;
       _pwHasSpecial = hasSpecial;
+      _pwHasInvalidChars = hasInvalidChars;
       _pwMatch = confirm.isNotEmpty && pwd == confirm;
       _passwordStrength = strength;
     });
@@ -384,6 +409,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
         return _usernameController.text.trim().isNotEmpty;
       case 5: // Password
         return _validatePassword(_passwordController.text) == null && _validateConfirmPassword(_confirmPasswordController.text) == null;
+      case 6: // Profile package
+        return _selectedPackage != null;
       default:
         return false;
     }
@@ -421,6 +448,24 @@ class _RegisterScreenState extends State<RegisterScreen> {
     });
 
     try {
+      // Determine private and visible values based on selected package
+      bool isPrivate = false;
+      bool isVisible = true;
+      
+      if (_selectedPackage == 'op') {
+        // Open Profile: public and visible
+        isPrivate = false;
+        isVisible = true;
+      } else if (_selectedPackage == 'pp') {
+        // Private Profile: private and invisible
+        isPrivate = true;
+        isVisible = false;
+      } else if (_selectedPackage == 'cp') {
+        // Custom: use selected values
+        isPrivate = _isPrivate;
+        isVisible = _isVisible;
+      }
+      
       // Call the actual registration API
       final result = await _authService.registerUser(
         email: _emailController.text.trim(),
@@ -430,6 +475,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
         middleName: _middleNameController.text.trim().isEmpty ? null : _middleNameController.text.trim(),
         lastName: _lastNameController.text.trim(),
         dateOfBirth: _selectedDate!,
+        isPrivate: isPrivate,
+        isVisible: isVisible,
       );
 
       if (mounted) {
@@ -481,6 +528,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
         return _buildUsernameGroup();
       case 5:
         return _buildPasswordGroup();
+      case 6:
+        return _buildProfilePackageGroup();
       default:
         return const SizedBox.shrink();
     }
@@ -1142,6 +1191,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         _buildRequirementRow('Alphabetic character used.', _pwHasAlpha),
         _buildRequirementRow('Numeric character used.', _pwHasNum),
         _buildRequirementRow('Special character used.', _pwHasSpecial),
+        _buildRequirementRow('Only English characters and keyboard symbols allowed.', !_pwHasInvalidChars),
         _buildRequirementRow('Passwords match.', _pwMatch),
       ],
     );
@@ -1170,6 +1220,337 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
   }
 
+  Widget _buildProfilePackageGroup() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Profile Privacy',
+          style: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+            color: Colors.white,
+          ),
+        ),
+        const SizedBox(height: 8),
+        const Text(
+          'Choose how you want your profile to be visible to others.',
+          style: TextStyle(
+            fontSize: 14,
+            color: Colors.white70,
+          ),
+        ),
+        const SizedBox(height: 20),
+
+        // Open Profile Option
+        GestureDetector(
+          onTap: () {
+            setState(() {
+              _selectedPackage = 'op';
+            });
+          },
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: _selectedPackage == 'op' 
+                  ? Colors.blue.withValues(alpha: 0.3)
+                  : Colors.white.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: _selectedPackage == 'op' 
+                    ? Colors.blue
+                    : Colors.white.withValues(alpha: 0.3),
+                width: _selectedPackage == 'op' ? 2 : 1.5,
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Radio<String>(
+                      value: 'op',
+                      groupValue: _selectedPackage,
+                      onChanged: (value) {
+                        setState(() {
+                          _selectedPackage = value;
+                        });
+                      },
+                      activeColor: Colors.white,
+                    ),
+                    const Text(
+                      'Open Profile',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  '• You appear in search',
+                  style: TextStyle(color: Colors.white70, fontSize: 14),
+                ),
+                const Text(
+                  '• Your profile is visible',
+                  style: TextStyle(color: Colors.white70, fontSize: 14),
+                ),
+                const Text(
+                  '• Anyone can message you',
+                  style: TextStyle(color: Colors.white70, fontSize: 14),
+                ),
+                const Text(
+                  '• You appear for new users',
+                  style: TextStyle(color: Colors.white70, fontSize: 14),
+                ),
+              ],
+            ),
+          ),
+        ),
+
+        const SizedBox(height: 16),
+
+        // Private Profile Option
+        GestureDetector(
+          onTap: () {
+            setState(() {
+              _selectedPackage = 'pp';
+            });
+          },
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: _selectedPackage == 'pp' 
+                  ? Colors.blue.withValues(alpha: 0.3)
+                  : Colors.white.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: _selectedPackage == 'pp' 
+                    ? Colors.blue
+                    : Colors.white.withValues(alpha: 0.3),
+                width: _selectedPackage == 'pp' ? 2 : 1.5,
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Radio<String>(
+                      value: 'pp',
+                      groupValue: _selectedPackage,
+                      onChanged: (value) {
+                        setState(() {
+                          _selectedPackage = value;
+                        });
+                      },
+                      activeColor: Colors.white,
+                    ),
+                    const Text(
+                      'Private Profile',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  '• You do not appear in search',
+                  style: TextStyle(color: Colors.white70, fontSize: 14),
+                ),
+                const Text(
+                  '• Your profile is invisible',
+                  style: TextStyle(color: Colors.white70, fontSize: 14),
+                ),
+                const Text(
+                  '• Only friends can message you',
+                  style: TextStyle(color: Colors.white70, fontSize: 14),
+                ),
+              ],
+            ),
+          ),
+        ),
+
+        const SizedBox(height: 16),
+
+        // Custom Profile Option
+        GestureDetector(
+          onTap: () {
+            setState(() {
+              _selectedPackage = 'cp';
+            });
+          },
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: _selectedPackage == 'cp' 
+                  ? Colors.blue.withValues(alpha: 0.3)
+                  : Colors.white.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: _selectedPackage == 'cp' 
+                    ? Colors.blue
+                    : Colors.white.withValues(alpha: 0.3),
+                width: _selectedPackage == 'cp' ? 2 : 1.5,
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Radio<String>(
+                      value: 'cp',
+                      groupValue: _selectedPackage,
+                      onChanged: (value) {
+                        setState(() {
+                          _selectedPackage = value;
+                        });
+                      },
+                      activeColor: Colors.white,
+                    ),
+                    const Text(
+                      'Custom',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                if (_selectedPackage == 'cp') ...[
+                  // Privacy setting
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    margin: const EdgeInsets.only(bottom: 12),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.05),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Privacy',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            Radio<bool>(
+                              value: true,
+                              groupValue: _isPrivate,
+                              onChanged: (value) {
+                                setState(() {
+                                  _isPrivate = value ?? false;
+                                });
+                              },
+                              activeColor: Colors.white,
+                            ),
+                            const Text(
+                              'Private',
+                              style: TextStyle(color: Colors.white, fontSize: 14),
+                            ),
+                            const SizedBox(width: 20),
+                            Radio<bool>(
+                              value: false,
+                              groupValue: _isPrivate,
+                              onChanged: (value) {
+                                setState(() {
+                                  _isPrivate = value ?? false;
+                                });
+                              },
+                              activeColor: Colors.white,
+                            ),
+                            const Text(
+                              'Public',
+                              style: TextStyle(color: Colors.white, fontSize: 14),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  // Visibility setting
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.05),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Visibility',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            Radio<bool>(
+                              value: true,
+                              groupValue: _isVisible,
+                              onChanged: (value) {
+                                setState(() {
+                                  _isVisible = value ?? true;
+                                });
+                              },
+                              activeColor: Colors.white,
+                            ),
+                            const Text(
+                              'Visible',
+                              style: TextStyle(color: Colors.white, fontSize: 14),
+                            ),
+                            const SizedBox(width: 20),
+                            Radio<bool>(
+                              value: false,
+                              groupValue: _isVisible,
+                              onChanged: (value) {
+                                setState(() {
+                                  _isVisible = value ?? false;
+                                });
+                              },
+                              activeColor: Colors.white,
+                            ),
+                            const Text(
+                              'Invisible',
+                              style: TextStyle(color: Colors.white, fontSize: 14),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ] else ...[
+                  const Text(
+                    'Set each setting manually',
+                    style: TextStyle(color: Colors.white70, fontSize: 14),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildNavigationButtons() {
     return Column(
       children: [
@@ -1177,7 +1558,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
         SizedBox(
           width: double.infinity,
           child: ElevatedButton(
-            onPressed: _canProceedToNextGroup() ? _nextGroup : null,
+            onPressed: (!_isLoading && _canProceedToNextGroup()) 
+                ? (_currentGroup == 6 ? _handleRegister : _nextGroup)
+                : null,
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.transparent,
               foregroundColor: Colors.white,
@@ -1221,7 +1604,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Text(
-                        _currentGroup == 5 ? 'Create Account' : 'Continue',
+                        _currentGroup == 6 ? 'Create Account' : 'Continue',
                         style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.w600,
@@ -1229,7 +1612,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           letterSpacing: 0.5,
                         ),
                       ),
-                      if (_currentGroup < 5) ...[
+                      if (_currentGroup < 6) ...[
                         const SizedBox(width: 8),
                         Icon(
                           Icons.arrow_forward,
@@ -1342,11 +1725,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
                       // Progress indicator
                       Row(
-                        children: List.generate(6, (index) {
+                        children: List.generate(7, (index) {
                           return Expanded(
                             child: Container(
                               height: 4,
-                              margin: EdgeInsets.only(right: index < 5 ? 8 : 0),
+                              margin: EdgeInsets.only(right: index < 6 ? 8 : 0),
                               decoration: BoxDecoration(
                                 color: index <= _currentGroup ? Colors.white : Colors.white.withValues(alpha: 0.3),
                                 borderRadius: BorderRadius.circular(2),
