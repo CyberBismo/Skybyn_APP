@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import '../models/user.dart';
 import 'device_service.dart';
 import 'firebase_messaging_service.dart';
+import 'translation_service.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../config/constants.dart';
 
