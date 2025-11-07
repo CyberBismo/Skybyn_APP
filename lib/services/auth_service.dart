@@ -410,24 +410,50 @@ class AuthService {
     try {
       print('Registering new user: $username ($email)');
 
-      final response = await http.post(Uri.parse(ApiConstants.register), body: {'email': email, 'username': username, 'password': password, 'firstName': firstName, 'middleName': middleName ?? '', 'lastName': lastName, 'dateOfBirth': dateOfBirth.toIso8601String()});
+      // Format date of birth as YYYY-MM-DD for the API
+      final dobString = '${dateOfBirth.year}-${dateOfBirth.month.toString().padLeft(2, '0')}-${dateOfBirth.day.toString().padLeft(2, '0')}';
+
+      final response = await http.post(
+        Uri.parse(ApiConstants.register), 
+        body: {
+          'email': email, 
+          'username': username, 
+          'password': password, 
+          'fname': firstName, 
+          'mname': middleName ?? '', 
+          'lname': lastName, 
+          'dob': dobString
+        },
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'}
+      );
 
       print('Registration response status: ${response.statusCode}');
       print('Registration response body: ${response.body}');
 
       if (response.statusCode == 200) {
-        final data = json.decode(response.body);
+        final data = _safeJsonDecode(response.body);
 
-        if (data['responseCode'] == '1') {
+        if (data['responseCode'] == '1' || data['success'] == true) {
           print('User registration successful');
-          return {'success': true, 'message': data['message'] ?? 'Registration successful', 'userID': data['userID'], 'username': username};
+          return {
+            'success': true, 
+            'message': data['message'] ?? 'Registration successful', 
+            'userID': data['userID']?.toString() ?? data['data']?['userID']?.toString(), 
+            'username': username
+          };
         } else {
           print('Registration failed: ${data['message']}');
           return {'success': false, 'message': data['message'] ?? 'Registration failed'};
         }
       } else {
-        print('Server error with status: ${response.statusCode}');
-        return {'success': false, 'message': 'Server error occurred (Status: ${response.statusCode})'};
+        // Try to parse error response
+        try {
+          final errorData = _safeJsonDecode(response.body);
+          return {'success': false, 'message': errorData['message'] ?? 'Server error occurred'};
+        } catch (e) {
+          print('Server error with status: ${response.statusCode}');
+          return {'success': false, 'message': 'Server error occurred (Status: ${response.statusCode})'};
+        }
       }
     } catch (e) {
       print('Registration exception: $e');

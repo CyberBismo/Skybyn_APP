@@ -401,29 +401,61 @@ class _RegisterScreenState extends State<RegisterScreen> {
       return;
     }
 
+    if (_validatePassword(_passwordController.text) != null) {
+      setState(() {
+        _errorMessage = _validatePassword(_passwordController.text);
+      });
+      return;
+    }
+
+    if (_validateConfirmPassword(_confirmPasswordController.text) != null) {
+      setState(() {
+        _errorMessage = _validateConfirmPassword(_confirmPasswordController.text);
+      });
+      return;
+    }
+
     setState(() {
       _isLoading = true;
       _errorMessage = null;
     });
 
     try {
-      // TODO: Implement actual registration logic
-      await Future.delayed(const Duration(seconds: 2)); // Simulate API call
+      // Call the actual registration API
+      final result = await _authService.registerUser(
+        email: _emailController.text.trim(),
+        username: _usernameController.text.trim(),
+        password: _passwordController.text,
+        firstName: _firstNameController.text.trim(),
+        middleName: _middleNameController.text.trim().isEmpty ? null : _middleNameController.text.trim(),
+        lastName: _lastNameController.text.trim(),
+        dateOfBirth: _selectedDate!,
+      );
 
       if (mounted) {
-        // Show success message and navigate back
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: TranslatedText(TranslationKeys.registrationSuccessful),
-            backgroundColor: Colors.green,
-          ),
-        );
-        Navigator.of(context).pop();
+        if (result['success'] == true) {
+          // Show success message
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(result['message'] ?? 'Registration successful'),
+              backgroundColor: Colors.green,
+              duration: const Duration(seconds: 3),
+            ),
+          );
+          
+          // Navigate back to login screen
+          Navigator.of(context).pop();
+        } else {
+          // Show error message
+          setState(() {
+            _errorMessage = result['message'] ?? 'Registration failed. Please try again.';
+          });
+        }
       }
     } catch (e) {
       if (mounted) {
         setState(() {
-          _errorMessage = 'Registration failed. Please try again.';
+          _errorMessage = 'Registration failed: ${e.toString()}';
         });
       }
     } finally {
