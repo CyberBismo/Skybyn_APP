@@ -316,36 +316,37 @@ class _HomeScreenState extends State<HomeScreen> {
     try {
       final userId = await _authService.getStoredUserId();
       if (userId != null) {
+        // Store old post count for comparison
+        final oldPostCount = _posts.length;
+        
         // Clear cache to force fresh data
         final postService = PostService();
         await postService.clearTimelineCache();
+        
+        // Also refresh notification count
+        _fetchUnreadNotificationCount();
         
         final newPosts = await postService.fetchPostsForUser(userId: userId).timeout(const Duration(seconds: 15));
 
         if (mounted) {
           setState(() {
             _posts = newPosts;
+            _isLoading = false;
           });
 
-          // Show success feedback
-          if (newPosts.isNotEmpty) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(translationService.translate('refreshed_found_posts').replaceAll('{count}', newPosts.length.toString())),
-                backgroundColor: Colors.green,
-                duration: const Duration(seconds: 2),
-                behavior: SnackBarBehavior.floating,
-              ),
-            );
-          } else {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(translationService.translate('refreshed_no_posts')),
-                backgroundColor: Colors.blue,
-                duration: const Duration(seconds: 2),
-                behavior: SnackBarBehavior.floating,
-              ),
-            );
+          // Show success feedback only if there's a significant change
+          // (optional - can be removed if too noisy)
+          if (newPosts.length != oldPostCount) {
+            if (newPosts.isNotEmpty) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(translationService.translate('refreshed_found_posts').replaceAll('{count}', newPosts.length.toString())),
+                  backgroundColor: Colors.green,
+                  duration: const Duration(seconds: 1),
+                  behavior: SnackBarBehavior.floating,
+                ),
+              );
+            }
           }
         }
       } else {
@@ -363,6 +364,9 @@ class _HomeScreenState extends State<HomeScreen> {
     } catch (e) {
       print('❌ [HomeScreen] Error refreshing data: $e');
       if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('${translationService.translate('failed_to_refresh')}: ${e.toString()}'),
@@ -836,6 +840,8 @@ class _HomeScreenState extends State<HomeScreen> {
                           const SizedBox(height: 10),
                           PostCard(key: ValueKey(post.id), post: post, currentUserId: _currentUserId, onPostDeleted: _handlePostDeleted, onPostUpdated: _updatePost, onInputFocused: () => _onPostInputFocused(post.id), onInputUnfocused: () => _onPostInputUnfocused(post.id)),
                         ],
+                        // Add extra space at bottom to ensure pull-to-refresh works even with few posts
+                        SizedBox(height: MediaQuery.of(context).size.height * 0.1),
                       ],
                     ),
                   ),

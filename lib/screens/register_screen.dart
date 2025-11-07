@@ -138,12 +138,36 @@ class _RegisterScreenState extends State<RegisterScreen> {
     if (value == null || value.trim().isEmpty) {
       return 'Please enter the verification code';
     }
-    if (value.length < 4) {
+    final trimmedValue = value.trim();
+    if (trimmedValue.length < 4) {
       return 'Verification code must be at least 4 characters';
     }
-    if (_expectedVerificationCode != null && value != _expectedVerificationCode) {
+    // Only validate against expected code if we have one (for dev/testing)
+    // In production, the server will validate the code
+    if (_expectedVerificationCode != null) {
+      // Compare as strings, but also try converting to int for flexibility
+      final expectedStr = _expectedVerificationCode.toString();
+      
+      // First try string comparison
+      if (trimmedValue == expectedStr) {
+        return null; // Codes match
+      }
+      
+      // Try numeric comparison if both are numeric
+      try {
+        final enteredNum = int.parse(trimmedValue);
+        final expectedNum = int.parse(expectedStr);
+        if (enteredNum == expectedNum) {
+          return null; // Codes match numerically
+        }
+      } catch (e) {
+        // If parsing fails, codes don't match (already checked string comparison)
+      }
+      
+      // Codes don't match
       return 'Invalid verification code. Please try again.';
     }
+    // If no expected code is set, just check minimum length (server will validate)
     return null;
   }
 
@@ -234,6 +258,30 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
       if (mounted) {
         if (result['success']) {
+          // Check if email is already verified (same logic as web version)
+          final bool alreadyVerified = (result['alreadyVerified'] == true) || (result['status']?.toString().toLowerCase() == 'verified');
+          
+          if (alreadyVerified) {
+            // Email is already verified - skip verification step entirely
+            setState(() {
+              _currentGroup = 4; // Go directly to username step
+              _emailAlreadyVerified = true;
+              _verificationEmailSent = false; // Don't mark as sent since it's already verified
+              _expectedVerificationCode = null; // No code needed
+            });
+            
+            // Show message that email is already verified
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(result['message'] ?? 'Email already verified'),
+                backgroundColor: Colors.green,
+                duration: const Duration(seconds: 2),
+              ),
+            );
+            return true; // Return early to prevent normal flow
+          }
+
+          // Email needs verification - set up verification flow
           setState(() {
             _verificationEmailSent = true;
             // For testing purposes, store the verification code
@@ -241,20 +289,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
             _expectedVerificationCode = result['verificationCode'];
           });
 
-          // Skip code entry if backend indicates already verified
-          final bool alreadyVerified = (result['alreadyVerified'] == true) || (result['status']?.toString().toLowerCase() == 'verified');
-          if (alreadyVerified) {
-            // Skip verification step entirely - go directly to username step (4)
-            setState(() {
-              _currentGroup = 4;
-              _emailAlreadyVerified = true;
-            });
-            return true; // Return early to prevent normal flow
-          }
-
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(result['message']),
+              content: Text(result['message'] ?? 'Verification code sent successfully'),
               backgroundColor: Colors.green,
             ),
           );
@@ -1179,7 +1216,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
             fontSize: 16,
           ),
           textInputAction: TextInputAction.done,
-          onFieldSubmitted: (_) => _handleRegister(),
+          onFieldSubmitted: (_) => _nextGroup(),
           onChanged: (_) => _updatePasswordMetrics(),
         ),
         const SizedBox(height: 20),

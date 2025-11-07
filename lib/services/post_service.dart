@@ -45,7 +45,28 @@ class PostService {
     ).timeout(const Duration(seconds: 10));
   
     if (response.statusCode == 200) {
-      final List<dynamic> data = json.decode(response.body);
+      final decoded = json.decode(response.body);
+      
+      // Handle API response format: feed API now returns direct array
+      // But handle both formats for backward compatibility
+      List<dynamic> data = [];
+      if (decoded is List) {
+        // Direct array format (expected format)
+        data = decoded;
+      } else if (decoded is Map) {
+        // Wrapped format (backward compatibility): {"responseCode": "1", "data": [...]}
+        if (decoded['responseCode'] == '1' || decoded['responseCode'] == 1) {
+          if (decoded.containsKey('data') && decoded['data'] is List) {
+            data = decoded['data'];
+          } else {
+            // No data field or empty response - new user with no posts
+            data = [];
+          }
+        } else {
+          // Error response
+          throw Exception(decoded['message'] ?? 'Failed to load posts');
+        }
+      }
       
       // Debug: Log first post structure to understand API response
       if (data.isNotEmpty) {
@@ -66,8 +87,9 @@ class PostService {
       
       final List<Post> posts = [];
       for (final item in data) {
-        final postMap = item as Map<String, dynamic>;
-        posts.add(Post.fromJson(postMap));
+        if (item is Map<String, dynamic>) {
+          posts.add(Post.fromJson(item));
+        }
       }
       
       return posts;

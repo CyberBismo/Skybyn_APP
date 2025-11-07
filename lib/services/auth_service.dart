@@ -117,7 +117,7 @@ class AuthService {
 
       final response = await http.post(Uri.parse(ApiConstants.profile), body: requestBody);
       if (response.statusCode == 200) {
-        final data = json.decode(response.body);
+        final data = _safeJsonDecode(response.body);
         if (data['responseCode'] == '1') {
           // Manually add the userID to the map before creating the User object
           data['id'] = userId.toString(); // Ensure it's a string
@@ -127,10 +127,33 @@ class AuthService {
           await _prefs?.setString(userProfileKey, json.encode(user.toJson()));
           return user;
         } else {
-          print('❌ Profile API did not return responseCode 1');
+          final message = data['message'] ?? 'Unknown error';
+          print('❌ Profile API did not return responseCode 1: $message');
+          
+          // If user not found or account not active, automatically log out
+          if (message.contains('not found') || message.contains('not active') || 
+              message.contains('banned') || message.contains('deactivated')) {
+            print('⚠️ [Profile] User account no longer valid, logging out...');
+            await logout();
+          }
         }
       } else {
         print('❌ Profile API returned non-200 status: ${response.statusCode}');
+        print('❌ Profile API response body: ${response.body}');
+        
+        // If 400 or 404, user might not exist - log out
+        if (response.statusCode == 400 || response.statusCode == 404) {
+          try {
+            final data = _safeJsonDecode(response.body);
+            final message = data['message'] ?? '';
+            if (message.contains('not found') || message.contains('not active')) {
+              print('⚠️ [Profile] User account no longer valid, logging out...');
+              await logout();
+            }
+          } catch (e) {
+            // Ignore parse errors
+          }
+        }
       }
       return null;
     } catch (e) {
@@ -254,12 +277,16 @@ class AuthService {
 
         if (data['responseCode'] == '1') {
           print('Verification code sent successfully');
+          // Check if email is already verified (same logic as web version)
+          final status = data['status']?.toString().toLowerCase();
+          final alreadyVerified = (status == 'verified');
+          
           return {
             'success': true,
             'message': data['message'] ?? 'Verification code sent successfully',
             'verificationCode': data['verificationCode'], // For testing only
             'status': data['status']?.toString(),
-            'alreadyVerified': (data['status']?.toString().toLowerCase() == 'verified'),
+            'alreadyVerified': alreadyVerified,
           };
         } else {
           print('Failed to send verification code: ${data['message']}');
@@ -450,23 +477,11 @@ class AuthService {
           final userId = data['userID']?.toString() ?? data['data']?['userID']?.toString();
           final token = data['token']?.toString() ?? data['data']?['token']?.toString();
           
-          // Verify token with user ID (same logic as web version)
-          if (userId != null && token != null) {
-            final tokenValid = await _verifyRegistrationToken(userId, token);
-            if (tokenValid) {
-              // Automatically log the user in after successful registration and token verification
-              await _postRegistrationLogin(userId, username, token);
-            } else {
-              return {
-                'success': false, 
-                'message': 'Registration token verification failed'
-              };
-            }
-          } else {
-            return {
-              'success': false, 
-              'message': 'Missing user ID or token in registration response'
-            };
+          // Automatically log the user in after successful registration
+          // Token verification is not needed here since the token comes directly from the successful registration response
+          // (Same logic as web version - web version verifies token when it comes from URL, but we get it from API response)
+          if (userId != null) {
+            await _postRegistrationLogin(userId, username, token ?? '');
           }
           
           return {
@@ -496,34 +511,9 @@ class AuthService {
     }
   }
 
-  /// Verifies registration token with user ID (same logic as web version)
-  Future<bool> _verifyRegistrationToken(String userId, String token) async {
-    try {
-      // Verify token by checking if user exists with this token
-      // This matches the web version logic: SELECT * FROM users WHERE id=? AND token=?
-      final response = await http.post(
-        Uri.parse(ApiConstants.profile),
-        body: {'userID': userId},
-        headers: {'Content-Type': 'application/x-www-form-urlencoded'}
-      );
-
-      if (response.statusCode == 200) {
-        final data = _safeJsonDecode(response.body);
-        // If we can fetch the profile, the user exists
-        // The token verification is implicit - if the user was just created, the token should match
-        // In a more secure implementation, we'd verify the token explicitly via an API endpoint
-        // For now, we'll trust that if registration succeeded, the token is valid
-        return data['responseCode'] == '1';
-      }
-      return false;
-    } catch (e) {
-      print('❌ [Registration] Error verifying token: $e');
-      return false;
-    }
-  }
-
   /// Handles post-registration login (stores user data, fetches profile, etc.)
   /// Same logic as web version: sets session (stores userID/username), then redirects to home
+  /// Note: Token verification is not needed here since the token comes directly from successful registration
   Future<void> _postRegistrationLogin(String userId, String username, String token) async {
     try {
       await initPrefs();
@@ -532,10 +522,14 @@ class AuthService {
       await _prefs?.setString(usernameKey, username);
 
       // Try to fetch user profile, but don't fail if it fails
+      // Wait a moment for the database to be fully committed
+      await Future.delayed(const Duration(milliseconds: 500));
       try {
         await fetchUserProfile(username);
       } catch (e) {
         print('❌ [Registration] Failed to fetch user profile after registration: $e');
+        // If profile fetch fails, we can still proceed - the user is logged in with userID and username
+        // The profile can be fetched later when needed
       }
 
       // Subscribe to user-specific topics after successful registration
