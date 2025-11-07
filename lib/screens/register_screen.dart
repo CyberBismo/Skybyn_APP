@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:io';
 import '../widgets/background_gradient.dart';
 import '../services/auth_service.dart';
 import '../widgets/wheel_date_picker.dart';
@@ -511,17 +512,39 @@ class _RegisterScreenState extends State<RegisterScreen> {
       }
       
       // Call the actual registration API
-      final result = await _authService.registerUser(
-        email: _emailController.text.trim(),
-        username: _usernameController.text.trim(),
-        password: _passwordController.text,
-        firstName: _firstNameController.text.trim(),
-        middleName: _middleNameController.text.trim().isEmpty ? null : _middleNameController.text.trim(),
-        lastName: _lastNameController.text.trim(),
-        dateOfBirth: _selectedDate!,
-        isPrivate: isPrivate,
-        isVisible: isVisible,
-      );
+          // Get device language for registration
+          String? deviceLanguage;
+          try {
+            final locale = Platform.localeName;
+            final languageCode = locale.split('_').first.toLowerCase();
+            final supportedLanguages = ['en', 'no', 'dk', 'se', 'de', 'fr', 'pl', 'es', 'it', 'pt', 'nl', 'fi'];
+            if (supportedLanguages.contains(languageCode)) {
+              deviceLanguage = languageCode;
+            } else {
+              // Try country code mapping
+              final countryCode = locale.split('_').last.toUpperCase();
+              final countryToLanguageMap = {
+                'US': 'en', 'GB': 'en', 'AU': 'en', 'CA': 'en', 'NO': 'no', 'DK': 'dk', 'SE': 'se',
+                'DE': 'de', 'FR': 'fr', 'PL': 'pl', 'ES': 'es', 'IT': 'it', 'PT': 'pt', 'NL': 'nl', 'FI': 'fi',
+              };
+              deviceLanguage = countryToLanguageMap[countryCode] ?? 'en';
+            }
+          } catch (e) {
+            deviceLanguage = 'en'; // Fallback to English
+          }
+
+          final result = await _authService.registerUser(
+            email: _emailController.text.trim(),
+            username: _usernameController.text.trim(),
+            password: _passwordController.text,
+            firstName: _firstNameController.text.trim(),
+            middleName: _middleNameController.text.trim().isEmpty ? null : _middleNameController.text.trim(),
+            lastName: _lastNameController.text.trim(),
+            dateOfBirth: _selectedDate!,
+            isPrivate: isPrivate,
+            isVisible: isVisible,
+            language: deviceLanguage,
+          );
 
       if (mounted) {
         if (result['success'] == true) {

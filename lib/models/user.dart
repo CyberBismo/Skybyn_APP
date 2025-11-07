@@ -30,6 +30,7 @@ class User {
   final String wallpaper;
   final String wallpaperMargin;
   final String avatarMargin;
+  final String? language;
 
   User({
     required this.id,
@@ -63,6 +64,7 @@ class User {
     required this.wallpaper,
     required this.wallpaperMargin,
     required this.avatarMargin,
+    this.language,
   });
 
   factory User.fromJson(Map<String, dynamic> json) {
@@ -98,6 +100,7 @@ class User {
       wallpaper: json['wallpaper']?.toString() ?? '',
       wallpaperMargin: json['wallpaper_margin']?.toString() ?? '',
       avatarMargin: json['avatar_margin']?.toString() ?? '',
+      language: json['language']?.toString(),
     );
   }
 
@@ -134,6 +137,7 @@ class User {
       'wallpaper': wallpaper,
       'wallpaper_margin': wallpaperMargin,
       'avatar_margin': avatarMargin,
+      'language': language,
     };
   }
 } 

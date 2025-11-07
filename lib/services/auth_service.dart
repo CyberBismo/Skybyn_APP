@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/foundation.dart';
@@ -443,12 +444,38 @@ class AuthService {
     required DateTime dateOfBirth,
     bool isPrivate = false,
     bool isVisible = true,
+    String? language,
   }) async {
     try {
       print('Registering new user: $username ($email)');
 
       // Format date of birth as YYYY-MM-DD for the API
       final dobString = '${dateOfBirth.year}-${dateOfBirth.month.toString().padLeft(2, '0')}-${dateOfBirth.day.toString().padLeft(2, '0')}';
+
+      // Get device language if not provided
+      String deviceLanguage = language ?? 'en';
+      if (language == null) {
+        try {
+          final locale = Platform.localeName;
+          final languageCode = locale.split('_').first.toLowerCase();
+          // Map to supported languages
+          final supportedLanguages = ['en', 'no', 'dk', 'se', 'de', 'fr', 'pl', 'es', 'it', 'pt', 'nl', 'fi'];
+          if (supportedLanguages.contains(languageCode)) {
+            deviceLanguage = languageCode;
+          } else {
+            // Try country code mapping
+            final countryCode = locale.split('_').last.toUpperCase();
+            final countryToLanguageMap = {
+              'US': 'en', 'GB': 'en', 'AU': 'en', 'CA': 'en', 'NO': 'no', 'DK': 'dk', 'SE': 'se',
+              'DE': 'de', 'FR': 'fr', 'PL': 'pl', 'ES': 'es', 'IT': 'it', 'PT': 'pt', 'NL': 'nl', 'FI': 'fi',
+            };
+            deviceLanguage = countryToLanguageMap[countryCode] ?? 'en';
+          }
+        } catch (e) {
+          print('⚠️ Could not detect device language: $e');
+          deviceLanguage = 'en'; // Fallback to English
+        }
+      }
 
       final response = await http.post(
         Uri.parse(ApiConstants.register), 
@@ -462,6 +489,7 @@ class AuthService {
           'dob': dobString,
           'private': isPrivate ? '1' : '0',
           'visible': isVisible ? '1' : '0',
+          'language': deviceLanguage,
         },
         headers: {'Content-Type': 'application/x-www-form-urlencoded'}
       );
@@ -525,7 +553,17 @@ class AuthService {
       // Wait a moment for the database to be fully committed
       await Future.delayed(const Duration(milliseconds: 500));
       try {
-        await fetchUserProfile(username);
+        final user = await fetchUserProfile(username);
+        // Update translation service with user's language preference if available
+        if (user != null && user.language != null) {
+          try {
+            final translationService = TranslationService();
+            await translationService.setLanguage(user.language!);
+            print('✅ [Registration] Language set to: ${user.language}');
+          } catch (e) {
+            print('⚠️ [Registration] Failed to set language: $e');
+          }
+        }
       } catch (e) {
         print('❌ [Registration] Failed to fetch user profile after registration: $e');
         // If profile fetch fails, we can still proceed - the user is logged in with userID and username
