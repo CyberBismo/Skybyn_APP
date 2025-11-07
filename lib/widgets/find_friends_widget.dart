@@ -469,7 +469,7 @@ class _FindFriendsWidgetState extends State<FindFriendsWidget> {
                     child: ElevatedButton(
                       onPressed: _isAddingFriend ? null : _addFriendByUsername,
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.primaryColor,
+                        backgroundColor: Colors.blue.shade600,
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(vertical: 14),
                         shape: RoundedRectangleBorder(
