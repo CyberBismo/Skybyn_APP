@@ -309,6 +309,14 @@ class WebSocketService {
         _updateConnectionMetrics('connected');
         
         print('✅ [WebSocket] Connected to WebSocket server');
+        
+        // Update online status to true when connected
+        try {
+          final authService = AuthService();
+          await authService.updateOnlineStatus(true);
+        } catch (e) {
+          print('⚠️ [WebSocket] Failed to update online status on connect: $e');
+        }
       }
     } catch (e) {
       _isConnecting = false;
@@ -782,5 +790,18 @@ class WebSocketService {
     _messageQueue.clear();
     _pendingMessages.clear();
     print('✅ [WebSocket] Disconnected from WebSocket');
+    
+    // Update online status to false when disconnected
+    _updateOnlineStatusOnDisconnect();
+  }
+
+  /// Update online status when disconnecting
+  Future<void> _updateOnlineStatusOnDisconnect() async {
+    try {
+      final authService = AuthService();
+      await authService.updateOnlineStatus(false);
+    } catch (e) {
+      print('⚠️ [WebSocket] Failed to update online status on disconnect: $e');
+    }
   }
 }

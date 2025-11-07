@@ -71,6 +71,13 @@ class AuthService {
             print('❌ [Login] Failed to subscribe to user topics: $e');
           }
 
+          // Update online status to true after successful login
+          try {
+            await updateOnlineStatus(true);
+          } catch (e) {
+            print('⚠️ [Login] Failed to update online status: $e');
+          }
+
           return data;
         }
 
@@ -159,6 +166,13 @@ class AuthService {
   }
 
   Future<void> logout() async {
+    // Update online status to false before logging out
+    try {
+      await updateOnlineStatus(false);
+    } catch (e) {
+      print('⚠️ [Logout] Failed to update online status: $e');
+    }
+
     await initPrefs();
     await _prefs?.remove(userIdKey);
     await _prefs?.remove(userProfileKey);
@@ -319,6 +333,41 @@ class AuthService {
       }
       // As a last resort, return a map with raw message so UI can show something meaningful
       return {'responseCode': '0', 'message': body.length > 200 ? body.substring(0, 200) : body};
+    }
+  }
+
+  /// Update user online status
+  Future<void> updateOnlineStatus(bool isOnline) async {
+    try {
+      final userId = await getStoredUserId();
+      if (userId == null) {
+        print('⚠️ [Auth] Cannot update online status - no user logged in');
+        return;
+      }
+
+      final requestBody = <String, String>{
+        'userID': userId,
+        'online': isOnline ? '1' : '0',
+      };
+
+      final response = await http.post(
+        Uri.parse(ApiConstants.profile),
+        body: requestBody,
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data['responseCode'] == '1') {
+          print('✅ [Auth] Online status updated to: ${isOnline ? "online" : "offline"}');
+        } else {
+          print('⚠️ [Auth] Failed to update online status: ${data['message'] ?? 'Unknown error'}');
+        }
+      } else {
+        print('⚠️ [Auth] Failed to update online status - server returned status: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('⚠️ [Auth] Error updating online status: $e');
+      // Silently fail - online status update is not critical
     }
   }
 

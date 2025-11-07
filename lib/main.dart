@@ -73,6 +73,13 @@ Future<void> main() async {
 }
 
 Future<void> _initializeFirebase() async {
+  // Skip Firebase Messaging in debug mode
+  if (kDebugMode) {
+    print('ℹ️ [Firebase] Skipping Firebase Messaging initialization in debug mode');
+    print('ℹ️ [Firebase] Debug builds will use WebSocket only for notifications');
+    return;
+  }
+
   // Skip Firebase on iOS - it requires APN configuration which is not set up
   if (Platform.isIOS) {
     print('ℹ️ [Firebase] Skipping Firebase initialization on iOS (APN not configured)');
@@ -182,6 +189,8 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       case AppLifecycleState.resumed:
         // App is in foreground - WebSocket will be connected by home_screen.dart
         print('✅ [MyApp] App resumed');
+        // Update online status to true when app comes to foreground
+        _updateOnlineStatus(true);
         break;
       case AppLifecycleState.paused:
       case AppLifecycleState.inactive:
@@ -190,7 +199,19 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         // App is in background - disconnect WebSocket (FCM will handle notifications)
         print('ℹ️ [MyApp] App backgrounded - disconnecting WebSocket');
         _webSocketService.disconnect();
+        // Update online status to false when app goes to background
+        _updateOnlineStatus(false);
         break;
+    }
+  }
+
+  /// Update online status
+  Future<void> _updateOnlineStatus(bool isOnline) async {
+    try {
+      final authService = AuthService();
+      await authService.updateOnlineStatus(isOnline);
+    } catch (e) {
+      print('⚠️ [MyApp] Failed to update online status: $e');
     }
   }
 

@@ -15,6 +15,12 @@ import '../config/constants.dart';
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   try {
+    // Skip processing messages in debug mode
+    if (kDebugMode) {
+      print('ℹ️ [FCM] Background message ignored in debug mode');
+      return;
+    }
+
     // Check if Firebase is already initialized
     if (Firebase.apps.isEmpty) {
       await Firebase.initializeApp();
@@ -55,6 +61,13 @@ class FirebaseMessagingService {
 
   Future<void> initialize() async {
     try {
+      // Skip Firebase Messaging in debug mode
+      if (kDebugMode) {
+        print('ℹ️ [FCM] Skipping Firebase Messaging initialization in debug mode');
+        _isInitialized = false;
+        return;
+      }
+
       print('🔄 [FCM] Initializing Firebase Messaging service...');
       
       // Ensure Firebase Core is initialized first
