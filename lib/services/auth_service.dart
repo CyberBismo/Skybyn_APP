@@ -447,10 +447,17 @@ class AuthService {
 
         if (data['responseCode'] == '1' || data['success'] == true) {
           print('User registration successful');
+          final userId = data['userID']?.toString() ?? data['data']?['userID']?.toString();
+          
+          // Automatically log the user in after successful registration
+          if (userId != null) {
+            await _postRegistrationLogin(userId, username);
+          }
+          
           return {
             'success': true, 
             'message': data['message'] ?? 'Registration successful', 
-            'userID': data['userID']?.toString() ?? data['data']?['userID']?.toString(), 
+            'userID': userId, 
             'username': username
           };
         } else {
@@ -470,6 +477,43 @@ class AuthService {
     } catch (e) {
       print('Registration exception: $e');
       return {'success': false, 'message': 'Connection error occurred: ${e.toString()}'};
+    }
+  }
+
+  /// Handles post-registration login (stores user data, fetches profile, etc.)
+  Future<void> _postRegistrationLogin(String userId, String username) async {
+    try {
+      await initPrefs();
+      // Store user ID and username (same as login does)
+      await _prefs?.setString(userIdKey, userId);
+      await _prefs?.setString(usernameKey, username);
+
+      // Try to fetch user profile, but don't fail if it fails
+      try {
+        await fetchUserProfile(username);
+      } catch (e) {
+        print('❌ [Registration] Failed to fetch user profile after registration: $e');
+      }
+
+      // Subscribe to user-specific topics after successful registration
+      try {
+        final firebaseService = FirebaseMessagingService();
+        await firebaseService.subscribeToUserTopics();
+      } catch (e) {
+        print('❌ [Registration] Failed to subscribe to user topics: $e');
+      }
+
+      // Update online status to true after successful registration
+      try {
+        await updateOnlineStatus(true);
+      } catch (e) {
+        print('⚠️ [Registration] Failed to update online status: $e');
+      }
+
+      print('✅ [Registration] User automatically logged in after registration');
+    } catch (e) {
+      print('❌ [Registration] Error during post-registration login: $e');
+      // Don't throw - registration was successful, login setup is optional
     }
   }
 }

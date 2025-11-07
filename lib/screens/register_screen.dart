@@ -5,6 +5,7 @@ import '../widgets/wheel_date_picker.dart';
 import '../services/translation_service.dart';
 import '../utils/translation_keys.dart';
 import '../widgets/translated_text.dart';
+import 'home_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -496,8 +497,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
             ),
           );
           
-          // Navigate back to login screen
-          Navigator.of(context).pop();
+          // Navigate to home screen (user is now logged in)
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(builder: (context) => const HomeScreen()),
+          );
         } else {
           // Show error message
           setState(() {
