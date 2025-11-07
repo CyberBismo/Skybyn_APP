@@ -244,6 +244,7 @@ class TranslationKeys {
   static const String report = 'report';
   static const String searchFriends = 'search_friends';
   static const String noFriendsFound = 'no_friends_found';
+  static const String noMessages = 'no_messages';
   static const String installPermissionRequired = 'install_permission_required';
   static const String installPermissionDeniedMessage = 'install_permission_denied_message';
   static const String permissionNotGranted = 'permission_not_granted';

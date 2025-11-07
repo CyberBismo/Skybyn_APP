@@ -268,31 +268,45 @@ class FirebaseMessagingService {
     }
     
     // Handle foreground messages
+    // NOTE: When app is in foreground, WebSocket handles real-time updates
+    // Firebase is only used for background notifications
     FirebaseMessaging.onMessage.listen((RemoteMessage message) async {
-      // Check if this is an app_update message
       final type = message.data['type']?.toString();
-      if (type == 'app_update') {
-        // Skip app update notifications in debug mode
-        if (kDebugMode) {
-          print('⚠️ [FCM] App update notification ignored in debug mode');
-          return;
+      
+      // For chat messages in foreground, ignore Firebase notification
+      // WebSocket will handle real-time delivery when app is in focus
+      if (type == 'chat' || type == 'app_update') {
+        if (type == 'app_update') {
+          // Skip app update notifications in debug mode
+          if (kDebugMode) {
+            print('⚠️ [FCM] App update notification ignored in debug mode');
+            return;
+          }
+          
+          print('📱 [FCM] App update notification received in foreground');
+          
+          // Show local notification so user sees it in notification tray
+          final notificationService = NotificationService();
+          await notificationService.showNotification(
+            title: message.notification?.title ?? 'App Update Available',
+            body: message.notification?.body ?? 'A new version is available',
+            payload: jsonEncode(message.data),
+          );
+          
+          // Trigger update check immediately to show dialog
+          _triggerUpdateCheck();
         }
-        
-        print('📱 [FCM] App update notification received in foreground');
-        
-        // Show local notification so user sees it in notification tray
-        final notificationService = NotificationService();
-        await notificationService.showNotification(
-          title: message.notification?.title ?? 'App Update Available',
-          body: message.notification?.body ?? 'A new version is available',
-          payload: jsonEncode(message.data),
-        );
-        
-        // Trigger update check immediately to show dialog
-        _triggerUpdateCheck();
+        // For chat messages, ignore in foreground - WebSocket handles it
+        return;
       }
-      // For other message types, let FCM handle it
-      // This will show as a system notification banner on iOS
+      
+      // For other message types, show notification
+      final notificationService = NotificationService();
+      await notificationService.showNotification(
+        title: message.notification?.title ?? 'Notification',
+        body: message.notification?.body ?? '',
+        payload: jsonEncode(message.data),
+      );
     });
 
     // Handle when app is opened from notification
@@ -314,6 +328,18 @@ class FirebaseMessagingService {
       final payload = data['payload']?.toString();
 
       switch (type) {
+        case 'chat':
+          // Navigate to chat screen
+          // The payload should contain friend/user ID
+          try {
+            final payloadData = json.decode(payload ?? '{}');
+            final fromUserId = payloadData['from']?.toString() ?? '';
+            // Navigation will be handled by the app's notification handler
+            print('💬 [FCM] Chat notification tapped - from: $fromUserId');
+          } catch (e) {
+            print('❌ [FCM] Error parsing chat payload: $e');
+          }
+          break;
         case 'new_post':
           // Navigate to post details
           break;

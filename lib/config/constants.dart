@@ -25,11 +25,17 @@ class ApiConstants {
   static const String getComment = '$apiBase/comment/get_comment.php';
   static const String deleteComment = '$apiBase/comment/delete.php';
 
-  // Misc
+  // Languages
   static const String language = '$apiBase/translations.php';
+
+  // QR Check
   static const String qrCheck = '$apiBase/qr_check.php';
+
+  // Friends
   static const String friend = '$apiBase/friend/friend.php';
   static const String friends = '$apiBase/friend/friends.php';
+
+  // Notifications
   static const String notifications = '$apiBase/notification/list.php';
   static const String createNotification = '$apiBase/notification/create.php';
   static const String deleteNotification = '$apiBase/notification/delete.php';
@@ -40,6 +46,10 @@ class ApiConstants {
 
   // Updates
   static const String appUpdate = '$apiBase/app_update.php';
+
+  // Chat
+  static const String chatSend = '$apiBase/chat/send.php';
+  static const String chatGet = '$apiBase/chat/get.php';
 }
 
 class StorageKeys {
