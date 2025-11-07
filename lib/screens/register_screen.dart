@@ -155,8 +155,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
     }
     // API requires at least one English letter (A-Z, a-z) and one number (0-9)
     // Allow only English characters and common English keyboard special characters
-    // Common English keyboard special characters: ~!@#\$%^&*()_+-=[]{}|;:'",.<>?/
-    if (!RegExp(r'^[A-Za-z0-9~!@#\$%^&*()_+\-=\[\]{}|;:\'",.<>?/\\]+$').hasMatch(value)) {
+    // Common English keyboard special characters: ~!@#$%^&*()_+-=[]{}|;:'",.<>?/
+    // Using a character class that includes all allowed characters
+    // Note: Using regular string to properly escape quotes and dollar signs
+    final allowedPattern = RegExp('^[A-Za-z0-9~!@#\\\$%^&*()_+\\-=\\[\\]{}|;:\\\'\\",.<>?/\\\\]+\$');
+    if (!allowedPattern.hasMatch(value)) {
       return 'Password can only contain English letters, numbers, and common keyboard symbols';
     }
     if (!RegExp(r'[A-Za-z]').hasMatch(value)) {
@@ -378,10 +381,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
     // Check for numbers (0-9)
     final bool hasNum = RegExp(r'[0-9]').hasMatch(pwd);
     // Check for special characters (common English keyboard symbols)
-    // Common English keyboard special characters: ~!@#\$%^&*()_+-=[]{}|;:'",.<>?/
-    final bool hasSpecial = RegExp(r'[~!@#\$%^&*()_+\-=\[\]{}|;:\'",.<>?/\\]').hasMatch(pwd);
+    // Common English keyboard special characters: ~!@#$%^&*()_+-=[]{}|;:'",.<>?/
+    // Using regular strings to properly escape quotes and dollar signs
+    final specialCharPattern = RegExp('[~!@#\\\$%^&*()_+\\-=\\[\\]{}|;:\\\'\\",.<>?/\\\\]');
+    final bool hasSpecial = specialCharPattern.hasMatch(pwd);
     // Check for invalid characters (anything not English letters, numbers, or allowed special chars)
-    final bool hasInvalidChars = !RegExp(r'^[A-Za-z0-9~!@#\$%^&*()_+\-=\[\]{}|;:\'",.<>?/\\]+$').hasMatch(pwd);
+    final allowedPattern = RegExp('^[A-Za-z0-9~!@#\\\$%^&*()_+\\-=\\[\\]{}|;:\\\'\\",.<>?/\\\\]+\$');
+    final bool hasInvalidChars = !allowedPattern.hasMatch(pwd);
     final int met = [hasMinLen, hasAlpha, hasNum, hasSpecial].where((b) => b).length;
     final double strength = hasInvalidChars ? 0.0 : (met / 4.0); // Set strength to 0 if invalid chars exist
     setState(() {
