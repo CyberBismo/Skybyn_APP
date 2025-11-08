@@ -7,6 +7,7 @@ class TranslatedText extends StatelessWidget {
   final TextAlign? textAlign;
   final int? maxLines;
   final TextOverflow? overflow;
+  final bool? softWrap;
   final String? fallback;
 
   const TranslatedText(
@@ -16,6 +17,7 @@ class TranslatedText extends StatelessWidget {
     this.textAlign,
     this.maxLines,
     this.overflow,
+    this.softWrap,
     this.fallback,
   });
 
@@ -40,6 +42,7 @@ class TranslatedText extends StatelessWidget {
           textAlign: textAlign,
           maxLines: maxLines,
           overflow: overflow,
+          softWrap: softWrap ?? true,
         );
       },
     );
@@ -64,6 +67,7 @@ class ReactiveTranslatedText extends StatelessWidget {
   final TextAlign? textAlign;
   final int? maxLines;
   final TextOverflow? overflow;
+  final bool? softWrap;
   final String? fallback;
 
   const ReactiveTranslatedText(
@@ -73,6 +77,7 @@ class ReactiveTranslatedText extends StatelessWidget {
     this.textAlign,
     this.maxLines,
     this.overflow,
+    this.softWrap,
     this.fallback,
   });
 
@@ -94,6 +99,7 @@ class ReactiveTranslatedText extends StatelessWidget {
           textAlign: textAlign,
           maxLines: maxLines,
           overflow: overflow,
+          softWrap: softWrap ?? true,
         );
       },
     );

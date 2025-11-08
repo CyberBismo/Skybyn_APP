@@ -161,69 +161,86 @@ class _UpdateDialogState extends State<UpdateDialog> {
             size: 28,
           ),
           const SizedBox(width: 12),
-          TranslatedText(
-            TranslationKeys.updateAvailable,
-            style: TextStyle(
-              color: AppColors.getTextColor(context),
-              fontWeight: FontWeight.bold,
+          Expanded(
+            child: TranslatedText(
+              TranslationKeys.updateAvailable,
+              style: TextStyle(
+                color: AppColors.getTextColor(context),
+                fontWeight: FontWeight.bold,
+              ),
+              overflow: TextOverflow.ellipsis,
+              maxLines: 2,
             ),
           ),
         ],
       ),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          TranslatedText(
-            TranslationKeys.newVersionAvailable,
-            style: TextStyle(
-              color: AppColors.getTextColor(context),
-              fontSize: 16,
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            TranslatedText(
+              TranslationKeys.newVersionAvailable,
+              style: TextStyle(
+                color: AppColors.getTextColor(context),
+                fontSize: 16,
+              ),
+              overflow: TextOverflow.visible,
+              softWrap: true,
             ),
-          ),
-          const SizedBox(height: 16),
+            const SizedBox(height: 16),
 
-          // Version info
-          Row(
-            children: [
-              Text(
-                'Current: ',
-                style: TextStyle(
-                  color: AppColors.getTextColor(context),
-                  fontWeight: FontWeight.w500,
-                  fontSize: 14,
+            // Version info
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Current: ',
+                  style: TextStyle(
+                    color: AppColors.getTextColor(context),
+                    fontWeight: FontWeight.w500,
+                    fontSize: 14,
+                  ),
                 ),
-              ),
-              Text(
-                widget.currentVersion,
-                style: TextStyle(
-                  color: AppColors.getSecondaryTextColor(context),
-                  fontSize: 14,
+                Expanded(
+                  child: Text(
+                    widget.currentVersion,
+                    style: TextStyle(
+                      color: AppColors.getSecondaryTextColor(context),
+                      fontSize: 14,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                    softWrap: true,
+                  ),
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 4),
-          Row(
-            children: [
-              Text(
-                'Latest: ',
-                style: TextStyle(
-                  color: AppColors.getTextColor(context),
-                  fontWeight: FontWeight.w500,
-                  fontSize: 14,
+              ],
+            ),
+            const SizedBox(height: 4),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Latest: ',
+                  style: TextStyle(
+                    color: AppColors.getTextColor(context),
+                    fontWeight: FontWeight.w500,
+                    fontSize: 14,
+                  ),
                 ),
-              ),
-              Text(
-                widget.latestVersion,
-                style: TextStyle(
-                  color: AppColors.getTextColor(context),
-                  fontWeight: FontWeight.bold,
-                  fontSize: 14,
+                Expanded(
+                  child: Text(
+                    widget.latestVersion,
+                    style: TextStyle(
+                      color: AppColors.getTextColor(context),
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                    softWrap: true,
+                  ),
                 ),
-              ),
-            ],
-          ),
+              ],
+            ),
 
           // Release notes
           if (widget.releaseNotes != null && widget.releaseNotes!.isNotEmpty) ...[
@@ -235,6 +252,8 @@ class _UpdateDialogState extends State<UpdateDialog> {
                 fontWeight: FontWeight.w500,
                 fontSize: 14,
               ),
+              overflow: TextOverflow.visible,
+              softWrap: true,
             ),
             const SizedBox(height: 8),
             Container(
@@ -249,6 +268,8 @@ class _UpdateDialogState extends State<UpdateDialog> {
                   color: AppColors.getTextColor(context),
                   fontSize: 12,
                 ),
+                overflow: TextOverflow.visible,
+                softWrap: true,
               ),
             ),
           ],
@@ -271,6 +292,8 @@ class _UpdateDialogState extends State<UpdateDialog> {
                 fontSize: 12,
               ),
               textAlign: TextAlign.center,
+              overflow: TextOverflow.visible,
+              softWrap: true,
             ),
           ],
         ],
@@ -284,6 +307,9 @@ class _UpdateDialogState extends State<UpdateDialog> {
               style: TextStyle(
                 color: AppColors.getTextColor(context),
               ),
+              overflow: TextOverflow.ellipsis,
+              softWrap: true,
+              maxLines: 1,
             ),
           ),
           ElevatedButton(
@@ -292,7 +318,11 @@ class _UpdateDialogState extends State<UpdateDialog> {
               backgroundColor: Theme.of(context).primaryColor,
               foregroundColor: Colors.white,
             ),
-            child: TranslatedText(TranslationKeys.install),
+            child: TranslatedText(
+              TranslationKeys.install,
+              overflow: TextOverflow.ellipsis,
+              maxLines: 1,
+            ),
           ),
         ] else ...[
           TextButton(
@@ -304,6 +334,10 @@ class _UpdateDialogState extends State<UpdateDialog> {
                 style: TextStyle(
                   color: AppColors.getHintColor(context),
                 ),
+                overflow: TextOverflow.ellipsis,
+                softWrap: true,
+                maxLines: 2,
+                textAlign: TextAlign.center,
               ),
             ),
           ),

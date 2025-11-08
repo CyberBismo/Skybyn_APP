@@ -156,13 +156,13 @@ class _FindFriendsWidgetState extends State<FindFriendsWidget> {
     }
   }
 
-  Future<Map<String, dynamic>?> _searchUserByUsername(String username) async {
+  Future<Map<String, dynamic>?> _searchUserByUsernameOrCode(String input) async {
     try {
       final response = await http.post(
         Uri.parse('${ApiConstants.apiBase}/search.php'),
         body: {
           'userID': await _authService.getStoredUserId() ?? '',
-          'keyword': username,
+          'keyword': input,
         },
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
@@ -172,9 +172,14 @@ class _FindFriendsWidgetState extends State<FindFriendsWidget> {
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         if (data is List && data.isNotEmpty) {
-          // Find exact username match (case-insensitive)
+          // If it's a referral code (8-11 alphanumeric chars), return first result (referral code match is prioritized)
+          if (RegExp(r'^[a-zA-Z0-9]{8,11}$').hasMatch(input)) {
+            return data[0] as Map<String, dynamic>;
+          }
+          
+          // Otherwise, find exact username match (case-insensitive)
           for (var user in data) {
-            if (user['username']?.toString().toLowerCase() == username.toLowerCase()) {
+            if (user['username']?.toString().toLowerCase() == input.toLowerCase()) {
               return user as Map<String, dynamic>;
             }
           }
@@ -232,8 +237,8 @@ class _FindFriendsWidgetState extends State<FindFriendsWidget> {
     });
 
     try {
-      // Search for user by username
-      final user = await _searchUserByUsername(username);
+      // Search for user by username or referral code
+      final user = await _searchUserByUsernameOrCode(username);
       
       if (user == null) {
         setState(() {

@@ -42,6 +42,7 @@ class TranslationKeys {
   static const String retry = 'retry';
   static const String tryAgain = 'try_again';
   static const String noData = 'no_data';
+  static const String noResultsFound = 'no_results_found';
   static const String noInternet = 'no_internet';
   static const String connectionError = 'connection_error';
   static const String serverError = 'server_error';

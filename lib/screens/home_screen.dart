@@ -27,6 +27,7 @@ import '../widgets/find_friends_widget.dart';
 import '../services/friend_service.dart';
 import '../widgets/search_form.dart';
 import '../widgets/app_colors.dart';
+import 'search_results_screen.dart';
 import '../widgets/update_dialog.dart';
 import '../widgets/notification_overlay.dart';
 import '../config/constants.dart';
@@ -977,7 +978,14 @@ class _HomeScreenState extends State<HomeScreen> {
                   });
                 },
                 onSearch: (query) {
-                  // TODO: Implement search functionality
+                  if (query.trim().isNotEmpty) {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => SearchResultsScreen(query: query.trim()),
+                      ),
+                    );
+                  }
                   setState(() {
                     _showSearchForm = false;
                   });
