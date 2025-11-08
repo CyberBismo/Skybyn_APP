@@ -13,8 +13,9 @@ import '../config/constants.dart';
 class FindFriendsWidget extends StatefulWidget {
   final VoidCallback? onFriendsFound;
   final VoidCallback? onLocationUpdated;
+  final VoidCallback? onDismiss;
 
-  const FindFriendsWidget({super.key, this.onFriendsFound, this.onLocationUpdated});
+  const FindFriendsWidget({super.key, this.onFriendsFound, this.onLocationUpdated, this.onDismiss});
 
   @override
   State<FindFriendsWidget> createState() => _FindFriendsWidgetState();
@@ -88,6 +89,7 @@ class _FindFriendsWidgetState extends State<FindFriendsWidget> {
       }
 
       // Find nearby users
+      print('🔍 [FindFriendsWidget] Starting search for nearby users...');
       final nearbyUsers = await _locationService.findNearbyUsers(
         userId,
         position.latitude,
@@ -95,28 +97,45 @@ class _FindFriendsWidgetState extends State<FindFriendsWidget> {
         radiusKm: 5.0, // 5km radius
       );
 
+      print('🔍 [FindFriendsWidget] Search API returned ${nearbyUsers?.length ?? 0} users');
+      print('🔍 [FindFriendsWidget] Before setState: mounted=$mounted, _hasSearched=$_hasSearched');
+
+      // Update state immediately if mounted, otherwise use post-frame callback
       if (mounted) {
         setState(() {
           _isLoading = false;
           _hasSearched = true;
-          _nearbyUsers = nearbyUsers;
+          _nearbyUsers = nearbyUsers ?? [];
+          print('🔍 [FindFriendsWidget] Inside setState: setting _hasSearched=true, _nearbyUsers.length=${_nearbyUsers.length}');
         });
+        print('🔍 [FindFriendsWidget] After setState: _hasSearched=$_hasSearched, _nearbyUsers.length=${_nearbyUsers.length}');
+      } else {
+        // If not mounted, wait for next frame
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) {
+            print('⚠️ [FindFriendsWidget] Widget not mounted after frame, cannot update state');
+            return;
+          }
 
-        if (nearbyUsers.isEmpty) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(TranslationService().translate('no_nearby_users')),
-              backgroundColor: Colors.orange,
-            ),
-          );
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Found ${nearbyUsers.length} user${nearbyUsers.length == 1 ? '' : 's'} nearby'),
-              backgroundColor: Colors.green,
-            ),
-          );
-        }
+          setState(() {
+            _isLoading = false;
+            _hasSearched = true;
+            _nearbyUsers = nearbyUsers ?? [];
+            print('🔍 [FindFriendsWidget] Inside setState (post-frame): setting _hasSearched=true, _nearbyUsers.length=${_nearbyUsers.length}');
+          });
+
+          print('🔍 [FindFriendsWidget] After setState (post-frame): _hasSearched=$_hasSearched, _nearbyUsers.length=${_nearbyUsers.length}');
+        });
+      }
+
+      // Only show snackbar if users were found (input field will show if none found)
+      if (nearbyUsers != null && nearbyUsers.isNotEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Found ${nearbyUsers.length} user${nearbyUsers.length == 1 ? '' : 's'} nearby'),
+            backgroundColor: Colors.green,
+          ),
+        );
       }
     } catch (e) {
       print('❌ [FindFriendsWidget] Error finding friends: $e');
@@ -124,7 +143,9 @@ class _FindFriendsWidgetState extends State<FindFriendsWidget> {
         setState(() {
           _isLoading = false;
           _hasSearched = true;
+          _nearbyUsers = [];
         });
+        print('🔍 [FindFriendsWidget] Error state: _hasSearched=$_hasSearched, _nearbyUsers.length=${_nearbyUsers.length}');
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Error finding friends: ${e.toString()}'),
@@ -266,6 +287,7 @@ class _FindFriendsWidgetState extends State<FindFriendsWidget> {
 
   @override
   Widget build(BuildContext context) {
+    print('🔍 [FindFriendsWidget] Building widget - _hasSearched=$_hasSearched, _nearbyUsers.length=${_nearbyUsers.length}, _isLoading=$_isLoading, hashCode=${hashCode}');
     return Container(
       margin: const EdgeInsets.all(16.0),
       decoration: BoxDecoration(
@@ -304,6 +326,14 @@ class _FindFriendsWidgetState extends State<FindFriendsWidget> {
                         ),
                       ),
                     ),
+                    if (widget.onDismiss != null)
+                      IconButton(
+                        icon: const Icon(Icons.close, color: Colors.white),
+                        onPressed: widget.onDismiss,
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                        iconSize: 24,
+                      ),
                   ],
                 ),
                 const SizedBox(height: 16),
@@ -314,101 +344,55 @@ class _FindFriendsWidgetState extends State<FindFriendsWidget> {
                     fontSize: 14,
                   ),
                 ),
-                const SizedBox(height: 20),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: _isLoading ? null : _findFriendsInArea,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.white.withOpacity(0.2),
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    child: _isLoading
-                        ? const SizedBox(
-                            height: 20,
-                            width: 20,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                            ),
-                          )
-                        : Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              const Icon(Icons.search, size: 20),
-                              const SizedBox(width: 8),
-                              TranslatedText(
-                                TranslationKeys.findFriendsButton,
-                                style: const TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ],
-                          ),
-                  ),
-                ),
-                if (_hasSearched && _nearbyUsers.isNotEmpty) ...[
+                // Show search button if not searched yet, or show input if no results found
+                if (!_hasSearched) ...[
                   const SizedBox(height: 20),
-                  const Divider(color: Colors.white30),
-                  const SizedBox(height: 16),
-                  TranslatedText(
-                    TranslationKeys.nearbyUsers,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: _isLoading ? null : _findFriendsInArea,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.white.withOpacity(0.2),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: _isLoading
+                          ? const SizedBox(
+                              height: 20,
+                              width: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                              ),
+                            )
+                          : Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Icon(Icons.search, size: 20),
+                                const SizedBox(width: 8),
+                                TranslatedText(
+                                  TranslationKeys.findFriendsButton,
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
+                            ),
                     ),
                   ),
-                  const SizedBox(height: 12),
-                  ..._nearbyUsers.take(5).map((user) => Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
-                        child: Row(
-                          children: [
-                            CircleAvatar(
-                              radius: 20,
-                              backgroundColor: Colors.white.withOpacity(0.2),
-                              backgroundImage: user['avatar'] != null && user['avatar'].toString().isNotEmpty
-                                  ? NetworkImage(user['avatar'].toString())
-                                  : null,
-                              child: user['avatar'] == null || user['avatar'].toString().isEmpty
-                                  ? const Icon(Icons.person, color: Colors.white)
-                                  : null,
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    user['nickname']?.toString() ?? user['username']?.toString() ?? 'Unknown',
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            if (user['online'] == 1 || user['online'] == true)
-                              Container(
-                                width: 8,
-                                height: 8,
-                                decoration: const BoxDecoration(
-                                  color: Colors.green,
-                                  shape: BoxShape.circle,
-                                ),
-                              ),
-                          ],
-                        ),
-                      )),
-                ],
-                if (_hasSearched && _nearbyUsers.isEmpty) ...[
+                ] else if (_hasSearched && (_nearbyUsers.isEmpty || _nearbyUsers.length == 0)) ...[
+                  // Replace button with input when no results found
+                  // Debug output to verify this condition is being met
+                  Builder(
+                    builder: (context) {
+                      print('🔍 [FindFriendsWidget] Rendering input field - _hasSearched=$_hasSearched, _nearbyUsers.length=${_nearbyUsers.length}');
+                      return const SizedBox.shrink();
+                    },
+                  ),
                   const SizedBox(height: 20),
                   const Divider(color: Colors.white30),
                   const SizedBox(height: 16),
@@ -494,6 +478,62 @@ class _FindFriendsWidgetState extends State<FindFriendsWidget> {
                             ),
                     ),
                   ),
+                ],
+                if (_hasSearched && _nearbyUsers.isNotEmpty) ...[
+                  const SizedBox(height: 20),
+                  const Divider(color: Colors.white30),
+                  const SizedBox(height: 16),
+                  TranslatedText(
+                    TranslationKeys.nearbyUsers,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  ..._nearbyUsers.take(5).map((user) => Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: Row(
+                          children: [
+                            CircleAvatar(
+                              radius: 20,
+                              backgroundColor: Colors.white.withOpacity(0.2),
+                              backgroundImage: user['avatar'] != null && user['avatar'].toString().isNotEmpty
+                                  ? NetworkImage(user['avatar'].toString())
+                                  : null,
+                              child: user['avatar'] == null || user['avatar'].toString().isEmpty
+                                  ? const Icon(Icons.person, color: Colors.white)
+                                  : null,
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    user['nickname']?.toString() ?? user['username']?.toString() ?? 'Unknown',
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            if (user['online'] == 1 || user['online'] == true)
+                              Container(
+                                width: 8,
+                                height: 8,
+                                decoration: const BoxDecoration(
+                                  color: Colors.green,
+                                  shape: BoxShape.circle,
+                                ),
+                              ),
+                          ],
+                        ),
+                      )),
                 ],
               ],
             ),

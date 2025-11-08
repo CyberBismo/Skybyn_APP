@@ -17,6 +17,9 @@ class AuthService {
   static const String usernameKey = StorageKeys.username;
   SharedPreferences? _prefs;
   // final fb_auth.FirebaseAuth _auth = fb_auth.FirebaseAuth.instance;
+  
+  // Track last known online status to prevent duplicate updates
+  static bool? _lastKnownOnlineStatus;
 
   Future<void> initPrefs() async {
     if (_prefs == null) {
@@ -124,6 +127,12 @@ class AuthService {
           // Manually add the userID to the map before creating the User object
           data['id'] = userId.toString(); // Ensure it's a string
           final user = User.fromJson(data);
+          
+          // Initialize cached online status from user profile
+          if (user.online.isNotEmpty) {
+            _lastKnownOnlineStatus = user.online == '1' || user.online.toLowerCase() == 'true';
+          }
+          
           // Store user profile locally
           await initPrefs();
           await _prefs?.setString(userProfileKey, json.encode(user.toJson()));
@@ -192,12 +201,15 @@ class AuthService {
   }
 
   Future<void> logout() async {
-    // Update online status to false before logging out
-    try {
-      await updateOnlineStatus(false);
-    } catch (e) {
-      print('⚠️ [Logout] Failed to update online status: $e');
-    }
+    // Reset cached online status on logout
+      _lastKnownOnlineStatus = null;
+      
+      // Update online status to false before logging out
+      try {
+        await updateOnlineStatus(false);
+      } catch (e) {
+        print('⚠️ [Logout] Failed to update online status: $e');
+      }
 
     await initPrefs();
     await _prefs?.remove(userIdKey);
@@ -402,6 +414,11 @@ class AuthService {
 
   Future<void> updateOnlineStatus(bool isOnline) async {
     try {
+      // Skip update if status hasn't changed
+      if (_lastKnownOnlineStatus == isOnline) {
+        return;
+      }
+
       final userId = await getStoredUserId();
       if (userId == null) {
         print('⚠️ [Auth] Cannot update online status - no user logged in');
@@ -421,6 +438,7 @@ class AuthService {
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         if (data['responseCode'] == '1') {
+          _lastKnownOnlineStatus = isOnline; // Update cached status
           print('✅ [Auth] Online status updated to: ${isOnline ? "online" : "offline"}');
         } else {
           print('⚠️ [Auth] Failed to update online status: ${data['message'] ?? 'Unknown error'}');

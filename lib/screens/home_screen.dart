@@ -89,6 +89,8 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _isLoading = true;
   int _friendsCount = -1; // -1 means not loaded yet
   bool _showFindFriendsBox = false;
+  bool _findFriendsBoxDismissed = false; // Track if user dismissed the box
+  int _findFriendsBoxResetCounter = 0; // Counter to force widget reset when box reappears
   Timer? _findFriendsTimer;
 
   bool _showSearchForm = false;
@@ -364,8 +366,14 @@ class _HomeScreenState extends State<HomeScreen> {
         final postService = PostService();
         await postService.clearTimelineCache();
         
-        // Also refresh notification count
+        // Reset dismissed flag so box can show again after refresh
+        _findFriendsBoxDismissed = false;
+        // Increment reset counter to force widget rebuild with fresh state
+        _findFriendsBoxResetCounter++;
+        
+        // Also refresh notification count and friends count
         _fetchUnreadNotificationCount();
+        _loadFriendsCount(); // Reload friends count to check if box should show again
         
         final newPosts = await postService.fetchPostsForUser(userId: userId).timeout(const Duration(seconds: 15));
 
@@ -729,9 +737,14 @@ class _HomeScreenState extends State<HomeScreen> {
     _findFriendsTimer?.cancel();
     _showFindFriendsBox = false;
     
+    // Don't show if user dismissed it (will only show again after refresh)
+    if (_findFriendsBoxDismissed) {
+      return;
+    }
+    
     // Show the find friends box after 2 seconds delay
     _findFriendsTimer = Timer(const Duration(seconds: 2), () {
-      if (mounted && _friendsCount <= 0 && !_isLoading) {
+      if (mounted && _friendsCount <= 0 && !_isLoading && !_findFriendsBoxDismissed) {
         setState(() {
           _showFindFriendsBox = true;
         });
@@ -980,21 +993,40 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
             // Find Friends overlay at the bottom (with delay)
-            if (_showFindFriendsBox && _friendsCount <= 0 && !_isLoading)
-              Positioned(
-                left: 0,
-                right: 0,
-                bottom: 80.0 + (Theme.of(context).platform == TargetPlatform.iOS ? 8.0 : 8.0 + MediaQuery.of(context).padding.bottom),
+            // Always render but use Offstage to keep in tree and preserve state
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 80.0 + (Theme.of(context).platform == TargetPlatform.iOS ? 8.0 : 8.0 + MediaQuery.of(context).padding.bottom),
+              child: Offstage(
+                offstage: !(_showFindFriendsBox && _friendsCount <= 0 && !_isLoading),
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 10.0),
                   child: FindFriendsWidget(
+                    key: ValueKey('find_friends_$_findFriendsBoxResetCounter'),
                     onLocationUpdated: () {
-                      // Refresh friends count after location update
-                      _loadFriendsCount();
+                      // Don't refresh friends count immediately to avoid unmounting widget
+                      // It will be refreshed naturally when needed
+                    },
+                    onDismiss: () {
+                      setState(() {
+                        _showFindFriendsBox = false;
+                        _findFriendsBoxDismissed = true; // Mark as dismissed
+                      });
+                      _stopFindFriendsTimer(); // Stop any pending timer
+                    },
+                    onFriendsFound: () {
+                      // Refresh friends count when a friend is added (delayed to avoid unmounting)
+                      Future.delayed(const Duration(milliseconds: 500), () {
+                        if (mounted) {
+                          _loadFriendsCount();
+                        }
+                      });
                     },
                   ),
                 ),
               ),
+            ),
           ],
         ),
       ),
