@@ -110,8 +110,8 @@ Future<void> _initializeFirebase() async {
       final firebaseMessagingService = FirebaseMessagingService();
       await firebaseMessagingService.initialize();
 
-      // Auto-register FCM token when app opens if user is logged in
-      await firebaseMessagingService.autoRegisterTokenOnAppOpen();
+      // Token is already registered on app start in initialize() method
+      // If user is logged in, it will be updated with user ID in auth_service.dart after login
       print('✅ [Firebase] Firebase Messaging initialized successfully');
     } catch (e) {
       print('❌ [Firebase] Firebase Messaging initialization failed: $e');

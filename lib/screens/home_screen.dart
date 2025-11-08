@@ -27,7 +27,7 @@ import '../widgets/find_friends_widget.dart';
 import '../services/friend_service.dart';
 import '../widgets/search_form.dart';
 import '../widgets/app_colors.dart';
-import 'search_results_screen.dart';
+import '../widgets/global_search_overlay.dart';
 import '../widgets/update_dialog.dart';
 import '../widgets/notification_overlay.dart';
 import '../config/constants.dart';
@@ -689,11 +689,28 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _openFriendsModal() {
-    showModalBottomSheet(
+    showGeneralDialog(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => const FriendsModal(),
+      barrierDismissible: true,
+      barrierColor: Colors.black.withOpacity(0.5),
+      transitionDuration: const Duration(milliseconds: 300),
+      pageBuilder: (context, animation, secondaryAnimation) {
+        return const FriendsModal();
+      },
+      transitionBuilder: (context, animation, secondaryAnimation, child) {
+        final slideAnimation = Tween<Offset>(
+          begin: const Offset(1.0, 0.0), // Start from right
+          end: Offset.zero, // End at center
+        ).animate(CurvedAnimation(
+          parent: animation,
+          curve: Curves.easeOut,
+        ));
+        
+        return SlideTransition(
+          position: slideAnimation,
+          child: child,
+        );
+      },
     );
   }
 
@@ -969,28 +986,15 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ),
               ),
-            // Search form overlay
-            if (_showSearchForm)
-              SearchForm(
-                onClose: () {
-                  setState(() {
-                    _showSearchForm = false;
-                  });
-                },
-                onSearch: (query) {
-                  if (query.trim().isNotEmpty) {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => SearchResultsScreen(query: query.trim()),
-                      ),
-                    );
-                  }
-                  setState(() {
-                    _showSearchForm = false;
-                  });
-                },
-              ),
+            // Global search overlay
+            GlobalSearchOverlay(
+              isVisible: _showSearchForm,
+              onClose: () {
+                setState(() {
+                  _showSearchForm = false;
+                });
+              },
+            ),
             // Notification overlay
             if (_showNotificationOverlay)
               GestureDetector(

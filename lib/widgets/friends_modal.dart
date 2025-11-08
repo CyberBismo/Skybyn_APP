@@ -62,159 +62,167 @@ class _FriendsModalState extends State<FriendsModal> {
 
   @override
   Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-        child: Container(
-          color: Colors.white.withOpacity(0.05),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Handle bar
-              Container(
-                margin: const EdgeInsets.only(top: 12, bottom: 8),
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.3),
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              // Title
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    ListenableBuilder(
-                      listenable: TranslationService(),
-                      builder: (context, _) {
-                        return Text(
-                          TranslationService().translate('friends'),
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 24,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        );
-                      },
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.close, color: Colors.white),
-                      onPressed: () => Navigator.of(context).pop(),
-                    ),
-                  ],
-                ),
-              ),
-              if (_isLoading)
-                Flexible(
-                  child: ListView.separated(
-                    shrinkWrap: true,
-                    itemCount: 5, // Show 5 skeleton items
-                    separatorBuilder: (context, index) => const SizedBox(height: 8),
-                    itemBuilder: (context, index) {
-                      return Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        child: _SkeletonFriendItem(),
-                      );
-                    },
-                  ),
-                )
-              else
-                Flexible(
-                  child: _friends.isEmpty
-                      ? SingleChildScrollView(
-                          child: Column(
-                            children: [
-                              const FindFriendsWidget(),
-                              Padding(
-                                padding: const EdgeInsets.all(16.0),
-                                child: Center(
-                                  child: TranslatedText(
-                                    TranslationKeys.noFriendsFound,
-                                    style: const TextStyle(color: Colors.white70),
-                                  ),
-                                ),
+    final screenWidth = MediaQuery.of(context).size.width;
+    final appBarHeight = 60.0;
+    final statusBarHeight = MediaQuery.of(context).padding.top;
+    final bottomNavHeight = 80.0;
+    final bottomPadding = Theme.of(context).platform == TargetPlatform.iOS 
+        ? 8.0 
+        : 8.0 + MediaQuery.of(context).padding.bottom;
+    final availableHeight = MediaQuery.of(context).size.height - 
+        (appBarHeight + statusBarHeight) - 
+        (bottomNavHeight + bottomPadding);
+    final modalWidth = screenWidth * 0.9;
+    
+    return Align(
+      alignment: Alignment.centerRight,
+      child: Container(
+        width: modalWidth,
+        height: availableHeight,
+        margin: EdgeInsets.only(
+          top: appBarHeight + statusBarHeight,
+          bottom: bottomNavHeight + bottomPadding,
+        ),
+        child: ClipRRect(
+          borderRadius: const BorderRadius.only(
+            topLeft: Radius.circular(24),
+            bottomLeft: Radius.circular(24),
+          ),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+            child: Container(
+              color: Colors.white.withOpacity(0.05),
+              child: Column(
+                children: [
+                  // Title with close button
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        ListenableBuilder(
+                          listenable: TranslationService(),
+                          builder: (context, _) {
+                            return Text(
+                              TranslationService().translate('friends'),
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 24,
+                                fontWeight: FontWeight.bold,
                               ),
-                            ],
-                          ),
-                        )
-                      : RefreshIndicator(
-                          onRefresh: _loadFriends,
-                          child: ListView.separated(
-                            shrinkWrap: true,
-                            itemCount: _friends.length,
+                            );
+                          },
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.close, color: Colors.white),
+                          onPressed: () => Navigator.of(context).pop(),
+                        ),
+                      ],
+                    ),
+                  ),
+                  // Content area
+                  Expanded(
+                    child: _isLoading
+                        ? ListView.separated(
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            itemCount: 5, // Show 5 skeleton items
                             separatorBuilder: (context, index) => const SizedBox(height: 8),
                             itemBuilder: (context, index) {
-                              final friend = _friends[index];
-                              return Padding(
+                              return _SkeletonFriendItem();
+                            },
+                          )
+                        : _friends.isEmpty
+                            ? SingleChildScrollView(
                                 padding: const EdgeInsets.symmetric(horizontal: 16),
-                                child: Container(
-                                  decoration: BoxDecoration(
-                                    color: Colors.white.withOpacity(0.10),
-                                    borderRadius: BorderRadius.circular(14),
-                                  ),
-                                  child: ListTile(
-                                    leading: CircleAvatar(
-                                      radius: 22,
-                                      backgroundColor: Colors.white.withOpacity(0.2),
-                                      child: friend.avatar.isNotEmpty
-                                          ? ClipOval(
-                                              child: CachedNetworkImage(
-                                                imageUrl: friend.avatar,
-                                                width: 44,
-                                                height: 44,
-                                                fit: BoxFit.cover,
-                                                placeholder: (context, url) => Container(
-                                                  color: Colors.white.withOpacity(0.1),
-                                                ),
-                                                errorWidget: (context, url, error) => const Icon(
-                                                  Icons.person,
-                                                  color: Colors.white,
+                                child: Column(
+                                  children: [
+                                    const FindFriendsWidget(),
+                                    Padding(
+                                      padding: const EdgeInsets.all(16.0),
+                                      child: Center(
+                                        child: TranslatedText(
+                                          TranslationKeys.noFriendsFound,
+                                          style: const TextStyle(color: Colors.white70),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              )
+                            : RefreshIndicator(
+                                onRefresh: _loadFriends,
+                                child: ListView.separated(
+                                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                                  itemCount: _friends.length,
+                                  separatorBuilder: (context, index) => const SizedBox(height: 8),
+                                  itemBuilder: (context, index) {
+                                    final friend = _friends[index];
+                                    return Container(
+                                      decoration: BoxDecoration(
+                                        color: Colors.white.withOpacity(0.10),
+                                        borderRadius: BorderRadius.circular(14),
+                                      ),
+                                      child: ListTile(
+                                        leading: CircleAvatar(
+                                          radius: 22,
+                                          backgroundColor: Colors.white.withOpacity(0.2),
+                                          child: friend.avatar.isNotEmpty
+                                              ? ClipOval(
+                                                  child: CachedNetworkImage(
+                                                    imageUrl: friend.avatar,
+                                                    width: 44,
+                                                    height: 44,
+                                                    fit: BoxFit.cover,
+                                                    placeholder: (context, url) => Container(
+                                                      color: Colors.white.withOpacity(0.1),
+                                                    ),
+                                                    errorWidget: (context, url, error) => const Icon(
+                                                      Icons.person,
+                                                      color: Colors.white,
+                                                    ),
+                                                  ),
+                                                )
+                                              : const Icon(Icons.person, color: Colors.white),
+                                        ),
+                                        title: Text(
+                                          friend.nickname.isNotEmpty ? friend.nickname : friend.username,
+                                          style: const TextStyle(color: Colors.white),
+                                        ),
+                                        trailing: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            if (friend.online)
+                                              Container(
+                                                width: 10,
+                                                height: 10,
+                                                decoration: const BoxDecoration(
+                                                  color: Colors.green,
+                                                  shape: BoxShape.circle,
                                                 ),
                                               ),
-                                            )
-                                          : const Icon(Icons.person, color: Colors.white),
-                                    ),
-                                    title: Text(
-                                      friend.nickname.isNotEmpty ? friend.nickname : friend.username,
-                                      style: const TextStyle(color: Colors.white),
-                                    ),
-                                    trailing: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        if (friend.online)
-                                          Container(
-                                            width: 10,
-                                            height: 10,
-                                            decoration: const BoxDecoration(
-                                              color: Colors.green,
-                                              shape: BoxShape.circle,
-                                            ),
-                                          ),
-                                        const SizedBox(width: 8),
-                                        const Icon(Icons.chevron_right, color: Colors.white70),
-                                      ],
-                                    ),
-                                    onTap: () {
-                                      Navigator.of(context).pop();
-                                      Navigator.of(context).push(
-                                        MaterialPageRoute(
-                                          builder: (context) => ChatScreen(
-                                            friend: friend,
-                                          ),
+                                            const SizedBox(width: 8),
+                                            const Icon(Icons.chevron_right, color: Colors.white70),
+                                          ],
                                         ),
-                                      );
-                                    },
-                                  ),
+                                        onTap: () {
+                                          Navigator.of(context).pop();
+                                          Navigator.of(context).push(
+                                            MaterialPageRoute(
+                                              builder: (context) => ChatScreen(
+                                                friend: friend,
+                                              ),
+                                            ),
+                                          );
+                                        },
+                                      ),
+                                    );
+                                  },
                                 ),
-                              );
-                            },
-                          ),
-                        ),
-                ),
-            ],
+                              ),
+                  ),
+                ],
+              ),
+            ),
           ),
         ),
       ),

@@ -5,6 +5,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../widgets/custom_app_bar.dart';
 import '../widgets/background_gradient.dart';
+import '../widgets/global_search_overlay.dart';
 import '../models/friend.dart';
 import '../models/message.dart';
 import '../services/auth_service.dart';
@@ -45,6 +46,7 @@ class _ChatScreenState extends State<ChatScreen> {
   bool _isSending = false;
   String? _currentUserId;
   Timer? _refreshTimer;
+  bool _showSearchForm = false;
 
   @override
   void initState() {
@@ -335,12 +337,24 @@ class _ChatScreenState extends State<ChatScreen> {
           // Navigate back to home screen
           Navigator.popUntil(context, (route) => route.isFirst);
         },
-        onSearchFormToggle: null,
-        isSearchFormVisible: false,
+        onSearchFormToggle: () {
+          setState(() {
+            _showSearchForm = !_showSearchForm;
+          });
+        },
+        isSearchFormVisible: _showSearchForm,
       ),
       body: Stack(
         children: [
           const BackgroundGradient(),
+          GlobalSearchOverlay(
+            isVisible: _showSearchForm,
+            onClose: () {
+              setState(() {
+                _showSearchForm = false;
+              });
+            },
+          ),
           SafeArea(
             child: Column(
               children: [

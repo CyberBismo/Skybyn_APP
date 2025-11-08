@@ -122,6 +122,9 @@ class FirebaseMessagingService {
       // This will fail on iOS if APN is not configured
       await _getFCMToken();
 
+      // Register token immediately on app start (even without user)
+      await _registerTokenOnAppStart();
+
       // Set up message handlers
       await _setupMessageHandlers();
 
@@ -208,7 +211,52 @@ class FirebaseMessagingService {
     }
   }
 
-  /// Send FCM token to server to register in devices table
+  /// Register FCM token on app start (without user ID)
+  Future<void> _registerTokenOnAppStart() async {
+    try {
+      if (_fcmToken == null) {
+        print('⚠️ [FCM] Cannot register token on app start - no FCM token available');
+        return;
+      }
+
+      print('📤 [FCM] Registering FCM token on app start (without user ID)');
+
+      // Use device service to get device info
+      final deviceService = DeviceService();
+      final deviceInfo = await deviceService.getDeviceInfo();
+
+      // Send to token API endpoint without user ID
+      try {
+        final response = await http.post(
+          Uri.parse(ApiConstants.token),
+          body: {
+            'fcmToken': _fcmToken!,
+            'deviceId': deviceInfo['id'] ?? deviceInfo['deviceId'] ?? '',
+            'platform': deviceInfo['platform'] ?? 'Unknown',
+            'model': deviceInfo['model'] ?? 'Unknown'
+          }
+        );
+
+        if (response.statusCode == 200) {
+          final data = json.decode(response.body);
+          if (data['responseCode'] == '1') {
+            print('✅ [FCM] Token registered on app start successfully');
+          } else {
+            print('⚠️ [FCM] Token registration on app start: ${data['message'] ?? 'Unknown error'}');
+          }
+        } else {
+          print('⚠️ [FCM] Token registration on app start failed - server returned status: ${response.statusCode}');
+        }
+      } catch (e) {
+        print('⚠️ [FCM] Failed to register token on app start: $e');
+        // Silently fail - device will be updated on login
+      }
+    } catch (e) {
+      print('❌ [FCM] Error in _registerTokenOnAppStart: $e');
+    }
+  }
+
+  /// Send FCM token to server to register in devices table (with user ID)
   Future<void> sendFCMTokenToServer() async {
     try {
       if (_fcmToken == null) {
@@ -227,10 +275,8 @@ class FirebaseMessagingService {
       // Use device service to get device info
       final deviceService = DeviceService();
       final deviceInfo = await deviceService.getDeviceInfo();
-      deviceInfo['fcmToken'] = _fcmToken;
-      deviceInfo['userID'] = user.id;
 
-      // Send to token API endpoint
+      // Send to token API endpoint with user ID
       try {
         final response = await http.post(
           Uri.parse(ApiConstants.token),

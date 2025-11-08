@@ -77,6 +77,16 @@ class AuthService {
             print('❌ [Login] Failed to subscribe to user topics: $e');
           }
 
+          // Register/update FCM token with user ID after successful login
+          try {
+            final firebaseService = FirebaseMessagingService();
+            if (firebaseService.isInitialized) {
+              await firebaseService.sendFCMTokenToServer();
+            }
+          } catch (e) {
+            print('⚠️ [Login] Failed to register FCM token: $e');
+          }
+
           // Update online status to true after successful login
           try {
             await updateOnlineStatus(true);

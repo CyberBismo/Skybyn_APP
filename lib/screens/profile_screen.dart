@@ -7,8 +7,8 @@ import '../widgets/post_card.dart';
 import '../widgets/custom_app_bar.dart';
 import '../widgets/custom_bottom_navigation_bar.dart';
 import '../widgets/chat_list_modal.dart';
-import '../widgets/search_form.dart';
 import '../widgets/app_colors.dart';
+import '../widgets/global_search_overlay.dart';
 import 'home_screen.dart';
 import '../services/auth_service.dart';
 import '../services/post_service.dart';
@@ -327,22 +327,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
               ],
             ),
-          // Search form overlay
-          if (_showSearchForm)
-            SearchForm(
-              onClose: () {
-                setState(() {
-                  _showSearchForm = false;
-                });
-              },
-              onSearch: (query) {
-                // TODO: Implement search functionality
-                print('Search query: $query');
-                setState(() {
-                  _showSearchForm = false;
-                });
-              },
-            ),
+          // Global search overlay
+          GlobalSearchOverlay(
+            isVisible: _showSearchForm,
+            onClose: () {
+              setState(() {
+                _showSearchForm = false;
+              });
+            },
+          ),
         ],
       ),
     );
