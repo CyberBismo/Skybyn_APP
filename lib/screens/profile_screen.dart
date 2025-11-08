@@ -128,9 +128,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
         logoPath: 'assets/images/logo.png',
         onLogout: () {},
         onLogoPressed: () {
-          Navigator.of(context).pushReplacement(
-            MaterialPageRoute(builder: (context) => const HomeScreen()),
-          );
+          // Navigate back to home screen
+          Navigator.popUntil(context, (route) => route.isFirst);
         },
         onSearchFormToggle: () {
           setState(() {

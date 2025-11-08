@@ -24,6 +24,7 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
   List<Map<String, dynamic>> _searchResults = [];
   bool _isLoading = true;
   String? _errorMessage;
+  String? _currentUserId;
   final AuthService _authService = AuthService();
 
   @override
@@ -63,8 +64,14 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
         final data = json.decode(response.body);
         
         if (data is List) {
+          // Filter out current user from results
+          final filteredResults = List<Map<String, dynamic>>.from(data)
+              .where((user) => user['id']?.toString() != userId)
+              .toList();
+          
           setState(() {
-            _searchResults = List<Map<String, dynamic>>.from(data);
+            _currentUserId = userId;
+            _searchResults = filteredResults;
             _isLoading = false;
           });
         } else if (data is Map && data['responseCode'] == '0') {
@@ -117,7 +124,8 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
                   // Handle logout if needed
                 },
                 onLogoPressed: () {
-                  // Handle logo press if needed
+                  // Navigate back to home screen
+                  Navigator.popUntil(context, (route) => route.isFirst);
                 },
                 onSearchFormToggle: () {
                   Navigator.pop(context);
@@ -177,13 +185,54 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
                                   ],
                                 ),
                               )
-                            : ListView.builder(
-                                padding: const EdgeInsets.all(16),
-                                itemCount: _searchResults.length,
-                                itemBuilder: (context, index) {
-                                  final user = _searchResults[index];
-                                  return _buildUserCard(user);
-                                },
+                            : Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  // Search results header with back button
+                                  Padding(
+                                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                                    child: Row(
+                                      children: [
+                                        IconButton(
+                                          icon: const Icon(
+                                            Icons.arrow_back,
+                                            color: Colors.white,
+                                            size: 24,
+                                          ),
+                                          onPressed: () {
+                                            Navigator.pop(context);
+                                          },
+                                          padding: EdgeInsets.zero,
+                                          constraints: const BoxConstraints(),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Expanded(
+                                          child: TranslatedText(
+                                            TranslationKeys.searchResults,
+                                            style: TextStyle(
+                                              color: Colors.white.withOpacity(0.9),
+                                              fontSize: 18,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                            overflow: TextOverflow.visible,
+                                            softWrap: true,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  // Results list
+                                  Expanded(
+                                    child: ListView.builder(
+                                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                                      itemCount: _searchResults.length,
+                                      itemBuilder: (context, index) {
+                                        final user = _searchResults[index];
+                                        return _buildUserCard(user);
+                                      },
+                                    ),
+                                  ),
+                                ],
                               ),
               ),
             ],

@@ -332,7 +332,8 @@ class _ChatScreenState extends State<ChatScreen> {
           }
         },
         onLogoPressed: () {
-          Navigator.of(context).pop();
+          // Navigate back to home screen
+          Navigator.popUntil(context, (route) => route.isFirst);
         },
         onSearchFormToggle: null,
         isSearchFormVisible: false,

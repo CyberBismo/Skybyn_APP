@@ -30,6 +30,7 @@ class TranslationKeys {
   static const String close = 'close';
   static const String open = 'open';
   static const String search = 'search';
+  static const String searchResults = 'search_results';
   static const String filter = 'filter';
   static const String sort = 'sort';
   static const String refresh = 'refresh';
