@@ -112,6 +112,13 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
           child: Column(
             children: [
               CustomAppBar(
+                logoPath: 'assets/images/logo.png',
+                onLogout: () {
+                  // Handle logout if needed
+                },
+                onLogoPressed: () {
+                  // Handle logo press if needed
+                },
                 onSearchFormToggle: () {
                   Navigator.pop(context);
                 },
