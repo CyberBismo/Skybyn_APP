@@ -329,17 +329,10 @@ class FirebaseMessagingService {
             return;
           }
           
-          print('📱 [FCM] App update notification received in foreground');
+          print('📱 [FCM] App update notification received in foreground - WebSocket will handle notification display');
           
-          // Show local notification so user sees it in notification tray
-          final notificationService = NotificationService();
-          await notificationService.showNotification(
-            title: message.notification?.title ?? 'App Update Available',
-            body: message.notification?.body ?? 'A new version is available',
-            payload: jsonEncode(message.data),
-          );
-          
-          // Trigger update check immediately to show dialog
+          // Don't show notification here - WebSocket will handle it to avoid duplicates
+          // Just trigger the update check callback
           _triggerUpdateCheck();
         }
         // For chat messages, ignore in foreground - WebSocket handles it

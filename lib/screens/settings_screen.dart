@@ -6,6 +6,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
 import 'dart:io';
 import 'dart:ui';
+import 'package:flutter/foundation.dart';
 import '../models/user.dart';
 import '../widgets/background_gradient.dart';
 import '../widgets/custom_app_bar.dart';
@@ -15,8 +16,11 @@ import '../services/auth_service.dart';
 import '../services/theme_service.dart';
 import '../services/local_auth_service.dart';
 import '../services/translation_service.dart';
+import '../services/auto_update_service.dart';
 import '../widgets/translated_text.dart';
+import '../widgets/update_dialog.dart';
 import '../utils/translation_keys.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -78,6 +82,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final FocusNode _secAOneFocusNode = FocusNode();
   final FocusNode _secQTwoFocusNode = FocusNode();
   final FocusNode _secATwoFocusNode = FocusNode();
+
+  // Update check status
+  String _updateCheckStatus = '';
+  bool _isCheckingForUpdates = false;
 
   @override
   void initState() {
@@ -1201,6 +1209,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     _buildLanguageDropdown(context),
                   ],
                 ),
+                // About Skybyn Section
+                _buildExpansionTile(
+                  title: TranslationKeys.about,
+                  tileColor: transparentColor,
+                  children: [
+                    _buildAboutSection(context),
+                  ],
+                ),
                 const SizedBox(height: 125),
               ],
             ),
@@ -1500,6 +1516,271 @@ class _SettingsScreenState extends State<SettingsScreen> {
         return '🇫🇮'; // Finnish
       default:
         return null;
+    }
+  }
+
+  Widget _buildAboutSection(BuildContext context) {
+    return FutureBuilder<PackageInfo>(
+      future: PackageInfo.fromPlatform(),
+      builder: (context, snapshot) {
+        final version = snapshot.data?.version ?? 'Unknown';
+        final buildNumber = snapshot.data?.buildNumber ?? 'Unknown';
+        
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Skybyn is a social networking platform that connects people from around the world. Share your moments, connect with friends, and discover new communities.',
+              style: TextStyle(
+                color: AppColors.getTextColor(context),
+                fontSize: 14,
+                height: 1.5,
+              ),
+            ),
+            const SizedBox(height: 16),
+            if (snapshot.hasData) ...[
+              Row(
+                children: [
+                  Text(
+                    '${TranslationKeys.version.tr}: ',
+                    style: TextStyle(
+                      color: AppColors.getSecondaryTextColor(context),
+                      fontSize: 14,
+                    ),
+                  ),
+                  Text(
+                    version,
+                    style: TextStyle(
+                      color: AppColors.getTextColor(context),
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Text(
+                    '${TranslationKeys.buildNumber.tr}: ',
+                    style: TextStyle(
+                      color: AppColors.getSecondaryTextColor(context),
+                      fontSize: 14,
+                    ),
+                  ),
+                  Text(
+                    buildNumber,
+                    style: TextStyle(
+                      color: AppColors.getTextColor(context),
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 24),
+            ],
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: _isCheckingForUpdates ? null : () {
+                  print('🔘 [SettingsScreen] Button onPressed called');
+                  _checkForUpdates();
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.blue,
+                  foregroundColor: AppColors.getTextColor(context),
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                child: _isCheckingForUpdates
+                    ? Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Text(
+                            _updateCheckStatus.isNotEmpty
+                                ? _updateCheckStatus
+                                : TranslationKeys.checkingForUpdates.tr,
+                            style: const TextStyle(color: Colors.white),
+                          ),
+                        ],
+                      )
+                    : TranslatedText(TranslationKeys.checkForUpdates),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _checkForUpdates() async {
+    print('🔍 [SettingsScreen] Check for updates button clicked');
+    
+    // Skip app update checks in debug mode
+    if (kDebugMode) {
+      print('⚠️ [SettingsScreen] Debug mode detected');
+      if (mounted) {
+        setState(() {
+          _updateCheckStatus = 'Update check disabled in debug mode';
+          _isCheckingForUpdates = false;
+        });
+        // Reset status after 3 seconds
+        Future.delayed(const Duration(seconds: 3), () {
+          if (mounted) {
+            setState(() {
+              _updateCheckStatus = '';
+            });
+          }
+        });
+      }
+      return;
+    }
+
+    print('✅ [SettingsScreen] Proceeding with update check');
+    
+    final translationService = TranslationService();
+
+    if (!Platform.isAndroid) {
+      print('⚠️ [SettingsScreen] Not Android platform');
+      if (mounted) {
+        setState(() {
+          _updateCheckStatus = translationService.translate('auto_updates_only_android');
+          _isCheckingForUpdates = false;
+        });
+        // Reset status after 3 seconds
+        Future.delayed(const Duration(seconds: 3), () {
+          if (mounted) {
+            setState(() {
+              _updateCheckStatus = '';
+            });
+          }
+        });
+      }
+      return;
+    }
+
+    // Prevent multiple dialogs from showing at once
+    if (AutoUpdateService.isDialogShowing) {
+      print('⚠️ [SettingsScreen] Update dialog already showing, skipping...');
+      if (mounted) {
+        setState(() {
+          _updateCheckStatus = 'Update check already in progress';
+          _isCheckingForUpdates = false;
+        });
+        // Reset status after 2 seconds
+        Future.delayed(const Duration(seconds: 2), () {
+          if (mounted) {
+            setState(() {
+              _updateCheckStatus = '';
+            });
+          }
+        });
+      }
+      return;
+    }
+
+    // Set initial status
+    if (mounted) {
+      setState(() {
+        _isCheckingForUpdates = true;
+        _updateCheckStatus = translationService.translate('checking_for_updates') ?? 'Checking for updates...';
+      });
+    }
+
+    try {
+      print('📡 [SettingsScreen] Calling AutoUpdateService.checkForUpdates()');
+      final updateInfo = await AutoUpdateService.checkForUpdates();
+      print('📡 [SettingsScreen] Update check completed. Update available: ${updateInfo?.isAvailable ?? false}');
+
+      if (mounted) {
+        if (updateInfo != null && updateInfo.isAvailable) {
+          // Update available
+          setState(() {
+            _updateCheckStatus = 'Update available!';
+            _isCheckingForUpdates = false;
+          });
+          
+          // Show update dialog if not already showing
+          if (!AutoUpdateService.isDialogShowing) {
+            // Mark dialog as showing immediately to prevent duplicates
+            AutoUpdateService.setDialogShowing(true);
+            
+            // Get current version
+            final packageInfo = await PackageInfo.fromPlatform();
+            final currentVersion = packageInfo.version;
+            
+            // Mark this version as shown (so we don't spam the user)
+            await AutoUpdateService.markUpdateShownForVersion(updateInfo.version);
+            
+            await showDialog(
+              context: context,
+              barrierDismissible: false,
+              builder: (context) => UpdateDialog(
+                currentVersion: currentVersion,
+                latestVersion: updateInfo.version,
+                releaseNotes: updateInfo.releaseNotes,
+                downloadUrl: updateInfo.downloadUrl,
+              ),
+            ).then((_) {
+              // Dialog closed, mark as not showing
+              AutoUpdateService.setDialogShowing(false);
+              // Reset button status after dialog closes
+              if (mounted) {
+                setState(() {
+                  _updateCheckStatus = '';
+                });
+              }
+            });
+          }
+        } else {
+          // No update available
+          setState(() {
+            _updateCheckStatus = translationService.translate('no_updates_available') ?? 'You are using the latest version';
+            _isCheckingForUpdates = false;
+          });
+          
+          // Reset status after 3 seconds
+          Future.delayed(const Duration(seconds: 3), () {
+            if (mounted) {
+              setState(() {
+                _updateCheckStatus = '';
+              });
+            }
+          });
+        }
+      }
+    } catch (e, stackTrace) {
+      print('❌ [SettingsScreen] Error checking for updates: $e');
+      print('❌ [SettingsScreen] Stack trace: $stackTrace');
+      
+      // Update button status with error
+      if (mounted) {
+        setState(() {
+          _updateCheckStatus = translationService.translate('error_checking_updates') ?? 'Error checking for updates';
+          _isCheckingForUpdates = false;
+        });
+        
+        // Reset status after 3 seconds
+        Future.delayed(const Duration(seconds: 3), () {
+          if (mounted) {
+            setState(() {
+              _updateCheckStatus = '';
+            });
+          }
+        });
+      }
     }
   }
 }

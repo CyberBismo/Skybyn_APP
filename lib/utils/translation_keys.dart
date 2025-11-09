@@ -391,6 +391,7 @@ class TranslationKeys {
   static const String updateCancelled = 'update_cancelled';
   static const String install = 'install';
   static const String checkingForUpdates = 'checking_for_updates';
+  static const String checkForUpdates = 'check_for_updates';
   static const String noUpdatesAvailable = 'no_updates_available';
   static const String errorCheckingUpdates = 'error_checking_updates';
   static const String updateSize = 'update_size';
