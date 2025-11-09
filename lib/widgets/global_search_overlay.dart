@@ -370,45 +370,37 @@ class _GlobalSearchOverlayState extends State<GlobalSearchOverlay> {
 
     return Stack(
       children: [
-        // Full-screen tap detector with semi-transparent overlay
+        // Full-screen tap detector to close when tapping outside
         Positioned.fill(
           child: GestureDetector(
             onTap: () {
               // Close search form when tapping outside
-              print('🔍 [GlobalSearchOverlay] Tapped outside search form, closing...');
               _handleClose();
             },
-            behavior: HitTestBehavior.opaque, // Capture all taps
             child: Container(
-              color: Colors.black.withOpacity(0.3), // Semi-transparent overlay
+              color: Colors.transparent,
             ),
           ),
         ),
-        // Search form positioned on top - wrapped to prevent taps from closing
-        GestureDetector(
-          onTap: () {
-            // Stop tap propagation when tapping inside form
+        // Search form - taps inside won't close the form
+        SearchForm(
+          onClose: _handleClose,
+          onSearch: (query) {
+            print('🔍 [GlobalSearchOverlay] onSearch called with: "$query"');
+            final trimmedQuery = query.trim();
+            // Only search if query has 3 or more characters
+            if (trimmedQuery.length >= 3) {
+              _performSearch(trimmedQuery);
+            } else {
+              setState(() {
+                _searchResults = [];
+                _searchQuery = null;
+                _isSearching = false;
+              });
+            }
           },
-          behavior: HitTestBehavior.opaque,
-          child: SearchForm(
-            onClose: _handleClose,
-            onSearch: (query) {
-              print('🔍 [GlobalSearchOverlay] onSearch called with: "$query"');
-              final trimmedQuery = query.trim();
-              // Only search if query has 3 or more characters
-              if (trimmedQuery.length >= 3) {
-                _performSearch(trimmedQuery);
-              } else {
-                setState(() {
-                  _searchResults = [];
-                  _searchQuery = null;
-                  _isSearching = false;
-                });
-              }
-            },
-            searchResults: _searchQuery != null && _searchQuery!.isNotEmpty ? _searchResults : null,
-            isSearching: _isSearching,
-          ),
+          searchResults: _searchQuery != null && _searchQuery!.isNotEmpty ? _searchResults : null,
+          isSearching: _isSearching,
         ),
       ],
     );
