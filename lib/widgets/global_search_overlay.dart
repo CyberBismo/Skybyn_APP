@@ -368,24 +368,41 @@ class _GlobalSearchOverlayState extends State<GlobalSearchOverlay> {
       return const SizedBox.shrink();
     }
 
-    return SearchForm(
-      onClose: _handleClose,
-      onSearch: (query) {
-        print('🔍 [GlobalSearchOverlay] onSearch called with: "$query"');
-        final trimmedQuery = query.trim();
-        // Only search if query has 3 or more characters
-        if (trimmedQuery.length >= 3) {
-          _performSearch(trimmedQuery);
-        } else {
-          setState(() {
-            _searchResults = [];
-            _searchQuery = null;
-            _isSearching = false;
-          });
-        }
-      },
-      searchResults: _searchQuery != null && _searchQuery!.isNotEmpty ? _searchResults : null,
-      isSearching: _isSearching,
+    return Stack(
+      children: [
+        // Full-screen tap detector to close when tapping outside
+        Positioned.fill(
+          child: GestureDetector(
+            onTap: () {
+              // Close search form when tapping outside
+              _handleClose();
+            },
+            child: Container(
+              color: Colors.transparent,
+            ),
+          ),
+        ),
+        // Search form - taps inside won't close the form
+        SearchForm(
+          onClose: _handleClose,
+          onSearch: (query) {
+            print('🔍 [GlobalSearchOverlay] onSearch called with: "$query"');
+            final trimmedQuery = query.trim();
+            // Only search if query has 3 or more characters
+            if (trimmedQuery.length >= 3) {
+              _performSearch(trimmedQuery);
+            } else {
+              setState(() {
+                _searchResults = [];
+                _searchQuery = null;
+                _isSearching = false;
+              });
+            }
+          },
+          searchResults: _searchQuery != null && _searchQuery!.isNotEmpty ? _searchResults : null,
+          isSearching: _isSearching,
+        ),
+      ],
     );
   }
 }
