@@ -92,10 +92,11 @@ class SearchFormState extends State<SearchForm> with SingleTickerProviderStateMi
     // Debounce search to avoid too many API calls
     _debounceTimer = Timer(const Duration(milliseconds: 500), () {
       final query = _searchController.text.trim();
-      if (query.isNotEmpty) {
+      // Only search if query has 3 or more characters
+      if (query.length >= 3) {
         widget.onSearch(query);
       } else {
-        // Clear results if search is empty
+        // Clear results if search is less than 3 characters
         widget.onSearch('');
       }
     });

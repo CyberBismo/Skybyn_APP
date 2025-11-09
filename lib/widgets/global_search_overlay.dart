@@ -50,8 +50,8 @@ class _GlobalSearchOverlayState extends State<GlobalSearchOverlay> {
   }
 
   Future<void> _performSearch(String query) async {
-    // If query is empty, clear results
-    if (query.isEmpty) {
+    // If query is empty or less than 3 characters, clear results
+    if (query.isEmpty || query.length < 3) {
       setState(() {
         _searchQuery = null;
         _searchResults = [];
@@ -372,12 +372,15 @@ class _GlobalSearchOverlayState extends State<GlobalSearchOverlay> {
       onClose: _handleClose,
       onSearch: (query) {
         print('🔍 [GlobalSearchOverlay] onSearch called with: "$query"');
-        if (query.trim().isNotEmpty) {
-          _performSearch(query.trim());
+        final trimmedQuery = query.trim();
+        // Only search if query has 3 or more characters
+        if (trimmedQuery.length >= 3) {
+          _performSearch(trimmedQuery);
         } else {
           setState(() {
             _searchResults = [];
             _searchQuery = null;
+            _isSearching = false;
           });
         }
       },
