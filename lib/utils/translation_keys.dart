@@ -107,7 +107,11 @@ class TranslationKeys {
   static const String middleName = 'middle_name';
   static const String fullName = 'your_full_name';
   static const String displayName = 'display_name';
+  static const String title = 'title';
   static const String bio = 'bio';
+  static const String dateOfBirth = 'date_of_birth';
+  static const String ipHistory = 'ip_history';
+  static const String pinsDoNotMatch = 'pins_do_not_match';
   static const String location = 'location';
   static const String website = 'website';
   static const String phone = 'phone';

@@ -6,6 +6,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
 import 'dart:io';
 import 'dart:ui';
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import '../models/user.dart';
 import '../widgets/background_gradient.dart';
@@ -20,6 +21,7 @@ import '../services/auto_update_service.dart';
 import '../widgets/translated_text.dart';
 import '../widgets/update_dialog.dart';
 import '../utils/translation_keys.dart';
+import '../config/constants.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -53,6 +55,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _usernameController = TextEditingController();
   final TextEditingController _nicknameController = TextEditingController();
+  final TextEditingController _firstNameController = TextEditingController();
+  final TextEditingController _middleNameController = TextEditingController();
+  final TextEditingController _lastNameController = TextEditingController();
+  final TextEditingController _titleController = TextEditingController();
+  final TextEditingController _bioController = TextEditingController();
+  DateTime? _birthDate;
 
   final List<String> _pinOptions = ['No PIN', '4 digit', '6 digit', '8 digit'];
   String? _selectedPinOption;
@@ -72,6 +80,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final FocusNode _emailFocusNode = FocusNode();
   final FocusNode _usernameFocusNode = FocusNode();
   final FocusNode _nicknameFocusNode = FocusNode();
+  final FocusNode _firstNameFocusNode = FocusNode();
+  final FocusNode _middleNameFocusNode = FocusNode();
+  final FocusNode _lastNameFocusNode = FocusNode();
+  final FocusNode _titleFocusNode = FocusNode();
+  final FocusNode _bioFocusNode = FocusNode();
   final FocusNode _oldPasswordFocusNode = FocusNode();
   final FocusNode _newPasswordFocusNode = FocusNode();
   final FocusNode _confirmPasswordFocusNode = FocusNode();
@@ -82,6 +95,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final FocusNode _secAOneFocusNode = FocusNode();
   final FocusNode _secQTwoFocusNode = FocusNode();
   final FocusNode _secATwoFocusNode = FocusNode();
+  
+  // IP History
+  List<Map<String, dynamic>> _ipHistory = [];
+  bool _isLoadingIpHistory = false;
 
   // Update check status
   String _updateCheckStatus = '';
@@ -114,19 +131,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _emailController.text = cachedUser.email;
       _usernameController.text = cachedUser.username;
       _nicknameController.text = cachedUser.nickname;
+      _firstNameController.text = cachedUser.fname;
+      _middleNameController.text = cachedUser.mname;
+      _lastNameController.text = cachedUser.lname;
+      _titleController.text = cachedUser.title;
+      _bioController.text = cachedUser.bio;
       setState(() {
         user = cachedUser;
         email = cachedUser.email;
         username = cachedUser.username;
         nickname = cachedUser.nickname;
+        isPrivate = cachedUser.visible == '0';
         if (cachedUser.avatar.isNotEmpty) {
           profileImage = cachedUser.avatar;
         }
         if (cachedUser.wallpaper.isNotEmpty) {
           backgroundImage = cachedUser.wallpaper;
         }
-        // Optionally set backgroundImage if you store it in the user profile
       });
+      // Load IP history
+      _loadIpHistory();
     } else {
       print('No cached user found.');
     }
@@ -160,6 +184,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _emailController.dispose();
     _usernameController.dispose();
     _nicknameController.dispose();
+    _firstNameController.dispose();
+    _middleNameController.dispose();
+    _lastNameController.dispose();
+    _titleController.dispose();
+    _bioController.dispose();
     _oldPasswordController.dispose();
     _newPasswordController.dispose();
     _confirmPasswordController.dispose();
@@ -170,6 +199,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _secAOneController.dispose();
     _secQTwoController.dispose();
     _secATwoController.dispose();
+    
+    // Dispose focus nodes
+    _firstNameFocusNode.dispose();
+    _middleNameFocusNode.dispose();
+    _lastNameFocusNode.dispose();
+    _titleFocusNode.dispose();
+    _bioFocusNode.dispose();
+    
     super.dispose();
   }
 
@@ -806,6 +843,167 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         );
                       },
                     ),
+                    const SizedBox(height: 16),
+                    ListenableBuilder(
+                      listenable: TranslationService(),
+                      builder: (context, _) {
+                        return TextField(
+                          controller: _titleController,
+                          focusNode: _titleFocusNode,
+                          style: TextStyle(color: AppColors.getTextColor(context)),
+                          decoration: InputDecoration(
+                            labelText: TranslationKeys.title.tr,
+                            labelStyle: TextStyle(color: AppColors.getSecondaryTextColor(context)),
+                            enabledBorder: UnderlineInputBorder(
+                              borderSide: BorderSide(color: AppColors.getSecondaryTextColor(context).withOpacity(0.3)),
+                            ),
+                            focusedBorder: UnderlineInputBorder(
+                              borderSide: BorderSide(color: AppColors.getTextColor(context)),
+                            ),
+                          ),
+                          onTap: () {
+                            _unfocusOtherFields(_titleFocusNode);
+                          },
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    ListenableBuilder(
+                      listenable: TranslationService(),
+                      builder: (context, _) {
+                        return TextField(
+                          controller: _firstNameController,
+                          focusNode: _firstNameFocusNode,
+                          style: TextStyle(color: AppColors.getTextColor(context)),
+                          decoration: InputDecoration(
+                            labelText: TranslationKeys.firstName.tr,
+                            labelStyle: TextStyle(color: AppColors.getSecondaryTextColor(context)),
+                            enabledBorder: UnderlineInputBorder(
+                              borderSide: BorderSide(color: AppColors.getSecondaryTextColor(context).withOpacity(0.3)),
+                            ),
+                            focusedBorder: UnderlineInputBorder(
+                              borderSide: BorderSide(color: AppColors.getTextColor(context)),
+                            ),
+                          ),
+                          onTap: () {
+                            _unfocusOtherFields(_firstNameFocusNode);
+                          },
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    ListenableBuilder(
+                      listenable: TranslationService(),
+                      builder: (context, _) {
+                        return TextField(
+                          controller: _middleNameController,
+                          focusNode: _middleNameFocusNode,
+                          style: TextStyle(color: AppColors.getTextColor(context)),
+                          decoration: InputDecoration(
+                            labelText: TranslationKeys.middleName.tr,
+                            labelStyle: TextStyle(color: AppColors.getSecondaryTextColor(context)),
+                            enabledBorder: UnderlineInputBorder(
+                              borderSide: BorderSide(color: AppColors.getSecondaryTextColor(context).withOpacity(0.3)),
+                            ),
+                            focusedBorder: UnderlineInputBorder(
+                              borderSide: BorderSide(color: AppColors.getTextColor(context)),
+                            ),
+                          ),
+                          onTap: () {
+                            _unfocusOtherFields(_middleNameFocusNode);
+                          },
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    ListenableBuilder(
+                      listenable: TranslationService(),
+                      builder: (context, _) {
+                        return TextField(
+                          controller: _lastNameController,
+                          focusNode: _lastNameFocusNode,
+                          style: TextStyle(color: AppColors.getTextColor(context)),
+                          decoration: InputDecoration(
+                            labelText: TranslationKeys.lastName.tr,
+                            labelStyle: TextStyle(color: AppColors.getSecondaryTextColor(context)),
+                            enabledBorder: UnderlineInputBorder(
+                              borderSide: BorderSide(color: AppColors.getSecondaryTextColor(context).withOpacity(0.3)),
+                            ),
+                            focusedBorder: UnderlineInputBorder(
+                              borderSide: BorderSide(color: AppColors.getTextColor(context)),
+                            ),
+                          ),
+                          onTap: () {
+                            _unfocusOtherFields(_lastNameFocusNode);
+                          },
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    ListenableBuilder(
+                      listenable: TranslationService(),
+                      builder: (context, _) {
+                        return InkWell(
+                          onTap: () async {
+                            final DateTime? picked = await showDatePicker(
+                              context: context,
+                              initialDate: _birthDate ?? DateTime.now().subtract(const Duration(days: 365 * 18)),
+                              firstDate: DateTime(1960),
+                              lastDate: DateTime.now().subtract(const Duration(days: 365 * 15)),
+                            );
+                            if (picked != null) {
+                              setState(() {
+                                _birthDate = picked;
+                              });
+                            }
+                          },
+                          child: InputDecorator(
+                            decoration: InputDecoration(
+                              labelText: TranslationKeys.dateOfBirth.tr,
+                              labelStyle: TextStyle(color: AppColors.getSecondaryTextColor(context)),
+                              enabledBorder: UnderlineInputBorder(
+                                borderSide: BorderSide(color: AppColors.getSecondaryTextColor(context).withOpacity(0.3)),
+                              ),
+                              focusedBorder: UnderlineInputBorder(
+                                borderSide: BorderSide(color: AppColors.getTextColor(context)),
+                              ),
+                              suffixIcon: Icon(Icons.calendar_today, color: AppColors.getIconColor(context)),
+                            ),
+                            child: Text(
+                              _birthDate != null
+                                  ? '${_birthDate!.year}-${_birthDate!.month.toString().padLeft(2, '0')}-${_birthDate!.day.toString().padLeft(2, '0')}'
+                                  : TranslationKeys.selectDate.tr,
+                              style: TextStyle(color: AppColors.getTextColor(context)),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    ListenableBuilder(
+                      listenable: TranslationService(),
+                      builder: (context, _) {
+                        return TextField(
+                          controller: _bioController,
+                          focusNode: _bioFocusNode,
+                          maxLines: 3,
+                          style: TextStyle(color: AppColors.getTextColor(context)),
+                          decoration: InputDecoration(
+                            labelText: TranslationKeys.bio.tr,
+                            labelStyle: TextStyle(color: AppColors.getSecondaryTextColor(context)),
+                            enabledBorder: UnderlineInputBorder(
+                              borderSide: BorderSide(color: AppColors.getSecondaryTextColor(context).withOpacity(0.3)),
+                            ),
+                            focusedBorder: UnderlineInputBorder(
+                              borderSide: BorderSide(color: AppColors.getTextColor(context)),
+                            ),
+                          ),
+                          onTap: () {
+                            _unfocusOtherFields(_bioFocusNode);
+                          },
+                        );
+                      },
+                    ),
                     const SizedBox(height: 24),
                     SizedBox(
                       width: double.infinity,
@@ -1127,10 +1325,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         style: TextStyle(color: AppColors.getTextColor(context)),
                       ),
                       value: notificationsEnabled,
-                      onChanged: (bool value) {
+                      onChanged: (bool value) async {
                         setState(() {
                           notificationsEnabled = value;
                         });
+                        // Note: Notifications preference is stored locally
+                        // If you want to sync with server, implement API call here
                       },
                       activeThumbColor: Colors.blue,
                     ),
@@ -1140,10 +1340,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         style: TextStyle(color: AppColors.getTextColor(context)),
                       ),
                       value: isPrivate,
-                      onChanged: (bool value) {
+                      onChanged: (bool value) async {
                         setState(() {
                           isPrivate = value;
                         });
+                        await _saveVisibilitySettings();
                       },
                       activeThumbColor: Colors.blue,
                     ),
@@ -1207,6 +1408,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   tileColor: transparentColor,
                   children: [
                     _buildLanguageDropdown(context),
+                  ],
+                ),
+                // IP History Section
+                _buildExpansionTile(
+                  title: TranslationKeys.ipHistory,
+                  tileColor: transparentColor,
+                  children: [
+                    _buildIpHistorySection(context),
                   ],
                 ),
                 // About Skybyn Section
@@ -1388,6 +1597,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _emailFocusNode,
       _usernameFocusNode,
       _nicknameFocusNode,
+      _firstNameFocusNode,
+      _middleNameFocusNode,
+      _lastNameFocusNode,
+      _titleFocusNode,
+      _bioFocusNode,
       _oldPasswordFocusNode,
       _newPasswordFocusNode,
       _confirmPasswordFocusNode,
@@ -1782,5 +1996,418 @@ class _SettingsScreenState extends State<SettingsScreen> {
         });
       }
     }
+  }
+
+  // Load IP History
+  Future<void> _loadIpHistory() async {
+    if (user == null) return;
+    
+    setState(() {
+      _isLoadingIpHistory = true;
+    });
+
+    try {
+      final response = await http.post(
+        Uri.parse('${ApiConstants.apiBase}/profile_ip_history.php'),
+        body: {
+          'userID': user!.id,
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data['responseCode'] == '1' && data['data'] != null) {
+          setState(() {
+            _ipHistory = List<Map<String, dynamic>>.from(data['data']);
+            _isLoadingIpHistory = false;
+          });
+        } else {
+          setState(() {
+            _isLoadingIpHistory = false;
+          });
+        }
+      } else {
+        setState(() {
+          _isLoadingIpHistory = false;
+        });
+      }
+    } catch (e) {
+      print('Error loading IP history: $e');
+      setState(() {
+        _isLoadingIpHistory = false;
+      });
+    }
+  }
+
+  // Build IP History Section
+  Widget _buildIpHistorySection(BuildContext context) {
+    if (_isLoadingIpHistory) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(16.0),
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+
+    if (_ipHistory.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Text(
+          TranslationKeys.noResultsFound.tr,
+          style: TextStyle(color: AppColors.getSecondaryTextColor(context)),
+        ),
+      );
+    }
+
+    return ListView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: _ipHistory.length,
+      itemBuilder: (context, index) {
+        final ipEntry = _ipHistory[index];
+        final ip = ipEntry['ip'] ?? 'Unknown';
+        final timestamp = ipEntry['date'] ?? 0;
+        final date = DateTime.fromMillisecondsSinceEpoch(timestamp * 1000);
+        final dateStr = '${date.day}/${date.month}/${date.year} ${date.hour}:${date.minute.toString().padLeft(2, '0')}';
+
+        return ListTile(
+          title: Text(
+            ip,
+            style: TextStyle(color: AppColors.getTextColor(context)),
+          ),
+          subtitle: Text(
+            dateStr,
+            style: TextStyle(color: AppColors.getSecondaryTextColor(context)),
+          ),
+        );
+      },
+    );
+  }
+
+  // Save Basic Info
+  Future<void> _saveBasicInfo() async {
+    if (user == null) return;
+
+    try {
+      final Map<String, String> body = {
+        'userID': user!.id,
+        'email': _emailController.text.trim(),
+        'nickname': _nicknameController.text.trim(),
+        'title': _titleController.text.trim(),
+        'first_name': _firstNameController.text.trim(),
+        'middle_name': _middleNameController.text.trim(),
+        'last_name': _lastNameController.text.trim(),
+        'bio': _bioController.text.trim(),
+      };
+
+      if (_birthDate != null) {
+        body['birth_date'] = '${_birthDate!.year}-${_birthDate!.month.toString().padLeft(2, '0')}-${_birthDate!.day.toString().padLeft(2, '0')}';
+      }
+
+      final response = await http.post(
+        Uri.parse('${ApiConstants.apiBase}/profile_update.php'),
+        body: body,
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data['responseCode'] == '1') {
+          // Update email separately if changed
+          if (_emailController.text.trim() != user!.email) {
+            await http.post(
+              Uri.parse('${ApiConstants.apiBase}/profile_email_update.php'),
+              body: {
+                'userID': user!.id,
+                'new_email': _emailController.text.trim(),
+              },
+            );
+          }
+
+          // Refresh user profile
+          await AuthService().fetchUserProfile(user!.username);
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(data['message'] ?? TranslationKeys.profileUpdateSuccess.tr),
+                backgroundColor: Colors.green,
+              ),
+            );
+          }
+        } else {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(data['message'] ?? TranslationKeys.profileUpdateError.tr),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
+        }
+      }
+    } catch (e) {
+      print('Error saving basic info: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(TranslationKeys.profileUpdateError.tr),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  // Save Password
+  Future<void> _savePassword() async {
+    if (user == null) return;
+
+    if (_newPasswordController.text != _confirmPasswordController.text) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(TranslationKeys.passwordsDoNotMatch.tr),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      return;
+    }
+
+    try {
+      final response = await http.post(
+        Uri.parse('${ApiConstants.apiBase}/profile_password.php'),
+        body: {
+          'userID': user!.id,
+          'old_pw': _oldPasswordController.text,
+          'new_pw': _newPasswordController.text,
+          'cnew_pw': _confirmPasswordController.text,
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(data['message'] ?? ''),
+              backgroundColor: data['responseCode'] == '1' ? Colors.green : Colors.red,
+            ),
+          );
+        }
+
+        if (data['responseCode'] == '1') {
+          _oldPasswordController.clear();
+          _newPasswordController.clear();
+          _confirmPasswordController.clear();
+        }
+      }
+    } catch (e) {
+      print('Error saving password: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(TranslationKeys.errorOccurred.tr),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  // Save PIN
+  Future<void> _savePin() async {
+    if (user == null) return;
+
+    final pinv = _getPinValueFromOption(_selectedPinOption);
+    
+    if (pinv > 0) {
+      if (_newPinController.text != _confirmPinController.text) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(TranslationKeys.pinsDoNotMatch.tr),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        return;
+      }
+
+      if (_newPinController.text.length != pinv) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('PIN must be $pinv digits'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        return;
+      }
+    }
+
+    try {
+      final Map<String, String> body = {
+        'userID': user!.id,
+        'pinv': pinv.toString(),
+      };
+
+      if (pinv > 0) {
+        body['pin'] = _newPinController.text;
+        body['cpin'] = _confirmPinController.text;
+        if (user!.pinV.isNotEmpty && int.tryParse(user!.pinV) != null && int.parse(user!.pinV) > 0) {
+          body['current_pin'] = _currentPinController.text;
+        }
+      }
+
+      final response = await http.post(
+        Uri.parse('${ApiConstants.apiBase}/profile_pin.php'),
+        body: body,
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(data['message'] ?? ''),
+              backgroundColor: data['responseCode'] == '1' ? Colors.green : Colors.red,
+            ),
+          );
+        }
+
+        if (data['responseCode'] == '1') {
+          _currentPinController.clear();
+          _newPinController.clear();
+          _confirmPinController.clear();
+          // Refresh user profile
+          await AuthService().fetchUserProfile(user!.username);
+        }
+      }
+    } catch (e) {
+      print('Error saving PIN: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(TranslationKeys.errorOccurred.tr),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  // Save Security Questions
+  Future<void> _saveSecurityQuestions() async {
+    if (user == null) return;
+
+    if (_secQOneController.text.trim().isEmpty || _secAOneController.text.trim().isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Security question 1 and answer are required'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      return;
+    }
+
+    if (_secQTwoController.text.trim().isEmpty || _secATwoController.text.trim().isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Security question 2 and answer are required'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      return;
+    }
+
+    try {
+      final response = await http.post(
+        Uri.parse('${ApiConstants.apiBase}/profile_security_questions.php'),
+        body: {
+          'userID': user!.id,
+          'sec_q_one': _secQOneController.text.trim(),
+          'sec_a_one': _secAOneController.text.trim(),
+          'sec_q_two': _secQTwoController.text.trim(),
+          'sec_a_two': _secATwoController.text.trim(),
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(data['message'] ?? ''),
+              backgroundColor: data['responseCode'] == '1' ? Colors.green : Colors.red,
+            ),
+          );
+        }
+
+        if (data['responseCode'] == '1') {
+          // Refresh user profile
+          await AuthService().fetchUserProfile(user!.username);
+        }
+      }
+    } catch (e) {
+      print('Error saving security questions: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(TranslationKeys.errorOccurred.tr),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  // Save Visibility Settings
+  Future<void> _saveVisibilitySettings() async {
+    if (user == null) return;
+
+    try {
+      final response = await http.post(
+        Uri.parse('${ApiConstants.apiBase}/profile_visibility.php'),
+        body: {
+          'userID': user!.id,
+          'visible': isPrivate ? '0' : '1',
+          'private': isPrivate ? '1' : '0',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data['responseCode'] == '1') {
+          // Refresh user profile
+          await AuthService().fetchUserProfile(user!.username);
+        }
+      }
+    } catch (e) {
+      print('Error saving visibility settings: $e');
+    }
+  }
+
+  // Helper methods for PIN
+  String? _getPinOptionFromValue(String? pinV) {
+    if (pinV == null || pinV.isEmpty || pinV == '0') {
+      return 'No PIN';
+    }
+    final value = int.tryParse(pinV);
+    if (value == null) return 'No PIN';
+    return '$value digit';
+  }
+
+  int _getPinValueFromOption(String? option) {
+    if (option == null || option == 'No PIN') return 0;
+    if (option == '4 digit') return 4;
+    if (option == '6 digit') return 6;
+    if (option == '8 digit') return 8;
+    return 0;
   }
 }
