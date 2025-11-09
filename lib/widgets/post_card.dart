@@ -218,6 +218,15 @@ class _PostCardState extends State<PostCard> {
         'DEBUG: Loaded user ID: $_currentUserId, username: $_currentUsername');
   }
 
+  /// Clean post content by replacing HTML <br /> tags with newlines
+  /// This handles both new API format (plain text with \n) and old format (HTML <br /> tags)
+  String _cleanPostContent(String content) {
+    // Replace various forms of <br> tags with newlines
+    return content
+        .replaceAll(RegExp(r'<br\s*/?>', caseSensitive: false), '\n')
+        .replaceAll(RegExp(r'<br\s+/>', caseSensitive: false), '\n');
+  }
+
   Future<void> _toggleComments() async {
     setState(() {
       _showComments = !_showComments;
@@ -884,7 +893,7 @@ class _PostCardState extends State<PostCard> {
                 Container(
                   padding: PostCardStyles.contentPadding, // padding: 10px 20px
                   child: Text(
-                    _currentPost.content,
+                    _cleanPostContent(_currentPost.content),
                     style: PostCardStyles.getContentTextStyle(context),
                     textAlign: TextAlign.left,
                   ),

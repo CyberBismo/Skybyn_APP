@@ -47,6 +47,15 @@ class CommentCard extends StatelessWidget {
     this.textColor,
   });
 
+  /// Clean comment content by replacing HTML <br /> tags with newlines
+  /// This handles both new API format (plain text with \n) and old format (HTML <br /> tags)
+  static String _cleanCommentContent(String content) {
+    // Replace various forms of <br> tags with newlines
+    return content
+        .replaceAll(RegExp(r'<br\s*/?>', caseSensitive: false), '\n')
+        .replaceAll(RegExp(r'<br\s+/>', caseSensitive: false), '\n');
+  }
+
   @override
   Widget build(BuildContext context) {
     // Try to get theme service first, fallback to Theme.of(context)
@@ -138,7 +147,7 @@ class CommentCard extends StatelessWidget {
                           borderRadius: BorderRadius.circular(CommentCardStyles.borderRadius), // Rounded corners
                         ),
                         child: Text(
-                          comment.content,
+                          _cleanCommentContent(comment.content),
                           style: TextStyle(
                             fontSize: CommentCardStyles.fontSize,
                             color: commentTextColor,
