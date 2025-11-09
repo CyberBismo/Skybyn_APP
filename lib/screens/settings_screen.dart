@@ -316,265 +316,29 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   // Removed unused _changeBackgroundImage stub
 
-  void _savePassword() {
-    // TODO: Implement password change logic
-  }
-
-  String _getPinOptionFromValue(String? value) {
-    switch (value) {
-      case '4':
-        return '4 digit';
-      case '6':
-        return '6 digit';
-      case '8':
-        return '8 digit';
-      default:
-        return 'No PIN';
+  // Note: _savePassword and _savePin are implemented later in the file with HTTP API calls.
+  // Earlier implementations removed to avoid duplicates.
+  
+  // Helper methods for PIN (used by later implementations and initState)
+  String? _getPinOptionFromValue(String? pinV) {
+    if (pinV == null || pinV.isEmpty || pinV == '0') {
+      return 'No PIN';
     }
+    final value = int.tryParse(pinV);
+    if (value == null) return 'No PIN';
+    return '$value digit';
   }
 
-  String _getPinValueFromOption(String? option) {
-    switch (option) {
-      case '4 digit':
-        return '4';
-      case '6 digit':
-        return '6';
-      case '8 digit':
-        return '8';
-      default:
-        return '';
-    }
+  int _getPinValueFromOption(String? option) {
+    if (option == null || option == 'No PIN') return 0;
+    if (option == '4 digit') return 4;
+    if (option == '6 digit') return 6;
+    if (option == '8 digit') return 8;
+    return 0;
   }
 
-  Future<void> _savePin() async {
-    // TODO: Implement PIN save logic
-    // Show loading indicator
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (BuildContext context) {
-        return const Center(
-          child: CircularProgressIndicator(),
-        );
-      },
-    );
-    try {
-      // Validate new PIN
-      if (_newPinController.text != _confirmPinController.text) {
-        Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(TranslationKeys.pinConfirmationMismatch.tr),
-            backgroundColor: Colors.red,
-          ),
-        );
-        return;
-      }
-      // Update user profile with new PIN type and value
-      final updatedUser = User(
-        id: user!.id,
-        username: user?.username ?? '',
-        secQOne: user?.secQOne ?? '',
-        secAOne: user?.secAOne ?? '',
-        secQTwo: user?.secQTwo ?? '',
-        secATwo: user?.secATwo ?? '',
-        pinV: _getPinValueFromOption(_selectedPinOption),
-        pin: _selectedPinOption == 'No PIN' ? '' : _newPinController.text,
-        email: user?.email ?? '',
-        fname: user?.fname ?? '',
-        mname: user?.mname ?? '',
-        lname: user?.lname ?? '',
-        title: user?.title ?? '',
-        nickname: user?.nickname ?? '',
-        avatar: user?.avatar ?? '',
-        bio: user?.bio ?? '',
-        color: user?.color ?? '',
-        rank: user?.rank ?? '',
-        deactivated: user?.deactivated ?? '',
-        deactivatedReason: user?.deactivatedReason ?? '',
-        banned: user?.banned ?? '',
-        bannedReason: user?.bannedReason ?? '',
-        visible: user?.visible ?? '',
-        registered: user?.registered ?? '',
-        token: user?.token ?? '',
-        reset: user?.reset ?? '',
-        online: user?.online ?? '',
-        relationship: user?.relationship ?? '',
-        wallpaper: user?.wallpaper ?? '',
-        wallpaperMargin: user?.wallpaperMargin ?? '',
-        avatarMargin: user?.avatarMargin ?? '',
-      );
-      await AuthService().updateUserProfile(updatedUser);
-      setState(() {
-        user = updatedUser;
-        _currentPinController.clear();
-        _newPinController.clear();
-        _confirmPinController.clear();
-      });
-      Navigator.pop(context);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(TranslationKeys.pinUpdateSuccess.tr),
-          backgroundColor: Colors.green,
-        ),
-      );
-    } catch (e) {
-      Navigator.pop(context);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error updating PIN:  ${e.toString()}'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
-  }
-
-  Future<void> _saveBasicInfo() async {
-    // Show loading indicator
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (BuildContext context) {
-        return const Center(
-          child: CircularProgressIndicator(),
-        );
-      },
-    );
-
-    try {
-      // Update the user profile with all required fields
-      final updatedUser = User(
-        id: user!.id,
-        username: _usernameController.text,
-        secQOne: user?.secQOne ?? '',
-        secAOne: user?.secAOne ?? '',
-        secQTwo: user?.secQTwo ?? '',
-        secATwo: user?.secATwo ?? '',
-        pinV: user?.pinV ?? '',
-        pin: user?.pin ?? '',
-        email: _emailController.text,
-        fname: user?.fname ?? '',
-        mname: user?.mname ?? '',
-        lname: user?.lname ?? '',
-        title: user?.title ?? '',
-        nickname: _nicknameController.text,
-        avatar: user?.avatar ?? '',
-        bio: user?.bio ?? '',
-        color: user?.color ?? '',
-        rank: user?.rank ?? '',
-        deactivated: user?.deactivated ?? '',
-        deactivatedReason: user?.deactivatedReason ?? '',
-        banned: user?.banned ?? '',
-        bannedReason: user?.bannedReason ?? '',
-        visible: user?.visible ?? '',
-        registered: user?.registered ?? '',
-        token: user?.token ?? '',
-        reset: user?.reset ?? '',
-        online: user?.online ?? '',
-        relationship: user?.relationship ?? '',
-        wallpaper: user?.wallpaper ?? '',
-        wallpaperMargin: user?.wallpaperMargin ?? '',
-        avatarMargin: user?.avatarMargin ?? '',
-      );
-
-      // Save to backend/local storage
-      await AuthService().updateUserProfile(updatedUser);
-
-      // Update local state
-      setState(() {
-        user = updatedUser;
-        email = updatedUser.email;
-        username = updatedUser.username;
-        nickname = updatedUser.nickname;
-      });
-
-      // Hide loading indicator
-      Navigator.pop(context);
-
-      // Show success message
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(TranslationKeys.profileUpdateSuccess.tr),
-          backgroundColor: Colors.green,
-        ),
-      );
-    } catch (e) {
-      // Hide loading indicator
-      Navigator.pop(context);
-
-      // Show error message
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('${TranslationKeys.profileUpdateError.tr}: ${e.toString()}'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
-  }
-
-  Future<void> _saveSecurityQuestions() async {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (BuildContext context) {
-        return const Center(child: CircularProgressIndicator());
-      },
-    );
-    try {
-      final updatedUser = User(
-        id: user!.id,
-        username: user?.username ?? '',
-        secQOne: user?.secQOne ?? '',
-        secAOne: user?.secAOne ?? '',
-        secQTwo: user?.secQTwo ?? '',
-        secATwo: user?.secATwo ?? '',
-        pinV: _getPinValueFromOption(_selectedPinOption),
-        pin: _selectedPinOption == 'No PIN' ? '' : _newPinController.text,
-        email: user?.email ?? '',
-        fname: user?.fname ?? '',
-        mname: user?.mname ?? '',
-        lname: user?.lname ?? '',
-        title: user?.title ?? '',
-        nickname: user?.nickname ?? '',
-        avatar: user?.avatar ?? '',
-        bio: user?.bio ?? '',
-        color: user?.color ?? '',
-        rank: user?.rank ?? '',
-        deactivated: user?.deactivated ?? '',
-        deactivatedReason: user?.deactivatedReason ?? '',
-        banned: user?.banned ?? '',
-        bannedReason: user?.bannedReason ?? '',
-        visible: user?.visible ?? '',
-        registered: user?.registered ?? '',
-        token: user?.token ?? '',
-        reset: user?.reset ?? '',
-        online: user?.online ?? '',
-        relationship: user?.relationship ?? '',
-        wallpaper: user?.wallpaper ?? '',
-        wallpaperMargin: user?.wallpaperMargin ?? '',
-        avatarMargin: user?.avatarMargin ?? '',
-      );
-      await AuthService().updateUserProfile(updatedUser);
-      setState(() {
-        user = updatedUser;
-      });
-      Navigator.pop(context);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(TranslationKeys.securityQuestionsUpdateSuccess.tr),
-          backgroundColor: Colors.green,
-        ),
-      );
-    } catch (e) {
-      Navigator.pop(context);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error updating security questions:  ${e.toString()}'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
-  }
+  // Note: _saveBasicInfo and _saveSecurityQuestions are implemented later in the file
+  // with HTTP API calls. Earlier implementations removed to avoid duplicates.
 
   @override
   Widget build(BuildContext context) {
@@ -2393,21 +2157,4 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
-  // Helper methods for PIN
-  String? _getPinOptionFromValue(String? pinV) {
-    if (pinV == null || pinV.isEmpty || pinV == '0') {
-      return 'No PIN';
-    }
-    final value = int.tryParse(pinV);
-    if (value == null) return 'No PIN';
-    return '$value digit';
-  }
-
-  int _getPinValueFromOption(String? option) {
-    if (option == null || option == 'No PIN') return 0;
-    if (option == '4 digit') return 4;
-    if (option == '6 digit') return 6;
-    if (option == '8 digit') return 8;
-    return 0;
-  }
 }
