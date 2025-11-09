@@ -8,16 +8,15 @@ import '../screens/chat_screen.dart';
 import '../utils/translation_keys.dart';
 import '../widgets/translated_text.dart';
 import '../services/translation_service.dart';
-import 'find_friends_widget.dart';
 
-class FriendsModal extends StatefulWidget {
-  const FriendsModal({super.key});
+class RightPanel extends StatefulWidget {
+  const RightPanel({super.key});
 
   @override
-  State<FriendsModal> createState() => _FriendsModalState();
+  State<RightPanel> createState() => _RightPanelState();
 }
 
-class _FriendsModalState extends State<FriendsModal> {
+class _RightPanelState extends State<RightPanel> {
   final FriendService _friendService = FriendService();
   final AuthService _authService = AuthService();
 
@@ -62,43 +61,47 @@ class _FriendsModalState extends State<FriendsModal> {
 
   @override
   Widget build(BuildContext context) {
-    final screenWidth = MediaQuery.of(context).size.width;
+    // Get screen dimensions once - these won't change during animation
+    final mediaQuery = MediaQuery.of(context);
+    final screenWidth = mediaQuery.size.width;
+    final screenHeight = mediaQuery.size.height;
     final appBarHeight = 60.0;
-    final statusBarHeight = MediaQuery.of(context).padding.top;
+    final statusBarHeight = mediaQuery.padding.top;
     final bottomNavHeight = 80.0;
     final bottomPadding = Theme.of(context).platform == TargetPlatform.iOS 
         ? 8.0 
-        : 8.0 + MediaQuery.of(context).padding.bottom;
-    final availableHeight = MediaQuery.of(context).size.height - 
+        : 8.0 + mediaQuery.padding.bottom;
+    // Height = screen height - header (appBar + statusBar) - bottom nav (bottomNav + bottomPadding)
+    final modalHeight = screenHeight - 
         (appBarHeight + statusBarHeight) - 
         (bottomNavHeight + bottomPadding);
     final modalWidth = screenWidth * 0.9;
     
     return Align(
-      alignment: Alignment.centerRight,
-      child: Container(
-        width: modalWidth,
-        height: availableHeight,
-        margin: EdgeInsets.only(
+      alignment: Alignment.topRight,
+      child: Padding(
+        padding: EdgeInsets.only(
           top: appBarHeight + statusBarHeight,
-          bottom: bottomNavHeight + bottomPadding,
         ),
-        child: ClipRRect(
-          borderRadius: const BorderRadius.only(
-            topLeft: Radius.circular(24),
-            bottomLeft: Radius.circular(24),
-          ),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-            child: Container(
-              color: Colors.white.withOpacity(0.05),
-              child: Column(
-                children: [
-                  // Title with close button
-                  Padding(
+        child: SizedBox(
+          width: modalWidth,
+          height: modalHeight,
+          child: ClipRRect(
+            borderRadius: const BorderRadius.only(
+              topLeft: Radius.circular(24),
+              bottomLeft: Radius.circular(24),
+            ),
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+              child: Container(
+                color: Colors.white.withOpacity(0.05),
+                child: Column(
+                  children: [
+                    // Title with close button
+                    Padding(
                     padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    child: Stack(
+                      alignment: Alignment.center,
                       children: [
                         ListenableBuilder(
                           listenable: TranslationService(),
@@ -109,19 +112,23 @@ class _FriendsModalState extends State<FriendsModal> {
                                 color: Colors.white,
                                 fontSize: 24,
                                 fontWeight: FontWeight.bold,
+                                decoration: TextDecoration.none,
                               ),
                             );
                           },
                         ),
-                        IconButton(
-                          icon: const Icon(Icons.close, color: Colors.white),
-                          onPressed: () => Navigator.of(context).pop(),
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: IconButton(
+                            icon: const Icon(Icons.close, color: Colors.white),
+                            onPressed: () => Navigator.of(context).pop(),
+                          ),
                         ),
                       ],
                     ),
                   ),
-                  // Content area
-                  Expanded(
+                    // Content area
+                    Expanded(
                     child: _isLoading
                         ? ListView.separated(
                             padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -132,23 +139,7 @@ class _FriendsModalState extends State<FriendsModal> {
                             },
                           )
                         : _friends.isEmpty
-                            ? SingleChildScrollView(
-                                padding: const EdgeInsets.symmetric(horizontal: 16),
-                                child: Column(
-                                  children: [
-                                    const FindFriendsWidget(),
-                                    Padding(
-                                      padding: const EdgeInsets.all(16.0),
-                                      child: Center(
-                                        child: TranslatedText(
-                                          TranslationKeys.noFriendsFound,
-                                          style: const TextStyle(color: Colors.white70),
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              )
+                            ? const SizedBox.shrink()
                             : RefreshIndicator(
                                 onRefresh: _loadFriends,
                                 child: ListView.separated(
@@ -162,7 +153,9 @@ class _FriendsModalState extends State<FriendsModal> {
                                         color: Colors.white.withOpacity(0.10),
                                         borderRadius: BorderRadius.circular(14),
                                       ),
-                                      child: ListTile(
+                                      child: Material(
+                                        color: Colors.transparent,
+                                        child: ListTile(
                                         leading: CircleAvatar(
                                           radius: 22,
                                           backgroundColor: Colors.white.withOpacity(0.2),
@@ -186,7 +179,10 @@ class _FriendsModalState extends State<FriendsModal> {
                                         ),
                                         title: Text(
                                           friend.nickname.isNotEmpty ? friend.nickname : friend.username,
-                                          style: const TextStyle(color: Colors.white),
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            decoration: TextDecoration.none,
+                                          ),
                                         ),
                                         trailing: Row(
                                           mainAxisSize: MainAxisSize.min,
@@ -214,13 +210,15 @@ class _FriendsModalState extends State<FriendsModal> {
                                             ),
                                           );
                                         },
+                                        ),
                                       ),
                                     );
                                   },
                                 ),
                               ),
-                  ),
-                ],
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -262,7 +260,9 @@ class _SkeletonFriendItemState extends State<_SkeletonFriendItem>
         color: Colors.white.withOpacity(0.10),
         borderRadius: BorderRadius.circular(14),
       ),
-      child: ListTile(
+      child: Material(
+        color: Colors.transparent,
+        child: ListTile(
         leading: _ShimmerWidget(
           controller: _controller,
           child: CircleAvatar(
@@ -322,6 +322,7 @@ class _SkeletonFriendItemState extends State<_SkeletonFriendItem>
               ),
             ),
           ],
+        ),
         ),
       ),
     );

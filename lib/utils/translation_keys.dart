@@ -3,6 +3,10 @@ class TranslationKeys {
   static const String home = 'home';
   static const String profile = 'profile';
   static const String settings = 'settings';
+  static const String shortcuts = 'shortcuts';
+  static const String discord = 'discord';
+  static const String discordServer = 'discord_server';
+  static const String goToServer = 'go_to_server';
   static const String notifications = 'notifications';
   static const String readAll = 'read_all';
   static const String deleteAll = 'delete_all';

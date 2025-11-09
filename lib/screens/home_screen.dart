@@ -22,7 +22,8 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'dart:io';
 import '../widgets/chat_list_modal.dart';
-import '../widgets/friends_modal.dart';
+import '../widgets/right_panel.dart';
+import '../widgets/left_panel.dart';
 import '../widgets/find_friends_widget.dart';
 import '../services/friend_service.dart';
 import '../widgets/search_form.dart';
@@ -688,15 +689,54 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  void _openLeftPanel() {
+    showGeneralDialog(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: 'Close shortcuts panel',
+      barrierColor: Colors.black.withOpacity(0.5),
+      useRootNavigator: false,
+      transitionDuration: const Duration(milliseconds: 300),
+      pageBuilder: (context, animation, secondaryAnimation) {
+        // Use MediaQuery to get screen size once and pass it to the modal
+        final screenSize = MediaQuery.of(context).size;
+        return MediaQuery(
+          data: MediaQuery.of(context).copyWith(size: screenSize),
+          child: const LeftPanel(),
+        );
+      },
+      transitionBuilder: (context, animation, secondaryAnimation, child) {
+        final slideAnimation = Tween<Offset>(
+          begin: const Offset(-1.0, 0.0), // Start from left
+          end: Offset.zero, // End at center
+        ).animate(CurvedAnimation(
+          parent: animation,
+          curve: Curves.easeOut,
+        ));
+        
+        return SlideTransition(
+          position: slideAnimation,
+          child: child,
+        );
+      },
+    );
+  }
+
   void _openFriendsModal() {
     showGeneralDialog(
       context: context,
       barrierDismissible: true,
       barrierLabel: 'Close friends list',
       barrierColor: Colors.black.withOpacity(0.5),
+      useRootNavigator: false,
       transitionDuration: const Duration(milliseconds: 300),
       pageBuilder: (context, animation, secondaryAnimation) {
-        return const FriendsModal();
+        // Use MediaQuery to get screen size once and pass it to the modal
+        final screenSize = MediaQuery.of(context).size;
+        return MediaQuery(
+          data: MediaQuery.of(context).copyWith(size: screenSize),
+          child: const RightPanel(),
+        );
       },
       transitionBuilder: (context, animation, secondaryAnimation, child) {
         final slideAnimation = Tween<Offset>(
@@ -855,7 +895,7 @@ class _HomeScreenState extends State<HomeScreen> {
             bottom: Theme.of(context).platform == TargetPlatform.iOS ? 8.0 : 8.0 + MediaQuery.of(context).padding.bottom,
           ),
           child: CustomBottomNavigationBar(
-            onStarPressed: () {},
+            onStarPressed: _openLeftPanel,
             onAddPressed: () async {
               final postId = await showModalBottomSheet<String>(
                 context: context,
