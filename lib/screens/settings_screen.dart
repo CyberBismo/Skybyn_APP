@@ -316,42 +316,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   // Removed unused _changeBackgroundImage stub
 
-  void _savePassword() {
-    // TODO: Implement password change logic
-  }
+  // Old stub methods removed - see implementations at end of file
 
-  String _getPinOptionFromValue(String? value) {
-    switch (value) {
-      case '4':
-        return '4 digit';
-      case '6':
-        return '6 digit';
-      case '8':
-        return '8 digit';
-      default:
-        return 'No PIN';
-    }
-  }
+  // Removed old _savePassword stub
+  // Removed old _getPinOptionFromValue stub  
+  // Removed old _getPinValueFromOption stub
+  // Removed old _savePin stub
 
-  String _getPinValueFromOption(String? option) {
-    switch (option) {
-      case '4 digit':
-        return '4';
-      case '6 digit':
-        return '6';
-      case '8 digit':
-        return '8';
-      default:
-        return '';
-    }
-  }
+  // Old method implementations removed - see new implementations at end of file
 
-  Future<void> _savePin() async {
-    // TODO: Implement PIN save logic
-    // Show loading indicator
-    showDialog(
-      context: context,
-      barrierDismissible: false,
+  @override
+  Widget build(BuildContext context) {
+    final appBarHeight = AppBarConfig.getAppBarHeight(context);
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    final transparentColor = isDarkMode ? Colors.white.withValues(alpha: 0.2) : Colors.black.withValues(alpha: 0.3);
+    final iconBackgroundColor = isDarkMode ? const Color.fromRGBO(255, 255, 255, 0.20) : const Color.fromRGBO(0, 0, 0, 0.30);
       builder: (BuildContext context) {
         return const Center(
           child: CircularProgressIndicator(),
