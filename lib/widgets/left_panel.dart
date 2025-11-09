@@ -85,7 +85,23 @@ class _LeftPanelState extends State<LeftPanel> {
       ).timeout(const Duration(seconds: 10));
 
       if (response.statusCode == 200) {
-        final data = json.decode(response.body);
+        // Check if response body is not empty
+        if (response.body.isEmpty || response.body.trim().isEmpty) {
+          print('⚠️ [LeftPanel] Discord widget: Empty response body');
+          return;
+        }
+
+        // Try to decode JSON
+        dynamic data;
+        try {
+          data = json.decode(response.body);
+        } catch (e) {
+          print('⚠️ [LeftPanel] Discord widget: Invalid JSON - ${e.toString()}');
+          print('⚠️ [LeftPanel] Discord widget: Response body: ${response.body.substring(0, response.body.length > 200 ? 200 : response.body.length)}');
+          return;
+        }
+
+        // Validate data structure
         if (data is Map && data['members'] != null && data['members'] is List) {
           // Filter members with status === 'online' (matching website implementation)
           final members = data['members'] as List;
@@ -101,7 +117,12 @@ class _LeftPanelState extends State<LeftPanel> {
               _discordOnlineMembers = onlineCount.toString();
             });
           }
+        } else if (data is Map && data['error'] != null) {
+          // API returned an error message
+          print('⚠️ [LeftPanel] Discord widget error: ${data['error']}');
         }
+      } else {
+        print('⚠️ [LeftPanel] Discord widget: HTTP ${response.statusCode}');
       }
     } catch (e) {
       // Silently fail - Discord widget is optional
