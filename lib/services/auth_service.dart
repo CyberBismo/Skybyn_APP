@@ -424,14 +424,26 @@ class AuthService {
 
   Future<void> updateOnlineStatus(bool isOnline) async {
     try {
-      // Skip update if status hasn't changed
-      if (_lastKnownOnlineStatus == isOnline) {
-        return;
-      }
-
       final userId = await getStoredUserId();
       if (userId == null) {
         print('⚠️ [Auth] Cannot update online status - no user logged in');
+        return;
+      }
+
+      // Initialize _lastKnownOnlineStatus from stored profile if not set
+      if (_lastKnownOnlineStatus == null) {
+        try {
+          final storedProfile = await getStoredUserProfile();
+          if (storedProfile != null && storedProfile.online.isNotEmpty) {
+            _lastKnownOnlineStatus = storedProfile.online == '1' || storedProfile.online.toLowerCase() == 'true';
+          }
+        } catch (e) {
+          // Silently fail - will default to null
+        }
+      }
+
+      // Skip update if status hasn't changed
+      if (_lastKnownOnlineStatus == isOnline) {
         return;
       }
 

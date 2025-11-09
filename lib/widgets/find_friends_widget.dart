@@ -4,7 +4,6 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../services/location_service.dart';
 import '../services/auth_service.dart';
-import '../widgets/app_colors.dart';
 import '../utils/translation_keys.dart';
 import '../widgets/translated_text.dart';
 import '../services/translation_service.dart';

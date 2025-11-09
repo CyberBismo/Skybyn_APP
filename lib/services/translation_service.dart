@@ -388,6 +388,25 @@ class TranslationService extends ChangeNotifier {
         'delete_all': 'Delete All',
         'chat': 'Chat',
         'groups': 'Groups',
+        'shortcuts': 'Shortcuts',
+        'discord': 'Discord',
+        'discord_server': 'Discord Server',
+        'go_to_server': 'Go to server',
+        'friends': 'Friends',
+        'no_results_found': 'No results found',
+        'search_results': 'Search Results',
+        'no_friends_found': 'No friends found',
+        'find_friends_in_area': 'Find friends in the area',
+        'find_friends_description': 'Discover and connect with users nearby using your location',
+        'find_friends_button': 'Find Friends',
+        'nearby_users': 'Nearby Users',
+        'no_nearby_users': 'No users found nearby.',
+        'add_friend_by_username': 'Add Friend by Username',
+        'enter_username_or_code': 'Enter username or referral code',
+        'user_not_found': 'User not found',
+        'failed_to_add_friend': 'Failed to add friend',
+        'error_occurred': 'An error occurred',
+        'send_friend_request': 'Send Friend Request',
 
         // Common actions
         'edit': 'Edit',
@@ -589,9 +608,7 @@ class TranslationService extends ChangeNotifier {
         'logout': 'Logout',
         'qr_scanner': 'QR Scanner',
         'report': 'Report',
-        'search': 'Search...',
         'search_friends': 'Search friends...',
-        'no_friends_found': 'No friends found',
         'install_permission_required': 'Install Permission Required',
         'install_permission_denied_message': 'This permission has been permanently denied. Please enable "Install unknown apps" for Skybyn in your device settings.',
         'permission_not_granted': 'Permission not granted',
@@ -603,7 +620,6 @@ class TranslationService extends ChangeNotifier {
         'select_date': 'Select Date',
         'new_version_available': 'A new version of Skybyn is available!',
         'installing_update': 'Installing...',
-        'error_checking_updates': 'Error checking for updates',
       }
     };
   }

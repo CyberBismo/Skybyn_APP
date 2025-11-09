@@ -35,24 +35,24 @@ Future<void> main() async {
       // Initialize HTTP overrides to handle SSL certificates
       HttpOverrides.global = MyHttpOverrides();
 
-      // Initialize theme and translation services in parallel (non-blocking)
+      // Initialize theme and translation services
       final themeService = ThemeService();
       final translationService = TranslationService();
       
       // Run theme service initialization (fast, local only)
       await themeService.initialize();
 
-      // Run the app immediately - don't wait for translation service or Firebase
+      // Initialize translation service BEFORE showing UI to prevent translation keys from showing
+      // This loads cached translations first (fast), then updates from API in background
+      await translationService.initialize();
+
+      // Run the app after translations are loaded
       runApp(ChangeNotifierProvider.value(value: themeService, child: const MyApp()));
 
-      // Initialize translation service and Firebase in background (non-blocking)
-      // These will complete after the app UI is already shown
-      Future.wait([
-        translationService.initialize(),
-        _initializeFirebase(),
-      ]).catchError((error) {
+      // Initialize Firebase in background (non-blocking)
+      _initializeFirebase().catchError((error) {
         if (enableLogging) {
-          print('⚠️ [Startup] Background initialization error: $error');
+          print('⚠️ [Startup] Firebase initialization error: $error');
         }
       });
     },
@@ -140,6 +140,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   final BackgroundUpdateScheduler _backgroundUpdateScheduler = BackgroundUpdateScheduler();
   Timer? _serviceCheckTimer;
   Timer? _activityUpdateTimer;
+  Timer? _onlineStatusDebounceTimer;
 
   @override
   void initState() {
@@ -210,6 +211,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     WidgetsBinding.instance.removeObserver(this);
     _serviceCheckTimer?.cancel(); // This can be removed if _serviceCheckTimer is not used elsewhere
     _activityUpdateTimer?.cancel();
+    _onlineStatusDebounceTimer?.cancel();
     super.dispose();
   }
 
@@ -237,14 +239,20 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     }
   }
 
-  /// Update online status
+  /// Update online status with debounce to prevent rapid updates
   Future<void> _updateOnlineStatus(bool isOnline) async {
-    try {
-      final authService = AuthService();
-      await authService.updateOnlineStatus(isOnline);
-    } catch (e) {
-      print('⚠️ [MyApp] Failed to update online status: $e');
-    }
+    // Cancel any pending update
+    _onlineStatusDebounceTimer?.cancel();
+    
+    // Debounce: wait 500ms before updating to prevent rapid successive calls
+    _onlineStatusDebounceTimer = Timer(const Duration(milliseconds: 500), () async {
+      try {
+        final authService = AuthService();
+        await authService.updateOnlineStatus(isOnline);
+      } catch (e) {
+        print('⚠️ [MyApp] Failed to update online status: $e');
+      }
+    });
   }
 
   @override

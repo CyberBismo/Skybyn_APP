@@ -313,13 +313,8 @@ class WebSocketService {
         
         print('✅ [WebSocket] Connected to WebSocket server');
         
-        // Update online status to true when connected
-        try {
-          final authService = AuthService();
-          await authService.updateOnlineStatus(true);
-        } catch (e) {
-          print('⚠️ [WebSocket] Failed to update online status on connect: $e');
-        }
+        // Note: Online status is managed by app lifecycle in main.dart
+        // to avoid duplicate updates when both WebSocket and lifecycle fire
       }
     } catch (e) {
       _isConnecting = false;
@@ -806,12 +801,9 @@ class WebSocketService {
   }
 
   /// Update online status when disconnecting
+  /// Note: This is handled by app lifecycle in main.dart to avoid duplicate updates
   Future<void> _updateOnlineStatusOnDisconnect() async {
-    try {
-      final authService = AuthService();
-      await authService.updateOnlineStatus(false);
-    } catch (e) {
-      print('⚠️ [WebSocket] Failed to update online status on disconnect: $e');
-    }
+    // Online status is managed by app lifecycle, not WebSocket disconnect
+    // This prevents duplicate updates when app goes to background
   }
 }
