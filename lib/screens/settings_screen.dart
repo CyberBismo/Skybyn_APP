@@ -285,9 +285,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
       final streamedResponse = await request.send();
       final response = await http.Response.fromStream(streamedResponse);
 
-      if (response.statusCode == 200) {
+      try {
         final data = json.decode(response.body);
-        if (data['responseCode'] == '1') {
+        if (response.statusCode == 200 && data['responseCode'] == '1') {
           // Refresh user profile
           await AuthService().fetchUserProfile(user!.username);
           if (mounted) {
@@ -314,6 +314,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
             );
           }
+        }
+      } catch (e) {
+        print('Error parsing avatar upload response: $e');
+        if (mounted) {
+          setState(() => _isUploadingAvatar = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('${TranslationKeys.profileUpdateError.tr}: ${response.body}'),
+              backgroundColor: Colors.red,
+            ),
+          );
         }
       }
     } catch (e) {
@@ -350,9 +361,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
       final streamedResponse = await request.send();
       final response = await http.Response.fromStream(streamedResponse);
 
-      if (response.statusCode == 200) {
+      try {
         final data = json.decode(response.body);
-        if (data['responseCode'] == '1') {
+        if (response.statusCode == 200 && data['responseCode'] == '1') {
           // Refresh user profile
           await AuthService().fetchUserProfile(user!.username);
           if (mounted) {
@@ -379,6 +390,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
             );
           }
+        }
+      } catch (e) {
+        print('Error parsing wallpaper upload response: $e');
+        if (mounted) {
+          setState(() => _isUploadingWallpaper = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('${TranslationKeys.profileUpdateError.tr}: ${response.body}'),
+              backgroundColor: Colors.red,
+            ),
+          );
         }
       }
     } catch (e) {
