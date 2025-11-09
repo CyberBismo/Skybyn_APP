@@ -31,9 +31,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
   bool _showSearchForm = false;
   Map<String, dynamic>? userData;
   String? currentUserId;
+  String? profileUserId; // Store the userId used to fetch the profile
   bool isLoading = true;
   List<Post> userPosts = [];
   bool isLoadingPosts = false;
+  String? _focusedPostId; // Track which post has focused input
 
   @override
   void initState() {
@@ -52,12 +54,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
       userId = currentUserId;
       username = await authService.getStoredUsername();
     }
+    
+    // Store the userId we're using to fetch the profile
+    profileUserId = userId;
+    
     final profile = await authService.fetchAnyUserProfile(
       userId: userId,
       username: username,
     );
     setState(() {
       userData = profile?.toJson();
+      // Ensure userData has the id field set
+      if (userData != null && (userData!['id'] == null || userData!['id'].toString().isEmpty)) {
+        if (profileUserId != null) {
+          userData!['id'] = profileUserId;
+          userData!['userID'] = profileUserId; // Also set for compatibility
+        }
+      }
       isLoading = false;
     });
 
@@ -70,19 +83,55 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Future<void> _loadUserPosts() async {
     if (userData == null) return;
 
+    // User.toJson() uses 'id' as the key, not 'userID'
+    // Try multiple sources: userData['id'], userData['userID'], or the profileUserId we stored
+    final targetUserId = userData!['id']?.toString() ?? 
+                        userData!['userID']?.toString() ?? 
+                        profileUserId?.toString();
+    print('🔍 [ProfileScreen] Loading posts for user: $targetUserId');
+    print('🔍 [ProfileScreen] userData keys: ${userData!.keys.toList()}');
+    print('🔍 [ProfileScreen] userData[id]: ${userData!['id']}');
+    print('🔍 [ProfileScreen] userData[userID]: ${userData!['userID']}');
+    print('🔍 [ProfileScreen] profileUserId: $profileUserId');
+    
+    if (targetUserId == null || targetUserId.isEmpty) {
+      print('❌ [ProfileScreen] No valid user ID found in userData or profileUserId');
+      setState(() {
+        userPosts = [];
+        isLoadingPosts = false;
+      });
+      return;
+    }
+    
     setState(() => isLoadingPosts = true);
     try {
       final postService = PostService();
+      // Fetch posts for the specific user whose profile is being viewed
       final posts = await postService.fetchUserTimeline(
-        userId: userData!['userID'],
+        userId: targetUserId ?? '',
         currentUserId: currentUserId,
       );
+      
+      print('🔍 [ProfileScreen] Received ${posts.length} posts from API');
+      
+      // The API endpoint (user-timeline.php) should already filter by user
+      // Trust the API response, but log for debugging
+      for (final post in posts) {
+        if (post.userId != null && post.userId != targetUserId) {
+          print('⚠️ [ProfileScreen] Post ${post.id} userId mismatch: ${post.userId} != $targetUserId (including anyway - API should filter)');
+        }
+      }
+      
+      // Use all posts from API - the endpoint is user-specific
       setState(() {
         userPosts = posts;
         isLoadingPosts = false;
       });
-    } catch (e) {
-      print('Error loading user posts: $e');
+      
+      print('🔍 [ProfileScreen] Set ${userPosts.length} posts to display');
+    } catch (e, stackTrace) {
+      print('❌ [ProfileScreen] Error loading user posts: $e');
+      print('❌ [ProfileScreen] Stack trace: $stackTrace');
       setState(() {
         userPosts = [];
         isLoadingPosts = false;
@@ -90,18 +139,38 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
+  Future<void> _refreshUserPosts() async {
+    await _loadUserPosts();
+  }
+
+  void _onPostInputFocused(String postId) {
+    setState(() {
+      _focusedPostId = postId;
+    });
+  }
+
+  void _onPostInputUnfocused(String postId) {
+    setState(() {
+      if (_focusedPostId == postId) {
+        _focusedPostId = null;
+      }
+    });
+  }
+
   bool get isOwnProfile =>
       userData != null &&
       currentUserId != null &&
-      userData!['userID'] == currentUserId;
+      (userData!['id']?.toString() ?? userData!['userID']?.toString()) == currentUserId;
 
   Future<void> _sendFriendAction(String action) async {
     if (currentUserId == null || userData == null) return;
+    final friendId = userData!['id']?.toString() ?? userData!['userID']?.toString();
+    if (friendId == null || friendId.isEmpty) return;
     final response = await http.post(
       Uri.parse(ApiConstants.friend),
       body: {
         'userID': currentUserId!,
-        'friendID': userData!['userID'],
+        'friendID': friendId,
         'action': action,
       },
     );
@@ -126,7 +195,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
       extendBody: true,
       appBar: CustomAppBar(
         logoPath: 'assets/images/logo.png',
-        onLogout: () {},
         onLogoPressed: () {
           // Navigate back to home screen
           Navigator.popUntil(context, (route) => route.isFirst);
@@ -186,146 +254,161 @@ class _ProfileScreenState extends State<ProfileScreen> {
           if (isLoading)
             const Center(child: CircularProgressIndicator())
           else if (userData != null)
-            CustomScrollView(
-              slivers: [
-                SliverToBoxAdapter(
-                  child: SizedBox(
-                    height: appBarHeight + MediaQuery.of(context).padding.top,
+            RefreshIndicator(
+              onRefresh: _refreshUserPosts,
+              color: Colors.white,
+              backgroundColor: Colors.transparent,
+              strokeWidth: 2.0,
+              displacement: 40.0,
+              child: CustomScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                slivers: [
+                  SliverToBoxAdapter(
+                    child: SizedBox(
+                      height: appBarHeight + MediaQuery.of(context).padding.top,
+                    ),
                   ),
-                ),
-                // --- Static Profile Header ---
-                SliverToBoxAdapter(
-                  child: SizedBox(
-                    height: 250,
-                    child: Stack(
-                      alignment: Alignment.center,
-                      children: [
-                        // --- GUARANTEED CORRECT WALLPAPER ---
-                        Positioned.fill(
-                          child: useDefaultWallpaper
-                              ? const SizedBox.shrink()
-                              : CachedNetworkImage(
-                                  imageUrl: wallpaperUrl,
-                                  fit: BoxFit.cover,
-                                  placeholder: (context, url) =>
-                                      Container(color: Colors.black),
-                                  errorWidget: (context, url, error) =>
-                                      const SizedBox.shrink(),
-                                ),
-                        ),
-                        // --- Avatar ---
-                        Positioned(
-                          top: 20,
-                          child: Container(
-                            width: 120,
-                            height: 120,
-                            decoration: BoxDecoration(
-                              border: Border.all(
-                                  color: AppColors.getIconColor(context),
-                                  width: 3),
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(17),
-                              child: (avatarUrl.isNotEmpty)
-                                  ? CachedNetworkImage(
-                                      imageUrl: avatarUrl,
-                                      fit: BoxFit.cover,
-                                      placeholder: (context, url) => Image.asset(
-                                          'assets/images/icon.png',
-                                          fit: BoxFit.cover),
-                                      errorWidget: (context, url, error) =>
-                                          Image.asset('assets/images/icon.png',
-                                              fit: BoxFit.cover),
-                                    )
-                                  : Image.asset('assets/images/icon.png',
-                                      fit: BoxFit.cover),
+                  // --- Static Profile Header ---
+                  SliverToBoxAdapter(
+                    child: SizedBox(
+                      height: 250,
+                      child: Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          // --- GUARANTEED CORRECT WALLPAPER ---
+                          Positioned.fill(
+                            child: useDefaultWallpaper
+                                ? const SizedBox.shrink()
+                                : CachedNetworkImage(
+                                    imageUrl: wallpaperUrl,
+                                    fit: BoxFit.cover,
+                                    placeholder: (context, url) =>
+                                        Container(color: Colors.black),
+                                    errorWidget: (context, url, error) =>
+                                        const SizedBox.shrink(),
+                                  ),
+                          ),
+                          // --- Avatar ---
+                          Positioned(
+                            top: 20,
+                            child: Container(
+                              width: 120,
+                              height: 120,
+                              decoration: BoxDecoration(
+                                border: Border.all(
+                                    color: AppColors.getIconColor(context),
+                                    width: 3),
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(17),
+                                child: (avatarUrl.isNotEmpty)
+                                    ? CachedNetworkImage(
+                                        imageUrl: avatarUrl,
+                                        fit: BoxFit.cover,
+                                        placeholder: (context, url) => Image.asset(
+                                            'assets/images/icon.png',
+                                            fit: BoxFit.cover),
+                                        errorWidget: (context, url, error) =>
+                                            Image.asset('assets/images/icon.png',
+                                                fit: BoxFit.cover),
+                                      )
+                                    : Image.asset('assets/images/icon.png',
+                                        fit: BoxFit.cover),
+                              ),
                             ),
                           ),
+                          // --- Text ---
+                          Positioned(
+                            top: 20 + 120 + 12,
+                            child: Column(
+                              children: [
+                                Text(
+                                  userData!['username'] ?? '',
+                                  style: const TextStyle(
+                                    fontSize: 24,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white,
+                                    shadows: [
+                                      Shadow(
+                                          blurRadius: 4,
+                                          color: Colors.black54,
+                                          offset: Offset(1, 1))
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(height: 6),
+                                Text(
+                                  '@${userData!['username']}',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    color: Colors.white.withOpacity(0.9),
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  // --- Post Feed ---
+                  if (isLoadingPosts)
+                    const SliverToBoxAdapter(
+                      child: Padding(
+                        padding: EdgeInsets.all(16.0),
+                        child: Center(child: CircularProgressIndicator()),
+                      ),
+                    )
+                  else if (userPosts.isEmpty)
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.all(32.0),
+                        child: Center(
+                          child: TranslatedText(
+                            TranslationKeys.noPostsYet,
+                            style: const TextStyle(color: Colors.white70, fontSize: 16),
+                          ),
                         ),
-                        // --- Text ---
-                        Positioned(
-                          top: 20 + 120 + 12,
-                          child: Column(
-                            children: [
-                              Text(
-                                userData!['username'] ?? '',
-                                style: const TextStyle(
-                                  fontSize: 24,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.white,
-                                  shadows: [
-                                    Shadow(
-                                        blurRadius: 4,
-                                        color: Colors.black54,
-                                        offset: Offset(1, 1))
-                                  ],
-                                ),
-                              ),
-                              const SizedBox(height: 6),
-                              Text(
-                                '@${userData!['username']}',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  color: Colors.white.withOpacity(0.9),
-                                  fontWeight: FontWeight.w600,
-                                ),
+                      ),
+                    )
+                  else
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.only(left: 10.0, right: 10.0),
+                        child: Column(
+                          children: [
+                            for (final post in userPosts) ...[
+                              const SizedBox(height: 10),
+                              PostCard(
+                                key: ValueKey(post.id),
+                                post: post,
+                                currentUserId: currentUserId,
+                                onPostDeleted: (postId) {
+                                  setState(() {
+                                    userPosts
+                                        .removeWhere((p) => p.id == postId);
+                                  });
+                                },
+                                onPostUpdated: (postId) {
+                                  // Refresh the specific post or reload all posts
+                                  _loadUserPosts();
+                                },
+                                onInputFocused: () => _onPostInputFocused(post.id),
+                                onInputUnfocused: () => _onPostInputUnfocused(post.id),
                               ),
                             ],
-                          ),
+                          ],
                         ),
-                      ],
+                      ),
                     ),
-                  ),
-                ),
-                // --- Post Feed ---
-                if (isLoadingPosts)
                   const SliverToBoxAdapter(
-                    child: Padding(
-                      padding: EdgeInsets.all(16.0),
-                      child: Center(child: CircularProgressIndicator()),
-                    ),
-                  )
-                else if (userPosts.isEmpty)
-                  SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.all(16.0),
-                      child: Center(
-                        child: TranslatedText(
-                          TranslationKeys.noPostsYet,
-                          style: const TextStyle(color: Colors.white70, fontSize: 16),
-                        ),
-                      ),
-                    ),
-                  )
-                else
-                  SliverList(
-                    delegate: SliverChildBuilderDelegate(
-                      (context, index) => Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-                        child: PostCard(
-                          post: userPosts[index],
-                          currentUserId: currentUserId,
-                          onPostDeleted: (postId) {
-                            setState(() {
-                              userPosts
-                                  .removeWhere((post) => post.id == postId);
-                            });
-                          },
-                          onPostUpdated: (postId) {
-                            // Refresh the specific post or reload all posts
-                            _loadUserPosts();
-                          },
-                        ),
-                      ),
-                      childCount: userPosts.length,
-                    ),
+                    child:
+                        SizedBox(height: 130), // Restore space for bottom nav bar
                   ),
-                const SliverToBoxAdapter(
-                  child:
-                      SizedBox(height: 130), // Restore space for bottom nav bar
-                ),
-              ],
+                ],
+              ),
             ),
           // Global search overlay
           GlobalSearchOverlay(

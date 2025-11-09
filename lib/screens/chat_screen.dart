@@ -324,15 +324,6 @@ class _ChatScreenState extends State<ChatScreen> {
       extendBodyBehindAppBar: true,
       appBar: CustomAppBar(
         logoPath: 'assets/images/logo.png',
-        onLogout: () async {
-          await _authService.logout();
-          if (mounted) {
-            Navigator.of(context).pushNamedAndRemoveUntil(
-              '/login',
-              (route) => false,
-            );
-          }
-        },
         onLogoPressed: () {
           // Navigate back to home screen
           Navigator.popUntil(context, (route) => route.isFirst);

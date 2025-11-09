@@ -3,6 +3,7 @@ import 'dart:ui'; // Required for ImageFilter.blur
 import 'unified_menu.dart';
 import 'app_colors.dart';
 import '../services/auto_update_service.dart';
+import '../services/auth_service.dart';
 import 'permission_dialog.dart';
 import 'update_dialog.dart';
 import 'package:package_info_plus/package_info_plus.dart';
@@ -62,7 +63,7 @@ class CustomAppBarStyles {
 
 class CustomAppBar extends StatefulWidget implements PreferredSizeWidget {
   final String logoPath;
-  final VoidCallback onLogout;
+  final VoidCallback? onLogout; // Made optional since it's handled internally
   final VoidCallback onLogoPressed;
   final double? appBarHeight;
   final VoidCallback? onSearchFormToggle;
@@ -72,7 +73,7 @@ class CustomAppBar extends StatefulWidget implements PreferredSizeWidget {
   const CustomAppBar({
     super.key,
     required this.logoPath,
-    required this.onLogout,
+    this.onLogout, // Optional - will use internal handler if not provided
     required this.onLogoPressed,
     this.appBarHeight,
     this.onSearchFormToggle,
@@ -92,6 +93,17 @@ class CustomAppBar extends StatefulWidget implements PreferredSizeWidget {
 
 class _CustomAppBarState extends State<CustomAppBar> {
   final GlobalKey _menuKey = GlobalKey();
+  final _authService = AuthService();
+
+  Future<void> _handleLogout() async {
+    await _authService.logout();
+    if (mounted) {
+      Navigator.of(context).pushNamedAndRemoveUntil(
+        '/login',
+        (route) => false,
+      );
+    }
+  }
 
   void _handleSearchPressed() {
     print('🔍 Search icon clicked at ${DateTime.now()}');
@@ -287,7 +299,7 @@ class _CustomAppBarState extends State<CustomAppBar> {
                                 child: UnifiedMenu.createUserMenuButton(
                                   context: context,
                                   appBarHeight: appBarHeight,
-                                  onLogout: widget.onLogout,
+                                  onLogout: widget.onLogout ?? _handleLogout,
                                   menuKey: _menuKey,
                                   onSearchFormToggle: widget.onSearchFormToggle,
                                   isSearchFormVisible: widget.isSearchFormVisible,

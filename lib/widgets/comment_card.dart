@@ -63,18 +63,57 @@ class CommentCard extends StatelessWidget {
 
   /// Decode HTML entities to their actual characters
   /// Handles named entities (&excl;, &quot;, &amp;, etc.), numeric entities (&#33;, &#34;, etc.), and hex entities (&#x21;, &#x22;, etc.)
+  /// Also handles double-encoded entities (like &amp;excl; which should decode to &excl; then to !)
   static String _decodeHtmlEntities(String text) {
+    if (text.isEmpty) return text;
+    
     String result = text;
     
-    // Common HTML named entities
+    // First, handle double-encoded entities (like &amp;excl; -> &excl;)
+    // This must be done first before decoding the actual entities
+    // Handle multiple levels of encoding (e.g., &amp;amp;excl; -> &amp;excl; -> &excl;)
+    String previousResult;
+    int iterations = 0;
+    do {
+      previousResult = result;
+      // Handle &amp;entity; -> &entity; (use replaceAllMapped for proper capture group handling)
+      result = result.replaceAllMapped(RegExp(r'&amp;([a-zA-Z]+);', caseSensitive: false), (match) {
+        return '&${match.group(1)};';
+      });
+      // Also handle &amp;amp; -> &amp; (double-encoded ampersand)
+      result = result.replaceAll(RegExp(r'&amp;amp;', caseSensitive: false), '&amp;');
+      // Handle &amp;#123; -> &#123; (double-encoded numeric entities)
+      result = result.replaceAllMapped(RegExp(r'&amp;#(\d+);', caseSensitive: false), (match) {
+        return '&#${match.group(1)};';
+      });
+      // Handle &amp;#x21; -> &#x21; (double-encoded hex entities)
+      result = result.replaceAllMapped(RegExp(r'&amp;#x([0-9a-fA-F]+);', caseSensitive: false), (match) {
+        return '&#x${match.group(1)};';
+      });
+      iterations++;
+      if (iterations > 10) break; // Safety limit
+    } while (result != previousResult); // Keep going until no more changes
+    
+    // Clean up any malformed entities that might have been created (like &$1;)
+    // This handles cases where regex replacement might have failed
+    result = result.replaceAll(RegExp(r'&\$1;', caseSensitive: false), '');
+    result = result.replaceAll(RegExp(r'&\$[0-9]+;', caseSensitive: false), '');
+    
+    // Common HTML named entities (including NewLine and other common ones)
+    // Note: &amp; must be decoded LAST to avoid conflicts with other entities
     final namedEntities = {
       '&excl;': '!',
       '&quot;': '"',
       '&apos;': "'",
-      '&amp;': '&',
       '&lt;': '<',
       '&gt;': '>',
       '&nbsp;': ' ',
+      '&NewLine;': '\n',
+      '&newline;': '\n',
+      '&nl;': '\n',
+      '&NL;': '\n',
+      '&br;': '\n',
+      '&BR;': '\n',
       '&copy;': '©',
       '&reg;': '®',
       '&trade;': '™',
@@ -107,10 +146,13 @@ class CommentCard extends StatelessWidget {
       '&darr;': '↓',
     };
     
-    // Replace named entities (case-insensitive)
+    // Replace named entities (case-insensitive) - decode &amp; LAST
     for (final entry in namedEntities.entries) {
       result = result.replaceAll(RegExp(entry.key, caseSensitive: false), entry.value);
     }
+    
+    // Decode &amp; LAST to avoid conflicts
+    result = result.replaceAll(RegExp(r'&amp;', caseSensitive: false), '&');
     
     // Decode numeric entities (&#33; format)
     result = result.replaceAllMapped(RegExp(r'&#(\d+);'), (match) {
@@ -229,6 +271,7 @@ class CommentCard extends StatelessWidget {
                             fontSize: CommentCardStyles.fontSize,
                             color: commentTextColor,
                           ),
+                          softWrap: true,
                         ),
                       ),
                     ),

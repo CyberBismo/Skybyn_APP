@@ -98,7 +98,7 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _showSearchForm = false;
   String? _focusedPostId;
   LifecycleEventHandler? _lifecycleEventHandler;
-  bool _showNotificationOverlay = false;
+  final GlobalKey _notificationButtonKey = GlobalKey();
   int _unreadNotificationCount = 0;
   bool _showNoPostsMessage = false;
   Timer? _noPostsTimer;
@@ -433,15 +433,6 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         );
       }
-    }
-  }
-
-  Future<void> _handleLogout() async {
-    await _authService.logout();
-    if (mounted) {
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (context) => const LoginScreen()),
-      );
     }
   }
 
@@ -843,20 +834,17 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _toggleNotificationOverlay() {
-    setState(() {
-      _showNotificationOverlay = !_showNotificationOverlay;
-    });
-    if (!_showNotificationOverlay) {
+    if (UnifiedNotificationOverlay.isOverlayOpen) {
+      UnifiedNotificationOverlay.closeCurrentOverlay();
       // If closing, refresh count
       _fetchUnreadNotificationCount();
+    } else {
+      UnifiedNotificationOverlay.showNotificationOverlay(
+        context: context,
+        notificationButtonKey: _notificationButtonKey,
+        onUnreadCountChanged: _onUnreadCountChanged,
+      );
     }
-  }
-
-  void _closeNotificationOverlay() {
-    setState(() {
-      _showNotificationOverlay = false;
-    });
-    _fetchUnreadNotificationCount(); // Refresh count after closing
   }
 
   void _onUnreadCountChanged(int count) {
@@ -878,7 +866,6 @@ class _HomeScreenState extends State<HomeScreen> {
         extendBody: true,
         appBar: CustomAppBar(
           logoPath: 'assets/images/logo.png',
-          onLogout: _handleLogout,
           onLogoPressed: () {
             // Force refresh data when logo is pressed
             _refreshData();
@@ -933,6 +920,7 @@ class _HomeScreenState extends State<HomeScreen> {
             onChatPressed: _openChatListModal,
             onNotificationsPressed: _toggleNotificationOverlay,
             unreadNotificationCount: _unreadNotificationCount,
+            notificationButtonKey: _notificationButtonKey,
           ),
         ),
         body: Stack(
@@ -1036,15 +1024,6 @@ class _HomeScreenState extends State<HomeScreen> {
                 });
               },
             ),
-            // Notification overlay
-            if (_showNotificationOverlay)
-              GestureDetector(
-                onTap: _closeNotificationOverlay,
-                child: NotificationOverlay(
-                  onClose: _closeNotificationOverlay,
-                  onUnreadCountChanged: _onUnreadCountChanged,
-                ),
-              ),
             // Find Friends overlay at the bottom (with delay)
             // Always render but use Offstage to keep in tree and preserve state
             // Wrapped in RepaintBoundary to prevent unnecessary repaints when parent rebuilds

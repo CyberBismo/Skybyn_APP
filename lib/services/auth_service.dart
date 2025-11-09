@@ -261,6 +261,7 @@ class AuthService {
   Future<User?> fetchAnyUserProfile({String? username, String? userId}) async {
     try {
       final requestBody = <String, String>{};
+      String? targetUserId = userId;
       if (userId != null) {
         requestBody['userID'] = userId;
       } else if (username != null) {
@@ -272,6 +273,18 @@ class AuthService {
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         if (data['responseCode'] == '1') {
+          // Ensure the user ID is set in the response data
+          // The API might return it as 'userID' or 'id', but User.fromJson expects it
+          if (targetUserId != null) {
+            data['id'] = targetUserId.toString();
+            data['userID'] = targetUserId.toString(); // Also set userID for compatibility
+          } else if (data['userID'] != null) {
+            // If we used username, extract userID from response
+            data['id'] = data['userID'].toString();
+          } else if (data['id'] != null) {
+            // If id exists, also set userID for compatibility
+            data['userID'] = data['id'].toString();
+          }
           return User.fromJson(data);
         }
       }

@@ -33,6 +33,7 @@ class CustomBottomNavigationBar extends StatelessWidget {
   final VoidCallback onChatPressed;
   final VoidCallback onNotificationsPressed;
   final int unreadNotificationCount;
+  final GlobalKey? notificationButtonKey;
 
   const CustomBottomNavigationBar({
     super.key,
@@ -42,6 +43,7 @@ class CustomBottomNavigationBar extends StatelessWidget {
     required this.onChatPressed,
     required this.onNotificationsPressed,
     this.unreadNotificationCount = 0,
+    this.notificationButtonKey,
   });
 
   @override
@@ -166,6 +168,7 @@ class CustomBottomNavigationBar extends StatelessWidget {
                     clipBehavior: Clip.none,
                     children: [
                       IconButton(
+                        key: notificationButtonKey,
                         icon: const Icon(Icons.notifications, color: iconColor, size: BottomNavBarStyles.iconSize),
                         onPressed: onNotificationsPressed,
                       ),

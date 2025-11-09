@@ -216,6 +216,7 @@ class PostService {
 
   Future<List<Post>> fetchUserTimeline({required String userId, String? currentUserId}) async {
     try {
+      print('📡 [PostService] Fetching user timeline for userId: $userId');
       final response = await http.post(
         Uri.parse(ApiConstants.userTimeline),
         body: {
@@ -224,21 +225,65 @@ class PostService {
         },
       ).timeout(const Duration(seconds: 10));
     
+      print('📡 [PostService] User timeline response status: ${response.statusCode}');
+      print('📡 [PostService] User timeline response body length: ${response.body.length}');
+      
       if (response.statusCode == 200) {
-        final List<dynamic> data = json.decode(response.body);
+        // Handle empty response
+        if (response.body.isEmpty || response.body.trim().isEmpty) {
+          print('⚠️ [PostService] Empty response body, returning empty list');
+          return [];
+        }
+        
+        final decoded = json.decode(response.body);
+        
+        // Handle different response formats
+        List<dynamic> data = [];
+        if (decoded is List) {
+          // Direct array format
+          data = decoded;
+        } else if (decoded is Map) {
+          // Wrapped format: {"responseCode": "1", "data": [...]}
+          if (decoded['responseCode'] == '1' || decoded['responseCode'] == 1) {
+            if (decoded.containsKey('data') && decoded['data'] is List) {
+              data = decoded['data'];
+            } else {
+              // No data field or empty response
+              data = [];
+            }
+          } else {
+            // Error response
+            final message = decoded['message'] ?? 'Failed to load user timeline';
+            print('❌ [PostService] API error: $message');
+            throw Exception(message);
+          }
+        }
+        
+        print('📡 [PostService] Parsed ${data.length} posts from response');
         
         final List<Post> posts = [];
         for (final item in data) {
-          final postMap = item as Map<String, dynamic>;
-          posts.add(Post.fromJson(postMap));
+          if (item is Map<String, dynamic>) {
+            try {
+              final post = Post.fromJson(item);
+              // Log post details for debugging
+              print('📡 [PostService] Post: id=${post.id}, userId=${post.userId}, author=${post.author}');
+              posts.add(post);
+            } catch (e) {
+              print('❌ [PostService] Error parsing post: $e');
+              print('❌ [PostService] Post data: $item');
+            }
+          }
         }
         
+        print('📡 [PostService] Successfully parsed ${posts.length} posts');
         return posts;
       } else {
         throw Exception('Failed to load user timeline: ${response.statusCode}');
       }
-    } catch (e) {
-      print('❌ [PostService] Error: $e');
+    } catch (e, stackTrace) {
+      print('❌ [PostService] Error fetching user timeline: $e');
+      print('❌ [PostService] Stack trace: $stackTrace');
       return [];
     }
   }

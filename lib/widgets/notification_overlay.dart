@@ -52,21 +52,102 @@ class Notification {
   }
 }
 
-class NotificationOverlay extends StatefulWidget {
+/// Unified notification overlay system that positions relative to bottom nav bar
+class UnifiedNotificationOverlay {
+  static OverlayEntry? _currentOverlayEntry;
+  static _NotificationOverlayState? _currentState;
+  
+  static bool get isOverlayOpen => _currentOverlayEntry != null;
+  
+  static void closeCurrentOverlay() {
+    if (_currentOverlayEntry != null) {
+      _currentOverlayEntry?.remove();
+      _currentOverlayEntry = null;
+      _currentState = null;
+    }
+  }
+
+  /// Show notification overlay positioned relative to the notification button
+  static void showNotificationOverlay({
+    required BuildContext context,
+    required GlobalKey notificationButtonKey,
+    Function(int)? onUnreadCountChanged,
+  }) {
+    closeCurrentOverlay();
+    
+    // Get the button position relative to the screen
+    final RenderBox? renderBox = notificationButtonKey.currentContext?.findRenderObject() as RenderBox?;
+    if (renderBox == null) return;
+    
+    final buttonPosition = renderBox.localToGlobal(Offset.zero);
+    final buttonSize = renderBox.size;
+    final screenHeight = MediaQuery.of(context).size.height;
+    final bottomPadding = MediaQuery.of(context).padding.bottom;
+    
+    // Calculate overlay position - above the bottom nav bar
+    final overlayHeight = screenHeight * 0.6; // 60% of screen height
+    final bottomOffset = bottomPadding + 50.0 + 16.0; // Bottom nav height + padding + gap
+    final overlayTop = screenHeight - overlayHeight - bottomOffset;
+    
+    _currentOverlayEntry = OverlayEntry(
+      builder: (BuildContext context) {
+        return Stack(
+          children: [
+            // Full screen gesture detector to close overlay when tapping outside
+            Positioned.fill(
+              child: GestureDetector(
+                onTap: () {
+                  closeCurrentOverlay();
+                },
+                child: Container(
+                  color: Colors.black54,
+                ),
+              ),
+            ),
+            // Notification overlay content
+            Positioned(
+              left: 16,
+              right: 16,
+              top: overlayTop,
+              bottom: bottomOffset,
+              child: GestureDetector(
+                onTap: () {}, // Prevent closing when tapping on the overlay itself
+                child: NotificationOverlayContent(
+                  onClose: closeCurrentOverlay,
+                  onUnreadCountChanged: onUnreadCountChanged,
+                  onStateCreated: (state) {
+                    _currentState = state;
+                  },
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+
+    Overlay.of(context).insert(_currentOverlayEntry!);
+  }
+}
+
+/// Content widget for the notification overlay (used by UnifiedNotificationOverlay)
+class NotificationOverlayContent extends StatefulWidget {
   final VoidCallback onClose;
   final Function(int)? onUnreadCountChanged;
+  final Function(_NotificationOverlayState)? onStateCreated;
 
-  const NotificationOverlay({
+  const NotificationOverlayContent({
     super.key,
     required this.onClose,
     this.onUnreadCountChanged,
+    this.onStateCreated,
   });
 
   @override
-  State<NotificationOverlay> createState() => _NotificationOverlayState();
+  State<NotificationOverlayContent> createState() => _NotificationOverlayState();
 }
 
-class _NotificationOverlayState extends State<NotificationOverlay> {
+class _NotificationOverlayState extends State<NotificationOverlayContent> {
   final AuthService _authService = AuthService();
   List<Notification> _notifications = [];
   bool _isLoading = true;
@@ -75,6 +156,7 @@ class _NotificationOverlayState extends State<NotificationOverlay> {
   @override
   void initState() {
     super.initState();
+    widget.onStateCreated?.call(this);
     _loadNotifications();
   }
 
@@ -230,210 +312,186 @@ class _NotificationOverlayState extends State<NotificationOverlay> {
 
   @override
   Widget build(BuildContext context) {
-    final appBarHeight = MediaQuery.of(context).padding.top; // AppBar height
-    final bottomBarHeight = 130.0; // Bottom bar height + padding
-    
-    return GestureDetector(
-      onTap: widget.onClose,
-      child: Container(
-        color: Colors.black54,
-        child: SafeArea(
-          top: false,
-          bottom: false,
-          child: Padding(
-            padding: EdgeInsets.only(
-              top: appBarHeight,
-              left: 16,
-              right: 16,
-              bottom: bottomBarHeight,
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(10),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+        child: Material(
+          color: Colors.transparent,
+          child: Container(
+            decoration: BoxDecoration(
+              color: Colors.transparent,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: AppColors.getMenuBorderColor(context),
+                width: 1,
+              ),
             ),
-            child: GestureDetector(
-              onTap: () {}, // Prevent closing when tapping on the menu itself
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(10),
-                child: BackdropFilter(
-                  filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                  child: Material(
-                    color: Colors.transparent,
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: Colors.transparent,
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(
-                          color: AppColors.getMenuBorderColor(context),
-                          width: 1,
-                        ),
-                      ),
-                      child: Column(
-                        children: [
-                          // Header with title and action buttons
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                            decoration: BoxDecoration(
-                              border: Border(
-                                bottom: BorderSide(
-                                  color: AppColors.getMenuDividerColor(context),
-                                  width: 1,
-                                ),
-                              ),
-                            ),
-                            child: Row(
-                              children: [
-                                // Read All button (left)
-                                IconButton(
-                                  icon: const Icon(Icons.done_all, color: Colors.white),
-                                  onPressed: _readAll,
-                                  tooltip: TranslationKeys.readAll.tr,
-                                ),
-                                // Title (center)
-                                Expanded(
-                                  child: Center(
-                                    child: TranslatedText(
-                                      TranslationKeys.notifications,
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 18,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                                // Delete All button (right)
-                                IconButton(
-                                  icon: const Icon(Icons.delete_sweep, color: Colors.white),
-                                  onPressed: _deleteAll,
-                                  tooltip: TranslationKeys.deleteAll.tr,
-                                ),
-                              ],
-                            ),
-                          ),
-                          // Notifications list
-                          Expanded(
-                            child: _isLoading
-                                ? const Center(
-                                    child: CircularProgressIndicator(
-                                      color: Colors.white,
-                                    ),
-                                  )
-                                : _notifications.isEmpty
-                                    ? Center(
-                                        child: TranslatedText(
-                                          TranslationKeys.noData,
-                                          style: const TextStyle(
-                                            color: Colors.white70,
-                                            fontSize: 16,
-                                          ),
-                                        ),
-                                      )
-                                    : RefreshIndicator(
-                                        onRefresh: _loadNotifications,
-                                        color: Colors.white,
-                                        child: ListView.separated(
-                                          padding: const EdgeInsets.all(16),
-                                          itemCount: _notifications.length,
-                                          separatorBuilder: (context, index) => const SizedBox(height: 8),
-                                          itemBuilder: (context, index) {
-                                            final notification = _notifications[index];
-                                            return GestureDetector(
-                                              onTap: () {
-                                                if (notification.read == 0) {
-                                                  _markAsRead(notification.id);
-                                                }
-                                                // TODO: Navigate to profile or post based on notification type
-                                              },
-                                              child: Container(
-                                                decoration: BoxDecoration(
-                                                  color: Colors.transparent,
-                                                  borderRadius: BorderRadius.circular(10),
-                                                ),
-                                                child: ListTile(
-                                                  leading: CircleAvatar(
-                                                    radius: 22,
-                                                    backgroundColor: Colors.white.withOpacity(0.2),
-                                                    child: notification.avatar.isNotEmpty
-                                                        ? ClipOval(
-                                                            child: CachedNetworkImage(
-                                                              imageUrl: notification.avatar,
-                                                              width: 44,
-                                                              height: 44,
-                                                              fit: BoxFit.cover,
-                                                              placeholder: (context, url) => Image.asset(
-                                                                'assets/images/icon.png',
-                                                                width: 44,
-                                                                height: 44,
-                                                                fit: BoxFit.cover,
-                                                              ),
-                                                              errorWidget: (context, url, error) => Image.asset(
-                                                                'assets/images/icon.png',
-                                                                width: 44,
-                                                                height: 44,
-                                                                fit: BoxFit.cover,
-                                                              ),
-                                                            ),
-                                                          )
-                                                        : Image.asset(
-                                                            'assets/images/icon.png',
-                                                            width: 44,
-                                                            height: 44,
-                                                            fit: BoxFit.cover,
-                                                          ),
-                                                  ),
-                                                  title: Text(
-                                                    notification.nickname,
-                                                    style: TextStyle(
-                                                      color: Colors.white,
-                                                      fontWeight: notification.read == 0
-                                                          ? FontWeight.bold
-                                                          : FontWeight.normal,
-                                                      fontSize: 16,
-                                                    ),
-                                                  ),
-                                                  subtitle: Column(
-                                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                                    children: [
-                                                      const SizedBox(height: 4),
-                                                      Text(
-                                                        notification.content,
-                                                        style: TextStyle(
-                                                          color: Colors.white70,
-                                                          fontSize: 14,
-                                                        ),
-                                                        maxLines: 2,
-                                                        overflow: TextOverflow.ellipsis,
-                                                      ),
-                                                      const SizedBox(height: 4),
-                                                      Text(
-                                                        _formatDate(notification.date),
-                                                        style: TextStyle(
-                                                          color: Colors.white60,
-                                                          fontSize: 12,
-                                                        ),
-                                                      ),
-                                                    ],
-                                                  ),
-                                                  trailing: notification.read == 0
-                                                      ? Container(
-                                                          width: 8,
-                                                          height: 8,
-                                                          decoration: const BoxDecoration(
-                                                            color: Colors.blue,
-                                                            shape: BoxShape.circle,
-                                                          ),
-                                                        )
-                                                      : null,
-                                                ),
-                                              ),
-                                            );
-                                          },
-                                        ),
-                                      ),
-                          ),
-                        ],
+            child: Column(
+              children: [
+                // Header with title and action buttons
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  decoration: BoxDecoration(
+                    border: Border(
+                      bottom: BorderSide(
+                        color: AppColors.getMenuDividerColor(context),
+                        width: 1,
                       ),
                     ),
                   ),
+                  child: Row(
+                    children: [
+                      // Read All button (left)
+                      IconButton(
+                        icon: const Icon(Icons.done_all, color: Colors.white),
+                        onPressed: _readAll,
+                        tooltip: TranslationKeys.readAll.tr,
+                      ),
+                      // Title (center)
+                      Expanded(
+                        child: Center(
+                          child: TranslatedText(
+                            TranslationKeys.notifications,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
+                      // Delete All button (right)
+                      IconButton(
+                        icon: const Icon(Icons.delete_sweep, color: Colors.white),
+                        onPressed: _deleteAll,
+                        tooltip: TranslationKeys.deleteAll.tr,
+                      ),
+                    ],
+                  ),
                 ),
-              ),
+                // Notifications list
+                Expanded(
+                  child: _isLoading
+                      ? const Center(
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                          ),
+                        )
+                      : _notifications.isEmpty
+                          ? Center(
+                              child: TranslatedText(
+                                TranslationKeys.noData,
+                                style: const TextStyle(
+                                  color: Colors.white70,
+                                  fontSize: 16,
+                                ),
+                              ),
+                            )
+                          : RefreshIndicator(
+                              onRefresh: _loadNotifications,
+                              color: Colors.white,
+                              child: ListView.separated(
+                                padding: const EdgeInsets.all(16),
+                                itemCount: _notifications.length,
+                                separatorBuilder: (context, index) => const SizedBox(height: 8),
+                                itemBuilder: (context, index) {
+                                  final notification = _notifications[index];
+                                  return GestureDetector(
+                                    onTap: () {
+                                      if (notification.read == 0) {
+                                        _markAsRead(notification.id);
+                                      }
+                                      // TODO: Navigate to profile or post based on notification type
+                                    },
+                                    child: Container(
+                                      decoration: BoxDecoration(
+                                        color: Colors.transparent,
+                                        borderRadius: BorderRadius.circular(10),
+                                      ),
+                                      child: ListTile(
+                                        leading: CircleAvatar(
+                                          radius: 22,
+                                          backgroundColor: Colors.white.withOpacity(0.2),
+                                          child: notification.avatar.isNotEmpty
+                                              ? ClipOval(
+                                                  child: CachedNetworkImage(
+                                                    imageUrl: notification.avatar,
+                                                    width: 44,
+                                                    height: 44,
+                                                    fit: BoxFit.cover,
+                                                    placeholder: (context, url) => Image.asset(
+                                                      'assets/images/icon.png',
+                                                      width: 44,
+                                                      height: 44,
+                                                      fit: BoxFit.cover,
+                                                    ),
+                                                    errorWidget: (context, url, error) => Image.asset(
+                                                      'assets/images/icon.png',
+                                                      width: 44,
+                                                      height: 44,
+                                                      fit: BoxFit.cover,
+                                                    ),
+                                                  ),
+                                                )
+                                              : Image.asset(
+                                                  'assets/images/icon.png',
+                                                  width: 44,
+                                                  height: 44,
+                                                  fit: BoxFit.cover,
+                                                ),
+                                        ),
+                                        title: Text(
+                                          notification.nickname,
+                                          style: TextStyle(
+                                            color: Colors.white,
+                                            fontWeight: notification.read == 0
+                                                ? FontWeight.bold
+                                                : FontWeight.normal,
+                                            fontSize: 16,
+                                          ),
+                                        ),
+                                        subtitle: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            const SizedBox(height: 4),
+                                            Text(
+                                              notification.content,
+                                              style: TextStyle(
+                                                color: Colors.white70,
+                                                fontSize: 14,
+                                              ),
+                                              maxLines: 2,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                            const SizedBox(height: 4),
+                                            Text(
+                                              _formatDate(notification.date),
+                                              style: TextStyle(
+                                                color: Colors.white60,
+                                                fontSize: 12,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        trailing: notification.read == 0
+                                            ? Container(
+                                                width: 8,
+                                                height: 8,
+                                                decoration: const BoxDecoration(
+                                                  color: Colors.blue,
+                                                  shape: BoxShape.circle,
+                                                ),
+                                              )
+                                            : null,
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                            ),
+                ),
+              ],
             ),
           ),
         ),

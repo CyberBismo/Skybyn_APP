@@ -357,7 +357,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
       extendBody: true,
       appBar: CustomAppBar(
         logoPath: 'assets/images/logo.png',
-        onLogout: () {},
         onLogoPressed: () {
           Navigator.of(context).pushReplacementNamed('/home');
         },
