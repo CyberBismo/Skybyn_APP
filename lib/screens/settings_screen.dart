@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:image_cropper/image_cropper.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
@@ -50,6 +51,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   File? _newAvatarFile;
   File? _newBackgroundFile;
+  bool _isUploadingAvatar = false;
+  bool _isUploadingWallpaper = false;
   final ImagePicker _picker = ImagePicker();
 
   final TextEditingController _emailController = TextEditingController();
@@ -262,6 +265,136 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return file;
   }
 
+  // Upload avatar image
+  Future<void> _uploadAvatar() async {
+    if (_newAvatarFile == null || user == null) return;
+
+    setState(() => _isUploadingAvatar = true);
+
+    try {
+      final request = http.MultipartRequest(
+        'POST',
+        Uri.parse('${ApiConstants.apiBase}/profile_update.php'),
+      );
+
+      request.fields['userID'] = user!.id;
+      request.files.add(
+        await http.MultipartFile.fromPath('avatar', _newAvatarFile!.path),
+      );
+
+      final streamedResponse = await request.send();
+      final response = await http.Response.fromStream(streamedResponse);
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data['responseCode'] == '1') {
+          // Refresh user profile
+          await AuthService().fetchUserProfile(user!.username);
+          if (mounted) {
+            setState(() {
+              _newAvatarFile = null;
+              _isUploadingAvatar = false;
+            });
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(data['message'] ?? TranslationKeys.profileUpdateSuccess.tr),
+                backgroundColor: Colors.green,
+              ),
+            );
+            // Reload profile data
+            await _loadUserProfile();
+          }
+        } else {
+          if (mounted) {
+            setState(() => _isUploadingAvatar = false);
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(data['message'] ?? TranslationKeys.profileUpdateError.tr),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
+        }
+      }
+    } catch (e) {
+      print('Error uploading avatar: $e');
+      if (mounted) {
+        setState(() => _isUploadingAvatar = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(TranslationKeys.profileUpdateError.tr),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  // Upload wallpaper image
+  Future<void> _uploadWallpaper() async {
+    if (_newBackgroundFile == null || user == null) return;
+
+    setState(() => _isUploadingWallpaper = true);
+
+    try {
+      final request = http.MultipartRequest(
+        'POST',
+        Uri.parse('${ApiConstants.apiBase}/profile_update.php'),
+      );
+
+      request.fields['userID'] = user!.id;
+      request.files.add(
+        await http.MultipartFile.fromPath('wallpaper', _newBackgroundFile!.path),
+      );
+
+      final streamedResponse = await request.send();
+      final response = await http.Response.fromStream(streamedResponse);
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data['responseCode'] == '1') {
+          // Refresh user profile
+          await AuthService().fetchUserProfile(user!.username);
+          if (mounted) {
+            setState(() {
+              _newBackgroundFile = null;
+              _isUploadingWallpaper = false;
+            });
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(data['message'] ?? TranslationKeys.profileUpdateSuccess.tr),
+                backgroundColor: Colors.green,
+              ),
+            );
+            // Reload profile data
+            await _loadUserProfile();
+          }
+        } else {
+          if (mounted) {
+            setState(() => _isUploadingWallpaper = false);
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(data['message'] ?? TranslationKeys.profileUpdateError.tr),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
+        }
+      }
+    } catch (e) {
+      print('Error uploading wallpaper: $e');
+      if (mounted) {
+        setState(() => _isUploadingWallpaper = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(TranslationKeys.profileUpdateError.tr),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
   // Update _pickAndCropAvatar to accept source
   Future<void> _pickAndCropAvatar({File? existingFile, ImageSource? source}) async {
     File? imageFile;
@@ -278,11 +411,32 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
 
     if (imageFile != null) {
-      // For now, use the image directly without cropping
-      setState(() {
-        _newAvatarFile = imageFile;
-        avatarMargin = [0.0, 0.0, 0.0, 0.0]; // Default margins
-      });
+      // Crop the image
+      final croppedFile = await ImageCropper().cropImage(
+        sourcePath: imageFile.path,
+        aspectRatio: const CropAspectRatio(ratioX: 1, ratioY: 1), // Square for avatar
+        uiSettings: [
+          AndroidUiSettings(
+            toolbarTitle: TranslationService().translate(TranslationKeys.cropImage) ?? 'Crop Image',
+            toolbarColor: Colors.black,
+            toolbarWidgetColor: Colors.white,
+            initAspectRatio: CropAspectRatioPreset.square,
+            lockAspectRatio: true,
+          ),
+          IOSUiSettings(
+            title: TranslationService().translate(TranslationKeys.cropImage) ?? 'Crop Image',
+            aspectRatioLockEnabled: true,
+            aspectRatioLockDimensionSwapEnabled: false,
+          ),
+        ],
+      );
+
+      if (croppedFile != null) {
+        setState(() {
+          _newAvatarFile = File(croppedFile.path);
+          avatarMargin = [0.0, 0.0, 0.0, 0.0]; // Default margins
+        });
+      }
     }
   }
 
@@ -302,11 +456,32 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
 
     if (imageFile != null) {
-      // For now, use the image directly without cropping
-      setState(() {
-        _newBackgroundFile = imageFile;
-        backgroundMargin = [0.0, 0.0, 0.0, 0.0]; // Default margins
-      });
+      // Crop the image (free aspect ratio for wallpaper)
+      final croppedFile = await ImageCropper().cropImage(
+        sourcePath: imageFile.path,
+        aspectRatio: const CropAspectRatio(ratioX: 16, ratioY: 9), // 16:9 for wallpaper
+        uiSettings: [
+          AndroidUiSettings(
+            toolbarTitle: TranslationService().translate(TranslationKeys.cropImage) ?? 'Crop Image',
+            toolbarColor: Colors.black,
+            toolbarWidgetColor: Colors.white,
+            initAspectRatio: CropAspectRatioPreset.ratio16x9,
+            lockAspectRatio: false, // Allow free cropping for wallpaper
+          ),
+          IOSUiSettings(
+            title: TranslationService().translate(TranslationKeys.cropImage) ?? 'Crop Image',
+            aspectRatioLockEnabled: false, // Allow free cropping for wallpaper
+            aspectRatioLockDimensionSwapEnabled: false,
+          ),
+        ],
+      );
+
+      if (croppedFile != null) {
+        setState(() {
+          _newBackgroundFile = File(croppedFile.path);
+          backgroundMargin = [0.0, 0.0, 0.0, 0.0]; // Default margins
+        });
+      }
     }
   }
 
@@ -391,6 +566,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           ? Image.file(
                               _newBackgroundFile!,
                               fit: BoxFit.cover,
+                              errorBuilder: (context, error, stackTrace) {
+                                // Return empty widget to show gradient background on error
+                                return const SizedBox.shrink();
+                              },
                             )
                           : useDefaultWallpaper
                               ? null // No image, gradient will show through
@@ -435,6 +614,35 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         ),
                       ),
                     ),
+                    // Save button for wallpaper
+                    if (_newBackgroundFile != null)
+                      Positioned(
+                        bottom: 12,
+                        right: 12,
+                        child: Material(
+                          type: MaterialType.transparency,
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: Colors.green.withOpacity(0.9),
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: IconButton(
+                              icon: _isUploadingWallpaper
+                                  ? const SizedBox(
+                                      width: 20,
+                                      height: 20,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                      ),
+                                    )
+                                  : const Icon(Icons.check, color: Colors.white, size: 20),
+                              onPressed: _isUploadingWallpaper ? null : _uploadWallpaper,
+                              tooltip: TranslationKeys.save.tr,
+                            ),
+                          ),
+                        ),
+                      ),
                     Positioned(
                       left: 0,
                       right: 0,
@@ -461,6 +669,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                           width: 100,
                                           height: 100,
                                           fit: BoxFit.cover,
+                                          errorBuilder: (context, error, stackTrace) {
+                                            // Return default icon on error
+                                            return Image.asset(
+                                              'assets/images/icon.png',
+                                              width: 100,
+                                              height: 100,
+                                              fit: BoxFit.cover,
+                                            );
+                                          },
                                         )
                                       : profileImage.startsWith('http')
                                           ? CachedNetworkImage(
@@ -528,6 +745,36 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
                   ],
                 ),
+                // Save button for avatar (outside the avatar box)
+                if (_newAvatarFile != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 12),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Container(
+                          decoration: BoxDecoration(
+                            color: Colors.green.withOpacity(0.9),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: IconButton(
+                            icon: _isUploadingAvatar
+                                ? const SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                    ),
+                                  )
+                                : const Icon(Icons.check, color: Colors.white, size: 20),
+                            onPressed: _isUploadingAvatar ? null : _uploadAvatar,
+                            tooltip: TranslationKeys.save.tr,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 const SizedBox(height: 60),
                 // Basic Info Section
                 _buildExpansionTile(

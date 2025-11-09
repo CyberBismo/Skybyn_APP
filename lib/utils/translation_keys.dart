@@ -280,6 +280,7 @@ class TranslationKeys {
 
   // Language Settings
   static const String selectLanguage = 'select_language';
+  static const String cropImage = 'crop_image';
   static const String languageChanged = 'language_changed';
   static const String languageChangeFailed = 'language_change_failed';
   static const String autoDetectLanguage = 'auto_detect_language';

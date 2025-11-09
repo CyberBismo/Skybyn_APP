@@ -399,6 +399,7 @@ class TranslationService extends ChangeNotifier {
         'find_friends_in_area': 'Find friends in the area',
         'find_friends_description': 'Discover and connect with users nearby using your location',
         'find_friends_button': 'Find Friends',
+        'crop_image': 'Crop Image',
         'nearby_users': 'Nearby Users',
         'no_nearby_users': 'No users found nearby.',
         'add_friend_by_username': 'Add Friend by Username',

@@ -218,7 +218,22 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                             borderRadius: BorderRadius.circular(12),
                             child: Stack(
                               children: [
-                                Image.file(_selectedImage!, height: 180, fit: BoxFit.cover, width: double.infinity),
+                                Image.file(
+                                  _selectedImage!,
+                                  height: 180,
+                                  fit: BoxFit.cover,
+                                  width: double.infinity,
+                                  errorBuilder: (context, error, stackTrace) {
+                                    // Return placeholder on error
+                                    return Container(
+                                      height: 180,
+                                      color: Colors.grey.withOpacity(0.3),
+                                      child: const Center(
+                                        child: Icon(Icons.error, color: Colors.grey),
+                                      ),
+                                    );
+                                  },
+                                ),
                                 Positioned(
                                   top: 4,
                                   right: 4,
