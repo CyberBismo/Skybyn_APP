@@ -21,16 +21,11 @@ import 'login_screen.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'dart:io';
-import '../widgets/chat_list_modal.dart';
-import '../widgets/right_panel.dart';
-import '../widgets/left_panel.dart';
-import '../widgets/find_friends_widget.dart';
 import '../services/friend_service.dart';
 import '../widgets/search_form.dart';
 import '../widgets/app_colors.dart';
 import '../widgets/global_search_overlay.dart';
 import '../widgets/update_dialog.dart';
-import '../widgets/notification_overlay.dart';
 import '../config/constants.dart';
 import '../services/translation_service.dart';
 import '../utils/translation_keys.dart';
@@ -90,10 +85,6 @@ class _HomeScreenState extends State<HomeScreen> {
   List<Post> _posts = [];
   bool _isLoading = true;
   int _friendsCount = -1; // -1 means not loaded yet
-  bool _showFindFriendsBox = false;
-  bool _findFriendsBoxDismissed = false; // Track if user dismissed the box
-  int _findFriendsBoxResetCounter = 0; // Counter to force widget reset when box reappears
-  Timer? _findFriendsTimer;
 
   bool _showSearchForm = false;
   String? _focusedPostId;
@@ -215,7 +206,6 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void dispose() {
     _noPostsTimer?.cancel();
-    _findFriendsTimer?.cancel();
     _webSocketService.disconnect();
     _scrollController.dispose();
     if (_lifecycleEventHandler != null) {
@@ -367,11 +357,6 @@ class _HomeScreenState extends State<HomeScreen> {
         // Clear cache to force fresh data
         final postService = PostService();
         await postService.clearTimelineCache();
-        
-        // Reset dismissed flag so box can show again after refresh
-        _findFriendsBoxDismissed = false;
-        // Increment reset counter to force widget rebuild with fresh state
-        _findFriendsBoxResetCounter++;
         
         // Also refresh notification count and friends count
         _fetchUnreadNotificationCount();
@@ -671,80 +656,7 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  void _openChatListModal() {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => const ChatListModal(),
-    );
-  }
 
-  void _openLeftPanel() {
-    showGeneralDialog(
-      context: context,
-      barrierDismissible: true,
-      barrierLabel: 'Close shortcuts panel',
-      barrierColor: Colors.black.withOpacity(0.5),
-      useRootNavigator: false,
-      transitionDuration: const Duration(milliseconds: 300),
-      pageBuilder: (context, animation, secondaryAnimation) {
-        // Use MediaQuery to get screen size once and pass it to the modal
-        final screenSize = MediaQuery.of(context).size;
-        return MediaQuery(
-          data: MediaQuery.of(context).copyWith(size: screenSize),
-          child: const LeftPanel(),
-        );
-      },
-      transitionBuilder: (context, animation, secondaryAnimation, child) {
-        final slideAnimation = Tween<Offset>(
-          begin: const Offset(-1.0, 0.0), // Start from left
-          end: Offset.zero, // End at center
-        ).animate(CurvedAnimation(
-          parent: animation,
-          curve: Curves.easeOut,
-        ));
-        
-        return SlideTransition(
-          position: slideAnimation,
-          child: child,
-        );
-      },
-    );
-  }
-
-  void _openFriendsModal() {
-    showGeneralDialog(
-      context: context,
-      barrierDismissible: true,
-      barrierLabel: 'Close friends list',
-      barrierColor: Colors.black.withOpacity(0.5),
-      useRootNavigator: false,
-      transitionDuration: const Duration(milliseconds: 300),
-      pageBuilder: (context, animation, secondaryAnimation) {
-        // Use MediaQuery to get screen size once and pass it to the modal
-        final screenSize = MediaQuery.of(context).size;
-        return MediaQuery(
-          data: MediaQuery.of(context).copyWith(size: screenSize),
-          child: const RightPanel(),
-        );
-      },
-      transitionBuilder: (context, animation, secondaryAnimation, child) {
-        final slideAnimation = Tween<Offset>(
-          begin: const Offset(1.0, 0.0), // Start from right
-          end: Offset.zero, // End at center
-        ).animate(CurvedAnimation(
-          parent: animation,
-          curve: Curves.easeOut,
-        ));
-        
-        return SlideTransition(
-          position: slideAnimation,
-          child: child,
-        );
-      },
-    );
-  }
 
   Future<void> _loadFriendsCount() async {
     try {
@@ -754,7 +666,6 @@ class _HomeScreenState extends State<HomeScreen> {
           setState(() {
             _friendsCount = 0;
           });
-          _startFindFriendsTimer();
         }
         return;
       }
@@ -766,11 +677,6 @@ class _HomeScreenState extends State<HomeScreen> {
           _friendsCount = friends.length;
         });
         print('✅ [HomeScreen] Friends count loaded: $_friendsCount');
-        if (_friendsCount <= 0) {
-          _startFindFriendsTimer();
-        } else {
-          _stopFindFriendsTimer();
-        }
       }
     } catch (e) {
       print('⚠️ [HomeScreen] Error loading friends count: $e');
@@ -778,37 +684,7 @@ class _HomeScreenState extends State<HomeScreen> {
         setState(() {
           _friendsCount = 0;
         });
-        _startFindFriendsTimer();
       }
-    }
-  }
-
-  void _startFindFriendsTimer() {
-    _findFriendsTimer?.cancel();
-    _showFindFriendsBox = false;
-    
-    // Don't show if user dismissed it (will only show again after refresh)
-    if (_findFriendsBoxDismissed) {
-      return;
-    }
-    
-    // Show the find friends box after 2 seconds delay
-    _findFriendsTimer = Timer(const Duration(seconds: 2), () {
-      if (mounted && _friendsCount <= 0 && !_isLoading && !_findFriendsBoxDismissed) {
-        setState(() {
-          _showFindFriendsBox = true;
-        });
-      }
-    });
-  }
-
-  void _stopFindFriendsTimer() {
-    _findFriendsTimer?.cancel();
-    _findFriendsTimer = null;
-    if (mounted) {
-      setState(() {
-        _showFindFriendsBox = false;
-      });
     }
   }
 
@@ -830,20 +706,6 @@ class _HomeScreenState extends State<HomeScreen> {
       }
     } catch (e) {
       // Handle error silently
-    }
-  }
-
-  void _toggleNotificationOverlay() {
-    if (UnifiedNotificationOverlay.isOverlayOpen) {
-      UnifiedNotificationOverlay.closeCurrentOverlay();
-      // If closing, refresh count
-      _fetchUnreadNotificationCount();
-    } else {
-      UnifiedNotificationOverlay.showNotificationOverlay(
-        context: context,
-        notificationButtonKey: _notificationButtonKey,
-        onUnreadCountChanged: _onUnreadCountChanged,
-      );
     }
   }
 
@@ -882,7 +744,6 @@ class _HomeScreenState extends State<HomeScreen> {
             bottom: Theme.of(context).platform == TargetPlatform.iOS ? 8.0 : 8.0 + MediaQuery.of(context).padding.bottom,
           ),
           child: CustomBottomNavigationBar(
-            onStarPressed: _openLeftPanel,
             onAddPressed: () async {
               final postId = await showModalBottomSheet<String>(
                 context: context,
@@ -916,11 +777,9 @@ class _HomeScreenState extends State<HomeScreen> {
                 await _fetchAndAddPost(postId);
               }
             },
-            onFriendsPressed: _openFriendsModal,
-            onChatPressed: _openChatListModal,
-            onNotificationsPressed: _toggleNotificationOverlay,
             unreadNotificationCount: _unreadNotificationCount,
             notificationButtonKey: _notificationButtonKey,
+            onUnreadCountChanged: _onUnreadCountChanged,
           ),
         ),
         body: Stack(
@@ -1023,44 +882,6 @@ class _HomeScreenState extends State<HomeScreen> {
                   _showSearchForm = false;
                 });
               },
-            ),
-            // Find Friends overlay at the bottom (with delay)
-            // Always render but use Offstage to keep in tree and preserve state
-            // Wrapped in RepaintBoundary to prevent unnecessary repaints when parent rebuilds
-            Positioned(
-              left: 0,
-              right: 0,
-              bottom: 80.0 + (Theme.of(context).platform == TargetPlatform.iOS ? 8.0 : 8.0 + MediaQuery.of(context).padding.bottom),
-              child: RepaintBoundary(
-                child: Offstage(
-                  offstage: !(_showFindFriendsBox && _friendsCount <= 0 && !_isLoading),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 10.0),
-                    child: FindFriendsWidget(
-                      key: ValueKey('find_friends_$_findFriendsBoxResetCounter'),
-                      onLocationUpdated: () {
-                        // Don't refresh friends count immediately to avoid unmounting widget
-                        // It will be refreshed naturally when needed
-                      },
-                      onDismiss: () {
-                        setState(() {
-                          _showFindFriendsBox = false;
-                          _findFriendsBoxDismissed = true; // Mark as dismissed
-                        });
-                        _stopFindFriendsTimer(); // Stop any pending timer
-                      },
-                      onFriendsFound: () {
-                        // Refresh friends count when a friend is added (delayed to avoid unmounting)
-                        Future.delayed(const Duration(milliseconds: 500), () {
-                          if (mounted) {
-                            _loadFriendsCount();
-                          }
-                        });
-                      },
-                    ),
-                  ),
-                ),
-              ),
             ),
           ],
         ),

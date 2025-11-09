@@ -6,7 +6,6 @@ import '../widgets/background_gradient.dart';
 import '../widgets/post_card.dart';
 import '../widgets/custom_app_bar.dart';
 import '../widgets/custom_bottom_navigation_bar.dart';
-import '../widgets/chat_list_modal.dart';
 import '../widgets/app_colors.dart';
 import '../widgets/global_search_overlay.dart';
 import 'home_screen.dart';
@@ -36,12 +35,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
   List<Post> userPosts = [];
   bool isLoadingPosts = false;
   String? _focusedPostId; // Track which post has focused input
+  final GlobalKey _notificationButtonKey = GlobalKey();
 
   @override
   void initState() {
     super.initState();
     _loadProfile();
   }
+
 
   Future<void> _loadProfile() async {
     setState(() => isLoading = true);
@@ -213,7 +214,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
               : 8.0 + MediaQuery.of(context).padding.bottom,
         ),
         child: CustomBottomNavigationBar(
-          onStarPressed: () {},
           onAddPressed: () async {
             await showModalBottomSheet(
               context: context,
@@ -236,16 +236,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
             );
           },
-          onFriendsPressed: () {},
-          onChatPressed: () {
-            showModalBottomSheet(
-              context: context,
-              isScrollControlled: true,
-              backgroundColor: Colors.transparent,
-              builder: (context) => const ChatListModal(),
-            );
-          },
-          onNotificationsPressed: () {},
+          notificationButtonKey: _notificationButtonKey,
         ),
       ),
       body: Stack(

@@ -368,41 +368,53 @@ class _GlobalSearchOverlayState extends State<GlobalSearchOverlay> {
       return const SizedBox.shrink();
     }
 
-    return Stack(
-      children: [
-        // Full-screen tap detector to close when tapping outside
-        Positioned.fill(
+    return SizedBox.expand(
+      child: Stack(
+        children: [
+          // Full-screen tap detector to close when tapping outside
+          Positioned.fill(
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () {
+                // Close search form when tapping outside
+                _handleClose();
+              },
+              child: Container(
+                color: Colors.transparent,
+              ),
+            ),
+          ),
+        // Search form - taps inside won't close the form
+        Align(
+          alignment: Alignment.topCenter,
           child: GestureDetector(
             onTap: () {
-              // Close search form when tapping outside
-              _handleClose();
+              // Prevent closing when tapping on the search form itself
             },
-            child: Container(
-              color: Colors.transparent,
+            behavior: HitTestBehavior.opaque,
+            child: SearchForm(
+              onClose: _handleClose,
+              onSearch: (query) {
+                print('🔍 [GlobalSearchOverlay] onSearch called with: "$query"');
+                final trimmedQuery = query.trim();
+                // Only search if query has 3 or more characters
+                if (trimmedQuery.length >= 3) {
+                  _performSearch(trimmedQuery);
+                } else {
+                  setState(() {
+                    _searchResults = [];
+                    _searchQuery = null;
+                    _isSearching = false;
+                  });
+                }
+              },
+              searchResults: _searchQuery != null && _searchQuery!.isNotEmpty ? _searchResults : null,
+              isSearching: _isSearching,
             ),
           ),
         ),
-        // Search form - taps inside won't close the form
-        SearchForm(
-          onClose: _handleClose,
-          onSearch: (query) {
-            print('🔍 [GlobalSearchOverlay] onSearch called with: "$query"');
-            final trimmedQuery = query.trim();
-            // Only search if query has 3 or more characters
-            if (trimmedQuery.length >= 3) {
-              _performSearch(trimmedQuery);
-            } else {
-              setState(() {
-                _searchResults = [];
-                _searchQuery = null;
-                _isSearching = false;
-              });
-            }
-          },
-          searchResults: _searchQuery != null && _searchQuery!.isNotEmpty ? _searchResults : null,
-          isSearching: _isSearching,
-        ),
       ],
+      ),
     );
   }
 }

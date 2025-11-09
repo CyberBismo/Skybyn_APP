@@ -100,7 +100,7 @@ class UnifiedNotificationOverlay {
                   closeCurrentOverlay();
                 },
                 child: Container(
-                  color: Colors.black54,
+                  color: Colors.transparent,
                 ),
               ),
             ),
@@ -344,7 +344,7 @@ class _NotificationOverlayState extends State<NotificationOverlayContent> {
                     children: [
                       // Read All button (left)
                       IconButton(
-                        icon: const Icon(Icons.done_all, color: Colors.white),
+                        icon: Icon(Icons.done_all, color: AppColors.getIconColor(context)),
                         onPressed: _readAll,
                         tooltip: TranslationKeys.readAll.tr,
                       ),
@@ -353,8 +353,8 @@ class _NotificationOverlayState extends State<NotificationOverlayContent> {
                         child: Center(
                           child: TranslatedText(
                             TranslationKeys.notifications,
-                            style: const TextStyle(
-                              color: Colors.white,
+                            style: TextStyle(
+                              color: AppColors.getTextColor(context),
                               fontSize: 18,
                               fontWeight: FontWeight.bold,
                             ),
@@ -363,7 +363,7 @@ class _NotificationOverlayState extends State<NotificationOverlayContent> {
                       ),
                       // Delete All button (right)
                       IconButton(
-                        icon: const Icon(Icons.delete_sweep, color: Colors.white),
+                        icon: Icon(Icons.delete_sweep, color: AppColors.getIconColor(context)),
                         onPressed: _deleteAll,
                         tooltip: TranslationKeys.deleteAll.tr,
                       ),
@@ -373,24 +373,25 @@ class _NotificationOverlayState extends State<NotificationOverlayContent> {
                 // Notifications list
                 Expanded(
                   child: _isLoading
-                      ? const Center(
-                          child: CircularProgressIndicator(
-                            color: Colors.white,
-                          ),
+                      ? ListView.separated(
+                          padding: const EdgeInsets.all(16),
+                          itemCount: 5, // Show 5 skeleton items
+                          separatorBuilder: (context, index) => const SizedBox(height: 8),
+                          itemBuilder: (context, index) => _SkeletonNotificationItem(),
                         )
                       : _notifications.isEmpty
                           ? Center(
                               child: TranslatedText(
                                 TranslationKeys.noData,
-                                style: const TextStyle(
-                                  color: Colors.white70,
+                                style: TextStyle(
+                                  color: AppColors.getSecondaryTextColor(context),
                                   fontSize: 16,
                                 ),
                               ),
                             )
                           : RefreshIndicator(
                               onRefresh: _loadNotifications,
-                              color: Colors.white,
+                              color: AppColors.getIconColor(context),
                               child: ListView.separated(
                                 padding: const EdgeInsets.all(16),
                                 itemCount: _notifications.length,
@@ -412,7 +413,7 @@ class _NotificationOverlayState extends State<NotificationOverlayContent> {
                                       child: ListTile(
                                         leading: CircleAvatar(
                                           radius: 22,
-                                          backgroundColor: Colors.white.withOpacity(0.2),
+                                          backgroundColor: AppColors.getIconColor(context).withOpacity(0.2),
                                           child: notification.avatar.isNotEmpty
                                               ? ClipOval(
                                                   child: CachedNetworkImage(
@@ -444,7 +445,7 @@ class _NotificationOverlayState extends State<NotificationOverlayContent> {
                                         title: Text(
                                           notification.nickname,
                                           style: TextStyle(
-                                            color: Colors.white,
+                                            color: AppColors.getTextColor(context),
                                             fontWeight: notification.read == 0
                                                 ? FontWeight.bold
                                                 : FontWeight.normal,
@@ -458,7 +459,7 @@ class _NotificationOverlayState extends State<NotificationOverlayContent> {
                                             Text(
                                               notification.content,
                                               style: TextStyle(
-                                                color: Colors.white70,
+                                                color: AppColors.getSecondaryTextColor(context),
                                                 fontSize: 14,
                                               ),
                                               maxLines: 2,
@@ -468,7 +469,7 @@ class _NotificationOverlayState extends State<NotificationOverlayContent> {
                                             Text(
                                               _formatDate(notification.date),
                                               style: TextStyle(
-                                                color: Colors.white60,
+                                                color: AppColors.getSecondaryTextColor(context),
                                                 fontSize: 12,
                                               ),
                                             ),
@@ -496,6 +497,140 @@ class _NotificationOverlayState extends State<NotificationOverlayContent> {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Animated skeleton placeholder for notification items
+class _SkeletonNotificationItem extends StatefulWidget {
+  @override
+  State<_SkeletonNotificationItem> createState() => _SkeletonNotificationItemState();
+}
+
+class _SkeletonNotificationItemState extends State<_SkeletonNotificationItem>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1500),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: ListTile(
+        leading: _ShimmerWidget(
+          controller: _controller,
+          child: CircleAvatar(
+            radius: 22,
+            backgroundColor: AppColors.getIconColor(context).withOpacity(0.2),
+          ),
+        ),
+        title: _ShimmerWidget(
+          controller: _controller,
+          child: Container(
+            height: 16,
+            width: 120,
+            decoration: BoxDecoration(
+              color: AppColors.getIconColor(context).withOpacity(0.3),
+              borderRadius: BorderRadius.circular(8),
+            ),
+          ),
+        ),
+        subtitle: Padding(
+          padding: const EdgeInsets.only(top: 8),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _ShimmerWidget(
+                controller: _controller,
+                child: Container(
+                  height: 12,
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                    color: AppColors.getIconColor(context).withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 4),
+              _ShimmerWidget(
+                controller: _controller,
+                child: Container(
+                  height: 12,
+                  width: 80,
+                  decoration: BoxDecoration(
+                    color: AppColors.getIconColor(context).withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        trailing: _ShimmerWidget(
+          controller: _controller,
+          child: Container(
+            width: 8,
+            height: 8,
+            decoration: BoxDecoration(
+              color: AppColors.getIconColor(context).withOpacity(0.3),
+              shape: BoxShape.circle,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Shimmer effect widget
+class _ShimmerWidget extends StatelessWidget {
+  final AnimationController controller;
+  final Widget child;
+
+  const _ShimmerWidget({
+    required this.controller,
+    required this.child,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: controller,
+      builder: (context, child) {
+        return ShaderMask(
+          shaderCallback: (bounds) {
+            return LinearGradient(
+              begin: Alignment(-1.0 + (controller.value * 2), 0.0),
+              end: Alignment(1.0 + (controller.value * 2), 0.0),
+              colors: [
+                AppColors.getIconColor(context).withOpacity(0.3),
+                AppColors.getIconColor(context).withOpacity(0.6),
+                AppColors.getIconColor(context).withOpacity(0.3),
+              ],
+              stops: const [0.0, 0.5, 1.0],
+            ).createShader(bounds);
+          },
+          child: child,
+        );
+      },
+      child: child,
     );
   }
 }

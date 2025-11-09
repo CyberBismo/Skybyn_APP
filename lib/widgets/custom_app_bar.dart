@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:ui'; // Required for ImageFilter.blur
 import 'unified_menu.dart';
+import 'notification_overlay.dart';
 import 'app_colors.dart';
 import '../services/auto_update_service.dart';
 import '../services/auth_service.dart';
@@ -115,7 +116,13 @@ class _CustomAppBarState extends State<CustomAppBar> {
       UnifiedMenu.closeCurrentMenu();
     }
     
-    // Toggle search form
+    // Close notification overlay if it's open
+    if (UnifiedNotificationOverlay.isOverlayOpen) {
+      print('   - Closing notification overlay...');
+      UnifiedNotificationOverlay.closeCurrentOverlay();
+    }
+    
+    // Toggle search form (close if open, open if closed)
     print('   - Toggling search form');
     widget.onSearchFormToggle?.call();
     print('   - Search form toggle called');

@@ -103,6 +103,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   // Update check status
   String _updateCheckStatus = '';
   bool _isCheckingForUpdates = false;
+  final GlobalKey _notificationButtonKey = GlobalKey();
+
 
   @override
   void initState() {
@@ -368,11 +370,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
           bottom: Theme.of(context).platform == TargetPlatform.iOS ? 8.0 : 8.0 + MediaQuery.of(context).padding.bottom,
         ),
         child: CustomBottomNavigationBar(
-          onStarPressed: () {},
           onAddPressed: () {},
-          onFriendsPressed: () {},
-          onChatPressed: () {},
-          onNotificationsPressed: () {},
+          notificationButtonKey: _notificationButtonKey,
         ),
       ),
       body: Stack(
@@ -388,19 +387,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     Container(
                       width: double.infinity,
                       height: 160,
-                      decoration: BoxDecoration(
-                        image: _newBackgroundFile != null
-                            ? DecorationImage(
-                                image: FileImage(_newBackgroundFile!),
-                                fit: BoxFit.cover,
-                              )
-                            : useDefaultWallpaper
-                                ? null // No image, gradient will show through
-                                : DecorationImage(
-                                    image: CachedNetworkImageProvider(wallpaperUrl),
-                                    fit: BoxFit.cover,
-                                  ),
-                      ),
+                      child: _newBackgroundFile != null
+                          ? Image.file(
+                              _newBackgroundFile!,
+                              fit: BoxFit.cover,
+                            )
+                          : useDefaultWallpaper
+                              ? null // No image, gradient will show through
+                              : CachedNetworkImage(
+                                  imageUrl: wallpaperUrl,
+                                  fit: BoxFit.cover,
+                                  errorWidget: (context, url, error) {
+                                    // Return null to show gradient background on error
+                                    return const SizedBox.shrink();
+                                  },
+                                ),
                     ),
                     Positioned(
                       top: 12,
@@ -1444,7 +1445,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   }
                 },
                 decoration: InputDecoration(
-                  labelText: TranslationKeys.selectLanguage.tr,
+                  labelText: TranslationKeys.language.tr,
                   labelStyle: TextStyle(color: AppColors.getSecondaryTextColor(context)),
                   enabledBorder: UnderlineInputBorder(
                     borderSide: BorderSide(color: AppColors.getSecondaryTextColor(context).withOpacity(0.3)),

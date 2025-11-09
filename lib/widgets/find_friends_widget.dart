@@ -324,10 +324,12 @@ class _FindFriendsWidgetState extends State<FindFriendsWidget> {
                     Expanded(
                       child: TranslatedText(
                         TranslationKeys.findFriendsInArea,
+                        fallback: 'Find friends in the area',
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
+                          decoration: TextDecoration.none,
                         ),
                       ),
                     ),
@@ -344,9 +346,11 @@ class _FindFriendsWidgetState extends State<FindFriendsWidget> {
                 const SizedBox(height: 16),
                 TranslatedText(
                   TranslationKeys.findFriendsDescription,
+                  fallback: 'Discover and connect with users nearby using your location',
                   style: TextStyle(
                     color: Colors.white.withOpacity(0.8),
                     fontSize: 14,
+                    decoration: TextDecoration.none,
                   ),
                 ),
                 // Show search button if not searched yet, or show input if no results found
@@ -380,9 +384,11 @@ class _FindFriendsWidgetState extends State<FindFriendsWidget> {
                                 const SizedBox(width: 8),
                                 TranslatedText(
                                   TranslationKeys.findFriendsButton,
+                                  fallback: 'Find Friends',
                                   style: const TextStyle(
                                     fontSize: 16,
                                     fontWeight: FontWeight.bold,
+                                    decoration: TextDecoration.none,
                                   ),
                                 ),
                               ],
@@ -403,18 +409,22 @@ class _FindFriendsWidgetState extends State<FindFriendsWidget> {
                   const SizedBox(height: 16),
                   TranslatedText(
                     TranslationKeys.noNearbyUsers,
+                    fallback: 'No users found nearby.',
                     style: TextStyle(
                       color: Colors.white.withOpacity(0.8),
                       fontSize: 14,
+                      decoration: TextDecoration.none,
                     ),
                   ),
                   const SizedBox(height: 20),
                   TranslatedText(
                     TranslationKeys.addFriendByUsername,
+                    fallback: 'Add Friend by Username',
                     style: const TextStyle(
                       color: Colors.white,
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
+                      decoration: TextDecoration.none,
                     ),
                   ),
                   const SizedBox(height: 12),
@@ -476,9 +486,11 @@ class _FindFriendsWidgetState extends State<FindFriendsWidget> {
                             )
                           : TranslatedText(
                               TranslationKeys.sendFriendRequest,
+                              fallback: 'Send Friend Request',
                               style: const TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.bold,
+                                decoration: TextDecoration.none,
                               ),
                             ),
                     ),
@@ -490,10 +502,12 @@ class _FindFriendsWidgetState extends State<FindFriendsWidget> {
                   const SizedBox(height: 16),
                   TranslatedText(
                     TranslationKeys.nearbyUsers,
+                    fallback: 'Nearby Users',
                     style: const TextStyle(
                       color: Colors.white,
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
+                      decoration: TextDecoration.none,
                     ),
                   ),
                   const SizedBox(height: 12),

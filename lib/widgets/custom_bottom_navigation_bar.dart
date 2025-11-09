@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import 'dart:ui';
 import 'app_colors.dart';
+import 'left_panel.dart';
+import 'right_panel.dart';
+import 'chat_list_modal.dart';
+import 'notification_overlay.dart';
 
 /// Centralized styling for the CustomBottomNavigationBar widget
 class BottomNavBarStyles {
@@ -27,24 +31,105 @@ class BottomNavBarStyles {
 }
 
 class CustomBottomNavigationBar extends StatelessWidget {
-  final VoidCallback onStarPressed;
   final VoidCallback onAddPressed;
-  final VoidCallback onFriendsPressed;
-  final VoidCallback onChatPressed;
-  final VoidCallback onNotificationsPressed;
   final int unreadNotificationCount;
   final GlobalKey? notificationButtonKey;
+  final Function(int)? onUnreadCountChanged;
 
   const CustomBottomNavigationBar({
     super.key,
-    required this.onStarPressed,
     required this.onAddPressed,
-    required this.onFriendsPressed,
-    required this.onChatPressed,
-    required this.onNotificationsPressed,
     this.unreadNotificationCount = 0,
     this.notificationButtonKey,
+    this.onUnreadCountChanged,
   });
+
+  void _openLeftPanel(BuildContext context) {
+    showGeneralDialog(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: 'Close shortcuts panel',
+      barrierColor: Colors.transparent,
+      useRootNavigator: false,
+      transitionDuration: const Duration(milliseconds: 300),
+      pageBuilder: (context, animation, secondaryAnimation) {
+        final screenSize = MediaQuery.of(context).size;
+        return MediaQuery(
+          data: MediaQuery.of(context).copyWith(size: screenSize),
+          child: const LeftPanel(),
+        );
+      },
+      transitionBuilder: (context, animation, secondaryAnimation, child) {
+        final slideAnimation = Tween<Offset>(
+          begin: const Offset(-1.0, 0.0),
+          end: Offset.zero,
+        ).animate(CurvedAnimation(
+          parent: animation,
+          curve: Curves.easeOut,
+        ));
+        
+        return SlideTransition(
+          position: slideAnimation,
+          child: child,
+        );
+      },
+    );
+  }
+
+  void _openFriendsModal(BuildContext context) {
+    showGeneralDialog(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: 'Close friends list',
+      barrierColor: Colors.transparent,
+      useRootNavigator: false,
+      transitionDuration: const Duration(milliseconds: 300),
+      pageBuilder: (context, animation, secondaryAnimation) {
+        final screenSize = MediaQuery.of(context).size;
+        return MediaQuery(
+          data: MediaQuery.of(context).copyWith(size: screenSize),
+          child: const RightPanel(),
+        );
+      },
+      transitionBuilder: (context, animation, secondaryAnimation, child) {
+        final slideAnimation = Tween<Offset>(
+          begin: const Offset(1.0, 0.0),
+          end: Offset.zero,
+        ).animate(CurvedAnimation(
+          parent: animation,
+          curve: Curves.easeOut,
+        ));
+        
+        return SlideTransition(
+          position: slideAnimation,
+          child: child,
+        );
+      },
+    );
+  }
+
+  void _openChatListModal(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => const ChatListModal(),
+    );
+  }
+
+  void _toggleNotificationOverlay(BuildContext context) {
+    if (UnifiedNotificationOverlay.isOverlayOpen) {
+      UnifiedNotificationOverlay.closeCurrentOverlay();
+    } else {
+      if (notificationButtonKey != null) {
+        UnifiedNotificationOverlay.showNotificationOverlay(
+          context: context,
+          notificationButtonKey: notificationButtonKey!,
+          onUnreadCountChanged: onUnreadCountChanged,
+        );
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -78,7 +163,7 @@ class CustomBottomNavigationBar extends StatelessWidget {
                       children: [
                         IconButton(
                           icon: const Icon(Icons.star, color: iconColor, size: BottomNavBarStyles.iconSize),
-                          onPressed: onStarPressed,
+                          onPressed: () => _openLeftPanel(context),
                           padding: BottomNavBarStyles.buttonPadding,
                           constraints: const BoxConstraints(),
                         ),
@@ -105,7 +190,7 @@ class CustomBottomNavigationBar extends StatelessWidget {
                         ),
                         IconButton(
                           icon: const Icon(Icons.group, color: iconColor, size: BottomNavBarStyles.iconSize),
-                          onPressed: onFriendsPressed,
+                          onPressed: () => _openFriendsModal(context),
                           padding: BottomNavBarStyles.buttonPadding,
                           constraints: const BoxConstraints(),
                         ),
@@ -138,7 +223,7 @@ class CustomBottomNavigationBar extends StatelessWidget {
                   ),
                   child: IconButton(
                     icon: const Icon(Icons.chat_bubble, color: iconColor, size: BottomNavBarStyles.iconSize),
-                    onPressed: onChatPressed,
+                    onPressed: () => _openChatListModal(context),
                   ),
                 ),
               ),
@@ -170,7 +255,7 @@ class CustomBottomNavigationBar extends StatelessWidget {
                       IconButton(
                         key: notificationButtonKey,
                         icon: const Icon(Icons.notifications, color: iconColor, size: BottomNavBarStyles.iconSize),
-                        onPressed: onNotificationsPressed,
+                        onPressed: () => _toggleNotificationOverlay(context),
                       ),
                       if (unreadNotificationCount > 0)
                         Positioned(

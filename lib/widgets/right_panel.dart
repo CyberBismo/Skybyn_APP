@@ -8,6 +8,7 @@ import '../screens/chat_screen.dart';
 import '../utils/translation_keys.dart';
 import '../widgets/translated_text.dart';
 import '../services/translation_service.dart';
+import 'find_friends_widget.dart';
 
 class RightPanel extends StatefulWidget {
   const RightPanel({super.key});
@@ -22,6 +23,8 @@ class _RightPanelState extends State<RightPanel> {
 
   List<Friend> _friends = [];
   bool _isLoading = true;
+  bool _showFindFriendsBox = false;
+  int _findFriendsBoxResetCounter = 0;
 
   @override
   void initState() {
@@ -97,36 +100,69 @@ class _RightPanelState extends State<RightPanel> {
                 color: Colors.white.withOpacity(0.05),
                 child: Column(
                   children: [
-                    // Title with close button
+                    // Title with find friends button and close button
                     Padding(
                     padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
-                    child: Stack(
-                      alignment: Alignment.center,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        ListenableBuilder(
-                          listenable: TranslationService(),
-                          builder: (context, _) {
-                            return Text(
-                              TranslationService().translate('friends'),
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 24,
-                                fontWeight: FontWeight.bold,
-                                decoration: TextDecoration.none,
-                              ),
-                            );
+                        IconButton(
+                          icon: const Icon(Icons.my_location, color: Colors.white),
+                          onPressed: () {
+                            setState(() {
+                              _showFindFriendsBox = !_showFindFriendsBox;
+                              if (_showFindFriendsBox) {
+                                _findFriendsBoxResetCounter++;
+                              }
+                            });
                           },
                         ),
-                        Align(
-                          alignment: Alignment.centerRight,
-                          child: IconButton(
-                            icon: const Icon(Icons.close, color: Colors.white),
-                            onPressed: () => Navigator.of(context).pop(),
+                        Expanded(
+                          child: Center(
+                            child: ListenableBuilder(
+                              listenable: TranslationService(),
+                              builder: (context, _) {
+                                return Text(
+                                  TranslationService().translate('friends'),
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 24,
+                                    fontWeight: FontWeight.bold,
+                                    decoration: TextDecoration.none,
+                                  ),
+                                );
+                              },
+                            ),
                           ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.close, color: Colors.white),
+                          onPressed: () => Navigator.of(context).pop(),
                         ),
                       ],
                     ),
                   ),
+                    // Find Friends box
+                    if (_showFindFriendsBox)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        child: FindFriendsWidget(
+                          key: ValueKey('find_friends_$_findFriendsBoxResetCounter'),
+                          onFriendsFound: () {
+                            // Refresh friends list when a friend is added
+                            Future.delayed(const Duration(milliseconds: 500), () {
+                              if (mounted) {
+                                _loadFriends();
+                              }
+                            });
+                          },
+                          onDismiss: () {
+                            setState(() {
+                              _showFindFriendsBox = false;
+                            });
+                          },
+                        ),
+                      ),
                     // Content area
                     Expanded(
                     child: _isLoading
