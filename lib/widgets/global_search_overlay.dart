@@ -50,6 +50,16 @@ class _GlobalSearchOverlayState extends State<GlobalSearchOverlay> {
   }
 
   Future<void> _performSearch(String query) async {
+    // If query is empty, clear results
+    if (query.isEmpty) {
+      setState(() {
+        _searchQuery = null;
+        _searchResults = [];
+        _isSearching = false;
+      });
+      return;
+    }
+
     setState(() {
       _isSearching = true;
       _searchQuery = query;
@@ -59,12 +69,14 @@ class _GlobalSearchOverlayState extends State<GlobalSearchOverlay> {
     try {
       final userId = await _authService.getStoredUserId();
       if (userId == null) {
+        print('⚠️ [GlobalSearchOverlay] No user ID available');
         setState(() {
           _isSearching = false;
         });
         return;
       }
 
+      print('🔍 [GlobalSearchOverlay] Searching for: $query');
       final response = await http.post(
         Uri.parse('${ApiConstants.apiBase}/search.php'),
         body: {
@@ -76,41 +88,100 @@ class _GlobalSearchOverlayState extends State<GlobalSearchOverlay> {
         },
       ).timeout(const Duration(seconds: 10));
 
+      print('🔍 [GlobalSearchOverlay] Search response status: ${response.statusCode}');
+      print('🔍 [GlobalSearchOverlay] Search response body: ${response.body.substring(0, response.body.length > 200 ? 200 : response.body.length)}');
+
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         
-        if (data is List) {
-          // Filter out current user from results
-          final filteredResults = List<Map<String, dynamic>>.from(data)
-              .where((user) => user['id']?.toString() != userId)
-              .toList();
+        print('🔍 [GlobalSearchOverlay] Response data type: ${data.runtimeType}');
+        print('🔍 [GlobalSearchOverlay] Response data: $data');
+        
+        if (data is List && data.isNotEmpty) {
+          // Filter out current user from results - check both id and userID fields
+          final userIdStr = userId.toString();
+          print('🔍 [GlobalSearchOverlay] Current user ID: "$userIdStr" (type: ${userId.runtimeType})');
           
-          setState(() {
-            _searchResults = filteredResults;
-            _isSearching = false;
-          });
-        } else if (data is Map && data['responseCode'] == '0') {
-          setState(() {
-            _searchResults = [];
-            _isSearching = false;
-          });
+          final filteredResults = <Map<String, dynamic>>[];
+          for (final user in data) {
+            final userMap = Map<String, dynamic>.from(user);
+            final userIdFromData = userMap['id']?.toString() ?? userMap['userID']?.toString();
+            
+            print('🔍 [GlobalSearchOverlay] Checking user: id="$userIdFromData" (type: ${userMap['id'].runtimeType}), username="${userMap['username']}"');
+            
+            if (userIdFromData != null && userIdFromData != userIdStr) {
+              filteredResults.add(userMap);
+            } else {
+              print('🔍 [GlobalSearchOverlay] Filtered out own profile: "$userIdFromData" == "$userIdStr"');
+            }
+          }
+          
+          print('🔍 [GlobalSearchOverlay] Found ${data.length} total results, ${filteredResults.length} after filtering current user');
+          if (mounted) {
+            setState(() {
+              _searchResults = filteredResults;
+              _isSearching = false;
+            });
+          }
+        } else if (data is Map) {
+          if (data['responseCode'] == '0' || data['responseCode'] == 0) {
+            print('🔍 [GlobalSearchOverlay] No results found (API returned responseCode 0)');
+            if (mounted) {
+              setState(() {
+                _searchResults = [];
+                _isSearching = false;
+              });
+            }
+          } else {
+            // Sometimes API might return a single user object
+            print('🔍 [GlobalSearchOverlay] Single result object: $data');
+            final userIdStr = userId.toString();
+            final userDataId = data['id']?.toString() ?? data['userID']?.toString();
+            if (userDataId != null && userDataId != userIdStr) {
+              if (mounted) {
+                setState(() {
+                  _searchResults = [Map<String, dynamic>.from(data)];
+                  _isSearching = false;
+                });
+              }
+            } else {
+              print('🔍 [GlobalSearchOverlay] Filtered out own profile (ID: $userDataId matches current user: $userIdStr)');
+              if (mounted) {
+                setState(() {
+                  _searchResults = [];
+                  _isSearching = false;
+                });
+              }
+            }
+          }
         } else {
+          print('⚠️ [GlobalSearchOverlay] Unexpected response format: ${data.runtimeType}');
+          if (mounted) {
+            setState(() {
+              _searchResults = [];
+              _isSearching = false;
+            });
+          }
+        }
+      } else {
+        print('⚠️ [GlobalSearchOverlay] Search failed with status: ${response.statusCode}');
+        print('⚠️ [GlobalSearchOverlay] Response body: ${response.body}');
+        if (mounted) {
           setState(() {
             _searchResults = [];
             _isSearching = false;
           });
         }
-      } else {
+      }
+    } catch (e, stackTrace) {
+      print('❌ [GlobalSearchOverlay] Search error: $e');
+      print('❌ [GlobalSearchOverlay] Stack trace: $stackTrace');
+      if (mounted) {
         setState(() {
           _searchResults = [];
           _isSearching = false;
         });
       }
-    } catch (e) {
-      setState(() {
-        _searchResults = [];
-        _isSearching = false;
-      });
     }
   }
 
@@ -127,10 +198,10 @@ class _GlobalSearchOverlayState extends State<GlobalSearchOverlay> {
   }
 
   Widget _buildSearchUserCard(Map<String, dynamic> user) {
-    final username = user['username'] ?? '';
-    final nickname = user['nickname'] ?? username;
-    final avatar = user['avatar'] ?? '';
-    final online = user['online'] == 1 || user['online'] == '1';
+    final username = user['username']?.toString() ?? '';
+    final nickname = user['nickname']?.toString() ?? username;
+    final avatar = user['avatar']?.toString() ?? '';
+    final online = user['online'] == 1 || user['online'] == '1' || user['online']?.toString() == '1';
     final friendStatus = user['friends']?.toString() ?? '0';
 
     return Card(
@@ -139,13 +210,20 @@ class _GlobalSearchOverlayState extends State<GlobalSearchOverlay> {
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
       ),
+      clipBehavior: Clip.antiAlias, // Prevent overflow
       child: InkWell(
         onTap: () => _navigateToProfile(user),
         borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Row(
-            children: [
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(
+            minHeight: 84, // Minimum: 12 padding + 60 avatar + 12 padding
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start, // Align to top
+              children: [
+              // Avatar
               Stack(
                 children: [
                   ClipRRect(
@@ -197,9 +275,11 @@ class _GlobalSearchOverlayState extends State<GlobalSearchOverlay> {
                 ],
               ),
               const SizedBox(width: 12),
+              // Username/nickname column
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min, // Take minimum space needed
                   children: [
                     Text(
                       nickname,
@@ -207,21 +287,32 @@ class _GlobalSearchOverlayState extends State<GlobalSearchOverlay> {
                         color: Colors.white,
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
+                        height: 1.0, // Minimal line height
                       ),
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
                     ),
                     if (username != nickname)
-                      Text(
-                        '@$username',
-                        style: TextStyle(
-                          color: Colors.white.withOpacity(0.7),
-                          fontSize: 14,
+                      Padding(
+                        padding: const EdgeInsets.only(top: 1),
+                        child: Text(
+                          '@$username',
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.7),
+                            fontSize: 14,
+                            height: 1.0, // Minimal line height
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                          maxLines: 1,
                         ),
                       ),
                   ],
                 ),
               ),
+              // Friend status icon
               _buildFriendStatusIcon(friendStatus),
             ],
+            ),
           ),
         ),
       ),
@@ -277,81 +368,21 @@ class _GlobalSearchOverlayState extends State<GlobalSearchOverlay> {
       return const SizedBox.shrink();
     }
 
-    return Stack(
-      children: [
-        // Search form
-        SearchForm(
-          onClose: _handleClose,
-          onSearch: (query) {
-            if (query.trim().isNotEmpty) {
-              _performSearch(query.trim());
-            } else {
-              setState(() {
-                _searchResults = [];
-                _searchQuery = null;
-              });
-            }
-          },
-        ),
-        // Search results overlay
-        if (_searchQuery != null)
-          Positioned(
-            top: 60.0 + MediaQuery.of(context).padding.top + 70.0, // Below search form
-            left: 0,
-            right: 0,
-            bottom: 0,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: _isSearching
-                  ? const Center(child: CircularProgressIndicator())
-                  : _searchResults.isEmpty
-                      ? Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                Icons.search_off,
-                                size: 64,
-                                color: Colors.white.withOpacity(0.5),
-                              ),
-                              const SizedBox(height: 16),
-                              TranslatedText(
-                                TranslationKeys.noResultsFound,
-                                style: TextStyle(
-                                  color: Colors.white.withOpacity(0.8),
-                                  fontSize: 18,
-                                ),
-                              ),
-                            ],
-                          ),
-                        )
-                      : Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Padding(
-                              padding: const EdgeInsets.only(top: 8, bottom: 8),
-                              child: TranslatedText(
-                                TranslationKeys.searchResults,
-                                style: TextStyle(
-                                  color: Colors.white.withOpacity(0.9),
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                            Expanded(
-                              child: ListView.builder(
-                                itemCount: _searchResults.length,
-                                itemBuilder: (context, index) {
-                                  return _buildSearchUserCard(_searchResults[index]);
-                                },
-                              ),
-                            ),
-                          ],
-                        ),
-            ),
-          ),
-      ],
+    return SearchForm(
+      onClose: _handleClose,
+      onSearch: (query) {
+        print('🔍 [GlobalSearchOverlay] onSearch called with: "$query"');
+        if (query.trim().isNotEmpty) {
+          _performSearch(query.trim());
+        } else {
+          setState(() {
+            _searchResults = [];
+            _searchQuery = null;
+          });
+        }
+      },
+      searchResults: _searchQuery != null && _searchQuery!.isNotEmpty ? _searchResults : null,
+      isSearching: _isSearching,
     );
   }
 }

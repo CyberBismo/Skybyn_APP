@@ -291,8 +291,9 @@ class _FindFriendsWidgetState extends State<FindFriendsWidget> {
 
   @override
   Widget build(BuildContext context) {
-    print('🔍 [FindFriendsWidget] Building widget - _hasSearched=$_hasSearched, _nearbyUsers.length=${_nearbyUsers.length}, _isLoading=$_isLoading, hashCode=${hashCode}');
-    return Container(
+    // Removed debug print to reduce unnecessary work during rebuilds
+    return RepaintBoundary(
+      child: Container(
       margin: const EdgeInsets.all(16.0),
       decoration: BoxDecoration(
         color: Colors.white.withOpacity(0.12),
@@ -543,6 +544,7 @@ class _FindFriendsWidgetState extends State<FindFriendsWidget> {
             ),
           ),
         ),
+      ),
       ),
     );
   }

@@ -1047,35 +1047,38 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             // Find Friends overlay at the bottom (with delay)
             // Always render but use Offstage to keep in tree and preserve state
+            // Wrapped in RepaintBoundary to prevent unnecessary repaints when parent rebuilds
             Positioned(
               left: 0,
               right: 0,
               bottom: 80.0 + (Theme.of(context).platform == TargetPlatform.iOS ? 8.0 : 8.0 + MediaQuery.of(context).padding.bottom),
-              child: Offstage(
-                offstage: !(_showFindFriendsBox && _friendsCount <= 0 && !_isLoading),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 10.0),
-                  child: FindFriendsWidget(
-                    key: ValueKey('find_friends_$_findFriendsBoxResetCounter'),
-                    onLocationUpdated: () {
-                      // Don't refresh friends count immediately to avoid unmounting widget
-                      // It will be refreshed naturally when needed
-                    },
-                    onDismiss: () {
-                      setState(() {
-                        _showFindFriendsBox = false;
-                        _findFriendsBoxDismissed = true; // Mark as dismissed
-                      });
-                      _stopFindFriendsTimer(); // Stop any pending timer
-                    },
-                    onFriendsFound: () {
-                      // Refresh friends count when a friend is added (delayed to avoid unmounting)
-                      Future.delayed(const Duration(milliseconds: 500), () {
-                        if (mounted) {
-                          _loadFriendsCount();
-                        }
-                      });
-                    },
+              child: RepaintBoundary(
+                child: Offstage(
+                  offstage: !(_showFindFriendsBox && _friendsCount <= 0 && !_isLoading),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 10.0),
+                    child: FindFriendsWidget(
+                      key: ValueKey('find_friends_$_findFriendsBoxResetCounter'),
+                      onLocationUpdated: () {
+                        // Don't refresh friends count immediately to avoid unmounting widget
+                        // It will be refreshed naturally when needed
+                      },
+                      onDismiss: () {
+                        setState(() {
+                          _showFindFriendsBox = false;
+                          _findFriendsBoxDismissed = true; // Mark as dismissed
+                        });
+                        _stopFindFriendsTimer(); // Stop any pending timer
+                      },
+                      onFriendsFound: () {
+                        // Refresh friends count when a friend is added (delayed to avoid unmounting)
+                        Future.delayed(const Duration(milliseconds: 500), () {
+                          if (mounted) {
+                            _loadFriendsCount();
+                          }
+                        });
+                      },
+                    ),
                   ),
                 ),
               ),
