@@ -218,13 +218,90 @@ class _PostCardState extends State<PostCard> {
         'DEBUG: Loaded user ID: $_currentUserId, username: $_currentUsername');
   }
 
-  /// Clean post content by replacing HTML <br /> tags with newlines
+  /// Clean post content by replacing HTML <br /> tags with newlines and decoding HTML entities
   /// This handles both new API format (plain text with \n) and old format (HTML <br /> tags)
   String _cleanPostContent(String content) {
-    // Replace various forms of <br> tags with newlines
-    return content
+    // First, decode HTML entities
+    String cleaned = _decodeHtmlEntities(content);
+    
+    // Then replace various forms of <br> tags with newlines
+    cleaned = cleaned
         .replaceAll(RegExp(r'<br\s*/?>', caseSensitive: false), '\n')
         .replaceAll(RegExp(r'<br\s+/>', caseSensitive: false), '\n');
+    
+    return cleaned;
+  }
+
+  /// Decode HTML entities to their actual characters
+  /// Handles named entities (&excl;, &quot;, &amp;, etc.), numeric entities (&#33;, &#34;, etc.), and hex entities (&#x21;, &#x22;, etc.)
+  String _decodeHtmlEntities(String text) {
+    String result = text;
+    
+    // Common HTML named entities
+    final namedEntities = {
+      '&excl;': '!',
+      '&quot;': '"',
+      '&apos;': "'",
+      '&amp;': '&',
+      '&lt;': '<',
+      '&gt;': '>',
+      '&nbsp;': ' ',
+      '&copy;': '©',
+      '&reg;': '®',
+      '&trade;': '™',
+      '&euro;': '€',
+      '&pound;': '£',
+      '&yen;': '¥',
+      '&cent;': '¢',
+      '&sect;': '§',
+      '&para;': '¶',
+      '&deg;': '°',
+      '&plusmn;': '±',
+      '&sup2;': '²',
+      '&sup3;': '³',
+      '&frac14;': '¼',
+      '&frac12;': '½',
+      '&frac34;': '¾',
+      '&times;': '×',
+      '&divide;': '÷',
+      '&mdash;': '—',
+      '&ndash;': '–',
+      '&lsquo;': ''',
+      '&rsquo;': ''',
+      '&ldquo;': '"',
+      '&rdquo;': '"',
+      '&hellip;': '…',
+      '&bull;': '•',
+      '&rarr;': '→',
+      '&larr;': '←',
+      '&uarr;': '↑',
+      '&darr;': '↓',
+    };
+    
+    // Replace named entities (case-insensitive)
+    for (final entry in namedEntities.entries) {
+      result = result.replaceAll(RegExp(entry.key, caseSensitive: false), entry.value);
+    }
+    
+    // Decode numeric entities (&#33; format)
+    result = result.replaceAllMapped(RegExp(r'&#(\d+);'), (match) {
+      final code = int.tryParse(match.group(1) ?? '');
+      if (code != null && code >= 0 && code <= 0x10FFFF) {
+        return String.fromCharCode(code);
+      }
+      return match.group(0) ?? '';
+    });
+    
+    // Decode hex entities (&#x21; format, case-insensitive)
+    result = result.replaceAllMapped(RegExp(r'&#x([0-9a-fA-F]+);'), (match) {
+      final code = int.tryParse(match.group(1) ?? '', radix: 16);
+      if (code != null && code >= 0 && code <= 0x10FFFF) {
+        return String.fromCharCode(code);
+      }
+      return match.group(0) ?? '';
+    });
+    
+    return result;
   }
 
   Future<void> _toggleComments() async {
