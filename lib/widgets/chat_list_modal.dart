@@ -222,9 +222,8 @@ class _ChatListModalState extends State<ChatListModal> {
                                       Navigator.of(context).pop(); // Close the modal first
                                       Navigator.of(context).push(
                                         MaterialPageRoute(
-                                          builder: (context) => ProfileScreen(
-                                            userId: friend.id,
-                                            username: friend.username,
+                                          builder: (context) => ChatScreen(
+                                            friend: friend,
                                           ),
                                         ),
                                       );
