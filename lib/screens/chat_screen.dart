@@ -43,10 +43,12 @@ class _ChatScreenState extends State<ChatScreen> {
 
   List<Message> _messages = [];
   bool _isLoading = true;
+  bool _isLoadingOlder = false;
   bool _isSending = false;
   String? _currentUserId;
   Timer? _refreshTimer;
   bool _showSearchForm = false;
+  bool _hasMoreMessages = true;
 
   @override
   void initState() {
@@ -54,10 +56,23 @@ class _ChatScreenState extends State<ChatScreen> {
     _loadUserId();
     _loadMessages();
     _setupWebSocketListener();
+    _setupScrollListener();
     // Refresh messages every 3 seconds when screen is active
     _refreshTimer = Timer.periodic(const Duration(seconds: 3), (_) {
       if (mounted) {
         _refreshMessages();
+      }
+    });
+  }
+
+  void _setupScrollListener() {
+    _scrollController.addListener(() {
+      // Check if user scrolled to the top
+      if (_scrollController.position.pixels <= 100 && 
+          !_isLoadingOlder && 
+          _hasMoreMessages &&
+          _messages.isNotEmpty) {
+        _loadOlderMessages();
       }
     });
   }
@@ -77,9 +92,11 @@ class _ChatScreenState extends State<ChatScreen> {
       );
       if (mounted) {
         setState(() {
+          // Messages are already sorted oldest to newest from service
           _messages = messages;
           _isLoading = false;
         });
+        // Scroll to bottom when initially loading messages
         _scrollToBottom();
       }
     } catch (e) {
@@ -114,8 +131,12 @@ class _ChatScreenState extends State<ChatScreen> {
             );
             if (mounted) {
               setState(() {
+                // Add new message to the end (bottom) of the list
                 _messages.add(newMessage);
+                // Sort messages by date to ensure correct order (oldest to newest)
+                _messages.sort((a, b) => a.date.compareTo(b.date));
               });
+              // Always scroll to bottom for new messages
               _scrollToBottom();
             }
           }
@@ -175,7 +196,11 @@ class _ChatScreenState extends State<ChatScreen> {
         setState(() {
           _messages.removeWhere((m) => m.id == tempMessage.id);
           _messages.add(sentMessage);
+          // Sort messages by date to ensure correct order (oldest to newest)
+          _messages.sort((a, b) => a.date.compareTo(b.date));
         });
+        // Scroll to bottom to show the sent message
+        _scrollToBottom();
 
         // Send via WebSocket for real-time delivery (if app is in focus)
         if (_wsService.isConnected) {
@@ -222,15 +247,88 @@ class _ChatScreenState extends State<ChatScreen> {
         final newMessages = messages.where((m) => !currentMessageIds.contains(m.id)).toList();
         
         if (newMessages.isNotEmpty) {
+          // Check if user is near bottom before updating
+          final wasNearBottom = _scrollController.hasClients 
+              ? _scrollController.position.pixels >= 
+                  _scrollController.position.maxScrollExtent - 200
+              : true;
+          
           setState(() {
+            // Update messages and sort to ensure correct order
             _messages = messages;
+            _messages.sort((a, b) => a.date.compareTo(b.date));
           });
-          _scrollToBottom();
+          
+          // Only scroll to bottom if user was already near the bottom
+          // This prevents interrupting user if they're reading older messages
+          if (wasNearBottom) {
+            _scrollToBottom();
+          }
         }
       }
     } catch (e) {
       // Silently fail - don't spam errors
       print('⚠️ [ChatScreen] Error refreshing messages: $e');
+    }
+  }
+
+  Future<void> _loadOlderMessages() async {
+    if (_isLoadingOlder || !_hasMoreMessages) return;
+
+    setState(() {
+      _isLoadingOlder = true;
+    });
+
+    try {
+      final olderMessages = await _chatService.loadOlderMessages(
+        friendId: widget.friend.id,
+        currentMessageCount: _messages.length,
+      );
+
+      if (mounted && olderMessages.isNotEmpty) {
+        // Save current scroll position
+        final scrollPosition = _scrollController.hasClients 
+            ? _scrollController.position.pixels 
+            : 0.0;
+        final firstMessageId = _messages.isNotEmpty ? _messages.first.id : null;
+
+        // Prepend older messages to the list
+        setState(() {
+          _messages = [...olderMessages, ..._messages];
+          // Sort to ensure correct chronological order (oldest to newest)
+          _messages.sort((a, b) => a.date.compareTo(b.date));
+          _hasMoreMessages = olderMessages.length >= 50; // If we got less than 50, no more messages
+        });
+
+        // Restore scroll position after prepending
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (_scrollController.hasClients && firstMessageId != null) {
+            // Find the position of the first message we had before loading
+            final firstMessageIndex = _messages.indexWhere((m) => m.id == firstMessageId);
+            if (firstMessageIndex != -1) {
+              // Calculate the new scroll position
+              final newScrollPosition = scrollPosition + (olderMessages.length * 100.0); // Approximate
+              _scrollController.jumpTo(newScrollPosition.clamp(
+                0.0,
+                _scrollController.position.maxScrollExtent,
+              ));
+            }
+          }
+        });
+      } else if (mounted && olderMessages.isEmpty) {
+        // No more messages to load
+        setState(() {
+          _hasMoreMessages = false;
+        });
+      }
+    } catch (e) {
+      print('❌ [ChatScreen] Error loading older messages: $e');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoadingOlder = false;
+        });
+      }
     }
   }
 
@@ -593,10 +691,24 @@ class _ChatScreenState extends State<ChatScreen> {
                                     )
                                   : ListView.builder(
                                       controller: _scrollController,
+                                      reverse: false, // Normal order: oldest at top, newest at bottom
                                       padding: const EdgeInsets.all(16),
-                                      itemCount: _messages.length,
+                                      itemCount: _messages.length + (_isLoadingOlder ? 1 : 0),
                                       itemBuilder: (context, index) {
-                                        final message = _messages[index];
+                                        // Show loading indicator at top when loading older messages
+                                        if (_isLoadingOlder && index == 0) {
+                                          return const Padding(
+                                            padding: EdgeInsets.all(16.0),
+                                            child: Center(
+                                              child: CircularProgressIndicator(
+                                                color: Colors.white,
+                                              ),
+                                            ),
+                                          );
+                                        }
+                                        // Adjust index if loading indicator is shown
+                                        final messageIndex = _isLoadingOlder ? index - 1 : index;
+                                        final message = _messages[messageIndex];
                                         return _buildMessageBubble(message);
                                       },
                                     ),
