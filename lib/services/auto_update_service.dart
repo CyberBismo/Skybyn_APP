@@ -211,15 +211,29 @@ class AutoUpdateService {
 
       if (streamedResponse.statusCode == 200) {
         // Get content length for progress tracking
-        final contentLength = streamedResponse.contentLength;
+        // Try to get from Content-Length header if contentLength is null
+        int? contentLength = streamedResponse.contentLength;
+        if (contentLength == null || contentLength == -1) {
+          final contentLengthHeader = streamedResponse.headers['content-length'];
+          if (contentLengthHeader != null) {
+            contentLength = int.tryParse(contentLengthHeader);
+          }
+        }
         print('📊 [AutoUpdate] Downloading APK (size: ${contentLength ?? 'unknown'} bytes)');
 
-        // Update notification
+        // Update notification with initial progress
         await notificationService.showUpdateProgressNotification(
           title: 'Updating Skybyn',
           status: contentLength != null ? 'Downloading... (${_formatBytes(contentLength)})' : 'Downloading...',
-          progress: 10,
+          progress: 0,
         );
+        
+        // Report initial progress to callback
+        if (contentLength != null && contentLength > 0) {
+          onProgress?.call(0, 'Downloading... 0 / ${_formatBytes(contentLength)} (0%)');
+        } else {
+          onProgress?.call(0, 'Downloading... 0 bytes');
+        }
 
         // Stream the response to file to handle large files efficiently
         final bytes = <int>[];
@@ -253,20 +267,28 @@ class AutoUpdateService {
             }
           } else {
             // Indeterminate progress if content length unknown
-            // Update every 50KB downloaded
+            // Estimate progress based on typical APK sizes (5-50MB range)
+            // Use a logarithmic scale to show progress that slows down as download continues
+            // This gives a more realistic feel even without knowing the exact size
+            final estimatedSize = 20 * 1024 * 1024; // Estimate 20MB as typical size
+            final estimatedProgress = ((downloadedBytes / estimatedSize) * 90).round().clamp(0, 90);
+            
+            // Update every 50KB downloaded or every 5% estimated progress change
             final bytesSinceLastUpdate = downloadedBytes - lastReportedBytes;
-            if (bytesSinceLastUpdate >= 50000) {
+            final progressSinceLastUpdate = (estimatedProgress - lastReportedProgress).abs();
+            if (bytesSinceLastUpdate >= 50000 || progressSinceLastUpdate >= 5) {
+              lastReportedProgress = estimatedProgress;
               lastReportedBytes = downloadedBytes;
               
               await notificationService.showUpdateProgressNotification(
                 title: 'Updating Skybyn',
-                status: 'Downloading... ${_formatBytes(downloadedBytes)}',
-                progress: 50,
+                status: 'Downloading... ${_formatBytes(downloadedBytes)} (~$estimatedProgress%)',
+                progress: estimatedProgress,
                 indeterminate: true,
               );
               
-              // Call progress callback with indeterminate status
-              onProgress?.call(50, 'Downloading... ${_formatBytes(downloadedBytes)}');
+              // Call progress callback with estimated progress
+              onProgress?.call(estimatedProgress, 'Downloading... ${_formatBytes(downloadedBytes)} (~$estimatedProgress%)');
             }
           }
         }
