@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:async';
 import 'package:http/http.dart' as http;
+import 'package:http/io_client.dart';
+import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/message.dart';
 import '../config/constants.dart';
@@ -15,6 +17,35 @@ class ChatService {
   static const Duration _cacheExpiry = Duration(minutes: 2);
 
   final AuthService _authService = AuthService();
+  
+  // Use the same HTTP client pattern as AuthService to ensure consistent SSL handling
+  static http.Client? _httpClient;
+  static http.Client get _client {
+    if (_httpClient == null) {
+      _httpClient = _createHttpClient();
+    }
+    return _httpClient!;
+  }
+  
+  static http.Client _createHttpClient() {
+    HttpClient httpClient;
+    
+    // In release mode, use standard HttpClient with proper SSL validation
+    // In debug mode, use HttpOverrides if available (which should have SSL bypass)
+    if (HttpOverrides.current != null) {
+      httpClient = HttpOverrides.current!.createHttpClient(null);
+    } else {
+      httpClient = HttpClient();
+    }
+    
+    // Set timeouts and user agent
+    httpClient.userAgent = 'Skybyn-App/1.0';
+    httpClient.connectionTimeout = const Duration(seconds: 30);
+    httpClient.idleTimeout = const Duration(seconds: 30);
+    httpClient.autoUncompress = true;
+    
+    return IOClient(httpClient);
+  }
 
   /// Get encryption key from stored user token
   Future<String> _getEncryptionKey() async {
@@ -65,18 +96,31 @@ class ChatService {
       // Encrypt the message
       final encryptedContent = await _encryptMessage(content);
 
+      final url = ApiConstants.chatSend;
+      if (kDebugMode) {
+        print('🔧 [ChatService] Sending message to: $url');
+      }
+      
       final response = await _retryHttpRequest(
-        () => http.post(
-          Uri.parse(ApiConstants.chatSend),
+        () => _client.post(
+          Uri.parse(url),
           body: {
             'userID': userId,
             'from': userId,
             'to': toUserId,
             'message': encryptedContent,
           },
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
         ).timeout(const Duration(seconds: 10)),
         maxRetries: 2,
       );
+
+      if (kDebugMode) {
+        print('📥 [ChatService] Response status: ${response.statusCode}');
+        print('📥 [ChatService] Response body: ${response.body}');
+      }
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
@@ -240,7 +284,7 @@ class ChatService {
     int? offset,
   ) async {
     final response = await _retryHttpRequest(
-      () => http.post(
+      () => _client.post(
         Uri.parse(ApiConstants.chatGet),
         body: {
           'userID': userId,
