@@ -95,21 +95,26 @@ class _UpdateDialogState extends State<UpdateDialog>
     setState(() {
       _isUpdating = true;
       _updateStatus = 'Preparing update...';
+      _updateProgress = 0.0;
     });
 
     try {
       setState(() {
         _updateStatus = 'Downloading update...';
-        _updateProgress = 0.3;
+        _updateProgress = 0.05; // Start at 5%
       });
 
       // Download the update with progress callback
+      // Download service sends progress 10-100%, we map it to 5-85% of total
       final downloadSuccess = await AutoUpdateService.downloadUpdate(
         widget.downloadUrl!,
         onProgress: (progress, status) {
           if (mounted) {
             setState(() {
-              _updateProgress = progress / 100.0;
+              // Map download progress (10-100%) to dialog progress (5-85%)
+              // Formula: 0.05 + (progress - 10) / 90 * 0.80
+              final downloadProgress = progress.clamp(10, 100);
+              _updateProgress = 0.05 + ((downloadProgress - 10) / 90) * 0.80;
               _updateStatus = status;
             });
           }
@@ -121,15 +126,18 @@ class _UpdateDialogState extends State<UpdateDialog>
 
       setState(() {
         _updateStatus = 'Installing update...';
-        _updateProgress = 0.95;
+        _updateProgress = 0.85; // Start installation at 85%
       });
 
       // Install the update with progress callback
+      // Install progress maps to 85-100% of total
       final installSuccess = await AutoUpdateService.installUpdate(
         onProgress: (progress, status) {
           if (mounted) {
             setState(() {
-              _updateProgress = 0.95 + (progress / 100.0 * 0.05); // 95-100%
+              // Map install progress to 85-100% range
+              final installProgress = progress.clamp(0, 100);
+              _updateProgress = 0.85 + (installProgress / 100.0 * 0.15);
               _updateStatus = status;
             });
           }
@@ -518,7 +526,7 @@ class _UpdateDialogState extends State<UpdateDialog>
                                         ),
                                       ),
                                       FractionallySizedBox(
-                                        widthFactor: _updateProgress,
+                                        widthFactor: _updateProgress.clamp(0.0, 1.0),
                                         child: Container(
                                           height: 10,
                                           decoration: BoxDecoration(
@@ -584,7 +592,7 @@ class _UpdateDialogState extends State<UpdateDialog>
                                     borderRadius: BorderRadius.circular(12),
                                   ),
                                   child: Text(
-                                    '${(_updateProgress * 100).toInt()}%',
+                                    '${(_updateProgress.clamp(0.0, 1.0) * 100).toInt()}%',
                                     style: TextStyle(
                                       color: primaryColor,
                                       fontSize: 20,
