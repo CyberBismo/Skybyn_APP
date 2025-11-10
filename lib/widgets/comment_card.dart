@@ -5,6 +5,7 @@ import '../models/comment.dart';
 import '../services/theme_service.dart';
 import 'unified_menu.dart';
 import 'app_colors.dart';
+import '../config/constants.dart';
 
 /// Centralized styling for the CommentCard widget
 class CommentCardStyles {
@@ -198,7 +199,7 @@ class CommentCard extends StatelessWidget {
     Widget avatarWidget;
     if (comment.avatar != null && comment.avatar!.isNotEmpty) {
       avatarWidget = CachedNetworkImage(
-        imageUrl: comment.avatar!,
+        imageUrl: UrlHelper.convertUrl(comment.avatar!),
         width: CommentCardStyles.avatarSize,
         height: CommentCardStyles.avatarSize,
         fit: BoxFit.cover,

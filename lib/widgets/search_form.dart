@@ -8,6 +8,7 @@ import '../services/translation_service.dart';
 import '../services/auth_service.dart';
 import '../screens/profile_screen.dart';
 import '../widgets/translated_text.dart';
+import '../config/constants.dart';
 
 /// Centralized styling for the SearchForm widget
 class SearchFormStyles {
@@ -299,7 +300,7 @@ class SearchFormState extends State<SearchForm> with SingleTickerProviderStateMi
                   ClipRRect(
                     borderRadius: BorderRadius.circular(30),
                     child: CachedNetworkImage(
-                      imageUrl: avatar,
+                      imageUrl: UrlHelper.convertUrl(avatar),
                       width: 50,
                       height: 50,
                       fit: BoxFit.cover,

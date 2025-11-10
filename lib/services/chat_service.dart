@@ -69,6 +69,7 @@ class ChatService {
         () => http.post(
           Uri.parse(ApiConstants.chatSend),
           body: {
+            'userID': userId,
             'from': userId,
             'to': toUserId,
             'message': encryptedContent,
@@ -127,7 +128,9 @@ class ChatService {
       final messages = await _fetchMessagesFromAPI(friendId, userId, limit, offset);
 
       // API returns newest first (DESC), reverse to oldest first for UI
+      // Also sort by date to ensure correct order (in case dates are not sequential)
       final reversedMessages = messages.reversed.toList();
+      reversedMessages.sort((a, b) => a.date.compareTo(b.date));
 
       // Cache the messages (only for initial load)
       if ((offset == null || offset == 0) && reversedMessages.isNotEmpty) {
@@ -169,7 +172,10 @@ class ChatService {
       final messages = await _fetchMessagesFromAPI(friendId, userId, limit, offset);
 
       // API returns newest first (DESC), reverse to oldest first for UI
-      return messages.reversed.toList();
+      // Also sort by date to ensure correct order
+      final reversedMessages = messages.reversed.toList();
+      reversedMessages.sort((a, b) => a.date.compareTo(b.date));
+      return reversedMessages;
     } catch (e) {
       print('❌ [ChatService] Error loading older messages: $e');
       return [];
@@ -237,6 +243,7 @@ class ChatService {
       () => http.post(
         Uri.parse(ApiConstants.chatGet),
         body: {
+          'userID': userId,
           'friend': friendId,
           'limit': limit?.toString() ?? '50',
           'offset': offset?.toString() ?? '0',
@@ -246,16 +253,29 @@ class ChatService {
     );
 
     if (response.statusCode == 200) {
-      final List<dynamic> data = json.decode(response.body);
-      final List<Message> messages = [];
+      final dynamic decoded = json.decode(response.body);
+      
+      // Check if response is an error object (Map) or messages array (List)
+      if (decoded is Map<String, dynamic>) {
+        // This is an error response
+        final responseCode = decoded['responseCode'];
+        final message = decoded['message'] ?? 'Unknown error';
+        throw Exception('API error: $message (code: $responseCode)');
+      } else if (decoded is List) {
+        // This is the messages array
+        final List<dynamic> data = decoded;
+        final List<Message> messages = [];
 
-      for (final item in data) {
-        final messageMap = item as Map<String, dynamic>;
-        // Content is already decrypted from server
-        messages.add(Message.fromJson(messageMap, userId));
+        for (final item in data) {
+          final messageMap = item as Map<String, dynamic>;
+          // Content is already decrypted from server
+          messages.add(Message.fromJson(messageMap, userId));
+        }
+
+        return messages;
+      } else {
+        throw Exception('Unexpected response format from API');
       }
-
-      return messages;
     } else {
       throw Exception('Failed to load messages: ${response.statusCode}');
     }

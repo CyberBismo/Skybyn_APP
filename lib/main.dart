@@ -416,6 +416,18 @@ class __InitialScreenState extends State<_InitialScreen> with TickerProviderStat
 class MyHttpOverrides extends HttpOverrides {
   @override
   HttpClient createHttpClient(SecurityContext? context) {
-    return super.createHttpClient(context)..badCertificateCallback = (X509Certificate cert, String host, int port) => true;
+    final client = super.createHttpClient(context);
+    
+    // Only bypass SSL certificate validation in debug mode
+    // This allows dev servers with self-signed certificates to work
+    if (kDebugMode) {
+      client.badCertificateCallback = (X509Certificate cert, String host, int port) {
+        print('⚠️ [HTTP] Accepting certificate for $host:$port in debug mode');
+        return true; // Accept all certificates in debug mode
+      };
+    }
+    // In release mode, use default SSL validation (secure)
+    
+    return client;
   }
 }

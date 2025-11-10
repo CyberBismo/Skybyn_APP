@@ -192,7 +192,16 @@ class TranslationService extends ChangeNotifier {
         }
       }
     } catch (e) {
-      print('⚠️ Could not fetch language from API: $e');
+      // In debug mode, SSL/Handshake errors are common with dev servers
+      if (kDebugMode) {
+        if (e is HandshakeException) {
+          // Silently fail in debug mode for SSL issues
+        } else {
+          print('⚠️ [TranslationService] Could not fetch language from API in debug mode: $e');
+        }
+      } else {
+        print('⚠️ Could not fetch language from API: $e');
+      }
     }
     return null;
   }
@@ -340,7 +349,17 @@ class TranslationService extends ChangeNotifier {
         notifyListeners(); // Notify listeners that fallback translations are loaded
       }
     } catch (e) {
-      print('❌ Error loading translations: $e');
+      // In debug mode, SSL/Handshake errors are common with dev servers
+      // Silently fall back to cached/fallback translations
+      if (kDebugMode) {
+        if (e is HandshakeException) {
+          print('ℹ️ [TranslationService] SSL handshake failed in debug mode, using cached/fallback translations');
+        } else {
+          print('⚠️ [TranslationService] Error loading translations in debug mode: $e');
+        }
+      } else {
+        print('❌ Error loading translations: $e');
+      }
       await _loadFallbackTranslations();
       notifyListeners(); // Notify listeners that fallback translations are loaded
     }

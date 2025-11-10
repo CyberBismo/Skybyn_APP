@@ -8,6 +8,7 @@ import '../screens/chat_screen.dart';
 import '../utils/translation_keys.dart';
 import '../widgets/translated_text.dart';
 import '../services/translation_service.dart';
+import '../config/constants.dart';
 
 class ChatListModal extends StatefulWidget {
   const ChatListModal({super.key});
@@ -149,7 +150,7 @@ class _ChatListModalState extends State<ChatListModal> {
                                       child: friend.avatar.isNotEmpty
                                           ? ClipOval(
                                               child: CachedNetworkImage(
-                                                imageUrl: friend.avatar,
+                                                imageUrl: UrlHelper.convertUrl(friend.avatar),
                                                 width: 44,
                                                 height: 44,
                                                 fit: BoxFit.cover,

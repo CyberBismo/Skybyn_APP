@@ -417,7 +417,7 @@ class _NotificationOverlayState extends State<NotificationOverlayContent> {
                                           child: notification.avatar.isNotEmpty
                                               ? ClipOval(
                                                   child: CachedNetworkImage(
-                                                    imageUrl: notification.avatar,
+                                                    imageUrl: UrlHelper.convertUrl(notification.avatar),
                                                     width: 44,
                                                     height: 44,
                                                     fit: BoxFit.cover,

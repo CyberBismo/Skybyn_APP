@@ -812,7 +812,7 @@ class _PostCardState extends State<PostCard> {
     if (_currentPost.avatar != null && _currentPost.avatar!.isNotEmpty) {
       if (_currentPost.avatar!.startsWith('http')) {
         avatarWidget = CachedNetworkImage(
-          imageUrl: _currentPost.avatar!,
+          imageUrl: UrlHelper.convertUrl(_currentPost.avatar!),
           width: PostCardStyles.avatarSize,
           height: PostCardStyles.avatarSize,
           fit: BoxFit.cover,
@@ -856,7 +856,7 @@ class _PostCardState extends State<PostCard> {
     if (_currentPost.image != null && _currentPost.image!.isNotEmpty) {
       if (_currentPost.image!.startsWith('http')) {
         imageWidget = CachedNetworkImage(
-          imageUrl: _currentPost.image!,
+          imageUrl: UrlHelper.convertUrl(_currentPost.image!),
           width: double.infinity,
           fit: BoxFit.cover,
           placeholder: (context, url) => Container(

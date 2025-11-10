@@ -7,14 +7,40 @@ class ApiConstants {
   static const String _prodWebBase = 'https://skybyn.no';
 
   // Development URLs
-  static const String _devBase = 'https://skybyn.ddns.net';
-  static const String _devApiBase = 'https://skybyn.ddns.net/api';
-  static const String _devAppBase = 'https://skybyn.ddns.net/app';
+  static const String _devBase = 'https://server.skybyn.no';
+  static const String _devApiBase = 'https://server.skybyn.no/api';
+  static const String _devAppBase = 'https://server.skybyn.no/app';
 
-  // Use dev URLs in debug mode, production URLs in release mode
-  static String get appBase => kDebugMode ? _devAppBase : _prodAppBase;
-  static String get apiBase => kDebugMode ? _devApiBase : _prodApiBase;
-  static String get webBase => kDebugMode ? _devBase : _prodWebBase;
+  /// Returns development URLs in debug mode, production URLs in release mode
+  /// 
+  /// Debug mode (kDebugMode = true): Uses _dev URLs
+  /// Release mode (kDebugMode = false): Uses _prod URLs
+  static String get appBase {
+    final url = kDebugMode ? _devAppBase : _prodAppBase;
+    assert(() {
+      print('🔧 [ApiConstants] Using ${kDebugMode ? "DEV" : "PROD"} appBase: $url');
+      return true;
+    }());
+    return url;
+  }
+
+  static String get apiBase {
+    final url = kDebugMode ? _devApiBase : _prodApiBase;
+    assert(() {
+      print('🔧 [ApiConstants] Using ${kDebugMode ? "DEV" : "PROD"} apiBase: $url');
+      return true;
+    }());
+    return url;
+  }
+
+  static String get webBase {
+    final url = kDebugMode ? _devBase : _prodWebBase;
+    assert(() {
+      print('🔧 [ApiConstants] Using ${kDebugMode ? "DEV" : "PROD"} webBase: $url');
+      return true;
+    }());
+    return url;
+  }
 
   // Auth
   static String get login => '$apiBase/login.php';
@@ -72,4 +98,77 @@ class StorageKeys {
   static const String userId = 'user_id';
   static const String userProfile = 'user_profile';
   static const String username = 'username';
+}
+
+/// Utility class for URL conversion between dev and prod environments
+class UrlHelper {
+  /// Convert a URL to use the appropriate base URL based on build mode
+  /// This is useful for images and other resources that may have hardcoded production URLs
+  static String convertUrl(String url) {
+    if (url.isEmpty) {
+      return url;
+    }
+    
+    if (!kDebugMode) {
+      // In release mode, return URL as-is
+      return url;
+    }
+    
+    // In debug mode, replace production domains with dev domain
+    final devBase = ApiConstants.webBase;
+    String convertedUrl = url;
+    
+    // Replace https://skybyn.com with dev base
+    if (url.contains('https://skybyn.com')) {
+      convertedUrl = url.replaceAll('https://skybyn.com', devBase);
+      assert(() {
+        print('🔧 [UrlHelper] Converted skybyn.com URL: $url -> $convertedUrl');
+        return true;
+      }());
+      return convertedUrl;
+    }
+    
+    // Replace https://skybyn.no with dev base
+    if (url.contains('https://skybyn.no')) {
+      convertedUrl = url.replaceAll('https://skybyn.no', devBase);
+      assert(() {
+        print('🔧 [UrlHelper] Converted skybyn.no URL: $url -> $convertedUrl');
+        return true;
+      }());
+      return convertedUrl;
+    }
+    
+    // Replace https://app.skybyn.no with dev app base
+    if (url.contains('https://app.skybyn.no')) {
+      convertedUrl = url.replaceAll('https://app.skybyn.no', ApiConstants.appBase);
+      assert(() {
+        print('🔧 [UrlHelper] Converted app.skybyn.no URL: $url -> $convertedUrl');
+        return true;
+      }());
+      return convertedUrl;
+    }
+    
+    // Replace https://api.skybyn.no with dev api base
+    if (url.contains('https://api.skybyn.no')) {
+      convertedUrl = url.replaceAll('https://api.skybyn.no', ApiConstants.apiBase);
+      assert(() {
+        print('🔧 [UrlHelper] Converted api.skybyn.no URL: $url -> $convertedUrl');
+        return true;
+      }());
+      return convertedUrl;
+    }
+    
+    // If URL doesn't contain a domain, assume it's a relative path and prepend dev base
+    if (url.startsWith('/')) {
+      convertedUrl = '$devBase$url';
+      assert(() {
+        print('🔧 [UrlHelper] Converted relative URL: $url -> $convertedUrl');
+        return true;
+      }());
+      return convertedUrl;
+    }
+    
+    // Return as-is if no conversion needed
+    return url;
+  }
 }

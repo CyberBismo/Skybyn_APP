@@ -350,7 +350,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               fit: BoxFit.cover,
                             )
                           : CachedNetworkImage(
-                              imageUrl: wallpaperUrl,
+                              imageUrl: UrlHelper.convertUrl(wallpaperUrl),
                               fit: BoxFit.cover,
                               placeholder: (context, url) => Image.asset(
                                 'assets/images/background.png',
@@ -383,7 +383,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               borderRadius: BorderRadius.circular(17),
                               child: (avatarUrl.isNotEmpty)
                                   ? CachedNetworkImage(
-                                      imageUrl: avatarUrl,
+                                      imageUrl: UrlHelper.convertUrl(avatarUrl),
                                       fit: BoxFit.cover,
                                       httpHeaders: const {},
                                       placeholder: (context, url) => Image.asset(

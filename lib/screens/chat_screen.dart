@@ -21,6 +21,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'profile_screen.dart';
 import 'call_screen.dart';
+import '../config/constants.dart';
+import '../widgets/chat_list_modal.dart';
 
 class ChatScreen extends StatefulWidget {
   final Friend friend;
@@ -49,6 +51,7 @@ class _ChatScreenState extends State<ChatScreen> {
   Timer? _refreshTimer;
   bool _showSearchForm = false;
   bool _hasMoreMessages = true;
+  final FocusNode _messageFocusNode = FocusNode();
 
   @override
   void initState() {
@@ -57,10 +60,44 @@ class _ChatScreenState extends State<ChatScreen> {
     _loadMessages();
     _setupWebSocketListener();
     _setupScrollListener();
+    _setupKeyboardListener();
     // Refresh messages every 3 seconds when screen is active
     _refreshTimer = Timer.periodic(const Duration(seconds: 3), (_) {
       if (mounted) {
         _refreshMessages();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _messageFocusNode.dispose();
+    _messageController.dispose();
+    _scrollController.dispose();
+    _refreshTimer?.cancel();
+    super.dispose();
+  }
+
+  void _setupKeyboardListener() {
+    _messageFocusNode.addListener(() {
+      if (_messageFocusNode.hasFocus) {
+        // When keyboard opens, scroll to bottom after a short delay
+        // Use multiple delays to ensure it works even if keyboard animation is slow
+        Future.delayed(const Duration(milliseconds: 100), () {
+          if (mounted && _messageFocusNode.hasFocus) {
+            _scrollToBottom();
+          }
+        });
+        Future.delayed(const Duration(milliseconds: 300), () {
+          if (mounted && _messageFocusNode.hasFocus) {
+            _scrollToBottom();
+          }
+        });
+        Future.delayed(const Duration(milliseconds: 500), () {
+          if (mounted && _messageFocusNode.hasFocus) {
+            _scrollToBottom();
+          }
+        });
       }
     });
   }
@@ -93,7 +130,9 @@ class _ChatScreenState extends State<ChatScreen> {
       if (mounted) {
         setState(() {
           // Messages are already sorted oldest to newest from service
+          // But ensure they're sorted by date to be safe
           _messages = messages;
+          _messages.sort((a, b) => a.date.compareTo(b.date));
           _isLoading = false;
         });
         // Scroll to bottom when initially loading messages
@@ -157,6 +196,15 @@ class _ChatScreenState extends State<ChatScreen> {
         );
       }
     });
+  }
+
+  void _openChatListModal(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => const ChatListModal(),
+    );
   }
 
   Future<void> _sendMessage() async {
@@ -332,14 +380,6 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
-  @override
-  void dispose() {
-    _refreshTimer?.cancel();
-    _messageController.dispose();
-    _scrollController.dispose();
-    super.dispose();
-  }
-
   /// Check and request permissions for voice/video calls using Android system dialogs
   Future<bool> _checkCallPermissions(CallType callType) async {
     try {
@@ -417,9 +457,21 @@ class _ChatScreenState extends State<ChatScreen> {
     final friendDisplayName = widget.friend.nickname.isNotEmpty
         ? widget.friend.nickname
         : widget.friend.username;
+    
+    // Listen to keyboard changes and scroll to bottom when keyboard appears
+    final keyboardHeight = MediaQuery.of(context).viewInsets.bottom;
+    if (keyboardHeight > 0 && _messageFocusNode.hasFocus) {
+      // Use WidgetsBinding to schedule scroll after frame is built
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _messageFocusNode.hasFocus) {
+          _scrollToBottom();
+        }
+      });
+    }
 
     return Scaffold(
       extendBodyBehindAppBar: true,
+      resizeToAvoidBottomInset: true,
       appBar: CustomAppBar(
         logoPath: 'assets/images/logo.png',
         onLogoPressed: () {
@@ -473,7 +525,7 @@ class _ChatScreenState extends State<ChatScreen> {
                                 child: widget.friend.avatar.isNotEmpty
                                     ? ClipOval(
                                         child: CachedNetworkImage(
-                                          imageUrl: widget.friend.avatar,
+                                          imageUrl: UrlHelper.convertUrl(widget.friend.avatar),
                                           width: 48,
                                           height: 48,
                                           fit: BoxFit.cover,
@@ -718,6 +770,7 @@ class _ChatScreenState extends State<ChatScreen> {
                   ),
                 ),
                 // Input at the bottom - positioned same as CustomBottomNavigationBar
+                // Add keyboard padding to keep input above keyboard
                 Padding(
                   padding: EdgeInsets.only(
                     left: 16,
@@ -739,9 +792,32 @@ class _ChatScreenState extends State<ChatScreen> {
                         ),
                         child: Row(
                           children: [
+                            // Chat list button (copied from bottom nav)
+                            Padding(
+                              padding: const EdgeInsets.only(left: 4),
+                              child: Container(
+                                width: 40,
+                                height: 40,
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withOpacity(0.2),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: IconButton(
+                                  onPressed: () => _openChatListModal(context),
+                                  icon: const Icon(
+                                    Icons.chat_bubble,
+                                    color: Colors.white,
+                                    size: 20,
+                                  ),
+                                  padding: EdgeInsets.zero,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
                             Expanded(
                               child: TextField(
                                 controller: _messageController,
+                                focusNode: _messageFocusNode,
                                 decoration: InputDecoration(
                                   hintText: 'Type a message...',
                                   hintStyle: TextStyle(
@@ -819,7 +895,7 @@ class _ChatScreenState extends State<ChatScreen> {
               child: widget.friend.avatar.isNotEmpty
                   ? ClipOval(
                       child: CachedNetworkImage(
-                        imageUrl: widget.friend.avatar,
+                        imageUrl: UrlHelper.convertUrl(widget.friend.avatar),
                         width: 32,
                         height: 32,
                         fit: BoxFit.cover,
@@ -893,7 +969,7 @@ class _ChatScreenState extends State<ChatScreen> {
                   if (snapshot.hasData && snapshot.data != null && snapshot.data!.isNotEmpty) {
                     return ClipOval(
                       child: CachedNetworkImage(
-                        imageUrl: snapshot.data!,
+                        imageUrl: UrlHelper.convertUrl(snapshot.data!),
                         width: 32,
                         height: 32,
                         fit: BoxFit.cover,

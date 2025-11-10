@@ -234,7 +234,9 @@ class WebSocketService {
   String _getWebSocketUrl() {
     // Use port 4432 for debug builds, 4433 for release builds
     final port = kDebugMode ? 4432 : 4433;
-    return 'wss://skybyn.ddns.net:$port';
+    // Use server.skybyn.no for development, server.skybyn.no for production
+    final host = kDebugMode ? 'server.skybyn.no' : 'server.skybyn.no';
+    return 'wss://$host:$port';
   }
 
   /// Connect to WebSocket with callbacks

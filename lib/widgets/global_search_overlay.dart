@@ -229,7 +229,7 @@ class _GlobalSearchOverlayState extends State<GlobalSearchOverlay> {
                   ClipRRect(
                     borderRadius: BorderRadius.circular(30),
                     child: CachedNetworkImage(
-                      imageUrl: avatar,
+                      imageUrl: UrlHelper.convertUrl(avatar),
                       width: 60,
                       height: 60,
                       fit: BoxFit.cover,
