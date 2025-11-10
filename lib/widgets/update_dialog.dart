@@ -100,22 +100,25 @@ class _UpdateDialogState extends State<UpdateDialog>
 
     try {
       setState(() {
-        _updateStatus = 'Downloading update...';
-        _updateProgress = 0.05; // Start at 5%
+        _updateStatus = 'Downloading...';
+        _updateProgress = 0.0;
       });
 
       // Download the update with progress callback
-      // Download service sends progress 10-100%, we map it to 5-85% of total
+      // Download service now sends progress 0-100%
       final downloadSuccess = await AutoUpdateService.downloadUpdate(
         widget.downloadUrl!,
         onProgress: (progress, status) {
           if (mounted) {
             setState(() {
-              // Map download progress (10-100%) to dialog progress (5-85%)
-              // Formula: 0.05 + (progress - 10) / 90 * 0.80
-              final downloadProgress = progress.clamp(10, 100);
-              _updateProgress = 0.05 + ((downloadProgress - 10) / 90) * 0.80;
-              _updateStatus = status;
+              // Use actual download progress (0-100%)
+              _updateProgress = (progress / 100.0).clamp(0.0, 1.0);
+              // Extract status text or use default
+              if (status.contains('Downloading')) {
+                _updateStatus = status;
+              } else {
+                _updateStatus = 'Downloading... $progress%';
+              }
             });
           }
         },
@@ -124,21 +127,36 @@ class _UpdateDialogState extends State<UpdateDialog>
         throw Exception('Failed to download update');
       }
 
-      setState(() {
-        _updateStatus = 'Installing update...';
-        _updateProgress = 0.85; // Start installation at 85%
-      });
+      // Download complete - show 100% and "Downloaded" status
+      if (mounted) {
+        setState(() {
+          _updateProgress = 1.0; // 100%
+          _updateStatus = 'Downloaded';
+        });
+        
+        // Brief pause to show "Downloaded" status
+        await Future.delayed(const Duration(milliseconds: 500));
+      }
+
+      // Transition to installing
+      if (mounted) {
+        setState(() {
+          _updateStatus = 'Installing...';
+          // Keep progress at 100% during installation
+          _updateProgress = 1.0;
+        });
+      }
 
       // Install the update with progress callback
-      // Install progress maps to 85-100% of total
       final installSuccess = await AutoUpdateService.installUpdate(
         onProgress: (progress, status) {
           if (mounted) {
             setState(() {
-              // Map install progress to 85-100% range
-              final installProgress = progress.clamp(0, 100);
-              _updateProgress = 0.85 + (installProgress / 100.0 * 0.15);
-              _updateStatus = status;
+              // Keep at 100% during installation, just update status
+              _updateProgress = 1.0;
+              _updateStatus = status.contains('Installing') || status.contains('Opening') 
+                  ? status 
+                  : 'Installing...';
             });
           }
         },

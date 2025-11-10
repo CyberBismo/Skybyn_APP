@@ -225,31 +225,49 @@ class AutoUpdateService {
         final bytes = <int>[];
         int downloadedBytes = 0;
 
+        int lastReportedProgress = -1;
+        int lastReportedBytes = 0;
         await for (var chunk in streamedResponse.stream) {
           bytes.addAll(chunk);
           downloadedBytes += chunk.length;
 
-          // Update progress every 1% or every 100KB, whichever comes first
+          // Update progress based on actual download progress (0-100%)
           if (contentLength != null && contentLength > 0) {
-            final progress = ((downloadedBytes / contentLength) * 90).round() + 10; // 10-100%
-            if (downloadedBytes % (contentLength ~/ 100) < chunk.length || downloadedBytes % 100000 < chunk.length) {
+            final progress = ((downloadedBytes / contentLength) * 100).round().clamp(0, 100);
+            
+            // Update progress callback every 1% change or every 50KB, whichever comes first
+            final bytesSinceLastUpdate = downloadedBytes - lastReportedBytes;
+            if (progress != lastReportedProgress || bytesSinceLastUpdate >= 50000) {
+              lastReportedProgress = progress;
+              lastReportedBytes = downloadedBytes;
+              
               await notificationService.showUpdateProgressNotification(
                 title: 'Updating Skybyn',
-                status: 'Downloading... ${_formatBytes(downloadedBytes)} / ${_formatBytes(contentLength)} (${progress}%)',
-                progress: progress.clamp(0, 95),
+                status: 'Downloading... ${_formatBytes(downloadedBytes)} / ${_formatBytes(contentLength)} ($progress%)',
+                progress: progress,
               );
 
-              // Call progress callback if provided
-              onProgress?.call(progress, 'Downloading...');
+              // Call progress callback with 0-100% range and detailed status
+              final statusText = 'Downloading... ${_formatBytes(downloadedBytes)} / ${_formatBytes(contentLength)} ($progress%)';
+              onProgress?.call(progress, statusText);
             }
           } else {
             // Indeterminate progress if content length unknown
-            await notificationService.showUpdateProgressNotification(
-              title: 'Updating Skybyn',
-              status: 'Downloading... ${_formatBytes(downloadedBytes)}',
-              progress: 50,
-              indeterminate: true,
-            );
+            // Update every 50KB downloaded
+            final bytesSinceLastUpdate = downloadedBytes - lastReportedBytes;
+            if (bytesSinceLastUpdate >= 50000) {
+              lastReportedBytes = downloadedBytes;
+              
+              await notificationService.showUpdateProgressNotification(
+                title: 'Updating Skybyn',
+                status: 'Downloading... ${_formatBytes(downloadedBytes)}',
+                progress: 50,
+                indeterminate: true,
+              );
+              
+              // Call progress callback with indeterminate status
+              onProgress?.call(50, 'Downloading... ${_formatBytes(downloadedBytes)}');
+            }
           }
         }
 
@@ -278,12 +296,15 @@ class AutoUpdateService {
           return false;
         }
 
-        // Show download complete
+        // Show download complete - ensure 100% progress
         await notificationService.showUpdateProgressNotification(
           title: 'Updating Skybyn',
           status: 'Download complete!',
           progress: 100,
         );
+
+        // Call progress callback to notify download is complete
+        onProgress?.call(100, 'Downloaded');
 
         return true;
       } else {
