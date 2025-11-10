@@ -101,6 +101,7 @@ class ChatService {
   }
 
   /// Get messages between current user and another user
+  /// Returns messages ordered oldest to newest (for UI display)
   Future<List<Message>> getMessages({
     required String friendId,
     int? limit,
@@ -112,31 +113,65 @@ class ChatService {
         throw Exception('User not logged in');
       }
 
-      // Try to load from cache first
-      final cachedMessages = await _loadMessagesFromCache(friendId, userId);
-      if (cachedMessages.isNotEmpty) {
-        // Refresh in background
-        _refreshMessagesInBackground(friendId, userId);
-        return cachedMessages;
+      // Try to load from cache first (only for initial load, offset 0)
+      if (offset == null || offset == 0) {
+        final cachedMessages = await _loadMessagesFromCache(friendId, userId);
+        if (cachedMessages.isNotEmpty) {
+          // Refresh in background
+          _refreshMessagesInBackground(friendId, userId);
+          return cachedMessages;
+        }
       }
 
       // If no cache, fetch from API
       final messages = await _fetchMessagesFromAPI(friendId, userId, limit, offset);
 
-      // Cache the messages
-      if (messages.isNotEmpty) {
-        await _saveMessagesToCache(friendId, messages);
+      // API returns newest first (DESC), reverse to oldest first for UI
+      final reversedMessages = messages.reversed.toList();
+
+      // Cache the messages (only for initial load)
+      if ((offset == null || offset == 0) && reversedMessages.isNotEmpty) {
+        await _saveMessagesToCache(friendId, reversedMessages);
       }
 
-      return messages;
+      return reversedMessages;
     } catch (e) {
       print('❌ [ChatService] Error getting messages: $e');
-      // If API fails, try to return cached data as fallback
-      final userId = await _authService.getStoredUserId();
-      if (userId != null) {
-        final cachedMessages = await _loadMessagesFromCache(friendId, userId);
-        return cachedMessages;
+      // If API fails, try to return cached data as fallback (only for initial load)
+      if (offset == null || offset == 0) {
+        final userId = await _authService.getStoredUserId();
+        if (userId != null) {
+          final cachedMessages = await _loadMessagesFromCache(friendId, userId);
+          return cachedMessages;
+        }
       }
+      return [];
+    }
+  }
+
+  /// Load older messages (for pagination when scrolling up)
+  /// Returns messages ordered oldest to newest
+  Future<List<Message>> loadOlderMessages({
+    required String friendId,
+    required int currentMessageCount,
+    int limit = 50,
+  }) async {
+    try {
+      final userId = await _authService.getStoredUserId();
+      if (userId == null) {
+        throw Exception('User not logged in');
+      }
+
+      // Calculate offset based on current message count
+      final offset = currentMessageCount;
+
+      // Fetch older messages from API
+      final messages = await _fetchMessagesFromAPI(friendId, userId, limit, offset);
+
+      // API returns newest first (DESC), reverse to oldest first for UI
+      return messages.reversed.toList();
+    } catch (e) {
+      print('❌ [ChatService] Error loading older messages: $e');
       return [];
     }
   }
