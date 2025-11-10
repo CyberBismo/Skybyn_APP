@@ -10,6 +10,8 @@ import '../services/translation_service.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:intl/intl.dart';
 import 'app_colors.dart';
+import '../screens/profile_screen.dart';
+import '../screens/home_screen.dart';
 
 class Notification {
   final String id;
@@ -403,7 +405,33 @@ class _NotificationOverlayState extends State<NotificationOverlayContent> {
                                       if (notification.read == 0) {
                                         _markAsRead(notification.id);
                                       }
-                                      // TODO: Navigate to profile or post based on notification type
+                                      
+                                      // Close the overlay first
+                                      UnifiedNotificationOverlay.closeCurrentOverlay();
+                                      
+                                      // Navigate based on notification type
+                                      if (notification.type == 'friend_request' || notification.type == 'friend_accepted') {
+                                        // Navigate to user's profile
+                                        // Use username from notification (which is the sender's username)
+                                        if (notification.username.isNotEmpty && notification.username != 'System') {
+                                          Navigator.of(context).push(
+                                            MaterialPageRoute(
+                                              builder: (context) => ProfileScreen(
+                                                username: notification.username,
+                                              ),
+                                            ),
+                                          );
+                                        }
+                                      } else if (notification.type == 'comment' && notification.post != null) {
+                                        // Navigate to home screen
+                                        // Note: Scrolling to a specific post/comment would require additional implementation
+                                        Navigator.of(context).pushAndRemoveUntil(
+                                          MaterialPageRoute(
+                                            builder: (context) => const HomeScreen(),
+                                          ),
+                                          (route) => route.isFirst,
+                                        );
+                                      }
                                     },
                                     child: Container(
                                       decoration: BoxDecoration(
