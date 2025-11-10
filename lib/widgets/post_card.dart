@@ -16,6 +16,7 @@ import '../config/constants.dart';
 import '../utils/translation_keys.dart';
 import '../widgets/translated_text.dart';
 import '../services/translation_service.dart';
+import '../screens/profile_screen.dart';
 
 /// Centralized styling for the PostCard widget - matches web platform exactly
 class PostCardStyles {
@@ -918,50 +919,65 @@ class _PostCardState extends State<PostCard> {
                               // User avatar and name row
                               SizedBox(
                                 height: 70.0, // height: 70px
-                                child: Row(
-                                  children: [
-                                    // User avatar - match web platform's post_user_image exactly
-                                    SizedBox(
-                                      width: PostCardStyles.avatarSize,
-                                      height: PostCardStyles.avatarSize,
-                                      child: Container(
-                                        margin: PostCardStyles
-                                            .avatarPadding, // margin: 10px
-                                        decoration: BoxDecoration(
-                                          color:
-                                              AppColors.avatarBackgroundColor,
-                                          borderRadius: BorderRadius.circular(
-                                              PostCardStyles
-                                                  .avatarRadius), // border-radius: 10px
-                                          border: Border.all(
-                                              color: PostCardStyles
-                                                  .getAvatarBorderColor(
-                                                      context),
-                                              width: PostCardStyles
-                                                  .avatarBorderWidth),
+                                child: InkWell(
+                                  onTap: () {
+                                    if (_currentPost.userId != null && _currentPost.userId!.isNotEmpty) {
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (context) => ProfileScreen(
+                                            userId: _currentPost.userId,
+                                            username: _currentPost.author,
+                                          ),
                                         ),
-                                        child: ClipRRect(
-                                          borderRadius: BorderRadius.circular(
-                                              PostCardStyles.avatarRadius),
-                                          child: avatarWidget,
-                                        ),
-                                      ),
-                                    ),
-                                    // User name - match web platform's post_user_name exactly
-                                    Expanded(
-                                      child: SizedBox(
-                                        height: 70.0, // height: 70px
-                                        child: Align(
-                                          alignment: Alignment.centerLeft,
-                                          child: Text(
-                                            _currentPost.author,
-                                            style: PostCardStyles
-                                                .getAuthorTextStyle(context),
+                                      );
+                                    }
+                                  },
+                                  child: Row(
+                                    children: [
+                                      // User avatar - match web platform's post_user_image exactly
+                                      SizedBox(
+                                        width: PostCardStyles.avatarSize,
+                                        height: PostCardStyles.avatarSize,
+                                        child: Container(
+                                          margin: PostCardStyles
+                                              .avatarPadding, // margin: 10px
+                                          decoration: BoxDecoration(
+                                            color:
+                                                AppColors.avatarBackgroundColor,
+                                            borderRadius: BorderRadius.circular(
+                                                PostCardStyles
+                                                    .avatarRadius), // border-radius: 10px
+                                            border: Border.all(
+                                                color: PostCardStyles
+                                                    .getAvatarBorderColor(
+                                                        context),
+                                                width: PostCardStyles
+                                                    .avatarBorderWidth),
+                                          ),
+                                          child: ClipRRect(
+                                            borderRadius: BorderRadius.circular(
+                                                PostCardStyles.avatarRadius),
+                                            child: avatarWidget,
                                           ),
                                         ),
                                       ),
-                                    ),
-                                  ],
+                                      // User name - match web platform's post_user_name exactly
+                                      Expanded(
+                                        child: SizedBox(
+                                          height: 70.0, // height: 70px
+                                          child: Align(
+                                            alignment: Alignment.centerLeft,
+                                            child: Text(
+                                              _currentPost.author,
+                                              style: PostCardStyles
+                                                  .getAuthorTextStyle(context),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
                                 ),
                               ),
                               // Date - now part of the header

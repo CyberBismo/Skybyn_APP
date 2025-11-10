@@ -8,6 +8,7 @@ import '../utils/translation_keys.dart';
 import '../widgets/translated_text.dart';
 import '../services/translation_service.dart';
 import '../config/constants.dart';
+import '../screens/profile_screen.dart';
 
 class FindFriendsWidget extends StatefulWidget {
   final VoidCallback? onFriendsFound;
@@ -428,29 +429,32 @@ class _FindFriendsWidgetState extends State<FindFriendsWidget> {
                     ),
                   ),
                   const SizedBox(height: 12),
-                  TextField(
-                    controller: _referralController,
-                    style: const TextStyle(color: Colors.white),
-                    decoration: InputDecoration(
-                      hintText: TranslationService().translate(TranslationKeys.enterUsernameOrCode),
-                      hintStyle: TextStyle(color: Colors.white.withOpacity(0.6)),
-                      filled: true,
-                      fillColor: Colors.white.withOpacity(0.1),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: Colors.white.withOpacity(0.3)),
+                  Material(
+                    color: Colors.transparent,
+                    child: TextField(
+                      controller: _referralController,
+                      style: const TextStyle(color: Colors.white),
+                      decoration: InputDecoration(
+                        hintText: TranslationService().translate(TranslationKeys.enterUsernameOrCode),
+                        hintStyle: TextStyle(color: Colors.white.withOpacity(0.6)),
+                        filled: true,
+                        fillColor: Colors.white.withOpacity(0.1),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: Colors.white.withOpacity(0.3)),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: Colors.white.withOpacity(0.3)),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: Colors.white.withOpacity(0.5)),
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                       ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: Colors.white.withOpacity(0.3)),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: Colors.white.withOpacity(0.5)),
-                      ),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                      onSubmitted: (_) => _addFriendByUsername(),
                     ),
-                    onSubmitted: (_) => _addFriendByUsername(),
                   ),
                   if (_addFriendError != null) ...[
                     const SizedBox(height: 8),
@@ -459,6 +463,7 @@ class _FindFriendsWidgetState extends State<FindFriendsWidget> {
                       style: const TextStyle(
                         color: Colors.redAccent,
                         fontSize: 12,
+                        decoration: TextDecoration.none,
                       ),
                     ),
                   ],
@@ -484,12 +489,12 @@ class _FindFriendsWidgetState extends State<FindFriendsWidget> {
                                 valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                               ),
                             )
-                          : TranslatedText(
-                              TranslationKeys.sendFriendRequest,
-                              fallback: 'Send Friend Request',
+                          : Text(
+                              TranslationService().translate(TranslationKeys.sendFriendRequest),
                               style: const TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.bold,
+                                color: Colors.white,
                                 decoration: TextDecoration.none,
                               ),
                             ),
@@ -511,48 +516,76 @@ class _FindFriendsWidgetState extends State<FindFriendsWidget> {
                     ),
                   ),
                   const SizedBox(height: 12),
-                  ..._nearbyUsers.take(5).map((user) => Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
-                        child: Row(
-                          children: [
-                            CircleAvatar(
-                              radius: 20,
-                              backgroundColor: Colors.white.withOpacity(0.2),
-                              backgroundImage: user['avatar'] != null && user['avatar'].toString().isNotEmpty
-                                  ? NetworkImage(user['avatar'].toString())
-                                  : null,
-                              child: user['avatar'] == null || user['avatar'].toString().isEmpty
-                                  ? const Icon(Icons.person, color: Colors.white)
-                                  : null,
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    user['nickname']?.toString() ?? user['username']?.toString() ?? 'Unknown',
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            if (user['online'] == 1 || user['online'] == true)
-                              Container(
-                                width: 8,
-                                height: 8,
-                                decoration: const BoxDecoration(
-                                  color: Colors.green,
-                                  shape: BoxShape.circle,
+                  ..._nearbyUsers.take(5).map((user) {
+                    final userId = user['id']?.toString() ?? user['userID']?.toString();
+                    final username = user['username']?.toString() ?? '';
+                    final nickname = user['nickname']?.toString() ?? '';
+                    // Fix double underscores in username
+                    final displayName = (nickname.isNotEmpty ? nickname : username)
+                        .replaceAll('__', '_');
+                    
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: InkWell(
+                        onTap: () {
+                          if (userId != null && userId.isNotEmpty) {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => ProfileScreen(
+                                  userId: userId,
+                                  username: username.isNotEmpty ? username : null,
                                 ),
                               ),
-                          ],
+                            );
+                          }
+                        },
+                        borderRadius: BorderRadius.circular(12),
+                        child: Padding(
+                          padding: const EdgeInsets.all(8.0),
+                          child: Row(
+                            children: [
+                              CircleAvatar(
+                                radius: 20,
+                                backgroundColor: Colors.white.withOpacity(0.2),
+                                backgroundImage: user['avatar'] != null && user['avatar'].toString().isNotEmpty
+                                    ? NetworkImage(UrlHelper.convertUrl(user['avatar'].toString()))
+                                    : null,
+                                child: user['avatar'] == null || user['avatar'].toString().isEmpty
+                                    ? const Icon(Icons.person, color: Colors.white)
+                                    : null,
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      displayName.isNotEmpty ? displayName : 'Unknown',
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              if (user['online'] == 1 || user['online'] == true)
+                                Container(
+                                  width: 8,
+                                  height: 8,
+                                  decoration: const BoxDecoration(
+                                    color: Colors.green,
+                                    shape: BoxShape.circle,
+                                  ),
+                                ),
+                            ],
+                          ),
                         ),
-                      )),
+                      ),
+                    );
+                  }),
                 ],
               ],
             ),

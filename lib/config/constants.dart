@@ -73,6 +73,9 @@ class ApiConstants {
   // Friends
   static String get friend => '$apiBase/friend/friend.php';
   static String get friends => '$apiBase/friend/friends.php';
+  
+  // Reports
+  static String get report => '$apiBase/report.php';
 
   // Notifications
   static String get notifications => '$apiBase/notification/list.php';

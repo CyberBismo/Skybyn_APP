@@ -6,6 +6,7 @@ import '../services/theme_service.dart';
 import 'unified_menu.dart';
 import 'app_colors.dart';
 import '../config/constants.dart';
+import '../screens/profile_screen.dart';
 
 /// Centralized styling for the CommentCard widget
 class CommentCardStyles {
@@ -232,59 +233,74 @@ class CommentCard extends StatelessWidget {
       children: [
         Padding(
           padding: CommentCardStyles.cardPadding,
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Container(
-                width: CommentCardStyles.avatarSize,
-                height: CommentCardStyles.avatarSize,
-                decoration: BoxDecoration(
-                  color: AppColors.avatarBackgroundColor,
-                  borderRadius: BorderRadius.circular(CommentCardStyles.borderRadius),
-                  border: Border.all(color: AppColors.getAvatarBorderColor(context), width: CommentCardStyles.avatarBorderWidth),
-                ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(CommentCardStyles.borderRadius),
-                  child: avatarWidget,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.center, // Center vertically
-                  children: [
-                    // Username without background
-                    Text(
-                      comment.username,
-                      style: TextStyle(
-                        fontSize: CommentCardStyles.fontSize,
-                        fontWeight: FontWeight.bold,
-                        color: commentTextColor,
-                      ),
+          child: InkWell(
+            onTap: () {
+              if (comment.userId.isNotEmpty) {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => ProfileScreen(
+                      userId: comment.userId,
+                      username: comment.username,
                     ),
-                    const SizedBox(width: 8),
-                    // Comment text with background
-                    Expanded(
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
-                        decoration: BoxDecoration(
-                          color: AppColors.getBackgroundColor(context).withOpacity(0.1), // Theme-aware background
-                          borderRadius: BorderRadius.circular(CommentCardStyles.borderRadius), // Rounded corners
+                  ),
+                );
+              }
+            },
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Container(
+                  width: CommentCardStyles.avatarSize,
+                  height: CommentCardStyles.avatarSize,
+                  decoration: BoxDecoration(
+                    color: AppColors.avatarBackgroundColor,
+                    borderRadius: BorderRadius.circular(CommentCardStyles.borderRadius),
+                    border: Border.all(color: AppColors.getAvatarBorderColor(context), width: CommentCardStyles.avatarBorderWidth),
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(CommentCardStyles.borderRadius),
+                    child: avatarWidget,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.center, // Center vertically
+                    children: [
+                      // Username without background
+                      Text(
+                        comment.username,
+                        style: TextStyle(
+                          fontSize: CommentCardStyles.fontSize,
+                          fontWeight: FontWeight.bold,
+                          color: commentTextColor,
                         ),
-                        child: Text(
-                          _cleanCommentContent(comment.content),
-                          style: TextStyle(
-                            fontSize: CommentCardStyles.fontSize,
-                            color: commentTextColor,
+                      ),
+                      const SizedBox(width: 8),
+                      // Comment text with background
+                      Expanded(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
+                          decoration: BoxDecoration(
+                            color: AppColors.getBackgroundColor(context).withOpacity(0.1), // Theme-aware background
+                            borderRadius: BorderRadius.circular(CommentCardStyles.borderRadius), // Rounded corners
                           ),
-                          softWrap: true,
+                          child: Text(
+                            _cleanCommentContent(comment.content),
+                            style: TextStyle(
+                              fontSize: CommentCardStyles.fontSize,
+                              color: commentTextColor,
+                            ),
+                            softWrap: true,
+                          ),
                         ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
         // Comment menu button
