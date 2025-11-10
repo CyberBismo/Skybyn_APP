@@ -234,7 +234,7 @@ class WebSocketService {
   String _getWebSocketUrl() {
     // Use port 4432 for debug builds, 4433 for release builds
     final port = kDebugMode ? 4432 : 4433;
-    return 'wss://server.skybyn.no:$port';
+    return 'wss://skybyn.ddns.net:$port';
   }
 
   /// Connect to WebSocket with callbacks
@@ -309,9 +309,7 @@ class WebSocketService {
         _isConnected = true;
         _isConnecting = false;
         _reconnectAttempts = 0;
-        _updateConnectionMetrics('connected');
-        
-        print('✅ [WebSocket] Connected to WebSocket server');
+        _updateConnectionMetrics('connected'); // This already logs the connection message
         
         // Note: Online status is managed by app lifecycle in main.dart
         // to avoid duplicate updates when both WebSocket and lifecycle fire

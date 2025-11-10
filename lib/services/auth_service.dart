@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:async';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/foundation.dart';
@@ -130,7 +131,11 @@ class AuthService {
         print('❌ [Profile] Could not get FCM token: $e');
       }
 
-      final response = await http.post(Uri.parse(ApiConstants.profile), body: requestBody);
+      final response = await _retryHttpRequest(
+        () => http.post(Uri.parse(ApiConstants.profile), body: requestBody),
+        operationName: 'fetchUserProfile',
+      );
+      
       if (response.statusCode == 200) {
         final data = _safeJsonDecode(response.body);
         if (data['responseCode'] == '1') {
@@ -269,7 +274,11 @@ class AuthService {
       } else {
         throw Exception('Must provide either username or userId');
       }
-      final response = await http.post(Uri.parse(ApiConstants.profile), body: requestBody);
+      final response = await _retryHttpRequest(
+        () => http.post(Uri.parse(ApiConstants.profile), body: requestBody),
+        operationName: 'fetchAnyUserProfile',
+      );
+      
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         if (data['responseCode'] == '1') {
@@ -401,6 +410,78 @@ class AuthService {
     }
   }
 
+  /// Check if an exception is a transient network error that should be retried
+  bool _isTransientError(dynamic error) {
+    if (error is SocketException) return true;
+    if (error is HandshakeException) return true;
+    if (error is TimeoutException) return true;
+    if (error is HttpException) {
+      // Retry on connection-related HTTP exceptions
+      final message = error.message.toLowerCase();
+      return message.contains('connection') || 
+             message.contains('timeout') ||
+             message.contains('reset');
+    }
+    return false;
+  }
+
+  /// Retry an HTTP request with exponential backoff
+  /// Returns the response if successful, throws the last exception if all retries fail
+  Future<http.Response> _retryHttpRequest(
+    Future<http.Response> Function() request, {
+    int maxRetries = 3,
+    Duration initialDelay = const Duration(milliseconds: 500),
+    String? operationName,
+  }) async {
+    int attempt = 0;
+    Duration delay = initialDelay;
+    
+    while (attempt < maxRetries) {
+      try {
+        final response = await request();
+        // Don't retry on successful responses (2xx) or client errors (4xx)
+        if (response.statusCode < 500) {
+          return response;
+        }
+        // Retry on server errors (5xx)
+        if (response.statusCode >= 500) {
+          throw HttpException('Server error: ${response.statusCode}');
+        }
+        return response;
+      } catch (e) {
+        attempt++;
+        
+        // Don't retry if it's not a transient error
+        if (!_isTransientError(e)) {
+          if (kDebugMode && operationName != null) {
+            print('❌ [$operationName] Non-transient error, not retrying: $e');
+          }
+          rethrow;
+        }
+        
+        // Don't retry if we've exhausted all attempts
+        if (attempt >= maxRetries) {
+          if (kDebugMode && operationName != null) {
+            print('❌ [$operationName] All retry attempts failed after $attempt tries');
+          }
+          rethrow;
+        }
+        
+        // Wait before retrying with exponential backoff
+        if (kDebugMode && operationName != null) {
+          print('⚠️ [$operationName] Retry attempt $attempt/$maxRetries after ${delay.inMilliseconds}ms: $e');
+        }
+        await Future.delayed(delay);
+        
+        // Exponential backoff: double the delay for next retry
+        delay = Duration(milliseconds: (delay.inMilliseconds * 2).clamp(500, 8000));
+      }
+    }
+    
+    // This should never be reached, but just in case
+    throw Exception('Retry logic error');
+  }
+
   /// Update user online status
   /// Update user activity timestamp (for online status tracking)
   Future<void> updateActivity() async {
@@ -465,9 +546,13 @@ class AuthService {
         'online': isOnline ? '1' : '0',
       };
 
-      final response = await http.post(
-        Uri.parse(ApiConstants.profile),
-        body: requestBody,
+      final response = await _retryHttpRequest(
+        () => http.post(
+          Uri.parse(ApiConstants.profile),
+          body: requestBody,
+        ),
+        operationName: 'updateOnlineStatus',
+        maxRetries: 2, // Fewer retries for online status (less critical)
       );
 
       if (response.statusCode == 200) {

@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:async';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/foundation.dart';
@@ -117,6 +118,51 @@ class TranslationService extends ChangeNotifier {
     }
   }
 
+  /// Check if an exception is a transient network error that should be retried
+  bool _isTransientError(dynamic error) {
+    if (error is SocketException) return true;
+    if (error is HandshakeException) return true;
+    if (error is TimeoutException) return true;
+    if (error is HttpException) {
+      final message = error.message.toLowerCase();
+      return message.contains('connection') || 
+             message.contains('timeout') ||
+             message.contains('reset');
+    }
+    return false;
+  }
+
+  /// Retry an HTTP request with exponential backoff
+  Future<http.Response> _retryHttpRequest(
+    Future<http.Response> Function() request, {
+    int maxRetries = 2,
+    Duration initialDelay = const Duration(milliseconds: 500),
+  }) async {
+    int attempt = 0;
+    Duration delay = initialDelay;
+    
+    while (attempt < maxRetries) {
+      try {
+        final response = await request();
+        if (response.statusCode < 500) {
+          return response;
+        }
+        if (response.statusCode >= 500) {
+          throw HttpException('Server error: ${response.statusCode}');
+        }
+        return response;
+      } catch (e) {
+        attempt++;
+        if (!_isTransientError(e) || attempt >= maxRetries) {
+          rethrow;
+        }
+        await Future.delayed(delay);
+        delay = Duration(milliseconds: (delay.inMilliseconds * 2).clamp(500, 4000));
+      }
+    }
+    throw Exception('Retry logic error');
+  }
+
   // Fetch language preference from API (user profile)
   Future<String?> _fetchLanguageFromAPI() async {
     try {
@@ -127,11 +173,13 @@ class TranslationService extends ChangeNotifier {
         return null;
       }
 
-      final response = await http.post(
-        Uri.parse(ApiConstants.profile),
-        body: {'userID': userId},
-        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-      ).timeout(const Duration(seconds: 5));
+      final response = await _retryHttpRequest(
+        () => http.post(
+          Uri.parse(ApiConstants.profile),
+          body: {'userID': userId},
+          headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        ).timeout(const Duration(seconds: 5)),
+      );
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
@@ -234,10 +282,13 @@ class TranslationService extends ChangeNotifier {
 
   Future<void> _fetchTranslationsFromAPI() async {
     try {
-      final response = await http.get(
-        Uri.parse(ApiConstants.language),
-        headers: {'Content-Type': 'application/json'},
-      ).timeout(const Duration(seconds: 10));
+      final response = await _retryHttpRequest(
+        () => http.get(
+          Uri.parse(ApiConstants.language),
+          headers: {'Content-Type': 'application/json'},
+        ).timeout(const Duration(seconds: 10)),
+        maxRetries: 2,
+      );
 
       if (response.statusCode == 200) {
         try {
@@ -353,6 +404,18 @@ class TranslationService extends ChangeNotifier {
       return result;
     } catch (e) {
       return {};
+    }
+  }
+
+  /// Clear translation cache
+  Future<void> clearCache() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_cacheKey);
+      await prefs.remove(_cacheTimestampKey);
+      print('✅ [TranslationService] Cache cleared');
+    } catch (e) {
+      print('⚠️ [TranslationService] Error clearing cache: $e');
     }
   }
 

@@ -19,11 +19,14 @@ import '../services/theme_service.dart';
 import '../services/local_auth_service.dart';
 import '../services/translation_service.dart';
 import '../services/auto_update_service.dart';
+import '../services/friend_service.dart';
+import '../services/post_service.dart';
 import '../widgets/translated_text.dart';
 import '../widgets/update_dialog.dart';
 import '../utils/translation_keys.dart';
 import '../config/constants.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -217,41 +220,56 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   // Helper to show picker dialog for avatar or wallpaper
   Future<void> _showImageSourceDialog({required bool isAvatar}) async {
-    final source = await showDialog<ImageSource>(
-      context: context,
-      builder: (context) => SimpleDialog(
-        title: Text(isAvatar ? TranslationKeys.updateAvatar.tr : TranslationKeys.updateWallpaper.tr),
-        children: [
-          SimpleDialogOption(
-            onPressed: () => Navigator.of(context).pop(ImageSource.camera),
-            padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
-            child: Row(
-              children: [
-                const Icon(Icons.camera_alt, size: 28),
-                const SizedBox(width: 16),
-                Text(TranslationKeys.takePhoto.tr, style: const TextStyle(fontSize: 18)),
-              ],
+    if (!mounted) return;
+    
+    try {
+      final source = await showDialog<ImageSource>(
+        context: context,
+        builder: (context) => SimpleDialog(
+          title: Text(isAvatar ? TranslationKeys.updateAvatar.tr : TranslationKeys.updateWallpaper.tr),
+          children: [
+            SimpleDialogOption(
+              onPressed: () => Navigator.of(context).pop(ImageSource.camera),
+              padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
+              child: Row(
+                children: [
+                  const Icon(Icons.camera_alt, size: 28),
+                  const SizedBox(width: 16),
+                  Text(TranslationKeys.takePhoto.tr, style: const TextStyle(fontSize: 18)),
+                ],
+              ),
             ),
-          ),
-          SimpleDialogOption(
-            onPressed: () => Navigator.of(context).pop(ImageSource.gallery),
-            padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
-            child: Row(
-              children: [
-                const Icon(Icons.photo_library, size: 28),
-                const SizedBox(width: 16),
-                Text(TranslationKeys.chooseFromGallery.tr, style: const TextStyle(fontSize: 18)),
-              ],
+            SimpleDialogOption(
+              onPressed: () => Navigator.of(context).pop(ImageSource.gallery),
+              padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
+              child: Row(
+                children: [
+                  const Icon(Icons.photo_library, size: 28),
+                  const SizedBox(width: 16),
+                  Text(TranslationKeys.chooseFromGallery.tr, style: const TextStyle(fontSize: 18)),
+                ],
+              ),
             ),
+          ],
+        ),
+      );
+      
+      if (source != null && mounted) {
+        if (isAvatar) {
+          await _pickAndCropAvatar(source: source);
+        } else {
+          await _pickAndCropBackground(source: source);
+        }
+      }
+    } catch (e) {
+      print('Error showing image source dialog: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: ${e.toString()}'),
+            backgroundColor: Colors.red,
           ),
-        ],
-      ),
-    );
-    if (source != null) {
-      if (isAvatar) {
-        await _pickAndCropAvatar(source: source);
-      } else {
-        await _pickAndCropBackground(source: source);
+        );
       }
     }
   }
@@ -419,90 +437,198 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   // Update _pickAndCropAvatar to accept source
   Future<void> _pickAndCropAvatar({File? existingFile, ImageSource? source}) async {
-    File? imageFile;
-    if (existingFile != null) {
-      imageFile = existingFile;
-    } else if (source != null) {
-      final XFile? picked = await _picker.pickImage(
-        source: source,
-        imageQuality: 85,
-      );
-      if (picked != null) imageFile = File(picked.path);
-    } else if (profileImage.startsWith('http')) {
-      imageFile = await _getFileFromUrl(profileImage);
-    }
+    try {
+      if (!mounted) return;
+      
+      File? imageFile;
+      if (existingFile != null) {
+        imageFile = existingFile;
+      } else if (source != null) {
+        try {
+          final XFile? picked = await _picker.pickImage(
+            source: source,
+            imageQuality: 85,
+          );
+          if (picked != null && mounted) {
+            imageFile = File(picked.path);
+          }
+        } catch (e) {
+          print('Error picking image: $e');
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Error selecting image: ${e.toString()}'),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
+          return;
+        }
+      } else if (profileImage.startsWith('http')) {
+        try {
+          imageFile = await _getFileFromUrl(profileImage);
+        } catch (e) {
+          print('Error loading image from URL: $e');
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Error loading image: ${e.toString()}'),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
+          return;
+        }
+      }
 
-    if (imageFile != null) {
-      // Crop the image
-      final croppedFile = await ImageCropper().cropImage(
-        sourcePath: imageFile.path,
-        aspectRatio: const CropAspectRatio(ratioX: 1, ratioY: 1), // Square for avatar
-        uiSettings: [
-          AndroidUiSettings(
-            toolbarTitle: TranslationService().translate(TranslationKeys.cropImage) ?? 'Crop Image',
-            toolbarColor: Colors.black,
-            toolbarWidgetColor: Colors.white,
-            initAspectRatio: CropAspectRatioPreset.square,
-            lockAspectRatio: true,
-          ),
-          IOSUiSettings(
-            title: TranslationService().translate(TranslationKeys.cropImage) ?? 'Crop Image',
-            aspectRatioLockEnabled: true,
-            aspectRatioLockDimensionSwapEnabled: false,
-          ),
-        ],
-      );
+      if (imageFile != null && mounted) {
+        try {
+          // Crop the image
+          final croppedFile = await ImageCropper().cropImage(
+            sourcePath: imageFile.path,
+            aspectRatio: const CropAspectRatio(ratioX: 1, ratioY: 1), // Square for avatar
+            uiSettings: [
+              AndroidUiSettings(
+                toolbarTitle: TranslationService().translate(TranslationKeys.cropImage) ?? 'Crop Image',
+                toolbarColor: Colors.black,
+                toolbarWidgetColor: Colors.white,
+                initAspectRatio: CropAspectRatioPreset.square,
+                lockAspectRatio: true,
+              ),
+              IOSUiSettings(
+                title: TranslationService().translate(TranslationKeys.cropImage) ?? 'Crop Image',
+                aspectRatioLockEnabled: true,
+                aspectRatioLockDimensionSwapEnabled: false,
+              ),
+            ],
+          );
 
-      if (croppedFile != null) {
-        setState(() {
-          _newAvatarFile = File(croppedFile.path);
-          avatarMargin = [0.0, 0.0, 0.0, 0.0]; // Default margins
-        });
+          if (croppedFile != null && mounted) {
+            setState(() {
+              _newAvatarFile = File(croppedFile.path);
+              avatarMargin = [0.0, 0.0, 0.0, 0.0]; // Default margins
+            });
+          }
+        } catch (e) {
+          print('Error cropping image: $e');
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Error cropping image: ${e.toString()}'),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
+        }
+      }
+    } catch (e) {
+      print('Error in _pickAndCropAvatar: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error processing image: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
       }
     }
   }
 
   // Update _pickAndCropBackground to accept source
   Future<void> _pickAndCropBackground({File? existingFile, ImageSource? source}) async {
-    File? imageFile;
-    if (existingFile != null) {
-      imageFile = existingFile;
-    } else if (source != null) {
-      final XFile? picked = await _picker.pickImage(
-        source: source,
-        imageQuality: 85,
-      );
-      if (picked != null) imageFile = File(picked.path);
-    } else if (backgroundImage.startsWith('http')) {
-      imageFile = await _getFileFromUrl(backgroundImage);
-    }
+    try {
+      if (!mounted) return;
+      
+      File? imageFile;
+      if (existingFile != null) {
+        imageFile = existingFile;
+      } else if (source != null) {
+        try {
+          final XFile? picked = await _picker.pickImage(
+            source: source,
+            imageQuality: 85,
+          );
+          if (picked != null && mounted) {
+            imageFile = File(picked.path);
+          }
+        } catch (e) {
+          print('Error picking image: $e');
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Error selecting image: ${e.toString()}'),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
+          return;
+        }
+      } else if (backgroundImage.startsWith('http')) {
+        try {
+          imageFile = await _getFileFromUrl(backgroundImage);
+        } catch (e) {
+          print('Error loading image from URL: $e');
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Error loading image: ${e.toString()}'),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
+          return;
+        }
+      }
 
-    if (imageFile != null) {
-      // Crop the image (free aspect ratio for wallpaper)
-      final croppedFile = await ImageCropper().cropImage(
-        sourcePath: imageFile.path,
-        aspectRatio: const CropAspectRatio(ratioX: 16, ratioY: 9), // 16:9 for wallpaper
-        uiSettings: [
-          AndroidUiSettings(
-            toolbarTitle: TranslationService().translate(TranslationKeys.cropImage) ?? 'Crop Image',
-            toolbarColor: Colors.black,
-            toolbarWidgetColor: Colors.white,
-            initAspectRatio: CropAspectRatioPreset.ratio16x9,
-            lockAspectRatio: false, // Allow free cropping for wallpaper
-          ),
-          IOSUiSettings(
-            title: TranslationService().translate(TranslationKeys.cropImage) ?? 'Crop Image',
-            aspectRatioLockEnabled: false, // Allow free cropping for wallpaper
-            aspectRatioLockDimensionSwapEnabled: false,
-          ),
-        ],
-      );
+      if (imageFile != null && mounted) {
+        try {
+          // Crop the image (free aspect ratio for wallpaper)
+          final croppedFile = await ImageCropper().cropImage(
+            sourcePath: imageFile.path,
+            aspectRatio: const CropAspectRatio(ratioX: 16, ratioY: 9), // 16:9 for wallpaper
+            uiSettings: [
+              AndroidUiSettings(
+                toolbarTitle: TranslationService().translate(TranslationKeys.cropImage) ?? 'Crop Image',
+                toolbarColor: Colors.black,
+                toolbarWidgetColor: Colors.white,
+                initAspectRatio: CropAspectRatioPreset.ratio16x9,
+                lockAspectRatio: false, // Allow free cropping for wallpaper
+              ),
+              IOSUiSettings(
+                title: TranslationService().translate(TranslationKeys.cropImage) ?? 'Crop Image',
+                aspectRatioLockEnabled: false, // Allow free cropping for wallpaper
+                aspectRatioLockDimensionSwapEnabled: false,
+              ),
+            ],
+          );
 
-      if (croppedFile != null) {
-        setState(() {
-          _newBackgroundFile = File(croppedFile.path);
-          backgroundMargin = [0.0, 0.0, 0.0, 0.0]; // Default margins
-        });
+          if (croppedFile != null && mounted) {
+            setState(() {
+              _newBackgroundFile = File(croppedFile.path);
+              backgroundMargin = [0.0, 0.0, 0.0, 0.0]; // Default margins
+            });
+          }
+        } catch (e) {
+          print('Error cropping image: $e');
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Error cropping image: ${e.toString()}'),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
+        }
+      }
+    } catch (e) {
+      print('Error in _pickAndCropBackground: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error processing image: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
       }
     }
   }
@@ -583,7 +709,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   children: [
                     Container(
                       width: double.infinity,
-                      height: 160,
+                      height: 200,
                       child: _newBackgroundFile != null
                           ? Image.file(
                               _newBackgroundFile!,
@@ -1441,6 +1567,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   tileColor: transparentColor,
                   children: [
                     _buildLanguageDropdown(context),
+                  ],
+                ),
+                // Cache Management Section
+                _buildExpansionTile(
+                  title: TranslationKeys.cache,
+                  tileColor: transparentColor,
+                  children: [
+                    _buildCacheManagementSection(context),
                   ],
                 ),
                 // IP History Section
@@ -2423,6 +2557,267 @@ class _SettingsScreenState extends State<SettingsScreen> {
       }
     } catch (e) {
       print('Error saving visibility settings: $e');
+    }
+  }
+
+  // Cache Management Section
+  Widget _buildCacheManagementSection(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Clear Translations Cache
+        ListTile(
+          leading: Icon(Icons.translate, color: AppColors.getIconColor(context)),
+          title: TranslatedText(
+            TranslationKeys.clearTranslationsCache,
+            style: TextStyle(color: AppColors.getTextColor(context)),
+          ),
+          subtitle: Text(
+            'Clear cached translation data',
+            style: TextStyle(color: AppColors.getSecondaryTextColor(context), fontSize: 12),
+          ),
+          trailing: Icon(Icons.chevron_right, color: AppColors.getIconColor(context)),
+          onTap: () => _clearTranslationsCache(context),
+        ),
+        const Divider(height: 1),
+        // Clear Posts Cache
+        ListTile(
+          leading: Icon(Icons.article, color: AppColors.getIconColor(context)),
+          title: TranslatedText(
+            TranslationKeys.clearPostsCache,
+            style: TextStyle(color: AppColors.getTextColor(context)),
+          ),
+          subtitle: Text(
+            'Clear cached posts and timeline data',
+            style: TextStyle(color: AppColors.getSecondaryTextColor(context), fontSize: 12),
+          ),
+          trailing: Icon(Icons.chevron_right, color: AppColors.getIconColor(context)),
+          onTap: () => _clearPostsCache(context),
+        ),
+        const Divider(height: 1),
+        // Clear Friends Cache
+        ListTile(
+          leading: Icon(Icons.people, color: AppColors.getIconColor(context)),
+          title: TranslatedText(
+            TranslationKeys.clearFriendsCache,
+            style: TextStyle(color: AppColors.getTextColor(context)),
+          ),
+          subtitle: Text(
+            'Clear cached friends list data',
+            style: TextStyle(color: AppColors.getSecondaryTextColor(context), fontSize: 12),
+          ),
+          trailing: Icon(Icons.chevron_right, color: AppColors.getIconColor(context)),
+          onTap: () => _clearFriendsCache(context),
+        ),
+        const SizedBox(height: 16),
+        // Clear All Cache Button
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton.icon(
+            onPressed: () => _clearAllCache(context),
+            icon: const Icon(Icons.delete_sweep, size: 20),
+            label: TranslatedText(TranslationKeys.clearAllCache),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // Clear Translations Cache
+  Future<void> _clearTranslationsCache(BuildContext context) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: TranslatedText(TranslationKeys.clearCache),
+        content: TranslatedText(TranslationKeys.confirmClearCache),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: TranslatedText(TranslationKeys.cancel),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: TranslatedText(TranslationKeys.ok, style: const TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && mounted) {
+      try {
+        await TranslationService().clearCache();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: TranslatedText(TranslationKeys.cacheClearedSuccessfully),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error clearing cache: ${e.toString()}'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    }
+  }
+
+  // Clear Posts Cache
+  Future<void> _clearPostsCache(BuildContext context) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: TranslatedText(TranslationKeys.clearCache),
+        content: TranslatedText(TranslationKeys.confirmClearCache),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: TranslatedText(TranslationKeys.cancel),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: TranslatedText(TranslationKeys.ok, style: const TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && mounted) {
+      try {
+        final postService = PostService();
+        await postService.clearTimelineCache();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: TranslatedText(TranslationKeys.cacheClearedSuccessfully),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error clearing cache: ${e.toString()}'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    }
+  }
+
+  // Clear Friends Cache
+  Future<void> _clearFriendsCache(BuildContext context) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: TranslatedText(TranslationKeys.clearCache),
+        content: TranslatedText(TranslationKeys.confirmClearCache),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: TranslatedText(TranslationKeys.cancel),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: TranslatedText(TranslationKeys.ok, style: const TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && mounted) {
+      try {
+        final friendService = FriendService();
+        await friendService.clearCache();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: TranslatedText(TranslationKeys.cacheClearedSuccessfully),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error clearing cache: ${e.toString()}'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    }
+  }
+
+  // Clear All Cache
+  Future<void> _clearAllCache(BuildContext context) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: TranslatedText(TranslationKeys.clearAllCache),
+        content: TranslatedText(TranslationKeys.confirmClearAllCache),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: TranslatedText(TranslationKeys.cancel),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: TranslatedText(TranslationKeys.ok, style: const TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && mounted) {
+      try {
+        // Clear all caches
+        await TranslationService().clearCache();
+        final postService = PostService();
+        await postService.clearTimelineCache();
+        final friendService = FriendService();
+        await friendService.clearCache();
+        
+        // Clear any other cached data
+        final prefs = await SharedPreferences.getInstance();
+        // Clear cached update info
+        await prefs.remove('cached_app_update');
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: TranslatedText(TranslationKeys.cacheClearedSuccessfully),
+              backgroundColor: Colors.green,
+              duration: const Duration(seconds: 2),
+            ),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error clearing cache: ${e.toString()}'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
     }
   }
 

@@ -1,4 +1,6 @@
 import 'dart:convert';
+import 'dart:io';
+import 'dart:async';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:crypto/crypto.dart';
@@ -90,6 +92,51 @@ class FriendService {
     }
   }
 
+  /// Check if an exception is a transient network error that should be retried
+  bool _isTransientError(dynamic error) {
+    if (error is SocketException) return true;
+    if (error is HandshakeException) return true;
+    if (error is TimeoutException) return true;
+    if (error is HttpException) {
+      final message = error.message.toLowerCase();
+      return message.contains('connection') || 
+             message.contains('timeout') ||
+             message.contains('reset');
+    }
+    return false;
+  }
+
+  /// Retry an HTTP request with exponential backoff
+  Future<http.Response> _retryHttpRequest(
+    Future<http.Response> Function() request, {
+    int maxRetries = 2,
+    Duration initialDelay = const Duration(milliseconds: 500),
+  }) async {
+    int attempt = 0;
+    Duration delay = initialDelay;
+    
+    while (attempt < maxRetries) {
+      try {
+        final response = await request();
+        if (response.statusCode < 500) {
+          return response;
+        }
+        if (response.statusCode >= 500) {
+          throw HttpException('Server error: ${response.statusCode}');
+        }
+        return response;
+      } catch (e) {
+        attempt++;
+        if (!_isTransientError(e) || attempt >= maxRetries) {
+          rethrow;
+        }
+        await Future.delayed(delay);
+        delay = Duration(milliseconds: (delay.inMilliseconds * 2).clamp(500, 4000));
+      }
+    }
+    throw Exception('Retry logic error');
+  }
+
   /// Update friends list in background and update cache if content changed
   Future<void> _updateFriendsInBackground(
     String userId, 
@@ -97,16 +144,19 @@ class FriendService {
     Function(List<Friend>)? onUpdated,
   ) async {
     try {
-      final response = await http
-          .post(
-            Uri.parse(ApiConstants.friends),
-            body: {'userID': userId},
-            headers: {
-              'Content-Type': 'application/x-www-form-urlencoded',
-              'User-Agent': 'Skybyn App',
-            },
-          )
-          .timeout(const Duration(seconds: 10));
+      final response = await _retryHttpRequest(
+        () => http
+            .post(
+              Uri.parse(ApiConstants.friends),
+              body: {'userID': userId},
+              headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'User-Agent': 'Skybyn App',
+              },
+            )
+            .timeout(const Duration(seconds: 10)),
+        maxRetries: 2,
+      );
 
       if (response.statusCode == 200) {
         final dynamic data = json.decode(response.body);

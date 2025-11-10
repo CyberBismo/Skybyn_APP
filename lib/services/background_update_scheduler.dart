@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:timezone/timezone.dart' as tz;
 import 'package:timezone/data/latest.dart' as tz;
@@ -95,22 +96,46 @@ class BackgroundUpdateScheduler {
         iOS: iOSDetails,
       );
 
-      await _localNotifications.zonedSchedule(
-        _updateCheckNotificationId,
-        'Update Check', // Title (won't be shown for silent notification on Android)
-        'Checking for updates...', // Body (won't be shown for silent notification on Android)
-        tzDateTime,
-        notificationDetails,
-        androidAllowWhileIdle: true,
-        uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
-        payload: 'update_check',
-      );
+      try {
+        await _localNotifications.zonedSchedule(
+          _updateCheckNotificationId,
+          'Update Check', // Title (won't be shown for silent notification on Android)
+          'Checking for updates...', // Body (won't be shown for silent notification on Android)
+          tzDateTime,
+          notificationDetails,
+          androidAllowWhileIdle: true,
+          uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
+          payload: 'update_check',
+        );
+        print('✅ [BackgroundUpdateScheduler] Scheduled daily update check at noon');
+      } on PlatformException catch (e) {
+        // Handle exact alarms permission error gracefully
+        if (e.code == 'exact_alarms_not_permitted') {
+          print('⚠️ [BackgroundUpdateScheduler] Exact alarms permission not granted, using approximate scheduling');
+          // Try without androidAllowWhileIdle for approximate scheduling
+          try {
+            await _localNotifications.zonedSchedule(
+              _updateCheckNotificationId,
+              'Update Check',
+              'Checking for updates...',
+              tzDateTime,
+              notificationDetails,
+              androidAllowWhileIdle: false, // Use approximate scheduling
+              uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
+              payload: 'update_check',
+            );
+            print('✅ [BackgroundUpdateScheduler] Scheduled update check with approximate timing');
+          } catch (e2) {
+            print('⚠️ [BackgroundUpdateScheduler] Could not schedule update check: $e2');
+          }
+        } else {
+          rethrow;
+        }
+      }
 
       // Also set up a periodic check using a timer when app is in foreground
       // This ensures we check even if scheduled notifications don't fire
       _setupPeriodicCheck();
-
-      print('✅ [BackgroundUpdateScheduler] Scheduled daily update check at noon');
     } catch (e) {
       print('❌ [BackgroundUpdateScheduler] Error scheduling update check: $e');
     }

@@ -277,6 +277,18 @@ class TranslationKeys {
   static const String selectDate = 'select_date';
   static const String newVersionAvailable = 'new_version_available';
   static const String installingUpdate = 'installing_update';
+  
+  // Cache Management
+  static const String cache = 'cache';
+  static const String clearCache = 'clear_cache';
+  static const String clearAllCache = 'clear_all_cache';
+  static const String clearTranslationsCache = 'clear_translations_cache';
+  static const String clearPostsCache = 'clear_posts_cache';
+  static const String clearFriendsCache = 'clear_friends_cache';
+  static const String cacheCleared = 'cache_cleared';
+  static const String cacheClearedSuccessfully = 'cache_cleared_successfully';
+  static const String confirmClearCache = 'confirm_clear_cache';
+  static const String confirmClearAllCache = 'confirm_clear_all_cache';
 
   // Language Settings
   static const String selectLanguage = 'select_language';
