@@ -233,6 +233,7 @@ class _GlobalSearchOverlayState extends State<GlobalSearchOverlay> {
                       width: 60,
                       height: 60,
                       fit: BoxFit.cover,
+                      httpHeaders: const {},
                       placeholder: (context, url) => Container(
                         width: 60,
                         height: 60,
@@ -243,16 +244,19 @@ class _GlobalSearchOverlayState extends State<GlobalSearchOverlay> {
                           size: 30,
                         ),
                       ),
-                      errorWidget: (context, url, error) => Container(
-                        width: 60,
-                        height: 60,
-                        color: Colors.grey.withOpacity(0.3),
-                        child: const Icon(
-                          Icons.person,
-                          color: Colors.white,
-                          size: 30,
-                        ),
-                      ),
+                      errorWidget: (context, url, error) {
+                        // Handle all errors including 404 (HttpExceptionWithStatus)
+                        return Container(
+                          width: 60,
+                          height: 60,
+                          color: Colors.grey.withOpacity(0.3),
+                          child: const Icon(
+                            Icons.person,
+                            color: Colors.white,
+                            size: 30,
+                          ),
+                        );
+                      },
                     ),
                   ),
                   if (online)

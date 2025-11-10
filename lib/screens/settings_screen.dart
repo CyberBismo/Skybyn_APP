@@ -729,14 +729,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               : CachedNetworkImage(
                                   imageUrl: wallpaperUrl,
                                   fit: BoxFit.cover,
+                                  httpHeaders: const {},
                                   placeholder: (context, url) => Image.asset(
                                     'assets/images/background.png',
                                     fit: BoxFit.cover,
                                   ),
-                                  errorWidget: (context, url, error) => Image.asset(
-                                    'assets/images/background.png',
-                                    fit: BoxFit.cover,
-                                  ),
+                                  errorWidget: (context, url, error) {
+                                    // Handle all errors including 404 (HttpExceptionWithStatus)
+                                    return Image.asset(
+                                      'assets/images/background.png',
+                                      fit: BoxFit.cover,
+                                    );
+                                  },
                                 ),
                     ),
                     Positioned(
@@ -842,18 +846,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                               width: 100,
                                               height: 100,
                                               fit: BoxFit.cover,
+                                              httpHeaders: const {},
                                               placeholder: (context, url) => Image.asset(
                                                 'assets/images/icon.png',
                                                 width: 100,
                                                 height: 100,
                                                 fit: BoxFit.cover,
                                               ),
-                                              errorWidget: (context, url, error) => Image.asset(
-                                                'assets/images/icon.png',
-                                                width: 100,
-                                                height: 100,
-                                                fit: BoxFit.cover,
-                                              ),
+                                              errorWidget: (context, url, error) {
+                                                // Handle all errors including 404 (HttpExceptionWithStatus)
+                                                return Image.asset(
+                                                  'assets/images/icon.png',
+                                                  width: 100,
+                                                  height: 100,
+                                                  fit: BoxFit.cover,
+                                                );
+                                              },
                                             )
                                           : Image.asset(
                                               profileImage,

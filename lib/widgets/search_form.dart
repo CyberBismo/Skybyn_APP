@@ -303,6 +303,7 @@ class SearchFormState extends State<SearchForm> with SingleTickerProviderStateMi
                       width: 50,
                       height: 50,
                       fit: BoxFit.cover,
+                      httpHeaders: const {},
                       placeholder: (context, url) => Container(
                         width: 50,
                         height: 50,
@@ -313,17 +314,20 @@ class SearchFormState extends State<SearchForm> with SingleTickerProviderStateMi
                           size: 25,
                         ),
                       ),
-                      errorWidget: (context, url, error) => Container(
-                        width: 50,
-                        height: 50,
-                        color: Colors.grey.withOpacity(0.3),
-                        child: const Icon(
-                          Icons.person,
-                          color: Colors.white,
-                          size: 25,
-                        ),
-                      ),
-                    ),
+                      errorWidget: (context, url, error) {
+                        // Handle all errors including 404 (HttpExceptionWithStatus)
+                        return Container(
+                          width: 50,
+                          height: 50,
+                          color: Colors.grey.withOpacity(0.3),
+                          child: const Icon(
+                            Icons.person,
+                            color: Colors.white,
+                            size: 25,
+                          ),
+                        );
+                      },
+                  ),
                   ),
                   if (online)
                     Positioned(

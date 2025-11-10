@@ -46,39 +46,49 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
 
   Future<void> _loadProfile() async {
-    setState(() => isLoading = true);
-    final authService = AuthService();
-    currentUserId = await authService.getStoredUserId();
-    String? userId = widget.userId;
-    String? username = widget.username;
-    // If neither is provided, use current user
-    if (userId == null && username == null) {
-      userId = currentUserId;
-      username = await authService.getStoredUsername();
-    }
-    
-    // Store the userId we're using to fetch the profile
-    profileUserId = userId;
-    
-    final profile = await authService.fetchAnyUserProfile(
-      userId: userId,
-      username: username,
-    );
-    setState(() {
-      userData = profile?.toJson();
-      // Ensure userData has the id field set
-      if (userData != null && (userData!['id'] == null || userData!['id'].toString().isEmpty)) {
-        if (profileUserId != null) {
-          userData!['id'] = profileUserId;
-          userData!['userID'] = profileUserId; // Also set for compatibility
-        }
+    try {
+      setState(() => isLoading = true);
+      final authService = AuthService();
+      currentUserId = await authService.getStoredUserId();
+      String? userId = widget.userId;
+      String? username = widget.username;
+      // If neither is provided, use current user
+      if (userId == null && username == null) {
+        userId = currentUserId;
+        username = await authService.getStoredUsername();
       }
-      isLoading = false;
-    });
+      
+      // Store the userId we're using to fetch the profile
+      profileUserId = userId;
+      
+      final profile = await authService.fetchAnyUserProfile(
+        userId: userId,
+        username: username,
+      );
+      
+      setState(() {
+        userData = profile?.toJson();
+        // Ensure userData has the id field set
+        if (userData != null && (userData!['id'] == null || userData!['id'].toString().isEmpty)) {
+          if (profileUserId != null) {
+            userData!['id'] = profileUserId;
+            userData!['userID'] = profileUserId; // Also set for compatibility
+          }
+        }
+        isLoading = false;
+      });
 
-    // Load user posts after profile is loaded
-    if (userData != null) {
-      _loadUserPosts();
+      // Load user posts after profile is loaded
+      if (userData != null) {
+        _loadUserPosts();
+      }
+    } catch (e, stackTrace) {
+      print('❌ [ProfileScreen] Error loading profile: $e');
+      print('❌ [ProfileScreen] Stack trace: $stackTrace');
+      setState(() {
+        isLoading = false;
+        userData = null;
+      });
     }
   }
 
@@ -143,6 +153,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Future<void> _refreshUserPosts() async {
     await _loadUserPosts();
+  }
+
+  Future<void> _refreshProfile() async {
+    // Refresh both profile data and posts
+    await _loadProfile();
   }
 
   void _onPostInputFocused(String postId) {
@@ -318,7 +333,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             )
           else if (userData != null)
             RefreshIndicator(
-              onRefresh: _refreshUserPosts,
+              onRefresh: _refreshProfile,
               color: Colors.white,
               backgroundColor: Colors.transparent,
               strokeWidth: 2.0,
@@ -376,12 +391,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                     ? CachedNetworkImage(
                                         imageUrl: avatarUrl,
                                         fit: BoxFit.cover,
+                                        httpHeaders: const {},
                                         placeholder: (context, url) => Image.asset(
                                             'assets/images/icon.png',
                                             fit: BoxFit.cover),
-                                        errorWidget: (context, url, error) =>
-                                            Image.asset('assets/images/icon.png',
-                                                fit: BoxFit.cover),
+                                        errorWidget: (context, url, error) {
+                                          // Handle all errors including 404 (HttpExceptionWithStatus)
+                                          return Image.asset(
+                                            'assets/images/icon.png',
+                                            fit: BoxFit.cover,
+                                          );
+                                        },
                                       )
                                     : Image.asset('assets/images/icon.png',
                                         fit: BoxFit.cover),
@@ -482,6 +502,51 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                 ],
               ),
+            )
+          else
+            // Show error/empty state when profile failed to load
+            CustomScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              slivers: [
+                SliverToBoxAdapter(
+                  child: SizedBox(
+                    height: appBarHeight + MediaQuery.of(context).padding.top,
+                  ),
+                ),
+                SliverFillRemaining(
+                  hasScrollBody: false,
+                  child: Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.error_outline,
+                          size: 64,
+                          color: Colors.white.withOpacity(0.7),
+                        ),
+                        const SizedBox(height: 16),
+                        TranslatedText(
+                          TranslationKeys.errorOccurred,
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.9),
+                            fontSize: 18,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        TextButton(
+                          onPressed: () {
+                            _loadProfile();
+                          },
+                          child: TranslatedText(
+                            TranslationKeys.tryAgain,
+                            style: const TextStyle(color: Colors.white),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
             ),
           // Global search overlay
           GlobalSearchOverlay(

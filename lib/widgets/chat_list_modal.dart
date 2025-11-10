@@ -153,18 +153,22 @@ class _ChatListModalState extends State<ChatListModal> {
                                                 width: 44,
                                                 height: 44,
                                                 fit: BoxFit.cover,
+                                                httpHeaders: const {},
                                                 placeholder: (context, url) => Image.asset(
                                                   'assets/images/icon.png',
                                                   width: 44,
                                                   height: 44,
                                                   fit: BoxFit.cover,
                                                 ),
-                                                errorWidget: (context, url, error) => Image.asset(
-                                                  'assets/images/icon.png',
-                                                  width: 44,
-                                                  height: 44,
-                                                  fit: BoxFit.cover,
-                                                ),
+                                                errorWidget: (context, url, error) {
+                                                  // Handle all errors including 404 (HttpExceptionWithStatus)
+                                                  return Image.asset(
+                                                    'assets/images/icon.png',
+                                                    width: 44,
+                                                    height: 44,
+                                                    fit: BoxFit.cover,
+                                                  );
+                                                },
                                               ),
                                             )
                                           : Image.asset(

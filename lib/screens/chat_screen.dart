@@ -379,18 +379,22 @@ class _ChatScreenState extends State<ChatScreen> {
                                           width: 48,
                                           height: 48,
                                           fit: BoxFit.cover,
+                                          httpHeaders: const {},
                                           placeholder: (context, url) => Image.asset(
                                             'assets/images/icon.png',
                                             width: 48,
                                             height: 48,
                                             fit: BoxFit.cover,
                                           ),
-                                          errorWidget: (context, url, error) => Image.asset(
-                                            'assets/images/icon.png',
-                                            width: 48,
-                                            height: 48,
-                                            fit: BoxFit.cover,
-                                          ),
+                                          errorWidget: (context, url, error) {
+                                            // Handle all errors including 404 (HttpExceptionWithStatus)
+                                            return Image.asset(
+                                              'assets/images/icon.png',
+                                              width: 48,
+                                              height: 48,
+                                              fit: BoxFit.cover,
+                                            );
+                                          },
                                         ),
                                       )
                                     : Image.asset(
@@ -781,18 +785,22 @@ class _ChatScreenState extends State<ChatScreen> {
                         width: 32,
                         height: 32,
                         fit: BoxFit.cover,
+                        httpHeaders: const {},
                         placeholder: (context, url) => Image.asset(
                           'assets/images/icon.png',
                           width: 32,
                           height: 32,
                           fit: BoxFit.cover,
                         ),
-                        errorWidget: (context, url, error) => Image.asset(
-                          'assets/images/icon.png',
-                          width: 32,
-                          height: 32,
-                          fit: BoxFit.cover,
-                        ),
+                        errorWidget: (context, url, error) {
+                          // Handle all errors including 404 (HttpExceptionWithStatus)
+                          return Image.asset(
+                            'assets/images/icon.png',
+                            width: 32,
+                            height: 32,
+                            fit: BoxFit.cover,
+                          );
+                        },
                       ),
                     );
                   }

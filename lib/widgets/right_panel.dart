@@ -202,13 +202,17 @@ class _RightPanelState extends State<RightPanel> {
                                                     width: 44,
                                                     height: 44,
                                                     fit: BoxFit.cover,
+                                                    httpHeaders: const {},
                                                     placeholder: (context, url) => Container(
                                                       color: Colors.white.withOpacity(0.1),
                                                     ),
-                                                    errorWidget: (context, url, error) => const Icon(
-                                                      Icons.person,
-                                                      color: Colors.white,
-                                                    ),
+                                                    errorWidget: (context, url, error) {
+                                                      // Handle all errors including 404 (HttpExceptionWithStatus)
+                                                      return const Icon(
+                                                        Icons.person,
+                                                        color: Colors.white,
+                                                      );
+                                                    },
                                                   ),
                                                 )
                                               : const Icon(Icons.person, color: Colors.white),

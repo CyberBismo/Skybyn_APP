@@ -202,16 +202,21 @@ class CommentCard extends StatelessWidget {
         width: CommentCardStyles.avatarSize,
         height: CommentCardStyles.avatarSize,
         fit: BoxFit.cover,
+        httpHeaders: const {},
         placeholder: (context, url) => Image.asset(
             'assets/images/icon.png',
             width: CommentCardStyles.avatarSize,
             height: CommentCardStyles.avatarSize,
             fit: BoxFit.cover),
-        errorWidget: (context, url, error) => Image.asset(
+        errorWidget: (context, url, error) {
+          // Handle all errors including 404 (HttpExceptionWithStatus)
+          return Image.asset(
             'assets/images/icon.png',
             width: CommentCardStyles.avatarSize,
             height: CommentCardStyles.avatarSize,
-            fit: BoxFit.cover),
+            fit: BoxFit.cover,
+          );
+        },
       );
     } else {
       avatarWidget = Image.asset(
