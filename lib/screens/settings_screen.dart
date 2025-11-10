@@ -715,19 +715,28 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               _newBackgroundFile!,
                               fit: BoxFit.cover,
                               errorBuilder: (context, error, stackTrace) {
-                                // Return empty widget to show gradient background on error
-                                return const SizedBox.shrink();
+                                return Image.asset(
+                                  'assets/images/background.png',
+                                  fit: BoxFit.cover,
+                                );
                               },
                             )
                           : useDefaultWallpaper
-                              ? null // No image, gradient will show through
+                              ? Image.asset(
+                                  'assets/images/background.png',
+                                  fit: BoxFit.cover,
+                                )
                               : CachedNetworkImage(
                                   imageUrl: wallpaperUrl,
                                   fit: BoxFit.cover,
-                                  errorWidget: (context, url, error) {
-                                    // Return null to show gradient background on error
-                                    return const SizedBox.shrink();
-                                  },
+                                  placeholder: (context, url) => Image.asset(
+                                    'assets/images/background.png',
+                                    fit: BoxFit.cover,
+                                  ),
+                                  errorWidget: (context, url, error) => Image.asset(
+                                    'assets/images/background.png',
+                                    fit: BoxFit.cover,
+                                  ),
                                 ),
                     ),
                     Positioned(

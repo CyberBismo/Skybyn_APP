@@ -269,14 +269,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           // --- GUARANTEED CORRECT WALLPAPER ---
                           Positioned.fill(
                             child: useDefaultWallpaper
-                                ? const SizedBox.shrink()
+                                ? Image.asset(
+                                    'assets/images/background.png',
+                                    fit: BoxFit.cover,
+                                  )
                                 : CachedNetworkImage(
                                     imageUrl: wallpaperUrl,
                                     fit: BoxFit.cover,
-                                    placeholder: (context, url) =>
-                                        Container(color: Colors.black),
-                                    errorWidget: (context, url, error) =>
-                                        const SizedBox.shrink(),
+                                    placeholder: (context, url) => Image.asset(
+                                      'assets/images/background.png',
+                                      fit: BoxFit.cover,
+                                    ),
+                                    errorWidget: (context, url, error) => Image.asset(
+                                      'assets/images/background.png',
+                                      fit: BoxFit.cover,
+                                    ),
                                   ),
                           ),
                           // --- Avatar ---
