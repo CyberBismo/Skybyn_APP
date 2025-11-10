@@ -5,7 +5,6 @@ import '../services/friend_service.dart';
 import '../services/auth_service.dart';
 import '../models/friend.dart';
 import '../screens/chat_screen.dart';
-import '../screens/profile_screen.dart';
 import '../utils/translation_keys.dart';
 import '../widgets/translated_text.dart';
 import '../services/translation_service.dart';

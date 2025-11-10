@@ -19,6 +19,7 @@ import 'package:timeago/timeago.dart' as timeago;
 import 'dart:convert';
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 import 'profile_screen.dart';
 import 'call_screen.dart';
 import '../config/constants.dart';
@@ -49,6 +50,8 @@ class _ChatScreenState extends State<ChatScreen> {
   bool _isSending = false;
   String? _currentUserId;
   Timer? _refreshTimer;
+  Timer? _onlineStatusTimer;
+  bool _friendOnline = false;
   bool _showSearchForm = false;
   bool _hasMoreMessages = true;
   final FocusNode _messageFocusNode = FocusNode();
@@ -56,15 +59,23 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   void initState() {
     super.initState();
+    _friendOnline = widget.friend.online; // Initialize with friend's current status
     _loadUserId();
     _loadMessages();
     _setupWebSocketListener();
     _setupScrollListener();
     _setupKeyboardListener();
+    _checkFriendOnlineStatus(); // Check immediately
     // Refresh messages every 3 seconds when screen is active
     _refreshTimer = Timer.periodic(const Duration(seconds: 3), (_) {
       if (mounted) {
         _refreshMessages();
+      }
+    });
+    // Check online status every 10 seconds
+    _onlineStatusTimer = Timer.periodic(const Duration(seconds: 10), (_) {
+      if (mounted) {
+        _checkFriendOnlineStatus();
       }
     });
   }
@@ -75,6 +86,7 @@ class _ChatScreenState extends State<ChatScreen> {
     _messageController.dispose();
     _scrollController.dispose();
     _refreshTimer?.cancel();
+    _onlineStatusTimer?.cancel();
     super.dispose();
   }
 
@@ -116,6 +128,37 @@ class _ChatScreenState extends State<ChatScreen> {
 
   Future<void> _loadUserId() async {
     _currentUserId = await _authService.getStoredUserId();
+  }
+
+  Future<void> _checkFriendOnlineStatus() async {
+    try {
+      final response = await http.post(
+        Uri.parse(ApiConstants.profile),
+        body: {'userID': widget.friend.id},
+      ).timeout(const Duration(seconds: 5));
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data is Map && data['responseCode'] == '1') {
+          // Check last_active timestamp
+          final lastActive = int.tryParse(data['last_active']?.toString() ?? '0') ?? 0;
+          final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+          final fiveMinutesAgo = now - 300;
+          final isOnline = lastActive >= fiveMinutesAgo;
+
+          if (mounted && _friendOnline != isOnline) {
+            setState(() {
+              _friendOnline = isOnline;
+            });
+          }
+        }
+      }
+    } catch (e) {
+      // Silently fail - don't spam errors for online status checks
+      if (mounted) {
+        print('⚠️ [ChatScreen] Error checking friend online status: $e');
+      }
+    }
   }
 
   Future<void> _loadMessages() async {
@@ -574,7 +617,7 @@ class _ChatScreenState extends State<ChatScreen> {
                                           width: 8,
                                           height: 8,
                                           decoration: BoxDecoration(
-                                            color: widget.friend.online
+                                            color: _friendOnline
                                                 ? Colors.greenAccent
                                                 : Colors.white70,
                                             shape: BoxShape.circle,
@@ -582,11 +625,11 @@ class _ChatScreenState extends State<ChatScreen> {
                                         ),
                                         const SizedBox(width: 6),
                                         Text(
-                                          widget.friend.online
+                                          _friendOnline
                                               ? 'Online'
                                               : 'Offline',
                                           style: TextStyle(
-                                            color: widget.friend.online
+                                            color: _friendOnline
                                                 ? Colors.greenAccent
                                                 : Colors.white70,
                                             fontSize: 14,
