@@ -1562,12 +1562,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   },
                 ),
                 // Language Section
-                _buildExpansionTile(
-                  title: TranslationKeys.language,
-                  tileColor: transparentColor,
-                  children: [
-                    _buildLanguageDropdown(context),
-                  ],
+                ListenableBuilder(
+                  listenable: TranslationService(),
+                  builder: (context, _) {
+                    return _buildExpansionTile(
+                      title: TranslationKeys.language,
+                      tileColor: transparentColor,
+                      children: [
+                        _buildLanguageDropdown(context),
+                      ],
+                    );
+                  },
                 ),
                 // Cache Management Section
                 _buildExpansionTile(
