@@ -15,6 +15,7 @@ import 'create_post_screen.dart';
 import '../config/constants.dart';
 import '../utils/translation_keys.dart';
 import '../widgets/translated_text.dart';
+import '../widgets/skeleton_loader.dart';
 
 class ProfileScreen extends StatefulWidget {
   final String? userId;
@@ -243,7 +244,78 @@ class _ProfileScreenState extends State<ProfileScreen> {
         children: [
           const BackgroundGradient(),
           if (isLoading)
-            const Center(child: CircularProgressIndicator())
+            CustomScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              slivers: [
+                SliverToBoxAdapter(
+                  child: SizedBox(
+                    height: appBarHeight + MediaQuery.of(context).padding.top,
+                  ),
+                ),
+                // Profile Header Skeleton
+                SliverToBoxAdapter(
+                  child: SizedBox(
+                    height: 250,
+                    child: Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        // Background skeleton
+                        const Positioned.fill(
+                          child: ProfileBackgroundSkeleton(),
+                        ),
+                        // Avatar skeleton
+                        Positioned(
+                          top: 100,
+                          child: const ProfileAvatarSkeleton(),
+                        ),
+                        // Text skeleton
+                        Positioned(
+                          top: 100 + 120 + 12,
+                          child: Column(
+                            children: [
+                              SkeletonLoader(
+                                child: Container(
+                                  height: 24,
+                                  width: 150,
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              SkeletonLoader(
+                                child: Container(
+                                  height: 16,
+                                  width: 100,
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                // Post feed skeleton
+                SliverToBoxAdapter(
+                  child: Column(
+                    children: [
+                      for (int i = 0; i < 3; i++) ...[
+                        const PostCardSkeleton(),
+                      ],
+                    ],
+                  ),
+                ),
+                const SliverToBoxAdapter(
+                  child: SizedBox(height: 130),
+                ),
+              ],
+            )
           else if (userData != null)
             RefreshIndicator(
               onRefresh: _refreshUserPosts,
@@ -288,7 +360,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           ),
                           // --- Avatar ---
                           Positioned(
-                            top: 20,
+                            top: 100,
                             child: Container(
                               width: 120,
                               height: 120,
@@ -318,7 +390,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           ),
                           // --- Text ---
                           Positioned(
-                            top: 20 + 120 + 12,
+                            top: 100 + 120 + 12,
                             child: Column(
                               children: [
                                 Text(
@@ -353,10 +425,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                   // --- Post Feed ---
                   if (isLoadingPosts)
-                    const SliverToBoxAdapter(
-                      child: Padding(
-                        padding: EdgeInsets.all(16.0),
-                        child: Center(child: CircularProgressIndicator()),
+                    SliverToBoxAdapter(
+                      child: Column(
+                        children: [
+                          for (int i = 0; i < 3; i++) ...[
+                            const PostCardSkeleton(),
+                          ],
+                        ],
                       ),
                     )
                   else if (userPosts.isEmpty)
