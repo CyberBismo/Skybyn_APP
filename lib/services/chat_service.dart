@@ -1,4 +1,6 @@
 import 'dart:convert';
+import 'dart:io';
+import 'dart:async';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/message.dart';
@@ -63,14 +65,17 @@ class ChatService {
       // Encrypt the message
       final encryptedContent = await _encryptMessage(content);
 
-      final response = await http.post(
-        Uri.parse(ApiConstants.chatSend),
-        body: {
-          'from': userId,
-          'to': toUserId,
-          'message': encryptedContent,
-        },
-      ).timeout(const Duration(seconds: 10));
+      final response = await _retryHttpRequest(
+        () => http.post(
+          Uri.parse(ApiConstants.chatSend),
+          body: {
+            'from': userId,
+            'to': toUserId,
+            'message': encryptedContent,
+          },
+        ).timeout(const Duration(seconds: 10)),
+        maxRetries: 2,
+      );
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
@@ -136,6 +141,56 @@ class ChatService {
     }
   }
 
+  /// Check if an exception is a transient network error that should be retried
+  bool _isTransientError(dynamic error) {
+    if (error is SocketException) return true;
+    if (error is HandshakeException) return true;
+    if (error is TimeoutException) return true;
+    if (error is HttpException) {
+      final message = error.message.toLowerCase();
+      return message.contains('connection') || 
+             message.contains('timeout') ||
+             message.contains('reset');
+    }
+    // Check for ClientException with SocketException
+    if (error.toString().contains('SocketException') || 
+        error.toString().contains('Connection reset')) {
+      return true;
+    }
+    return false;
+  }
+
+  /// Retry an HTTP request with exponential backoff
+  Future<http.Response> _retryHttpRequest(
+    Future<http.Response> Function() request, {
+    int maxRetries = 2,
+    Duration initialDelay = const Duration(milliseconds: 500),
+  }) async {
+    int attempt = 0;
+    Duration delay = initialDelay;
+    
+    while (attempt < maxRetries) {
+      try {
+        final response = await request();
+        if (response.statusCode < 500) {
+          return response;
+        }
+        if (response.statusCode >= 500) {
+          throw HttpException('Server error: ${response.statusCode}');
+        }
+        return response;
+      } catch (e) {
+        attempt++;
+        if (!_isTransientError(e) || attempt >= maxRetries) {
+          rethrow;
+        }
+        await Future.delayed(delay);
+        delay = Duration(milliseconds: (delay.inMilliseconds * 2).clamp(500, 4000));
+      }
+    }
+    throw Exception('Retry logic error');
+  }
+
   /// Fetch messages from API
   Future<List<Message>> _fetchMessagesFromAPI(
     String friendId,
@@ -143,14 +198,17 @@ class ChatService {
     int? limit,
     int? offset,
   ) async {
-    final response = await http.post(
-      Uri.parse(ApiConstants.chatGet),
-      body: {
-        'friend': friendId,
-        'limit': limit?.toString() ?? '50',
-        'offset': offset?.toString() ?? '0',
-      },
-    ).timeout(const Duration(seconds: 10));
+    final response = await _retryHttpRequest(
+      () => http.post(
+        Uri.parse(ApiConstants.chatGet),
+        body: {
+          'friend': friendId,
+          'limit': limit?.toString() ?? '50',
+          'offset': offset?.toString() ?? '0',
+        },
+      ).timeout(const Duration(seconds: 10)),
+      maxRetries: 2,
+    );
 
     if (response.statusCode == 200) {
       final List<dynamic> data = json.decode(response.body);
