@@ -8,7 +8,7 @@ class ApiConstants {
 
   // Development URLs
   static const String _devBase = 'https://skybyn.ddns.net';
-  static const String _devApiBase = 'https://sskybyn.ddns.net/api';
+  static const String _devApiBase = 'https://skybyn.ddns.net/api';
   static const String _devAppBase = 'https://skybyn.ddns.net/app';
 
   // Use dev URLs in debug mode, production URLs in release mode
