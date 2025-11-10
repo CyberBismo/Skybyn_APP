@@ -528,40 +528,48 @@ class _UpdateDialogState extends State<UpdateDialog>
                             ),
                             child: Column(
                               children: [
-                                // Progress bar with animation
+                                // Progress bar with animation - more visible
                                 ClipRRect(
-                                  borderRadius: BorderRadius.circular(12),
+                                  borderRadius: BorderRadius.circular(16),
                                   child: Stack(
                                     children: [
                                       Container(
-                                        height: 10,
+                                        height: 16,
                                         decoration: BoxDecoration(
                                           color: isDark
-                                              ? Colors.white.withOpacity(0.1)
-                                              : Colors.grey.withOpacity(0.2),
+                                              ? Colors.white.withOpacity(0.15)
+                                              : Colors.grey.withOpacity(0.3),
                                           borderRadius:
-                                              BorderRadius.circular(12),
+                                              BorderRadius.circular(16),
+                                          border: Border.all(
+                                            color: isDark
+                                                ? Colors.white.withOpacity(0.1)
+                                                : Colors.grey.withOpacity(0.2),
+                                            width: 1,
+                                          ),
                                         ),
                                       ),
                                       FractionallySizedBox(
                                         widthFactor: _updateProgress.clamp(0.0, 1.0),
                                         child: Container(
-                                          height: 10,
+                                          height: 16,
                                           decoration: BoxDecoration(
                                             gradient: LinearGradient(
                                               colors: [
                                                 primaryColor,
-                                                primaryColor.withOpacity(0.8),
+                                                primaryColor.withOpacity(0.9),
+                                                primaryColor.withOpacity(0.85),
                                               ],
+                                              stops: const [0.0, 0.5, 1.0],
                                             ),
                                             borderRadius:
-                                                BorderRadius.circular(12),
+                                                BorderRadius.circular(16),
                                             boxShadow: [
                                               BoxShadow(
                                                 color: primaryColor
-                                                    .withOpacity(0.4),
-                                                blurRadius: 8,
-                                                spreadRadius: 1,
+                                                    .withOpacity(0.6),
+                                                blurRadius: 12,
+                                                spreadRadius: 2,
                                               ),
                                             ],
                                           ),
@@ -570,52 +578,77 @@ class _UpdateDialogState extends State<UpdateDialog>
                                     ],
                                   ),
                                 ),
-                                const SizedBox(height: 20),
-                                // Status with icon
+                                const SizedBox(height: 24),
+                                // Status with icon - more visible
                                 Row(
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
                                     SizedBox(
-                                      width: 18,
-                                      height: 18,
+                                      width: 22,
+                                      height: 22,
                                       child: CircularProgressIndicator(
-                                        strokeWidth: 2.5,
+                                        strokeWidth: 3,
                                         valueColor:
                                             AlwaysStoppedAnimation<Color>(
                                                 primaryColor),
                                       ),
                                     ),
-                                    const SizedBox(width: 14),
+                                    const SizedBox(width: 16),
                                     Expanded(
                                       child: Text(
                                         _updateStatus,
                                         style: TextStyle(
                                           color: textColor,
-                                          fontSize: 14.5,
-                                          fontWeight: FontWeight.w600,
-                                          letterSpacing: 0.1,
+                                          fontSize: 17,
+                                          fontWeight: FontWeight.w700,
+                                          letterSpacing: 0.2,
+                                          shadows: isDark ? [
+                                            Shadow(
+                                              color: Colors.black.withOpacity(0.5),
+                                              blurRadius: 4,
+                                              offset: const Offset(0, 1),
+                                            ),
+                                          ] : null,
                                         ),
                                         textAlign: TextAlign.center,
                                       ),
                                     ),
                                   ],
                                 ),
-                                const SizedBox(height: 12),
-                                // Percentage with modern styling
+                                const SizedBox(height: 16),
+                                // Percentage with modern styling - more visible
                                 Container(
                                   padding: const EdgeInsets.symmetric(
-                                      horizontal: 16, vertical: 8),
+                                      horizontal: 20, vertical: 12),
                                   decoration: BoxDecoration(
-                                    color: primaryColor.withOpacity(0.15),
-                                    borderRadius: BorderRadius.circular(12),
+                                    color: primaryColor.withOpacity(0.2),
+                                    borderRadius: BorderRadius.circular(14),
+                                    border: Border.all(
+                                      color: primaryColor.withOpacity(0.4),
+                                      width: 2,
+                                    ),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: primaryColor.withOpacity(0.3),
+                                        blurRadius: 8,
+                                        spreadRadius: 1,
+                                      ),
+                                    ],
                                   ),
                                   child: Text(
                                     '${(_updateProgress.clamp(0.0, 1.0) * 100).toInt()}%',
                                     style: TextStyle(
                                       color: primaryColor,
-                                      fontSize: 20,
-                                      fontWeight: FontWeight.w700,
-                                      letterSpacing: 0.5,
+                                      fontSize: 26,
+                                      fontWeight: FontWeight.w800,
+                                      letterSpacing: 1.0,
+                                      shadows: [
+                                        Shadow(
+                                          color: primaryColor.withOpacity(0.5),
+                                          blurRadius: 6,
+                                          offset: const Offset(0, 2),
+                                        ),
+                                      ],
                                     ),
                                   ),
                                 ),
