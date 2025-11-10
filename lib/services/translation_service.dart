@@ -684,16 +684,40 @@ class TranslationService extends ChangeNotifier {
         'select_date': 'Select Date',
         'new_version_available': 'A new version of Skybyn is available!',
         'installing_update': 'Installing...',
+        
+        // Additional missing keys
+        'checking_for_updates': 'Checking for updates...',
+        'check_for_updates': 'Check for Updates',
+        'pins_do_not_match': 'PINs do not match',
+        'friend_request_sent': 'Friend request sent',
+        'version': 'Version',
+        'build_number': 'Build Number',
+        'clear_translations_cache': 'Clear Translations Cache',
+        'clear_posts_cache': 'Clear Posts Cache',
+        'clear_friends_cache': 'Clear Friends Cache',
+        'language_changed': 'Language changed successfully',
+        'title': 'Title',
+        'bio': 'Bio',
+        'new_password': 'New Password',
+        'confirm_new_password': 'Confirm New Password',
+        'install': 'Install',
+        
+        // Cache management
+        'clear_cache': 'Clear Cache',
+        'clear_all_cache': 'Clear All Cache',
+        'cache_cleared_successfully': 'Cache cleared successfully',
+        'confirm_clear_cache': 'Are you sure you want to clear this cache?',
+        'confirm_clear_all_cache': 'Are you sure you want to clear all caches?',
       }
     };
   }
 
   // Get translation for a key
   String translate(String key) {
-    if (!_isInitialized) {
-      return key; // Return key if not initialized
-    }
-
+    // Always try to get translation, even if not initialized
+    // This ensures we have fallback translations available immediately
+    
+    // First try current language
     final languageTranslations = _translations[_currentLanguage];
     if (languageTranslations != null && languageTranslations.containsKey(key)) {
       return languageTranslations[key]!;
@@ -705,8 +729,25 @@ class TranslationService extends ChangeNotifier {
       return englishTranslations[key]!;
     }
 
-    // Return key if no translation found
-    return key;
+    // If not initialized yet, try to get from fallback translations
+    if (!_isInitialized) {
+      // Fallback translations should always be loaded first, but if not, return a human-readable key
+      return _humanizeKey(key);
+    }
+
+    // Last resort: return humanized key instead of raw key
+    return _humanizeKey(key);
+  }
+
+  // Convert translation key to human-readable text as last resort
+  String _humanizeKey(String key) {
+    // Replace underscores with spaces and capitalize first letter of each word
+    return key
+        .split('_')
+        .map((word) => word.isEmpty 
+            ? '' 
+            : word[0].toUpperCase() + word.substring(1).toLowerCase())
+        .join(' ');
   }
 
   // Get current language

@@ -1,6 +1,23 @@
 import 'package:flutter/material.dart';
 import '../services/translation_service.dart';
 
+// Helper function to check if a translated text is likely a humanized key
+bool _isHumanizedKey(String translatedText, String originalKey) {
+  // If the translated text is the same as the original key, it's definitely humanized
+  if (translatedText == originalKey) return true;
+  
+  // Check if the translated text looks like a humanized version of the key
+  // (e.g., "checking_for_updates" -> "Checking For Updates")
+  final humanized = originalKey
+      .split('_')
+      .map((word) => word.isEmpty 
+          ? '' 
+          : word[0].toUpperCase() + word.substring(1).toLowerCase())
+      .join(' ');
+  
+  return translatedText == humanized;
+}
+
 class TranslatedText extends StatelessWidget {
   final String textKey;
   final TextStyle? style;
@@ -31,9 +48,11 @@ class TranslatedText extends StatelessWidget {
       builder: (context, child) {
         final translatedText = translationService.translate(textKey);
         
-        // If translation is the same as key and fallback is provided, use fallback
-        final displayText = (translatedText == textKey && fallback != null) 
-            ? fallback! 
+        // If fallback is provided and translation appears to be auto-generated (humanized key),
+        // prefer the fallback. Otherwise use the translation.
+        // Note: translate() now always returns a readable string, never the raw key
+        final displayText = fallback != null && _isHumanizedKey(translatedText, textKey)
+            ? fallback!
             : translatedText;
 
         return Text(
@@ -89,8 +108,8 @@ class ReactiveTranslatedText extends StatelessWidget {
       listenable: translationService,
       builder: (context, child) {
         final translatedText = translationService.translate(translationKey);
-        final displayText = (translatedText == translationKey && fallback != null) 
-            ? fallback! 
+        final displayText = fallback != null && _isHumanizedKey(translatedText, translationKey)
+            ? fallback!
             : translatedText;
         
         return Text(
