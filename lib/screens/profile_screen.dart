@@ -267,54 +267,48 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     height: appBarHeight + MediaQuery.of(context).padding.top,
                   ),
                 ),
-                // Profile Header Skeleton
+                // Profile Header Skeleton (Wallpaper Only)
                 SliverToBoxAdapter(
                   child: SizedBox(
-                    height: 250,
-                    child: Stack(
-                      alignment: Alignment.center,
+                    height: 200,
+                    child: const ProfileBackgroundSkeleton(),
+                  ),
+                ),
+                // Avatar and Username Skeleton
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.only(top: 24),
+                    child: Column(
                       children: [
-                        // Background skeleton
-                        const Positioned.fill(
-                          child: ProfileBackgroundSkeleton(),
+                        const ProfileAvatarSkeleton(),
+                        const SizedBox(height: 16),
+                        SkeletonLoader(
+                          child: Container(
+                            height: 24,
+                            width: 150,
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                          ),
                         ),
-                        // Avatar skeleton
-                        Positioned(
-                          top: 100,
-                          child: const ProfileAvatarSkeleton(),
-                        ),
-                        // Text skeleton
-                        Positioned(
-                          top: 100 + 120 + 12,
-                          child: Column(
-                            children: [
-                              SkeletonLoader(
-                                child: Container(
-                                  height: 24,
-                                  width: 150,
-                                  decoration: BoxDecoration(
-                                    color: Colors.white,
-                                    borderRadius: BorderRadius.circular(4),
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(height: 6),
-                              SkeletonLoader(
-                                child: Container(
-                                  height: 16,
-                                  width: 100,
-                                  decoration: BoxDecoration(
-                                    color: Colors.white,
-                                    borderRadius: BorderRadius.circular(4),
-                                  ),
-                                ),
-                              ),
-                            ],
+                        const SizedBox(height: 6),
+                        SkeletonLoader(
+                          child: Container(
+                            height: 16,
+                            width: 100,
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(4),
+                            ),
                           ),
                         ),
                       ],
                     ),
                   ),
+                ),
+                const SliverToBoxAdapter(
+                  child: SizedBox(height: 24),
                 ),
                 // Post feed skeleton
                 SliverToBoxAdapter(
@@ -346,85 +340,78 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       height: appBarHeight + MediaQuery.of(context).padding.top,
                     ),
                   ),
-                  // --- Static Profile Header ---
+                  // --- Static Profile Header (Wallpaper Only) ---
                   SliverToBoxAdapter(
                     child: SizedBox(
-                      height: 250,
-                      child: Stack(
-                        alignment: Alignment.center,
-                        children: [
-                          // --- GUARANTEED CORRECT WALLPAPER ---
-                          Positioned.fill(
-                            child: useDefaultWallpaper
-                                ? Image.asset(
-                                    'assets/images/background.png',
-                                    fit: BoxFit.cover,
-                                  )
-                                : CachedNetworkImage(
-                                    imageUrl: wallpaperUrl,
-                                    fit: BoxFit.cover,
-                                    placeholder: (context, url) => Image.asset(
-                                      'assets/images/background.png',
-                                      fit: BoxFit.cover,
-                                    ),
-                                    errorWidget: (context, url, error) => Image.asset(
-                                      'assets/images/background.png',
-                                      fit: BoxFit.cover,
-                                    ),
-                                  ),
-                          ),
-                          // --- Avatar ---
-                          Positioned(
-                            top: 100,
-                            child: Container(
-                              width: 120,
-                              height: 120,
-                              decoration: BoxDecoration(
-                                border: Border.all(
-                                    color: AppColors.getIconColor(context),
-                                    width: 3),
-                                borderRadius: BorderRadius.circular(20),
+                      height: 200,
+                      child: useDefaultWallpaper
+                          ? Image.asset(
+                              'assets/images/background.png',
+                              fit: BoxFit.cover,
+                            )
+                          : CachedNetworkImage(
+                              imageUrl: wallpaperUrl,
+                              fit: BoxFit.cover,
+                              placeholder: (context, url) => Image.asset(
+                                'assets/images/background.png',
+                                fit: BoxFit.cover,
                               ),
-                              child: ClipRRect(
-                                borderRadius: BorderRadius.circular(17),
-                                child: (avatarUrl.isNotEmpty)
-                                    ? CachedNetworkImage(
-                                        imageUrl: avatarUrl,
-                                        fit: BoxFit.cover,
-                                        httpHeaders: const {},
-                                        placeholder: (context, url) => Image.asset(
-                                            'assets/images/icon.png',
-                                            fit: BoxFit.cover),
-                                        errorWidget: (context, url, error) {
-                                          // Handle all errors including 404 (HttpExceptionWithStatus)
-                                          return Image.asset(
-                                            'assets/images/icon.png',
-                                            fit: BoxFit.cover,
-                                          );
-                                        },
-                                      )
-                                    : Image.asset('assets/images/icon.png',
-                                        fit: BoxFit.cover),
+                              errorWidget: (context, url, error) => Image.asset(
+                                'assets/images/background.png',
+                                fit: BoxFit.cover,
                               ),
                             ),
+                    ),
+                  ),
+                  // --- Avatar and Username Section (between wallpaper and post feed) ---
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.only(top: 24),
+                      child: Column(
+                        children: [
+                          // Avatar
+                          Container(
+                            width: 120,
+                            height: 120,
+                            decoration: BoxDecoration(
+                              border: Border.all(
+                                  color: AppColors.getIconColor(context),
+                                  width: 3),
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(17),
+                              child: (avatarUrl.isNotEmpty)
+                                  ? CachedNetworkImage(
+                                      imageUrl: avatarUrl,
+                                      fit: BoxFit.cover,
+                                      httpHeaders: const {},
+                                      placeholder: (context, url) => Image.asset(
+                                          'assets/images/icon.png',
+                                          fit: BoxFit.cover),
+                                      errorWidget: (context, url, error) {
+                                        // Handle all errors including 404 (HttpExceptionWithStatus)
+                                        return Image.asset(
+                                          'assets/images/icon.png',
+                                          fit: BoxFit.cover,
+                                        );
+                                      },
+                                    )
+                                  : Image.asset('assets/images/icon.png',
+                                      fit: BoxFit.cover),
+                            ),
                           ),
-                          // --- Text ---
-                          Positioned(
-                            top: 100 + 120 + 12,
+                          // Username
+                          Padding(
+                            padding: const EdgeInsets.only(top: 16),
                             child: Column(
                               children: [
                                 Text(
                                   userData!['username'] ?? '',
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                     fontSize: 24,
                                     fontWeight: FontWeight.bold,
-                                    color: Colors.white,
-                                    shadows: [
-                                      Shadow(
-                                          blurRadius: 4,
-                                          color: Colors.black54,
-                                          offset: Offset(1, 1))
-                                    ],
+                                    color: AppColors.getTextColor(context),
                                   ),
                                 ),
                                 const SizedBox(height: 6),
@@ -432,7 +419,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                   '@${userData!['username']}',
                                   style: TextStyle(
                                     fontSize: 16,
-                                    color: Colors.white.withOpacity(0.9),
+                                    color: AppColors.getSecondaryTextColor(context),
                                     fontWeight: FontWeight.w600,
                                   ),
                                 ),
@@ -442,6 +429,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         ],
                       ),
                     ),
+                  ),
+                  const SliverToBoxAdapter(
+                    child: SizedBox(height: 24),
                   ),
                   // --- Post Feed ---
                   if (isLoadingPosts)
