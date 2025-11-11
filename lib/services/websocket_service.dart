@@ -392,19 +392,17 @@ class WebSocketService {
             }
             // Always respond to ping immediately, even in background
             _sendPong();
+            return; // Early return to avoid processing in switch statement
           } else if (messageType == 'pong') {
             if (kDebugMode) {
               print('📤 [WebSocket] Received PONG - connection alive (sessionId: $_sessionId)');
             }
+            return; // Early return to avoid processing in switch statement
           } else {
             print('📨 [WebSocket] Received message: $message');
           }
 
           switch (messageType) {
-            case 'ping':
-              // Ping is already handled above - _sendPong() is called immediately
-              // This case is intentionally empty to avoid duplicate pong sends
-              break;
             case 'ack':
               _handleAcknowledgment(Map<String, dynamic>.from(data));
               break;
