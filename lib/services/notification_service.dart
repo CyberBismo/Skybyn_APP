@@ -29,6 +29,7 @@ class NotificationService {
   static const String _maintenanceChannelId = 'maintenance_alerts';
   static const String _updateProgressChannelId = 'update_progress';
   static const String _appUpdatesChannelId = 'app_updates';
+  static const String _chatMessagesChannelId = 'chat_messages';
 
   // Notification ID for update progress (fixed ID so we can update it)
   static const int _updateProgressNotificationId = 9999;
@@ -264,6 +265,20 @@ class NotificationService {
       );
 
       await _localNotifications.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()?.createNotificationChannel(appUpdatesChannel);
+
+      // Chat messages channel
+      const AndroidNotificationChannel chatMessagesChannel = AndroidNotificationChannel(
+        _chatMessagesChannelId,
+        'Chat Messages',
+        description: 'Notifications for new chat messages',
+        importance: Importance.high,
+        playSound: true,
+        enableVibration: true,
+        enableLights: true,
+        showBadge: true,
+      );
+
+      await _localNotifications.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()?.createNotificationChannel(chatMessagesChannel);
     }
   }
 
@@ -322,16 +337,20 @@ class NotificationService {
     String channelId = _adminChannelId,
   }) async {
     try {
-      // Check if this is an app_update notification
+      // Check notification type from payload
       bool isAppUpdate = false;
+      bool isChat = false;
       if (payload != null) {
         if (payload == 'app_update' || payload == 'update_check') {
           isAppUpdate = true;
         } else if (payload.startsWith('{')) {
           try {
             final Map<String, dynamic> data = json.decode(payload);
-            if (data['type']?.toString() == 'app_update') {
+            final type = data['type']?.toString();
+            if (type == 'app_update') {
               isAppUpdate = true;
+            } else if (type == 'chat') {
+              isChat = true;
             }
           } catch (e) {
             // Not JSON, ignore
@@ -339,28 +358,48 @@ class NotificationService {
         }
       }
       
-      // For app_update notifications, use app_updates channel
+      // Use appropriate channel based on notification type
       if (isAppUpdate) {
         channelId = _appUpdatesChannelId;
         if (AutoUpdateService.isDialogShowing) {
           print('ℹ️ [NotificationService] Update dialog already showing, skipping notification...');
           return -1; // Return -1 to indicate notification was not shown
         }
+      } else if (isChat) {
+        channelId = _chatMessagesChannelId;
       }
 
       print('🔔 [NotificationService] Showing notification: $title - $body');
       print('🔔 [NotificationService] Platform: ${Platform.operatingSystem}');
       print('🔔 [NotificationService] Channel ID: $channelId');
       print('🔔 [NotificationService] Is App Update: $isAppUpdate');
+      print('🔔 [NotificationService] Is Chat: $isChat');
+      print('🔔 [NotificationService] Payload: $payload');
 
       // Android notification details - use appropriate channel
+      String channelName;
+      String channelDescription;
+      Importance importance;
+      
+      if (isAppUpdate) {
+        channelName = 'App Updates';
+        channelDescription = 'App update notifications and new version alerts';
+        importance = Importance.high;
+      } else if (isChat) {
+        channelName = 'Chat Messages';
+        channelDescription = 'Notifications for new chat messages';
+        importance = Importance.high;
+      } else {
+        channelName = 'Admin Notifications';
+        channelDescription = 'Important system notifications from administrators';
+        importance = Importance.max;
+      }
+      
       final AndroidNotificationDetails androidPlatformChannelSpecifics = AndroidNotificationDetails(
         channelId,
-        isAppUpdate ? 'App Updates' : 'Admin Notifications',
-        channelDescription: isAppUpdate 
-            ? 'App update notifications and new version alerts'
-            : 'Important system notifications from administrators',
-        importance: isAppUpdate ? Importance.high : Importance.max,
+        channelName,
+        channelDescription: channelDescription,
+        importance: importance,
         priority: Priority.high,
         showWhen: true,
         enableVibration: true,

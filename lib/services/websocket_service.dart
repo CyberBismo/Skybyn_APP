@@ -1,6 +1,6 @@
 import 'dart:convert';
 import 'dart:math';
-import 'dart:io' show Platform;
+import 'dart:io' show Platform, WebSocket, SecurityContext, HttpClient;
 import 'dart:async';
 import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:web_socket_channel/io.dart';
@@ -243,6 +243,41 @@ class WebSocketService {
     return 'wss://$host:$port';
   }
 
+  /// Create WebSocket channel with SSL certificate handling
+  Future<WebSocketChannel> _createWebSocketChannel(String url) async {
+    final uri = Uri.parse(url);
+    
+    // In debug mode, bypass SSL certificate validation for self-signed certificates
+    if (kDebugMode) {
+      try {
+        // Create an HttpClient with custom certificate handling
+        final httpClient = HttpClient();
+        httpClient.badCertificateCallback = (cert, host, port) {
+          print('⚠️ [WebSocket] Accepting certificate for $host:$port in debug mode');
+          return true; // Accept all certificates in debug mode
+        };
+        
+        // Create WebSocket connection using the custom HttpClient
+        // WebSocket.connect with customClient parameter (available in Dart 2.17+)
+        final webSocket = await WebSocket.connect(
+          url,
+          customClient: httpClient,
+        );
+        
+        // Wrap the socket in an IOWebSocketChannel (which accepts WebSocket)
+        return IOWebSocketChannel(webSocket);
+      } catch (e) {
+        print('❌ [WebSocket] Error creating custom WebSocket connection: $e');
+        print('🔄 [WebSocket] Falling back to standard connection...');
+        // Fall back to standard connection
+        return IOWebSocketChannel.connect(uri);
+      }
+    } else {
+      // In release mode, use standard connection with proper SSL validation
+      return IOWebSocketChannel.connect(uri);
+    }
+  }
+
   /// Connect to WebSocket with callbacks
   /// Only connects when app is in foreground
   Future<void> connect({
@@ -301,8 +336,8 @@ class WebSocketService {
       final wsUrl = _getWebSocketUrl();
       print('🔄 [WebSocket] Connecting to WebSocket: $wsUrl');
 
-      // Create WebSocket connection
-      _channel = IOWebSocketChannel.connect(Uri.parse(wsUrl));
+      // Create WebSocket connection with SSL certificate handling
+      _channel = await _createWebSocketChannel(wsUrl);
 
       // Listen to messages
       _channel!.stream.listen(
@@ -479,17 +514,24 @@ class WebSocketService {
               final messageId = data['messageId']?.toString();
               
               if (notificationType == 'chat' && fromUserId != null && message != null) {
+                print('💬 [WebSocket] Received chat notification: from=$fromUserId, message=$message');
+                
                 // Show in-app notification for chat message when app is open
-                _notificationService.showNotification(
-                  title: fromName ?? 'New Message',
-                  body: message,
-                  payload: jsonEncode({
-                    'type': 'chat',
-                    'from': fromUserId,
-                    'messageId': messageId,
-                    'to': _userId,
-                  }),
-                );
+                try {
+                  await _notificationService.showNotification(
+                    title: fromName ?? 'New Message',
+                    body: message,
+                    payload: jsonEncode({
+                      'type': 'chat',
+                      'from': fromUserId,
+                      'messageId': messageId,
+                      'to': _userId,
+                    }),
+                  );
+                  print('✅ [WebSocket] Chat notification shown successfully');
+                } catch (e) {
+                  print('❌ [WebSocket] Error showing chat notification: $e');
+                }
                 
                 // Also trigger chat message callback if registered
                 if (messageId != null && fromUserId != null) {

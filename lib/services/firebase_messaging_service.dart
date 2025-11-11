@@ -15,6 +15,8 @@ import '../config/constants.dart';
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   try {
+    print('📱 [FCM] Background message received: ${message.data}');
+    
     // Skip processing messages in debug mode
     if (kDebugMode) {
       print('ℹ️ [FCM] Background message ignored in debug mode');
@@ -28,7 +30,19 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 
     // Show local notification for background messages
     final notificationService = NotificationService();
-    await notificationService.showNotification(title: message.notification?.title ?? 'New Message', body: message.notification?.body ?? '', payload: jsonEncode(message.data));
+    final type = message.data['type']?.toString();
+    print('📱 [FCM] Background message type: $type');
+    
+    if (type == 'chat') {
+      print('💬 [FCM] Chat message received in background - showing notification');
+    }
+    
+    await notificationService.showNotification(
+      title: message.notification?.title ?? 'New Message', 
+      body: message.notification?.body ?? '', 
+      payload: jsonEncode(message.data)
+    );
+    print('✅ [FCM] Background notification shown');
   } catch (e) {
     print('❌ [FCM] Error in background handler: $e');
   }
@@ -318,6 +332,7 @@ class FirebaseMessagingService {
     // Firebase is only used for background notifications
     FirebaseMessaging.onMessage.listen((RemoteMessage message) async {
       final type = message.data['type']?.toString();
+      print('📱 [FCM] Received foreground message: type=$type');
       
       // For chat messages in foreground, ignore Firebase notification
       // WebSocket will handle real-time delivery when app is in focus
@@ -336,6 +351,7 @@ class FirebaseMessagingService {
           _triggerUpdateCheck();
         }
         // For chat messages, ignore in foreground - WebSocket handles it
+        print('💬 [FCM] Chat message received in foreground - WebSocket should handle it (ignoring Firebase notification)');
         return;
       }
       
