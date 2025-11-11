@@ -117,30 +117,61 @@ class ChatService {
         maxRetries: 2,
       );
 
-      if (kDebugMode) {
-        print('📥 [ChatService] Response status: ${response.statusCode}');
-        print('📥 [ChatService] Response body: ${response.body}');
+      // Log response in both debug and release (using debugPrint)
+      debugPrint('📥 [ChatService] Response status: ${response.statusCode}');
+      debugPrint('📥 [ChatService] Response body: ${response.body}');
+
+      // Try to parse response body regardless of status code
+      Map<String, dynamic>? responseData;
+      try {
+        responseData = json.decode(response.body) as Map<String, dynamic>?;
+      } catch (e) {
+        debugPrint('⚠️ [ChatService] Failed to parse response body as JSON: $e');
       }
 
       if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        if (data['responseCode'] == 1 && data['messageId'] != null) {
-          // Create message object
-          return Message(
-            id: data['messageId'].toString(),
-            from: userId,
-            to: toUserId,
-            content: content,
-            date: DateTime.now(),
-            viewed: false,
-            isFromMe: true,
-          );
+        if (responseData != null) {
+          if (responseData['responseCode'] == 1 && responseData['messageId'] != null) {
+            // Create message object
+            return Message(
+              id: responseData['messageId'].toString(),
+              from: userId,
+              to: toUserId,
+              content: content,
+              date: DateTime.now(),
+              viewed: false,
+              isFromMe: true,
+            );
+          }
+          // Server returned 200 but with error in response body
+          throw Exception(responseData['message'] ?? 'Failed to send message');
         }
-        throw Exception(data['message'] ?? 'Failed to send message');
+        throw Exception('Invalid response format from server');
       }
-      throw Exception('Failed to send message: ${response.statusCode}');
-    } catch (e) {
-      print('❌ [ChatService] Error sending message: $e');
+      
+      // Handle non-200 status codes
+      // Check if response body contains error message
+      if (responseData != null && responseData.containsKey('message')) {
+        final errorMessage = responseData['message'] as String?;
+        debugPrint('❌ [ChatService] Server error (${response.statusCode}): $errorMessage');
+        
+        // Handle 409 Conflict specifically (duplicate message)
+        if (response.statusCode == 409) {
+          // For 409, check if message was actually sent (duplicate)
+          // In this case, we might want to treat it as success if the message exists
+          throw Exception(errorMessage ?? 'Message may have been sent already');
+        }
+        
+        throw Exception(errorMessage ?? 'Failed to send message');
+      }
+      
+      // No error message in response body, use status code
+      throw Exception('Failed to send message: HTTP ${response.statusCode}');
+    } catch (e, stackTrace) {
+      debugPrint('❌ [ChatService] Error sending message: $e');
+      if (kDebugMode) {
+        debugPrint('❌ [ChatService] Stack trace: $stackTrace');
+      }
       rethrow;
     }
   }
