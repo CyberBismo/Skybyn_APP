@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <!-- Allow all HTTPS connections -->
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <!-- Trust preinstalled CAs -->
+            <certificates src="system" />
+            <!-- Additionally trust user added CAs -->
+            <certificates src="user" />
+        </trust-anchors>
+    </base-config>
+    
+    <!-- Specific domain configurations if needed -->
+    <domain-config cleartextTrafficPermitted="false">
+        <domain includeSubdomains="true">api.skybyn.no</domain>
+        <domain includeSubdomains="true">server.skybyn.no</domain>
+        <domain includeSubdomains="true">skybyn.no</domain>
+        <domain includeSubdomains="true">app.skybyn.no</domain>
+        <trust-anchors>
+            <certificates src="system" />
+            <certificates src="user" />
+        </trust-anchors>
+    </domain-config>
+</network-security-config>
+

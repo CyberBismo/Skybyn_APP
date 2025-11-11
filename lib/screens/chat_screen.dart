@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'dart:ui';
 import 'dart:io';
 import 'package:permission_handler/permission_handler.dart';
@@ -390,13 +391,24 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
 
         // Send via WebSocket for real-time delivery (if app is in focus)
         if (_wsService.isConnected) {
-          _wsService.sendMessage(jsonEncode({
-            'type': 'chat',
-            'id': sentMessage.id,
-            'from': sentMessage.from,
-            'to': sentMessage.to,
-            'message': sentMessage.content,
-          }));
+          try {
+            final wsSuccess = await _wsService.sendMessage(jsonEncode({
+              'type': 'chat',
+              'id': sentMessage.id,
+              'from': sentMessage.from,
+              'to': sentMessage.to,
+              'message': sentMessage.content,
+            }));
+            
+            if (!wsSuccess && mounted) {
+              // WebSocket send failed, but message was already saved via API
+              // Show a subtle notification (optional - message is already saved)
+              debugPrint('⚠️ [ChatScreen] WebSocket message send failed, but message was saved via API');
+            }
+          } catch (e) {
+            // WebSocket send error - message is already saved via API, so this is non-critical
+            debugPrint('⚠️ [ChatScreen] Error sending WebSocket message: $e');
+          }
         }
       }
     } catch (e) {

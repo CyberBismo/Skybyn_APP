@@ -703,16 +703,39 @@ class WebSocketService {
   }
 
   /// Send custom message
-  Future<void> sendMessage(String message) async {
+  /// Send a raw message string via WebSocket
+  /// Returns true if message was sent successfully, false otherwise
+  Future<bool> sendMessage(String message) async {
     try {
-      if (_isConnected && _channel != null) {
-        _channel!.sink.add(message);
-        print('📤 [WebSocket] Message sent: $message');
-      } else {
-        print('⚠️ [WebSocket] WebSocket not connected, cannot send message');
+      if (!_isConnected || _channel == null) {
+        if (kDebugMode) {
+          print('⚠️ [WebSocket] WebSocket not connected, cannot send message');
+        }
+        return false;
       }
-    } catch (e) {
-      print('❌ [WebSocket] Error sending message: $e');
+
+      // Try to send the message
+      // The sink.add() will throw if the channel is closed
+      _channel!.sink.add(message);
+      _updateConnectionMetrics('message_sent');
+      
+      if (kDebugMode) {
+        print('📤 [WebSocket] Message sent: $message');
+      }
+      return true;
+    } catch (e, stackTrace) {
+      // Log error in both debug and release (using debugPrint which works in release)
+      debugPrint('❌ [WebSocket] Error sending message: $e');
+      if (kDebugMode) {
+        debugPrint('Stack trace: $stackTrace');
+      }
+      _updateConnectionMetrics('error');
+      
+      // If channel error, mark as disconnected and reconnect
+      _isConnected = false;
+      _scheduleReconnect();
+      
+      return false;
     }
   }
 

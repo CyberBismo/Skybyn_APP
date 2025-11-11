@@ -34,13 +34,11 @@ class ApiConstants {
 
   static String get apiBase {
     final url = kDebugMode ? _devApiBase : _prodApiBase;
-    assert(() {
-      if (!_hasLoggedApiBase) {
-        print('🔧 [ApiConstants] Using ${kDebugMode ? "DEV" : "PROD"} apiBase: $url');
-        _hasLoggedApiBase = true;
-      }
-      return true;
-    }());
+    // Log in both debug and release (using debugPrint which works in release)
+    if (!_hasLoggedApiBase) {
+      debugPrint('🔧 [ApiConstants] Using ${kDebugMode ? "DEV" : "PROD"} apiBase: $url');
+      _hasLoggedApiBase = true;
+    }
     return url;
   }
 

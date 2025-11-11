@@ -182,13 +182,21 @@ class ChatService {
       }
 
       return reversedMessages;
-    } catch (e) {
-      print('❌ [ChatService] Error getting messages: $e');
+    } catch (e, stackTrace) {
+      debugPrint('❌ [ChatService] Error getting messages: $e');
+      if (kDebugMode) {
+        debugPrint('❌ [ChatService] Stack trace: $stackTrace');
+        debugPrint('❌ [ChatService] URL attempted: ${ApiConstants.chatGet}');
+        debugPrint('❌ [ChatService] API Base: ${ApiConstants.apiBase}');
+      }
       // If API fails, try to return cached data as fallback (only for initial load)
       if (offset == null || offset == 0) {
         final userId = await _authService.getStoredUserId();
         if (userId != null) {
           final cachedMessages = await _loadMessagesFromCache(friendId, userId);
+          if (cachedMessages.isNotEmpty) {
+            debugPrint('✅ [ChatService] Using cached messages as fallback');
+          }
           return cachedMessages;
         }
       }
@@ -283,45 +291,59 @@ class ChatService {
     int? limit,
     int? offset,
   ) async {
-    final response = await _retryHttpRequest(
-      () => _client.post(
-        Uri.parse(ApiConstants.chatGet),
-        body: {
-          'userID': userId,
-          'friend': friendId,
-          'limit': limit?.toString() ?? '50',
-          'offset': offset?.toString() ?? '0',
-        },
-      ).timeout(const Duration(seconds: 10)),
-      maxRetries: 2,
-    );
+    final url = ApiConstants.chatGet;
+    if (kDebugMode) {
+      debugPrint('🔧 [ChatService] Fetching messages from: $url');
+    }
+    
+    try {
+      final response = await _retryHttpRequest(
+        () => _client.post(
+          Uri.parse(url),
+          body: {
+            'userID': userId,
+            'friend': friendId,
+            'limit': limit?.toString() ?? '50',
+            'offset': offset?.toString() ?? '0',
+          },
+        ).timeout(const Duration(seconds: 10)),
+        maxRetries: 2,
+      );
+    
+      if (response.statusCode == 200) {
+        final dynamic decoded = json.decode(response.body);
+        
+        // Check if response is an error object (Map) or messages array (List)
+        if (decoded is Map<String, dynamic>) {
+          // This is an error response
+          final responseCode = decoded['responseCode'];
+          final message = decoded['message'] ?? 'Unknown error';
+          throw Exception('API error: $message (code: $responseCode)');
+        } else if (decoded is List) {
+          // This is the messages array
+          final List<dynamic> data = decoded;
+          final List<Message> messages = [];
 
-    if (response.statusCode == 200) {
-      final dynamic decoded = json.decode(response.body);
-      
-      // Check if response is an error object (Map) or messages array (List)
-      if (decoded is Map<String, dynamic>) {
-        // This is an error response
-        final responseCode = decoded['responseCode'];
-        final message = decoded['message'] ?? 'Unknown error';
-        throw Exception('API error: $message (code: $responseCode)');
-      } else if (decoded is List) {
-        // This is the messages array
-        final List<dynamic> data = decoded;
-        final List<Message> messages = [];
+          for (final item in data) {
+            final messageMap = item as Map<String, dynamic>;
+            // Content is already decrypted from server
+            messages.add(Message.fromJson(messageMap, userId));
+          }
 
-        for (final item in data) {
-          final messageMap = item as Map<String, dynamic>;
-          // Content is already decrypted from server
-          messages.add(Message.fromJson(messageMap, userId));
+          return messages;
+        } else {
+          throw Exception('Unexpected response format from API');
         }
-
-        return messages;
       } else {
-        throw Exception('Unexpected response format from API');
+        throw Exception('Failed to load messages: ${response.statusCode}');
       }
-    } else {
-      throw Exception('Failed to load messages: ${response.statusCode}');
+    } catch (e, stackTrace) {
+      debugPrint('❌ [ChatService] Error in _fetchMessagesFromAPI: $e');
+      if (kDebugMode) {
+        debugPrint('❌ [ChatService] Stack trace: $stackTrace');
+        debugPrint('❌ [ChatService] URL: $url');
+      }
+      rethrow;
     }
   }
 
