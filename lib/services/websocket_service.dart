@@ -383,14 +383,25 @@ class WebSocketService {
           _updateConnectionMetrics('message_received');
           final messageType = data['type']?.toString();
 
-          // Don't log ping messages to reduce noise
-          if (messageType != 'ping') {
+          // Log ping messages in debug mode to monitor connection stability
+          if (messageType == 'ping') {
+            if (kDebugMode) {
+              print('📥 [WebSocket] Received PING - responding with PONG (sessionId: $_sessionId)');
+            }
+            // Always respond to ping immediately, even in background
+            _sendPong();
+          } else if (messageType == 'pong') {
+            if (kDebugMode) {
+              print('📤 [WebSocket] Received PONG - connection alive (sessionId: $_sessionId)');
+            }
+          } else {
             print('📨 [WebSocket] Received message: $message');
           }
 
           switch (messageType) {
             case 'ping':
-              _sendPong();
+              // Ping is already handled above - _sendPong() is called immediately
+              // This case is intentionally empty to avoid duplicate pong sends
               break;
             case 'ack':
               _handleAcknowledgment(Map<String, dynamic>.from(data));
@@ -580,6 +591,9 @@ class WebSocketService {
 
   /// Send pong response
   void _sendPong() {
+    if (kDebugMode) {
+      print('📤 [WebSocket] Sending PONG response (sessionId: $_sessionId)');
+    }
     final pongMessage = {
       'type': 'pong',
       'sessionId': _sessionId,
@@ -761,13 +775,22 @@ class WebSocketService {
   }
 
   /// Schedule reconnection with exponential backoff
-  /// Only reconnects if app is in foreground (not called when disconnected intentionally)
+  /// Reconnects automatically when connection is lost
   void _scheduleReconnect() {
     _reconnectTimer?.cancel();
 
     if (_reconnectAttempts >= _maxReconnectAttempts) {
-      print('❌ [WebSocket] Max reconnection attempts reached. Giving up.');
+      print('❌ [WebSocket] Max reconnection attempts reached. Resetting and retrying...');
+      // Reset attempts after a delay to allow retry
+      _reconnectAttempts = 0;
       _updateConnectionMetrics('failed');
+      // Schedule a retry after 30 seconds
+      _reconnectTimer = Timer(const Duration(seconds: 30), () {
+        if (!_isConnected && !_isConnecting) {
+          _reconnectAttempts = 0; // Reset attempts
+          _scheduleReconnect();
+        }
+      });
       return;
     }
 
@@ -817,7 +840,14 @@ class WebSocketService {
   void disconnect() {
     print('🔌 [WebSocket] Disconnecting from WebSocket...');
     _reconnectTimer?.cancel();
-    _channel?.sink.close();
+    
+    // Close channel gracefully
+    try {
+      _channel?.sink.close();
+    } catch (e) {
+      print('⚠️ [WebSocket] Error closing channel: $e');
+    }
+    
     _channel = null;
     _isConnected = false;
     _isConnecting = false;
