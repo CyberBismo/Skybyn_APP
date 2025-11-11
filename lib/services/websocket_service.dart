@@ -470,6 +470,40 @@ class WebSocketService {
               final commentId = data['id']?.toString();
               _handleDeleteComment(postId ?? '', commentId ?? '');
               break;
+            case 'notification':
+              // Handle notification (e.g., chat message notification)
+              final notificationType = data['notificationType']?.toString();
+              final fromUserId = data['from']?.toString();
+              final fromName = data['fromName']?.toString();
+              final message = data['message']?.toString();
+              final messageId = data['messageId']?.toString();
+              
+              if (notificationType == 'chat' && fromUserId != null && message != null) {
+                // Show in-app notification for chat message when app is open
+                _notificationService.showNotification(
+                  title: fromName ?? 'New Message',
+                  body: message,
+                  payload: jsonEncode({
+                    'type': 'chat',
+                    'from': fromUserId,
+                    'messageId': messageId,
+                    'to': _userId,
+                  }),
+                );
+                
+                // Also trigger chat message callback if registered
+                if (messageId != null && fromUserId != null) {
+                  _onChatMessage?.call(messageId, fromUserId, _userId ?? '', message);
+                }
+              } else {
+                // Generic notification
+                _notificationService.showNotification(
+                  title: data['title']?.toString() ?? 'Notification',
+                  body: data['message']?.toString() ?? data['body']?.toString() ?? '',
+                  payload: message,
+                );
+              }
+              break;
             case 'app_update':
               _handleAppUpdate();
               break;

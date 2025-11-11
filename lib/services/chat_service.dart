@@ -213,6 +213,7 @@ class ChatService {
             'from': userId,
             'to': toUserId,
             'message': encryptedContent,
+            'api_key': ApiConstants.apiKey, // Also send in POST body for compatibility
           },
           headers: headers,
         ).timeout(const Duration(seconds: 10)),
@@ -228,10 +229,13 @@ class ChatService {
       final isHtmlResponse = responseBody.startsWith('<') || 
                              responseBody.contains('<script>') ||
                              responseBody.contains('<!DOCTYPE') ||
-                             responseBody.contains('<html');
+                             responseBody.contains('<html') ||
+                             responseBody.startsWith('<br') ||
+                             (responseBody.length < 50 && responseBody.contains('<'));
       
       if (isHtmlResponse) {
         debugPrint('⚠️ [ChatService] Received HTML/JavaScript response (likely bot protection)');
+        debugPrint('⚠️ [ChatService] Response body preview: ${responseBody.length > 200 ? responseBody.substring(0, 200) : responseBody}');
         
         // Try to extract protection cookie from response
         final cookieMatch = RegExp(r'humans_\d+=\d+').firstMatch(responseBody);
@@ -239,8 +243,11 @@ class ChatService {
           _protectionCookie = cookieMatch.group(0);
           debugPrint('🍪 [ChatService] Extracted protection cookie: $_protectionCookie');
           
-          // Retry the request with the cookie
-          debugPrint('🔄 [ChatService] Retrying request with protection cookie...');
+          // Wait a moment before retrying (bot protection may need time to process)
+          await Future.delayed(const Duration(milliseconds: 500));
+          
+          // Retry the request with the cookie and API key
+          debugPrint('🔄 [ChatService] Retrying request with protection cookie and API key...');
           try {
             final retryResponse = await _retryHttpRequest(
               () => _client.post(
@@ -250,6 +257,7 @@ class ChatService {
                   'from': userId,
                   'to': toUserId,
                   'message': encryptedContent,
+                  'api_key': ApiConstants.apiKey, // Also send in POST body for compatibility
                 },
                 headers: {
                   'Content-Type': 'application/x-www-form-urlencoded',
@@ -258,9 +266,22 @@ class ChatService {
                   'X-API-Key': ApiConstants.apiKey, // API key for unrestricted access
                   'Cookie': _protectionCookie!,
                 },
-              ).timeout(const Duration(seconds: 10)),
+              ).timeout(const Duration(seconds: 15)),
               maxRetries: 1,
             );
+            
+            // Check if retry also got HTML
+            final retryBody = retryResponse.body.trim();
+            final retryIsHtml = retryBody.startsWith('<') || 
+                               retryBody.contains('<script>') ||
+                               retryBody.contains('<!DOCTYPE') ||
+                               retryBody.contains('<html') ||
+                               retryBody.startsWith('<br');
+            
+            if (retryIsHtml) {
+              debugPrint('⚠️ [ChatService] Retry also returned HTML - bot protection still active');
+              throw Exception('Server protection is still active. The API key may need to be configured on the server.');
+            }
             
             // Process the retry response
             return await _processSendMessageResponse(retryResponse, userId, toUserId, content);
@@ -272,7 +293,7 @@ class ChatService {
         
         // This is likely bot protection (Cloudflare, etc.) - treat as temporary error
         if (response.statusCode == 409 || response.statusCode == 403) {
-          throw Exception('Server protection triggered. Please wait a moment and try again.');
+          throw Exception('Server protection triggered. The API key may need to be configured in your hosting control panel (cPanel/Cloudflare).');
         }
         throw Exception('Server temporarily unavailable. Please try again in a moment.');
       }
