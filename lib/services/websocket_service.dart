@@ -59,7 +59,7 @@ class WebSocketService {
   Function()? _onAppUpdate; // app update notification
   Function(String, String, String, String)? _onChatMessage; // messageId, fromUserId, toUserId, message
   Function(String, bool)? _onTypingStatus; // userId, isTyping
-  Function(String, bool)? _onOnlineStatus; // userId, isOnline
+  final List<Function(String, bool)> _onOnlineStatusCallbacks = []; // Multiple listeners for online status
 
   // Callbacks for WebRTC signaling
   Function(String, String, String, String)? _onCallOffer; // callId, fromUserId, offer, callType
@@ -265,7 +265,12 @@ class WebSocketService {
     if (onAppUpdate != null) _onAppUpdate = onAppUpdate;
     if (onChatMessage != null) _onChatMessage = onChatMessage;
     if (onTypingStatus != null) _onTypingStatus = onTypingStatus;
-    if (onOnlineStatus != null) _onOnlineStatus = onOnlineStatus;
+    if (onOnlineStatus != null) {
+      // Add callback to list (allow multiple listeners for online status)
+      // Note: Function equality doesn't work in Dart, so we allow duplicates
+      // Widgets should manage their own callback lifecycle
+      _onOnlineStatusCallbacks.add(onOnlineStatus);
+    }
 
     // Don't connect if already connected or connecting
     // Check and set _isConnecting atomically to prevent race conditions
@@ -513,7 +518,14 @@ class WebSocketService {
             case 'online_status':
               final userId = data['userId']?.toString() ?? '';
               final isOnline = data['isOnline'] == true || data['isOnline'] == 'true' || data['isOnline'] == 1;
-              _onOnlineStatus?.call(userId, isOnline);
+              // Call all registered online status callbacks
+              for (final callback in _onOnlineStatusCallbacks) {
+                try {
+                  callback(userId, isOnline);
+                } catch (e) {
+                  print('❌ [WebSocket] Error in online status callback: $e');
+                }
+              }
               break;
           }
         }
@@ -920,5 +932,10 @@ class WebSocketService {
   Future<void> _updateOnlineStatusOnDisconnect() async {
     // Online status is managed by app lifecycle, not WebSocket disconnect
     // This prevents duplicate updates when app goes to background
+  }
+
+  /// Remove an online status callback (for cleanup when widgets are disposed)
+  void removeOnlineStatusCallback(void Function(String, bool) callback) {
+    _onOnlineStatusCallbacks.remove(callback);
   }
 }
