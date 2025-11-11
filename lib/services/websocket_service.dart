@@ -251,6 +251,7 @@ class WebSocketService {
     Function()? onAppUpdate,
     Function(String, String, String, String)? onChatMessage, // messageId, fromUserId, toUserId, message
     Function(String, bool)? onTypingStatus, // userId, isTyping
+    Function(String, bool)? onOnlineStatus, // userId, isOnline
   }) async {
     // Store callbacks (merge - only update if non-null, preserve existing if null)
     if (onNewPost != null) _onNewPost = onNewPost;
@@ -261,6 +262,7 @@ class WebSocketService {
     if (onAppUpdate != null) _onAppUpdate = onAppUpdate;
     if (onChatMessage != null) _onChatMessage = onChatMessage;
     if (onTypingStatus != null) _onTypingStatus = onTypingStatus;
+    if (onOnlineStatus != null) _onOnlineStatus = onOnlineStatus;
 
     // Don't connect if already connected or connecting
     // Check and set _isConnecting atomically to prevent race conditions
@@ -496,6 +498,11 @@ class WebSocketService {
             case 'typing_stop':
               final fromUserId = data['fromUserId']?.toString() ?? '';
               _onTypingStatus?.call(fromUserId, false);
+              break;
+            case 'online_status':
+              final userId = data['userId']?.toString() ?? '';
+              final isOnline = data['isOnline'] == true || data['isOnline'] == 'true' || data['isOnline'] == 1;
+              _onOnlineStatus?.call(userId, isOnline);
               break;
           }
         }
