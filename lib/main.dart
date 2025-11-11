@@ -201,8 +201,8 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     // Update activity immediately
     _updateActivity();
     
-    // Then update every 2 minutes (120 seconds)
-    _activityUpdateTimer = Timer.periodic(const Duration(minutes: 2), (timer) {
+    // Then update every 1 minute (60 seconds)
+    _activityUpdateTimer = Timer.periodic(const Duration(minutes: 1), (timer) {
       _updateActivity();
     });
   }
@@ -249,17 +249,19 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       case AppLifecycleState.inactive:
       case AppLifecycleState.hidden:
         // App is in background - keep WebSocket connected to respond to pings
-        // Only update online status, don't disconnect WebSocket
-        // This allows the connection to stay alive and respond to server pings
+        // Don't update online status - let last_active handle it
+        // The last_active timestamp continues to update every 1 minute via _activityUpdateTimer
+        // Friends will see user as:
+        // - Online: last_active <= 2 minutes
+        // - Away: last_active > 2 minutes
         print('ℹ️ [MyApp] App backgrounded - keeping WebSocket connected for ping/pong');
-        // Update online status to false when app goes to background
-        _updateOnlineStatus(false);
+        print('ℹ️ [MyApp] Online status will be determined by last_active timestamp (updated every 1 minute)');
         break;
       case AppLifecycleState.detached:
-        // App is being terminated - disconnect WebSocket
-        print('ℹ️ [MyApp] App detached - disconnecting WebSocket');
+        // App is being terminated - disconnect WebSocket and set offline
+        print('ℹ️ [MyApp] App detached - disconnecting WebSocket and setting offline');
         _webSocketService.disconnect();
-        // Update online status to false
+        // Explicitly set user as offline when app is closed
         _updateOnlineStatus(false);
         break;
     }

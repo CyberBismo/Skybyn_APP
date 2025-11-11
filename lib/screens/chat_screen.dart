@@ -38,7 +38,7 @@ class ChatScreen extends StatefulWidget {
   State<ChatScreen> createState() => _ChatScreenState();
 }
 
-class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
+class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, WidgetsBindingObserver {
   final AuthService _authService = AuthService();
   final ChatService _chatService = ChatService();
   final WebSocketService _wsService = WebSocketService();
@@ -67,6 +67,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _friendOnline = widget.friend.online; // Initialize with friend's current status
     _loadUserId();
     _loadMessages();
@@ -91,7 +92,45 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    
+    switch (state) {
+      case AppLifecycleState.resumed:
+        // App is in foreground - resume timers
+        if (_refreshTimer == null || !_refreshTimer!.isActive) {
+          _refreshTimer = Timer.periodic(const Duration(seconds: 3), (_) {
+            if (mounted) {
+              _refreshMessages();
+            }
+          });
+        }
+        if (_onlineStatusTimer == null || !_onlineStatusTimer!.isActive) {
+          _onlineStatusTimer = Timer.periodic(const Duration(seconds: 10), (_) {
+            if (mounted) {
+              _checkFriendOnlineStatus();
+            }
+          });
+        }
+        break;
+      case AppLifecycleState.paused:
+      case AppLifecycleState.inactive:
+      case AppLifecycleState.hidden:
+        // App is in background - pause timers to prevent DNS lookup failures
+        _refreshTimer?.cancel();
+        _refreshTimer = null;
+        _onlineStatusTimer?.cancel();
+        _onlineStatusTimer = null;
+        break;
+      case AppLifecycleState.detached:
+        // App is being terminated - timers will be cancelled in dispose
+        break;
+    }
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _messageFocusNode.dispose();
     _messageController.dispose();
     _scrollController.dispose();
@@ -202,10 +241,12 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
         final data = json.decode(response.body);
         if (data is Map && data['responseCode'] == '1') {
           // Check last_active timestamp
+          // Online: last_active <= 2 minutes
+          // Away: last_active > 2 minutes (shown as offline in UI)
           final lastActive = int.tryParse(data['last_active']?.toString() ?? '0') ?? 0;
           final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
-          final fiveMinutesAgo = now - 300;
-          final isOnline = lastActive >= fiveMinutesAgo;
+          final twoMinutesAgo = now - 120; // 2 minutes = 120 seconds
+          final isOnline = lastActive >= twoMinutesAgo;
 
           if (mounted && _friendOnline != isOnline) {
             setState(() {

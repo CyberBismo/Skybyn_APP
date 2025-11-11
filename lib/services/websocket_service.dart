@@ -342,7 +342,7 @@ class WebSocketService {
       // Listen to messages
       _channel!.stream.listen(
         (message) {
-          _handleMessage(message);
+          _handleMessage(message); // Fire and forget - async method
         },
         onError: (error) {
           _onConnectionError(error);
@@ -426,7 +426,7 @@ class WebSocketService {
   }
 
   /// Handle incoming messages
-  void _handleMessage(dynamic message) {
+  Future<void> _handleMessage(dynamic message) async {
     try {
       if (message is String) {
         final data = json.decode(message);
