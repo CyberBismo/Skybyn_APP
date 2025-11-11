@@ -37,7 +37,7 @@ class ChatScreen extends StatefulWidget {
   State<ChatScreen> createState() => _ChatScreenState();
 }
 
-class _ChatScreenState extends State<ChatScreen> {
+class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
   final AuthService _authService = AuthService();
   final ChatService _chatService = ChatService();
   final WebSocketService _wsService = WebSocketService();
@@ -55,6 +55,11 @@ class _ChatScreenState extends State<ChatScreen> {
   bool _showSearchForm = false;
   bool _hasMoreMessages = true;
   final FocusNode _messageFocusNode = FocusNode();
+  bool _isFriendTyping = false;
+  Timer? _typingTimer;
+  Timer? _typingStopTimer;
+  late AnimationController _typingAnimationController;
+  late Animation<double> _typingAnimation;
 
   @override
   void initState() {
@@ -65,6 +70,8 @@ class _ChatScreenState extends State<ChatScreen> {
     _setupWebSocketListener();
     _setupScrollListener();
     _setupKeyboardListener();
+    _setupTypingListener();
+    _setupTypingAnimation();
     _checkFriendOnlineStatus(); // Check immediately
     // Refresh messages every 3 seconds when screen is active
     _refreshTimer = Timer.periodic(const Duration(seconds: 3), (_) {
@@ -87,6 +94,13 @@ class _ChatScreenState extends State<ChatScreen> {
     _scrollController.dispose();
     _refreshTimer?.cancel();
     _onlineStatusTimer?.cancel();
+    _typingTimer?.cancel();
+    _typingStopTimer?.cancel();
+    _typingAnimationController.dispose();
+    // Send typing stop when leaving screen
+    if (_wsService.isConnected && _currentUserId != null) {
+      _wsService.sendTypingStop(widget.friend.id);
+    }
     super.dispose();
   }
 
@@ -122,6 +136,46 @@ class _ChatScreenState extends State<ChatScreen> {
           _hasMoreMessages &&
           _messages.isNotEmpty) {
         _loadOlderMessages();
+      }
+    });
+  }
+
+  void _setupTypingAnimation() {
+    _typingAnimationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    )..repeat();
+    _typingAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _typingAnimationController,
+        curve: Curves.easeInOut,
+      ),
+    );
+  }
+
+  void _setupTypingListener() {
+    _messageController.addListener(() {
+      if (!_wsService.isConnected || _currentUserId == null) return;
+      
+      final text = _messageController.text;
+      
+      // Cancel existing timer
+      _typingTimer?.cancel();
+      
+      if (text.isNotEmpty) {
+        // Send typing start immediately
+        _wsService.sendTypingStart(widget.friend.id);
+        
+        // Set timer to send typing stop after 2 seconds of no typing
+        _typingTimer = Timer(const Duration(seconds: 2), () {
+          if (_wsService.isConnected && _messageController.text.isNotEmpty) {
+            // Only send stop if still typing (text hasn't been cleared)
+            _wsService.sendTypingStop(widget.friend.id);
+          }
+        });
+      } else {
+        // Text is empty, send typing stop
+        _wsService.sendTypingStop(widget.friend.id);
       }
     });
   }
@@ -224,6 +278,27 @@ class _ChatScreenState extends State<ChatScreen> {
           }
         }
       },
+      onTypingStatus: (userId, isTyping) {
+        // Only handle typing status from the friend in this chat
+        if (userId == widget.friend.id && mounted) {
+          setState(() {
+            _isFriendTyping = isTyping;
+          });
+          // Auto-hide typing indicator after 3 seconds if no stop message received
+          if (isTyping) {
+            _typingStopTimer?.cancel();
+            _typingStopTimer = Timer(const Duration(seconds: 3), () {
+              if (mounted) {
+                setState(() {
+                  _isFriendTyping = false;
+                });
+              }
+            });
+          } else {
+            _typingStopTimer?.cancel();
+          }
+        }
+      },
       // Pass null for other callbacks to preserve existing ones
       // The WebSocket service will merge callbacks
     );
@@ -275,6 +350,12 @@ class _ChatScreenState extends State<ChatScreen> {
       });
       _messageController.clear();
       _scrollToBottom();
+      
+      // Send typing stop when message is sent
+      if (_wsService.isConnected) {
+        _wsService.sendTypingStop(widget.friend.id);
+      }
+      _typingTimer?.cancel();
 
       // Send message via API
       final sentMessage = await _chatService.sendMessage(
@@ -784,12 +865,15 @@ class _ChatScreenState extends State<ChatScreen> {
                                         ),
                                       ),
                                     )
-                                  : ListView.builder(
-                                      controller: _scrollController,
-                                      reverse: false, // Normal order: oldest at top, newest at bottom
-                                      padding: const EdgeInsets.all(16),
-                                      itemCount: _messages.length + (_isLoadingOlder ? 1 : 0),
-                                      itemBuilder: (context, index) {
+                                  : Column(
+                                      children: [
+                                        Expanded(
+                                          child: ListView.builder(
+                                            controller: _scrollController,
+                                            reverse: false, // Normal order: oldest at top, newest at bottom
+                                            padding: const EdgeInsets.all(16),
+                                            itemCount: _messages.length + (_isLoadingOlder ? 1 : 0),
+                                            itemBuilder: (context, index) {
                                         // Show loading indicator at top when loading older messages
                                         if (_isLoadingOlder && index == 0) {
                                           return const Padding(
@@ -806,6 +890,55 @@ class _ChatScreenState extends State<ChatScreen> {
                                         final message = _messages[messageIndex];
                                         return _buildMessageBubble(message);
                                       },
+                                            ),
+                                          ),
+                                        // Typing indicator at the bottom
+                                        if (_isFriendTyping)
+                                          Padding(
+                                            padding: const EdgeInsets.all(16.0),
+                                            child: Row(
+                                              children: [
+                                                Container(
+                                                  padding: const EdgeInsets.symmetric(
+                                                    horizontal: 16,
+                                                    vertical: 12,
+                                                  ),
+                                                  decoration: BoxDecoration(
+                                                    color: Colors.white.withOpacity(0.2),
+                                                    borderRadius: BorderRadius.circular(20),
+                                                  ),
+                                                  child: Row(
+                                                    mainAxisSize: MainAxisSize.min,
+                                                    children: [
+                                                      Text(
+                                                        '${widget.friend.username} is typing',
+                                                        style: const TextStyle(
+                                                          color: Colors.white70,
+                                                          fontSize: 14,
+                                                        ),
+                                                      ),
+                                                      const SizedBox(width: 8),
+                                                      SizedBox(
+                                                        width: 20,
+                                                        height: 20,
+                                                        child: Row(
+                                                          mainAxisAlignment: MainAxisAlignment.center,
+                                                          children: [
+                                                            _buildTypingDot(0),
+                                                            const SizedBox(width: 4),
+                                                            _buildTypingDot(1),
+                                                            const SizedBox(width: 4),
+                                                            _buildTypingDot(2),
+                                                          ],
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                      ],
                                     ),
                         ),
                       ),
@@ -917,6 +1050,25 @@ class _ChatScreenState extends State<ChatScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildTypingDot(int index) {
+    return AnimatedBuilder(
+      animation: _typingAnimation,
+      builder: (context, child) {
+        final delay = index * 0.2;
+        final animatedValue = ((_typingAnimation.value + delay) % 1.0);
+        final opacity = (animatedValue < 0.5) ? animatedValue * 2 : 2 - (animatedValue * 2);
+        return Container(
+          width: 6,
+          height: 6,
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.3 + (opacity * 0.7)),
+            shape: BoxShape.circle,
+          ),
+        );
+      },
     );
   }
 
