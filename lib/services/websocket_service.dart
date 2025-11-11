@@ -57,6 +57,7 @@ class WebSocketService {
   Function()? _onAppUpdate; // app update notification
   Function(String, String, String, String)? _onChatMessage; // messageId, fromUserId, toUserId, message
   Function(String, bool)? _onTypingStatus; // userId, isTyping
+  Function(String, bool)? _onOnlineStatus; // userId, isOnline
 
   // Callbacks for WebRTC signaling
   Function(String, String, String, String)? _onCallOffer; // callId, fromUserId, offer, callType
