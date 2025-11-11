@@ -50,16 +50,16 @@ class WebSocketService {
     'errors': 0,
   };
 
-  // Callbacks for real-time updates (using lists to support multiple listeners)
-  final List<Function(Post)> _onNewPostCallbacks = [];
-  final List<Function(String, String)> _onNewCommentCallbacks = []; // postId, commentId
-  final List<Function(String)> _onDeletePostCallbacks = [];
-  final List<Function(String, String)> _onDeleteCommentCallbacks = []; // postId, commentId
-  final List<Function(String)> _onBroadcastCallbacks = []; // broadcast message
-  final List<Function()> _onAppUpdateCallbacks = []; // app update notification
-  final List<Function(String, String, String, String)> _onChatMessageCallbacks = []; // messageId, fromUserId, toUserId, message
-  final List<Function(String, bool)> _onTypingStatusCallbacks = []; // userId, isTyping
-  final List<Function(String, bool)> _onOnlineStatusCallbacks = []; // userId, isOnline
+  // Callbacks for real-time updates
+  Function(Post)? _onNewPost;
+  Function(String, String)? _onNewComment; // postId, commentId
+  Function(String)? _onDeletePost;
+  Function(String, String)? _onDeleteComment; // postId, commentId
+  Function(String)? _onBroadcast; // broadcast message
+  Function()? _onAppUpdate; // app update notification
+  Function(String, String, String, String)? _onChatMessage; // messageId, fromUserId, toUserId, message
+  Function(String, bool)? _onTypingStatus; // userId, isTyping
+  final List<Function(String, bool)> _onOnlineStatusCallbacks = []; // Multiple listeners for online status
 
   // Callbacks for WebRTC signaling
   Function(String, String, String, String)? _onCallOffer; // callId, fromUserId, offer, callType
@@ -256,34 +256,20 @@ class WebSocketService {
     Function(String, bool)? onTypingStatus, // userId, isTyping
     Function(String, bool)? onOnlineStatus, // userId, isOnline
   }) async {
-    // Store callbacks (add to list to support multiple listeners)
-    if (onNewPost != null && !_onNewPostCallbacks.contains(onNewPost)) {
-      _onNewPostCallbacks.add(onNewPost);
-    }
-    if (onNewComment != null && !_onNewCommentCallbacks.contains(onNewComment)) {
-      _onNewCommentCallbacks.add(onNewComment);
-    }
-    if (onDeletePost != null && !_onDeletePostCallbacks.contains(onDeletePost)) {
-      _onDeletePostCallbacks.add(onDeletePost);
-    }
-    if (onDeleteComment != null && !_onDeleteCommentCallbacks.contains(onDeleteComment)) {
-      _onDeleteCommentCallbacks.add(onDeleteComment);
-    }
-    if (onBroadcast != null && !_onBroadcastCallbacks.contains(onBroadcast)) {
-      _onBroadcastCallbacks.add(onBroadcast);
-    }
-    if (onAppUpdate != null && !_onAppUpdateCallbacks.contains(onAppUpdate)) {
-      _onAppUpdateCallbacks.add(onAppUpdate);
-    }
-    if (onChatMessage != null && !_onChatMessageCallbacks.contains(onChatMessage)) {
-      _onChatMessageCallbacks.add(onChatMessage);
-    }
-    if (onTypingStatus != null && !_onTypingStatusCallbacks.contains(onTypingStatus)) {
-      _onTypingStatusCallbacks.add(onTypingStatus);
-    }
-    if (onOnlineStatus != null && !_onOnlineStatusCallbacks.contains(onOnlineStatus)) {
+    // Store callbacks (merge - only update if non-null, preserve existing if null)
+    if (onNewPost != null) _onNewPost = onNewPost;
+    if (onNewComment != null) _onNewComment = onNewComment;
+    if (onDeletePost != null) _onDeletePost = onDeletePost;
+    if (onDeleteComment != null) _onDeleteComment = onDeleteComment;
+    if (onBroadcast != null) _onBroadcast = onBroadcast;
+    if (onAppUpdate != null) _onAppUpdate = onAppUpdate;
+    if (onChatMessage != null) _onChatMessage = onChatMessage;
+    if (onTypingStatus != null) _onTypingStatus = onTypingStatus;
+    if (onOnlineStatus != null) {
+      // Add callback to list (allow multiple listeners for online status)
+      // Note: Function equality doesn't work in Dart, so we allow duplicates
+      // Widgets should manage their own callback lifecycle
       _onOnlineStatusCallbacks.add(onOnlineStatus);
-      print('✅ [WebSocket] onOnlineStatus callback registered (total: ${_onOnlineStatusCallbacks.length})');
     }
 
     // Don't connect if already connected or connecting
@@ -440,9 +426,7 @@ class WebSocketService {
               break;
             case 'broadcast':
               final broadcastMessage = data['message']?.toString() ?? 'Broadcast message';
-              for (final callback in _onBroadcastCallbacks) {
-                callback(broadcastMessage);
-              }
+              _onBroadcast?.call(broadcastMessage);
 
               // Show notification for broadcast
               _notificationService.showNotification(
@@ -521,48 +505,26 @@ class WebSocketService {
               final fromUserId = data['from']?.toString() ?? '';
               final toUserId = data['to']?.toString() ?? '';
               final message = data['message']?.toString() ?? '';
-              for (final callback in _onChatMessageCallbacks) {
-                callback(messageId, fromUserId, toUserId, message);
-              }
+              _onChatMessage?.call(messageId, fromUserId, toUserId, message);
               break;
             case 'typing_start':
               final fromUserId = data['fromUserId']?.toString() ?? '';
-              for (final callback in _onTypingStatusCallbacks) {
-                callback(fromUserId, true);
-              }
+              _onTypingStatus?.call(fromUserId, true);
               break;
             case 'typing_stop':
               final fromUserId = data['fromUserId']?.toString() ?? '';
-              for (final callback in _onTypingStatusCallbacks) {
-                callback(fromUserId, false);
-              }
+              _onTypingStatus?.call(fromUserId, false);
               break;
             case 'online_status':
-              final userId = data['userId']?.toString() ?? data['user_id']?.toString() ?? data['userID']?.toString() ?? '';
-              final isOnline = data['isOnline'] == true || 
-                              data['isOnline'] == 'true' || 
-                              data['isOnline'] == 1 ||
-                              data['online'] == true ||
-                              data['online'] == 'true' ||
-                              data['online'] == 1 ||
-                              data['online'] == '1';
-              print('📡 [WebSocket] Received online_status: userId=$userId, isOnline=$isOnline');
-              if (userId.isEmpty) {
-                print('⚠️ [WebSocket] online_status message missing userId');
-              } else if (_onOnlineStatusCallbacks.isEmpty) {
-                print('⚠️ [WebSocket] No online_status callbacks registered');
-              } else {
-                print('✅ [WebSocket] Calling ${_onOnlineStatusCallbacks.length} online_status callback(s) for userId=$userId');
-                for (final callback in _onOnlineStatusCallbacks) {
+              final userId = data['userId']?.toString() ?? '';
+              final isOnline = data['isOnline'] == true || data['isOnline'] == 'true' || data['isOnline'] == 1;
+              // Call all registered online status callbacks
+              for (final callback in _onOnlineStatusCallbacks) {
+                try {
                   callback(userId, isOnline);
+                } catch (e) {
+                  print('❌ [WebSocket] Error in online status callback: $e');
                 }
-              }
-              break;
-            default:
-              // Log unknown message types for debugging
-              if (messageType != null && messageType.isNotEmpty) {
-                print('⚠️ [WebSocket] Unknown message type: $messageType');
-                print('📨 [WebSocket] Full message data: $data');
               }
               break;
           }
@@ -578,7 +540,7 @@ class WebSocketService {
     print('📝 [WebSocket] Processing new post: $postId');
     // Fetch the post details and call the callback
     // This would typically involve fetching the post from the API
-    final post = Post(
+    _onNewPost?.call(Post(
       id: postId,
       userId: '',
       author: '',
@@ -588,34 +550,25 @@ class WebSocketService {
       isLiked: false,
       createdAt: DateTime.now(),
       avatar: null,
-    );
-    for (final callback in _onNewPostCallbacks) {
-      callback(post);
-    }
+    ));
   }
 
   /// Handle delete post
   void _handleDeletePost(String postId) {
     print('🗑️ [WebSocket] Processing delete post: $postId');
-    for (final callback in _onDeletePostCallbacks) {
-      callback(postId);
-    }
+    _onDeletePost?.call(postId);
   }
 
   /// Handle new comment
   void _handleNewComment(String postId, String commentId) {
     print('💬 [WebSocket] Processing new comment: $commentId on post: $postId');
-    for (final callback in _onNewCommentCallbacks) {
-      callback(postId, commentId);
-    }
+    _onNewComment?.call(postId, commentId);
   }
 
   /// Handle delete comment
   void _handleDeleteComment(String postId, String commentId) {
     print('🗑️ [WebSocket] Processing delete comment: $commentId on post: $postId');
-    for (final callback in _onDeleteCommentCallbacks) {
-      callback(postId, commentId);
-    }
+    _onDeleteComment?.call(postId, commentId);
   }
 
   /// Handle app update notification
@@ -636,9 +589,7 @@ class WebSocketService {
     );
 
     // Trigger the update check callback to show dialog
-    for (final callback in _onAppUpdateCallbacks) {
-      callback();
-    }
+    _onAppUpdate?.call();
   }
 
   /// Handle acknowledgment
@@ -981,5 +932,10 @@ class WebSocketService {
   Future<void> _updateOnlineStatusOnDisconnect() async {
     // Online status is managed by app lifecycle, not WebSocket disconnect
     // This prevents duplicate updates when app goes to background
+  }
+
+  /// Remove an online status callback (for cleanup when widgets are disposed)
+  void removeOnlineStatusCallback(void Function(String, bool) callback) {
+    _onOnlineStatusCallbacks.remove(callback);
   }
 }

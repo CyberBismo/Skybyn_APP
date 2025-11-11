@@ -60,6 +60,8 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
   Timer? _typingStopTimer;
   late AnimationController _typingAnimationController;
   late Animation<double> _typingAnimation;
+  // Store the callback reference so we can remove it on dispose
+  void Function(String, bool)? _onlineStatusCallback;
 
   @override
   void initState() {
@@ -100,6 +102,10 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
     // Send typing stop when leaving screen
     if (_wsService.isConnected && _currentUserId != null) {
       _wsService.sendTypingStop(widget.friend.id);
+    }
+    // Remove online status callback when widget is disposed
+    if (_onlineStatusCallback != null) {
+      _wsService.removeOnlineStatusCallback(_onlineStatusCallback!);
     }
     super.dispose();
   }
@@ -299,7 +305,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
           }
         }
       },
-      onOnlineStatus: (userId, isOnline) {
+      onOnlineStatus: _onlineStatusCallback = (userId, isOnline) {
         // Update friend's online status if it's the friend in this chat
         if (userId == widget.friend.id && mounted) {
           setState(() {

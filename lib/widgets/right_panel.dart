@@ -30,6 +30,9 @@ class _RightPanelState extends State<RightPanel> {
   bool _showFindFriendsBox = false;
   int _findFriendsBoxResetCounter = 0;
 
+  // Store the callback reference so we can remove it on dispose
+  void Function(String, bool)? _onlineStatusCallback;
+
   @override
   void initState() {
     super.initState();
@@ -37,19 +40,30 @@ class _RightPanelState extends State<RightPanel> {
     _setupWebSocketListener();
   }
 
+  @override
+  void dispose() {
+    // Remove online status callback when widget is disposed
+    if (_onlineStatusCallback != null) {
+      _wsService.removeOnlineStatusCallback(_onlineStatusCallback!);
+    }
+    super.dispose();
+  }
+
   void _setupWebSocketListener() {
+    _onlineStatusCallback = (userId, isOnline) {
+      // Update friend's online status in the list
+      if (mounted) {
+        setState(() {
+          final index = _friends.indexWhere((f) => f.id == userId);
+          if (index != -1) {
+            _friends[index] = _friends[index].copyWith(online: isOnline);
+          }
+        });
+      }
+    };
+    
     _wsService.connect(
-      onOnlineStatus: (userId, isOnline) {
-        // Update friend's online status in the list
-        if (mounted) {
-          setState(() {
-            final index = _friends.indexWhere((f) => f.id == userId);
-            if (index != -1) {
-              _friends[index] = _friends[index].copyWith(online: isOnline);
-            }
-          });
-        }
-      },
+      onOnlineStatus: _onlineStatusCallback,
     );
   }
 
