@@ -27,6 +27,8 @@ class WebSocketService {
   final int _maxReconnectDelay = 30000; // Max 30 seconds
   Timer? _reconnectTimer;
   bool _isInitialized = false;
+  int? _lastPingReceivedTime; // Track when we last received a ping from server
+  Timer? _connectionHealthTimer; // Monitor connection health
 
   // Message queuing and acknowledgment
   final List<Map<String, dynamic>> _messageQueue = [];
@@ -317,7 +319,11 @@ class WebSocketService {
         _isConnected = true;
         _isConnecting = false;
         _reconnectAttempts = 0;
+        _lastPingReceivedTime = DateTime.now().millisecondsSinceEpoch;
         _updateConnectionMetrics('connected'); // This already logs the connection message
+        
+        // Start connection health monitoring
+        _startConnectionHealthMonitor();
         
         // Note: Online status is managed by app lifecycle in main.dart
         // to avoid duplicate updates when both WebSocket and lifecycle fire
@@ -388,15 +394,21 @@ class WebSocketService {
 
           // Log ping messages in debug mode to monitor connection stability
           if (messageType == 'ping') {
+            // Update last ping received time to track connection health
+            _lastPingReceivedTime = DateTime.now().millisecondsSinceEpoch;
+            
             if (kDebugMode) {
-              print('📥 [WebSocket] Received PING - responding with PONG (sessionId: $_sessionId)');
+              print('📥 [WebSocket] Received PING from server - responding with PONG (sessionId: $_sessionId)');
             }
             // Always respond to ping immediately, even in background
+            // Note: Only server sends pings, clients only respond with pongs
             _sendPong();
             return; // Early return to avoid processing in switch statement
           } else if (messageType == 'pong') {
+            // Note: Clients should not receive PONG messages - only the server sends PINGs
+            // and clients respond with PONGs. This is unexpected.
             if (kDebugMode) {
-              print('📤 [WebSocket] Received PONG - connection alive (sessionId: $_sessionId)');
+              print('⚠️ [WebSocket] Received PONG (unexpected - clients should not receive PONGs, only respond with PONGs)');
             }
             return; // Early return to avoid processing in switch statement
           } else {
@@ -846,6 +858,7 @@ class WebSocketService {
   void disconnect() {
     print('🔌 [WebSocket] Disconnecting from WebSocket...');
     _reconnectTimer?.cancel();
+    _connectionHealthTimer?.cancel();
     
     // Close channel gracefully
     try {
@@ -857,6 +870,7 @@ class WebSocketService {
     _channel = null;
     _isConnected = false;
     _isConnecting = false;
+    _lastPingReceivedTime = null;
 
     // Clear message queues
     _messageQueue.clear();
@@ -865,6 +879,40 @@ class WebSocketService {
     
     // Update online status to false when disconnected
     _updateOnlineStatusOnDisconnect();
+  }
+
+  /// Start connection health monitoring
+  /// Monitors if server is still sending pings (server sends pings every 30 seconds)
+  void _startConnectionHealthMonitor() {
+    _connectionHealthTimer?.cancel();
+    
+    if (kDebugMode) {
+      print('🔄 [WebSocket] Starting connection health monitor');
+      print('ℹ️ [WebSocket] Server will send PINGs - client will only respond with PONGs');
+    }
+    
+    // Check every 30 seconds (same as server ping interval)
+    // If we haven't received a ping from server in 90 seconds (3x interval), connection might be dead
+    _connectionHealthTimer = Timer.periodic(const Duration(seconds: 30), (timer) {
+      if (!_isConnected || _channel == null) {
+        timer.cancel();
+        return;
+      }
+      
+      if (_lastPingReceivedTime != null) {
+        final now = DateTime.now().millisecondsSinceEpoch;
+        final timeSinceLastPing = now - _lastPingReceivedTime!;
+        
+        // If we haven't received a ping from server in 90 seconds, connection might be dead
+        if (timeSinceLastPing > 90000) {
+          if (kDebugMode) {
+            print('⚠️ [WebSocket] No PING from server in ${timeSinceLastPing ~/ 1000} seconds - connection may be dead');
+          }
+          // Connection appears dead, trigger reconnection
+          _onConnectionClosed();
+        }
+      }
+    });
   }
 
   /// Update online status when disconnecting
