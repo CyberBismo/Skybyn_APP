@@ -17,7 +17,12 @@ import 'services/websocket_service.dart';
 import 'services/firebase_messaging_service.dart';
 import 'services/translation_service.dart';
 import 'services/background_update_scheduler.dart';
+import 'services/call_service.dart';
+import 'services/friend_service.dart';
 import 'widgets/background_gradient.dart';
+import 'widgets/incoming_call_notification.dart';
+import 'screens/call_screen.dart';
+import 'models/friend.dart';
 
 Future<void> main() async {
   // Gate all print calls behind a debug flag using Zone
@@ -138,9 +143,15 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   final NotificationService _notificationService = NotificationService();
   final WebSocketService _webSocketService = WebSocketService();
   final BackgroundUpdateScheduler _backgroundUpdateScheduler = BackgroundUpdateScheduler();
+  final CallService _callService = CallService();
+  final FriendService _friendService = FriendService();
   Timer? _serviceCheckTimer;
   Timer? _activityUpdateTimer;
   Timer? _onlineStatusDebounceTimer;
+  
+  // Track active incoming call
+  String? _activeCallId;
+  Friend? _activeCallFriend;
 
   @override
   void initState() {
@@ -161,6 +172,9 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
 
       // Initialize background update scheduler
       await _backgroundUpdateScheduler.initialize();
+      
+      // Set up call callbacks for incoming calls
+      _setupCallHandlers();
       
       // WebSocket will be connected by home_screen.dart when it mounts with proper callbacks
 
@@ -265,6 +279,142 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         print('⚠️ [MyApp] Failed to update online status: $e');
       }
     });
+  }
+
+  /// Set up call handlers for incoming calls
+  void _setupCallHandlers() {
+    _webSocketService.setCallCallbacks(
+      onCallOffer: (callId, fromUserId, offer, callType) async {
+        print('📞 [MyApp] Incoming call offer: callId=$callId, fromUserId=$fromUserId, type=$callType');
+        
+        // Check if app is in foreground
+        final isAppInForeground = WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed;
+        
+        if (isAppInForeground) {
+          // App is in foreground - show in-app notification
+          await _handleIncomingCallInForeground(callId, fromUserId, offer, callType);
+        } else {
+          // App is in background - Firebase notification should be sent by server
+          // But we can also handle it here if needed
+          print('ℹ️ [MyApp] App is in background - Firebase notification should handle this');
+        }
+      },
+      onCallAnswer: (callId, answer) {
+        print('📞 [MyApp] Call answer received: callId=$callId');
+        _callService.handleIncomingAnswer(answer);
+      },
+      onIceCandidate: (callId, candidate, sdpMid, sdpMLineIndex) {
+        print('📞 [MyApp] ICE candidate received: callId=$callId');
+        _callService.handleIceCandidate(
+          candidate: candidate,
+          sdpMid: sdpMid,
+          sdpMLineIndex: sdpMLineIndex,
+        );
+      },
+      onCallEnd: (callId) {
+        print('📞 [MyApp] Call ended: callId=$callId');
+        // Clear active call tracking
+        if (_activeCallId == callId) {
+          setState(() {
+            _activeCallId = null;
+            _activeCallFriend = null;
+          });
+        }
+        // End the call in CallService
+        _callService.endCall();
+      },
+    );
+  }
+
+  /// Handle incoming call when app is in foreground
+  Future<void> _handleIncomingCallInForeground(
+    String callId,
+    String fromUserId,
+    String offer,
+    String callType,
+  ) async {
+    try {
+      // Get current user ID
+      final authService = AuthService();
+      final currentUserId = await authService.getStoredUserId();
+      if (currentUserId == null) {
+        print('⚠️ [MyApp] Cannot handle incoming call - no user logged in');
+        return;
+      }
+
+      // Fetch friend information
+      final friends = await _friendService.fetchFriendsForUser(userId: currentUserId);
+      final friend = friends.firstWhere(
+        (f) => f.id == fromUserId,
+        orElse: () => Friend(
+          id: fromUserId,
+          username: fromUserId, // Fallback
+          nickname: '',
+          avatar: '',
+          online: false,
+        ),
+      );
+
+      // Store active call info
+      setState(() {
+        _activeCallId = callId;
+        _activeCallFriend = friend;
+      });
+
+      // Show in-app call notification
+      final context = navigatorKey.currentContext;
+      if (context != null) {
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+            builder: (dialogContext) => IncomingCallNotification(
+            callId: callId,
+            fromUserId: fromUserId,
+            fromUsername: friend.nickname.isNotEmpty ? friend.nickname : friend.username,
+            avatarUrl: friend.avatar,
+            callType: callType == 'video' ? CallType.video : CallType.audio,
+            onAccept: () async {
+              Navigator.of(dialogContext).pop();
+              
+              // Handle the incoming offer
+              await _callService.handleIncomingOffer(
+                callId: callId,
+                fromUserId: fromUserId,
+                offer: offer,
+                callType: callType,
+              );
+
+              // Navigate to call screen
+              if (context.mounted) {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (context) => CallScreen(
+                      friend: friend,
+                      callType: callType == 'video' ? CallType.video : CallType.audio,
+                      isIncoming: true,
+                    ),
+                  ),
+                );
+              }
+            },
+            onReject: () async {
+              Navigator.of(dialogContext).pop();
+              
+              // Reject the call
+              await _callService.rejectCall();
+              
+              // Clear active call tracking
+              setState(() {
+                _activeCallId = null;
+                _activeCallFriend = null;
+              });
+            },
+          ),
+        );
+      }
+    } catch (e) {
+      print('❌ [MyApp] Error handling incoming call: $e');
+    }
   }
 
   @override

@@ -270,6 +270,9 @@ class WebSocketService {
       // Note: Function equality doesn't work in Dart, so we allow duplicates
       // Widgets should manage their own callback lifecycle
       _onOnlineStatusCallbacks.add(onOnlineStatus);
+      if (kDebugMode) {
+        print('✅ [WebSocket] onOnlineStatus callback registered (total: ${_onOnlineStatusCallbacks.length})');
+      }
     }
 
     // Don't connect if already connected or connecting
@@ -516,14 +519,40 @@ class WebSocketService {
               _onTypingStatus?.call(fromUserId, false);
               break;
             case 'online_status':
-              final userId = data['userId']?.toString() ?? '';
-              final isOnline = data['isOnline'] == true || data['isOnline'] == 'true' || data['isOnline'] == 1;
-              // Call all registered online status callbacks
-              for (final callback in _onOnlineStatusCallbacks) {
-                try {
-                  callback(userId, isOnline);
-                } catch (e) {
-                  print('❌ [WebSocket] Error in online status callback: $e');
+              final userId = data['userId']?.toString() ?? 
+                            data['user_id']?.toString() ?? 
+                            data['userID']?.toString() ?? '';
+              final isOnline = data['isOnline'] == true || 
+                              data['isOnline'] == 'true' || 
+                              data['isOnline'] == 1 ||
+                              data['online'] == true ||
+                              data['online'] == 'true' ||
+                              data['online'] == 1 ||
+                              data['online'] == '1';
+              
+              if (kDebugMode) {
+                print('📡 [WebSocket] Received online_status: userId=$userId, isOnline=$isOnline');
+              }
+              
+              if (userId.isEmpty) {
+                if (kDebugMode) {
+                  print('⚠️ [WebSocket] online_status message missing userId');
+                }
+              } else if (_onOnlineStatusCallbacks.isEmpty) {
+                if (kDebugMode) {
+                  print('⚠️ [WebSocket] No online_status callbacks registered');
+                }
+              } else {
+                if (kDebugMode) {
+                  print('✅ [WebSocket] Calling ${_onOnlineStatusCallbacks.length} online_status callback(s) for userId=$userId');
+                }
+                // Call all registered online status callbacks
+                for (final callback in _onOnlineStatusCallbacks) {
+                  try {
+                    callback(userId, isOnline);
+                  } catch (e) {
+                    print('❌ [WebSocket] Error in online status callback: $e');
+                  }
                 }
               }
               break;

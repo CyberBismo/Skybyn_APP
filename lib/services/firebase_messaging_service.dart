@@ -339,6 +339,15 @@ class FirebaseMessagingService {
         return;
       }
       
+      // For call notifications in foreground, WebSocket should handle it
+      // But if WebSocket is not connected, show notification as fallback
+      if (type == 'call_offer' || type == 'call_initiate') {
+        print('📞 [FCM] Call notification received in foreground - WebSocket should handle this');
+        // WebSocket will handle it, but we can show notification as backup
+        // if WebSocket is not connected
+        return;
+      }
+      
       // For other message types, show notification
       final notificationService = NotificationService();
       await notificationService.showNotification(
@@ -396,6 +405,13 @@ class FirebaseMessagingService {
           }
           // Trigger update check - the home screen will handle showing the dialog
           _triggerUpdateCheck();
+          break;
+        case 'call_offer':
+        case 'call_initiate':
+          // Handle call notification - the call will be handled by WebSocket when app opens
+          // or by the call handler in main.dart
+          print('📞 [FCM] Call notification tapped - callId: ${data['callId']}, fromUserId: ${data['fromUserId']}');
+          // The WebSocket service will handle the call when it connects
           break;
         default:
           print('❌ [FCM] Unknown notification type: $type');
