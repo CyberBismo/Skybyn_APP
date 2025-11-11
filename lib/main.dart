@@ -221,19 +221,31 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     
     switch (state) {
       case AppLifecycleState.resumed:
-        // App is in foreground - WebSocket will be connected by home_screen.dart
-        print('✅ [MyApp] App resumed');
+        // App is in foreground - ensure WebSocket is connected
+        print('✅ [MyApp] App resumed - ensuring WebSocket connection');
         // Update online status to true when app comes to foreground
         _updateOnlineStatus(true);
+        // Reconnect WebSocket if not connected (it may have been disconnected in background)
+        if (!_webSocketService.isConnected) {
+          print('🔄 [MyApp] WebSocket not connected, reconnecting...');
+          _webSocketService.connect();
+        }
         break;
       case AppLifecycleState.paused:
       case AppLifecycleState.inactive:
       case AppLifecycleState.hidden:
-      case AppLifecycleState.detached:
-        // App is in background - disconnect WebSocket (FCM will handle notifications)
-        print('ℹ️ [MyApp] App backgrounded - disconnecting WebSocket');
-        _webSocketService.disconnect();
+        // App is in background - keep WebSocket connected to respond to pings
+        // Only update online status, don't disconnect WebSocket
+        // This allows the connection to stay alive and respond to server pings
+        print('ℹ️ [MyApp] App backgrounded - keeping WebSocket connected for ping/pong');
         // Update online status to false when app goes to background
+        _updateOnlineStatus(false);
+        break;
+      case AppLifecycleState.detached:
+        // App is being terminated - disconnect WebSocket
+        print('ℹ️ [MyApp] App detached - disconnecting WebSocket');
+        _webSocketService.disconnect();
+        // Update online status to false
         _updateOnlineStatus(false);
         break;
     }
