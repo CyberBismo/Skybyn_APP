@@ -97,9 +97,7 @@ class ChatService {
       final encryptedContent = await _encryptMessage(content);
 
       final url = ApiConstants.chatSend;
-      if (kDebugMode) {
-        print('🔧 [ChatService] Sending message to: $url');
-      }
+      debugPrint('🔧 [ChatService] Sending message to: $url');
       
       final response = await _retryHttpRequest(
         () => _client.post(
@@ -154,11 +152,28 @@ class ChatService {
       if (responseData != null && responseData.containsKey('message')) {
         final errorMessage = responseData['message'] as String?;
         debugPrint('❌ [ChatService] Server error (${response.statusCode}): $errorMessage');
+        debugPrint('❌ [ChatService] Full response data: $responseData');
         
         // Handle 409 Conflict specifically (duplicate message)
         if (response.statusCode == 409) {
-          // For 409, check if message was actually sent (duplicate)
-          // In this case, we might want to treat it as success if the message exists
+          debugPrint('⚠️ [ChatService] 409 Conflict detected - checking if message was sent...');
+          // For 409, the message might have been sent already (duplicate)
+          // Check if response contains messageId (message was sent)
+          if (responseData.containsKey('messageId') && responseData['messageId'] != null) {
+            // Message was sent, return it as success
+            debugPrint('✅ [ChatService] 409 Conflict but messageId found (${responseData['messageId']}) - message was sent');
+            return Message(
+              id: responseData['messageId'].toString(),
+              from: userId,
+              to: toUserId,
+              content: content,
+              date: DateTime.now(),
+              viewed: false,
+              isFromMe: true,
+            );
+          }
+          // No messageId - message may have been sent but we can't confirm
+          debugPrint('⚠️ [ChatService] 409 Conflict but no messageId in response');
           throw Exception(errorMessage ?? 'Message may have been sent already');
         }
         
@@ -166,7 +181,19 @@ class ChatService {
       }
       
       // No error message in response body, use status code
-      throw Exception('Failed to send message: HTTP ${response.statusCode}');
+      debugPrint('⚠️ [ChatService] No error message in response body for status ${response.statusCode}');
+      debugPrint('⚠️ [ChatService] Response body was: ${response.body}');
+      
+      String statusMessage = 'Failed to send message';
+      if (response.statusCode == 409) {
+        statusMessage = 'Message may have been sent already (conflict)';
+        debugPrint('⚠️ [ChatService] 409 Conflict - response body did not contain error message');
+      } else if (response.statusCode == 429) {
+        statusMessage = 'Too many requests. Please wait a moment.';
+      } else if (response.statusCode >= 500) {
+        statusMessage = 'Server error. Please try again later.';
+      }
+      throw Exception(statusMessage);
     } catch (e, stackTrace) {
       debugPrint('❌ [ChatService] Error sending message: $e');
       if (kDebugMode) {

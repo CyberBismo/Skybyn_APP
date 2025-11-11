@@ -412,16 +412,66 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
         }
       }
     } catch (e) {
-      print('❌ [ChatScreen] Error sending message: $e');
+      debugPrint('❌ [ChatScreen] Error sending message: $e');
+      
+      // Extract error message (remove "Exception: " prefix if present)
+      String errorMessage = e.toString();
+      debugPrint('🔍 [ChatScreen] Raw error: $errorMessage');
+      if (errorMessage.startsWith('Exception: ')) {
+        errorMessage = errorMessage.substring(11);
+      }
+      debugPrint('🔍 [ChatScreen] Cleaned error message: $errorMessage');
+      
+      // Handle 409 Conflict - message may have been sent already
+      // Check for various forms of conflict/duplicate messages
+      final lowerError = errorMessage.toLowerCase();
+      debugPrint('🔍 [ChatScreen] Lowercase error: $lowerError');
+      
+      final isConflict = lowerError.contains('409') || 
+          lowerError.contains('conflict') || 
+          lowerError.contains('already been sent') || 
+          lowerError.contains('may have been sent') ||
+          lowerError.contains('duplicate') ||
+          lowerError.contains('already sent');
+      
+      debugPrint('🔍 [ChatScreen] Is conflict detected: $isConflict');
+      
+      if (isConflict) {
+        // Message might have been sent - try to refresh messages
+        debugPrint('⚠️ [ChatScreen] 409 Conflict detected - message may have been sent already, refreshing...');
+        
+        // Remove temp message since it might have been sent
+        setState(() {
+          _messages.removeWhere((m) => m.id.startsWith('temp_'));
+        });
+        
+        // Refresh messages to check if it was sent
+        _refreshMessages();
+        
+        // Show a less alarming message (orange instead of red)
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Message may have been sent already. Refreshing...'),
+              backgroundColor: Colors.orange,
+              duration: Duration(seconds: 2),
+            ),
+          );
+        }
+        return;
+      }
+      
       // Remove temp message on error
       setState(() {
         _messages.removeWhere((m) => m.id.startsWith('temp_'));
       });
+      
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed to send message: $e'),
+            content: Text(errorMessage),
             backgroundColor: Colors.red,
+            duration: const Duration(seconds: 4),
           ),
         );
       }
