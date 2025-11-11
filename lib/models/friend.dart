@@ -51,6 +51,17 @@ class Friend {
       'online': online,
     };
   }
+
+  /// Create a copy of this friend with updated online status
+  Friend copyWith({bool? online}) {
+    return Friend(
+      id: id,
+      username: username,
+      nickname: nickname,
+      avatar: avatar,
+      online: online ?? this.online,
+    );
+  }
 }
 
 

@@ -299,6 +299,14 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
           }
         }
       },
+      onOnlineStatus: (userId, isOnline) {
+        // Update friend's online status if it's the friend in this chat
+        if (userId == widget.friend.id && mounted) {
+          setState(() {
+            _friendOnline = isOnline;
+          });
+        }
+      },
       // Pass null for other callbacks to preserve existing ones
       // The WebSocket service will merge callbacks
     );

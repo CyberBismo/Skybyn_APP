@@ -3,6 +3,7 @@ import 'dart:ui';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../services/friend_service.dart';
 import '../services/auth_service.dart';
+import '../services/websocket_service.dart';
 import '../models/friend.dart';
 import '../screens/chat_screen.dart';
 import '../screens/profile_screen.dart';
@@ -22,6 +23,7 @@ class RightPanel extends StatefulWidget {
 class _RightPanelState extends State<RightPanel> {
   final FriendService _friendService = FriendService();
   final AuthService _authService = AuthService();
+  final WebSocketService _wsService = WebSocketService();
 
   List<Friend> _friends = [];
   bool _isLoading = true;
@@ -32,6 +34,23 @@ class _RightPanelState extends State<RightPanel> {
   void initState() {
     super.initState();
     _loadFriends();
+    _setupWebSocketListener();
+  }
+
+  void _setupWebSocketListener() {
+    _wsService.connect(
+      onOnlineStatus: (userId, isOnline) {
+        // Update friend's online status in the list
+        if (mounted) {
+          setState(() {
+            final index = _friends.indexWhere((f) => f.id == userId);
+            if (index != -1) {
+              _friends[index] = _friends[index].copyWith(online: isOnline);
+            }
+          });
+        }
+      },
+    );
   }
 
   Future<void> _loadFriends() async {
