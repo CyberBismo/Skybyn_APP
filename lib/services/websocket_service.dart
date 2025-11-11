@@ -56,6 +56,7 @@ class WebSocketService {
   Function(String)? _onBroadcast; // broadcast message
   Function()? _onAppUpdate; // app update notification
   Function(String, String, String, String)? _onChatMessage; // messageId, fromUserId, toUserId, message
+  Function(String, bool)? _onTypingStatus; // userId, isTyping
 
   // Callbacks for WebRTC signaling
   Function(String, String, String, String)? _onCallOffer; // callId, fromUserId, offer, callType
@@ -249,6 +250,7 @@ class WebSocketService {
     Function(String)? onBroadcast,
     Function()? onAppUpdate,
     Function(String, String, String, String)? onChatMessage, // messageId, fromUserId, toUserId, message
+    Function(String, bool)? onTypingStatus, // userId, isTyping
   }) async {
     // Store callbacks (merge - only update if non-null, preserve existing if null)
     if (onNewPost != null) _onNewPost = onNewPost;
@@ -258,6 +260,7 @@ class WebSocketService {
     if (onBroadcast != null) _onBroadcast = onBroadcast;
     if (onAppUpdate != null) _onAppUpdate = onAppUpdate;
     if (onChatMessage != null) _onChatMessage = onChatMessage;
+    if (onTypingStatus != null) _onTypingStatus = onTypingStatus;
 
     // Don't connect if already connected or connecting
     // Check and set _isConnecting atomically to prevent race conditions
@@ -474,6 +477,14 @@ class WebSocketService {
               final toUserId = data['to']?.toString() ?? '';
               final message = data['message']?.toString() ?? '';
               _onChatMessage?.call(messageId, fromUserId, toUserId, message);
+              break;
+            case 'typing_start':
+              final fromUserId = data['fromUserId']?.toString() ?? '';
+              _onTypingStatus?.call(fromUserId, true);
+              break;
+            case 'typing_stop':
+              final fromUserId = data['fromUserId']?.toString() ?? '';
+              _onTypingStatus?.call(fromUserId, false);
               break;
           }
         }
@@ -709,6 +720,26 @@ class WebSocketService {
     final message = {
       'type': 'call_end',
       'callId': callId,
+      'targetUserId': targetUserId,
+      'sessionId': _sessionId,
+    };
+    _sendMessageInternal(message);
+  }
+
+  /// Send typing start indicator
+  void sendTypingStart(String targetUserId) {
+    final message = {
+      'type': 'typing_start',
+      'targetUserId': targetUserId,
+      'sessionId': _sessionId,
+    };
+    _sendMessageInternal(message);
+  }
+
+  /// Send typing stop indicator
+  void sendTypingStop(String targetUserId) {
+    final message = {
+      'type': 'typing_stop',
       'targetUserId': targetUserId,
       'sessionId': _sessionId,
     };
