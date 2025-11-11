@@ -11,6 +11,11 @@ class ApiConstants {
   static const String _devApiBase = 'https://server.skybyn.no/api';
   static const String _devAppBase = 'https://server.skybyn.no/app';
 
+  // Static flags to ensure logging only happens once
+  static bool _hasLoggedAppBase = false;
+  static bool _hasLoggedApiBase = false;
+  static bool _hasLoggedWebBase = false;
+
   /// Returns development URLs in debug mode, production URLs in release mode
   /// 
   /// Debug mode (kDebugMode = true): Uses _dev URLs
@@ -18,7 +23,10 @@ class ApiConstants {
   static String get appBase {
     final url = kDebugMode ? _devAppBase : _prodAppBase;
     assert(() {
-      print('🔧 [ApiConstants] Using ${kDebugMode ? "DEV" : "PROD"} appBase: $url');
+      if (!_hasLoggedAppBase) {
+        print('🔧 [ApiConstants] Using ${kDebugMode ? "DEV" : "PROD"} appBase: $url');
+        _hasLoggedAppBase = true;
+      }
       return true;
     }());
     return url;
@@ -27,7 +35,10 @@ class ApiConstants {
   static String get apiBase {
     final url = kDebugMode ? _devApiBase : _prodApiBase;
     assert(() {
-      print('🔧 [ApiConstants] Using ${kDebugMode ? "DEV" : "PROD"} apiBase: $url');
+      if (!_hasLoggedApiBase) {
+        print('🔧 [ApiConstants] Using ${kDebugMode ? "DEV" : "PROD"} apiBase: $url');
+        _hasLoggedApiBase = true;
+      }
       return true;
     }());
     return url;
@@ -36,7 +47,10 @@ class ApiConstants {
   static String get webBase {
     final url = kDebugMode ? _devBase : _prodWebBase;
     assert(() {
-      print('🔧 [ApiConstants] Using ${kDebugMode ? "DEV" : "PROD"} webBase: $url');
+      if (!_hasLoggedWebBase) {
+        print('🔧 [ApiConstants] Using ${kDebugMode ? "DEV" : "PROD"} webBase: $url');
+        _hasLoggedWebBase = true;
+      }
       return true;
     }());
     return url;
