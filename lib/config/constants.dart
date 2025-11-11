@@ -107,6 +107,9 @@ class ApiConstants {
 
   // Activity
   static String get updateActivity => '$apiBase/update_activity.php';
+  
+  // API Key for unrestricted access (bypasses bot protection)
+  static const String apiKey = 'DP4HOA9PYSUAPFP1SHEMHNPJ0S6QZF3X';
 }
 
 class StorageKeys {

@@ -18,6 +18,9 @@ class ChatService {
 
   final AuthService _authService = AuthService();
   
+  // Store protection cookie to bypass bot challenges
+  static String? _protectionCookie;
+  
   // Use the same HTTP client pattern as AuthService to ensure consistent SSL handling
   static http.Client? _httpClient;
   static http.Client get _client {
@@ -39,12 +42,101 @@ class ChatService {
     }
     
     // Set timeouts and user agent
-    httpClient.userAgent = 'Skybyn-App/1.0';
+    // Use a more browser-like user agent to avoid bot protection
+    httpClient.userAgent = 'Mozilla/5.0 (Linux; Android 10; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.120 Mobile Safari/537.36 Skybyn-App/1.0';
     httpClient.connectionTimeout = const Duration(seconds: 30);
     httpClient.idleTimeout = const Duration(seconds: 30);
     httpClient.autoUncompress = true;
     
     return IOClient(httpClient);
+  }
+
+  /// Process send message response (extracted to handle retries)
+  Future<Message?> _processSendMessageResponse(
+    http.Response response,
+    String userId,
+    String toUserId,
+    String content,
+  ) async {
+    // Try to parse response body regardless of status code
+    Map<String, dynamic>? responseData;
+    try {
+      responseData = json.decode(response.body) as Map<String, dynamic>?;
+    } catch (e) {
+      debugPrint('⚠️ [ChatService] Failed to parse response body as JSON: $e');
+      // If we can't parse JSON and it's not HTML, it might be an error
+      if (response.statusCode != 200) {
+        throw Exception('Invalid response from server. Please try again.');
+      }
+    }
+
+    if (response.statusCode == 200) {
+      if (responseData != null) {
+        if (responseData['responseCode'] == 1 && responseData['messageId'] != null) {
+          // Create message object
+          return Message(
+            id: responseData['messageId'].toString(),
+            from: userId,
+            to: toUserId,
+            content: content,
+            date: DateTime.now(),
+            viewed: false,
+            isFromMe: true,
+          );
+        }
+        // Server returned 200 but with error in response body
+        throw Exception(responseData['message'] ?? 'Failed to send message');
+      }
+      throw Exception('Invalid response format from server');
+    }
+    
+    // Handle non-200 status codes
+    // Check if response body contains error message
+    if (responseData != null && responseData.containsKey('message')) {
+      final errorMessage = responseData['message'] as String?;
+      debugPrint('❌ [ChatService] Server error (${response.statusCode}): $errorMessage');
+      debugPrint('❌ [ChatService] Full response data: $responseData');
+      
+      // Handle 409 Conflict specifically (duplicate message)
+      if (response.statusCode == 409) {
+        debugPrint('⚠️ [ChatService] 409 Conflict detected - checking if message was sent...');
+        // For 409, the message might have been sent already (duplicate)
+        // Check if response contains messageId (message was sent)
+        if (responseData.containsKey('messageId') && responseData['messageId'] != null) {
+          // Message was sent, return it as success
+          debugPrint('✅ [ChatService] 409 Conflict but messageId found (${responseData['messageId']}) - message was sent');
+          return Message(
+            id: responseData['messageId'].toString(),
+            from: userId,
+            to: toUserId,
+            content: content,
+            date: DateTime.now(),
+            viewed: false,
+            isFromMe: true,
+          );
+        }
+        // No messageId - message may have been sent but we can't confirm
+        debugPrint('⚠️ [ChatService] 409 Conflict but no messageId in response');
+        throw Exception(errorMessage ?? 'Message may have been sent already');
+      }
+      
+      throw Exception(errorMessage ?? 'Failed to send message');
+    }
+    
+    // No error message in response body, use status code
+    debugPrint('⚠️ [ChatService] No error message in response body for status ${response.statusCode}');
+    debugPrint('⚠️ [ChatService] Response body was: ${response.body}');
+    
+    String statusMessage = 'Failed to send message';
+    if (response.statusCode == 409) {
+      statusMessage = 'Message may have been sent already (conflict)';
+      debugPrint('⚠️ [ChatService] 409 Conflict - response body did not contain error message');
+    } else if (response.statusCode == 429) {
+      statusMessage = 'Too many requests. Please wait a moment.';
+    } else if (response.statusCode >= 500) {
+      statusMessage = 'Server error. Please try again later.';
+    }
+    throw Exception(statusMessage);
   }
 
   /// Get encryption key from stored user token
@@ -99,6 +191,20 @@ class ChatService {
       final url = ApiConstants.chatSend;
       debugPrint('🔧 [ChatService] Sending message to: $url');
       
+      // Build headers with optional protection cookie and API key
+      final headers = <String, String>{
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Accept': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest', // Helps bypass some bot protection
+        'X-API-Key': ApiConstants.apiKey, // API key for unrestricted access
+      };
+      
+      // Add protection cookie if we have one
+      if (_protectionCookie != null) {
+        headers['Cookie'] = _protectionCookie!;
+        debugPrint('🍪 [ChatService] Sending request with protection cookie');
+      }
+      
       final response = await _retryHttpRequest(
         () => _client.post(
           Uri.parse(url),
@@ -108,9 +214,7 @@ class ChatService {
             'to': toUserId,
             'message': encryptedContent,
           },
-          headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-          },
+          headers: headers,
         ).timeout(const Duration(seconds: 10)),
         maxRetries: 2,
       );
@@ -119,81 +223,62 @@ class ChatService {
       debugPrint('📥 [ChatService] Response status: ${response.statusCode}');
       debugPrint('📥 [ChatService] Response body: ${response.body}');
 
-      // Try to parse response body regardless of status code
-      Map<String, dynamic>? responseData;
-      try {
-        responseData = json.decode(response.body) as Map<String, dynamic>?;
-      } catch (e) {
-        debugPrint('⚠️ [ChatService] Failed to parse response body as JSON: $e');
-      }
-
-      if (response.statusCode == 200) {
-        if (responseData != null) {
-          if (responseData['responseCode'] == 1 && responseData['messageId'] != null) {
-            // Create message object
-            return Message(
-              id: responseData['messageId'].toString(),
-              from: userId,
-              to: toUserId,
-              content: content,
-              date: DateTime.now(),
-              viewed: false,
-              isFromMe: true,
-            );
-          }
-          // Server returned 200 but with error in response body
-          throw Exception(responseData['message'] ?? 'Failed to send message');
-        }
-        throw Exception('Invalid response format from server');
-      }
+      // Check if response is HTML/JavaScript (bot protection, Cloudflare, etc.)
+      final responseBody = response.body.trim();
+      final isHtmlResponse = responseBody.startsWith('<') || 
+                             responseBody.contains('<script>') ||
+                             responseBody.contains('<!DOCTYPE') ||
+                             responseBody.contains('<html');
       
-      // Handle non-200 status codes
-      // Check if response body contains error message
-      if (responseData != null && responseData.containsKey('message')) {
-        final errorMessage = responseData['message'] as String?;
-        debugPrint('❌ [ChatService] Server error (${response.statusCode}): $errorMessage');
-        debugPrint('❌ [ChatService] Full response data: $responseData');
+      if (isHtmlResponse) {
+        debugPrint('⚠️ [ChatService] Received HTML/JavaScript response (likely bot protection)');
         
-        // Handle 409 Conflict specifically (duplicate message)
-        if (response.statusCode == 409) {
-          debugPrint('⚠️ [ChatService] 409 Conflict detected - checking if message was sent...');
-          // For 409, the message might have been sent already (duplicate)
-          // Check if response contains messageId (message was sent)
-          if (responseData.containsKey('messageId') && responseData['messageId'] != null) {
-            // Message was sent, return it as success
-            debugPrint('✅ [ChatService] 409 Conflict but messageId found (${responseData['messageId']}) - message was sent');
-            return Message(
-              id: responseData['messageId'].toString(),
-              from: userId,
-              to: toUserId,
-              content: content,
-              date: DateTime.now(),
-              viewed: false,
-              isFromMe: true,
+        // Try to extract protection cookie from response
+        final cookieMatch = RegExp(r'humans_\d+=\d+').firstMatch(responseBody);
+        if (cookieMatch != null) {
+          _protectionCookie = cookieMatch.group(0);
+          debugPrint('🍪 [ChatService] Extracted protection cookie: $_protectionCookie');
+          
+          // Retry the request with the cookie
+          debugPrint('🔄 [ChatService] Retrying request with protection cookie...');
+          try {
+            final retryResponse = await _retryHttpRequest(
+              () => _client.post(
+                Uri.parse(url),
+                body: {
+                  'userID': userId,
+                  'from': userId,
+                  'to': toUserId,
+                  'message': encryptedContent,
+                },
+                headers: {
+                  'Content-Type': 'application/x-www-form-urlencoded',
+                  'Accept': 'application/json',
+                  'X-Requested-With': 'XMLHttpRequest',
+                  'X-API-Key': ApiConstants.apiKey, // API key for unrestricted access
+                  'Cookie': _protectionCookie!,
+                },
+              ).timeout(const Duration(seconds: 10)),
+              maxRetries: 1,
             );
+            
+            // Process the retry response
+            return await _processSendMessageResponse(retryResponse, userId, toUserId, content);
+          } catch (retryError) {
+            debugPrint('❌ [ChatService] Retry with cookie also failed: $retryError');
+            // Fall through to throw error
           }
-          // No messageId - message may have been sent but we can't confirm
-          debugPrint('⚠️ [ChatService] 409 Conflict but no messageId in response');
-          throw Exception(errorMessage ?? 'Message may have been sent already');
         }
         
-        throw Exception(errorMessage ?? 'Failed to send message');
+        // This is likely bot protection (Cloudflare, etc.) - treat as temporary error
+        if (response.statusCode == 409 || response.statusCode == 403) {
+          throw Exception('Server protection triggered. Please wait a moment and try again.');
+        }
+        throw Exception('Server temporarily unavailable. Please try again in a moment.');
       }
       
-      // No error message in response body, use status code
-      debugPrint('⚠️ [ChatService] No error message in response body for status ${response.statusCode}');
-      debugPrint('⚠️ [ChatService] Response body was: ${response.body}');
-      
-      String statusMessage = 'Failed to send message';
-      if (response.statusCode == 409) {
-        statusMessage = 'Message may have been sent already (conflict)';
-        debugPrint('⚠️ [ChatService] 409 Conflict - response body did not contain error message');
-      } else if (response.statusCode == 429) {
-        statusMessage = 'Too many requests. Please wait a moment.';
-      } else if (response.statusCode >= 500) {
-        statusMessage = 'Server error. Please try again later.';
-      }
-      throw Exception(statusMessage);
+      // Process normal response
+      return await _processSendMessageResponse(response, userId, toUserId, content);
     } catch (e, stackTrace) {
       debugPrint('❌ [ChatService] Error sending message: $e');
       if (kDebugMode) {
@@ -363,6 +448,12 @@ class ChatService {
             'friend': friendId,
             'limit': limit?.toString() ?? '50',
             'offset': offset?.toString() ?? '0',
+          },
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'Accept': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest',
+            'X-API-Key': ApiConstants.apiKey, // API key for unrestricted access
           },
         ).timeout(const Duration(seconds: 10)),
         maxRetries: 2,
