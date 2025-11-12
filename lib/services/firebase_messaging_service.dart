@@ -35,12 +35,24 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
     
     if (type == 'chat') {
       print('💬 [FCM] Chat message received in background - showing notification');
+    } else if (type == 'call') {
+      print('📞 [FCM] Call notification received in background - showing notification with actions');
     }
+    
+    // For call notifications, include all call data in payload
+    final payload = type == 'call' 
+        ? jsonEncode({
+            'type': 'call',
+            'sender': message.data['sender']?.toString(),
+            'callType': message.data['callType']?.toString() ?? 'video',
+            'incomingCall': message.data['incomingCall']?.toString() ?? 'true',
+          })
+        : jsonEncode(message.data);
     
     await notificationService.showNotification(
       title: message.notification?.title ?? 'New Message', 
       body: message.notification?.body ?? '', 
-      payload: jsonEncode(message.data)
+      payload: payload
     );
     print('✅ [FCM] Background notification shown');
   } catch (e) {
@@ -355,12 +367,20 @@ class FirebaseMessagingService {
         return;
       }
       
-      // For call notifications in foreground, WebSocket should handle it
-      // But if WebSocket is not connected, show notification as fallback
-      if (type == 'call_offer' || type == 'call_initiate') {
-        print('📞 [FCM] Call notification received in foreground - WebSocket should handle this');
-        // WebSocket will handle it, but we can show notification as backup
-        // if WebSocket is not connected
+      // For call notifications, show notification with action buttons
+      if (type == 'call') {
+        print('📞 [FCM] Call notification received in foreground - showing notification with actions');
+        final notificationService = NotificationService();
+        await notificationService.showNotification(
+          title: message.notification?.title ?? 'Incoming Call',
+          body: message.notification?.body ?? '',
+          payload: jsonEncode({
+            'type': 'call',
+            'sender': message.data['sender']?.toString(),
+            'callType': message.data['callType']?.toString() ?? 'video',
+            'incomingCall': message.data['incomingCall']?.toString() ?? 'true',
+          }),
+        );
         return;
       }
       

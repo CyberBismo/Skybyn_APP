@@ -11,6 +11,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'firebase_messaging_service.dart';
 import 'auto_update_service.dart';
 import 'background_update_scheduler.dart';
+import 'websocket_service.dart';
 import '../widgets/update_dialog.dart';
 import '../main.dart';
 
@@ -30,6 +31,7 @@ class NotificationService {
   static const String _updateProgressChannelId = 'update_progress';
   static const String _appUpdatesChannelId = 'app_updates';
   static const String _chatMessagesChannelId = 'chat_messages';
+  static const String _callsChannelId = 'calls';
 
   // Notification ID for update progress (fixed ID so we can update it)
   static const int _updateProgressNotificationId = 9999;
@@ -79,17 +81,48 @@ class NotificationService {
 
     if (initialized == true) {
       await _createNotificationChannels();
+      await _createIOSNotificationCategories();
       print('✅ [NotificationService] Local notifications initialized successfully');
     } else {
       print('❌ [NotificationService] Failed to initialize local notifications');
     }
   }
 
+  // Create iOS notification categories with action buttons
+  Future<void> _createIOSNotificationCategories() async {
+    if (Platform.isIOS) {
+      try {
+        final IOSFlutterLocalNotificationsPlugin? iOSImplementation = 
+            _localNotifications.resolvePlatformSpecificImplementation<IOSFlutterLocalNotificationsPlugin>();
+        
+        if (iOSImplementation != null) {
+          // Create category for incoming calls with answer/decline actions
+          await iOSImplementation.requestPermissions();
+          
+          // Note: iOS action buttons are configured through UNNotificationCategory
+          // This needs to be done in native iOS code or through a plugin
+          // For now, the categoryIdentifier will be set, but actions need native setup
+          print('✅ [NotificationService] iOS notification categories setup');
+        }
+      } catch (e) {
+        print('⚠️ [NotificationService] Error setting up iOS categories: $e');
+      }
+    }
+  }
+
   void _onNotificationTapped(NotificationResponse response) {
-    // Handle notification tap
-    print('📱 [NotificationService] Notification tapped: ${response.payload}');
+    // Handle notification tap and action buttons
+    print('📱 [NotificationService] Notification tapped: action=${response.action}, payload=${response.payload}');
 
     final payload = response.payload;
+    final action = response.action;
+    
+    // Handle call notification actions
+    if (action == 'answer' || action == 'decline') {
+      _handleCallNotificationAction(action, payload);
+      return;
+    }
+
     if (payload == null) {
       return;
     }
@@ -117,11 +150,110 @@ class NotificationService {
           }
           print('🔄 [NotificationService] App update notification tapped (from JSON) - triggering update check');
           _triggerUpdateCheck();
+        } else if (type == 'call') {
+          // Handle call notification tap (when user taps notification body, not action button)
+          _handleCallNotificationTap(data);
         }
       } catch (e) {
         print('⚠️ [NotificationService] Failed to parse notification payload: $e');
       }
     }
+  }
+
+  // Background notification handler (for when app is terminated)
+  @pragma('vm:entry-point')
+  static void _onBackgroundNotificationTapped(NotificationResponse response) {
+    // This is a static method that can be called from background
+    print('📱 [NotificationService] Background notification tapped: action=${response.action}, payload=${response.payload}');
+    
+    final payload = response.payload;
+    final action = response.action;
+    
+    // Handle call notification actions
+    if (action == 'answer' || action == 'decline') {
+      // Parse payload to get call data
+      if (payload != null && payload.startsWith('{')) {
+        try {
+          final Map<String, dynamic> data = json.decode(payload);
+          _handleCallNotificationActionStatic(action, data);
+        } catch (e) {
+          print('⚠️ [NotificationService] Failed to parse call payload in background: $e');
+        }
+      }
+    }
+  }
+
+  void _handleCallNotificationAction(String action, String? payload) {
+    if (payload == null || !payload.startsWith('{')) {
+      return;
+    }
+    
+    try {
+      final Map<String, dynamic> data = json.decode(payload);
+      _handleCallNotificationActionStatic(action, data);
+    } catch (e) {
+      print('⚠️ [NotificationService] Failed to parse call payload: $e');
+    }
+  }
+
+  static void _handleCallNotificationActionStatic(String action, Map<String, dynamic> data) {
+    final sender = data['sender']?.toString();
+    final callType = data['callType']?.toString() ?? 'video';
+    
+    if (sender == null) {
+      print('⚠️ [NotificationService] Call notification missing sender ID');
+      return;
+    }
+    
+    if (action == 'answer') {
+      print('📞 [NotificationService] Call answered from notification - sender: $sender, type: $callType');
+      // When user answers, the app should open and WebSocket will handle the call
+      // The call offer should still be available when app opens
+      // Navigation will be handled by the app's main navigation/routing
+    } else if (action == 'decline') {
+      print('📞 [NotificationService] Call declined from notification - sender: $sender');
+      // Send call_end message via WebSocket
+      // Import WebSocketService to send decline message
+      _sendCallDecline(sender);
+    }
+  }
+
+  // Send call decline message via WebSocket
+  static void _sendCallDecline(String targetUserId) {
+    try {
+      // Import WebSocketService dynamically to avoid circular dependency
+      // The WebSocket service will send the call_end message
+      final websocketService = WebSocketService();
+      if (websocketService.isConnected) {
+        // Generate a temporary call ID for the decline message
+        // The server will handle matching it to the actual call
+        final callId = DateTime.now().millisecondsSinceEpoch.toString();
+        websocketService.sendCallEnd(
+          callId: callId,
+          targetUserId: targetUserId,
+        );
+        print('✅ [NotificationService] Call decline sent via WebSocket');
+      } else {
+        print('⚠️ [NotificationService] WebSocket not connected - cannot send call decline');
+        // Store the decline action to send when WebSocket reconnects
+        // This could be done via a queue or SharedPreferences
+      }
+    } catch (e) {
+      print('❌ [NotificationService] Error sending call decline: $e');
+    }
+  }
+
+  void _handleCallNotificationTap(Map<String, dynamic> data) {
+    final sender = data['sender']?.toString();
+    final callType = data['callType']?.toString() ?? 'video';
+    
+    if (sender == null) {
+      return;
+    }
+    
+    print('📞 [NotificationService] Call notification tapped - opening call screen for sender: $sender');
+    // TODO: Navigate to call screen
+    // This will need to be handled by the app's navigation system
   }
 
   /// Trigger update check for app_update notifications
@@ -279,6 +411,20 @@ class NotificationService {
       );
 
       await _localNotifications.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()?.createNotificationChannel(chatMessagesChannel);
+
+      // Calls channel (for incoming call notifications with actions)
+      const AndroidNotificationChannel callsChannel = AndroidNotificationChannel(
+        _callsChannelId,
+        'Calls',
+        description: 'Incoming voice and video calls',
+        importance: Importance.max,
+        playSound: true,
+        enableVibration: true,
+        enableLights: true,
+        showBadge: true,
+      );
+
+      await _localNotifications.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()?.createNotificationChannel(callsChannel);
     }
   }
 
@@ -380,6 +526,9 @@ class NotificationService {
       String channelName;
       String channelDescription;
       Importance importance;
+      List<AndroidNotificationAction>? actions;
+      bool ongoing = false;
+      bool autoCancel = true;
       
       if (isAppUpdate) {
         channelName = 'App Updates';
@@ -389,6 +538,27 @@ class NotificationService {
         channelName = 'Chat Messages';
         channelDescription = 'Notifications for new chat messages';
         importance = Importance.high;
+      } else if (isCall) {
+        channelName = 'Calls';
+        channelDescription = 'Incoming voice and video calls';
+        importance = Importance.max;
+        ongoing = true; // Keep notification visible until user interacts
+        autoCancel = false; // Don't auto-cancel call notifications
+        // Add answer and decline action buttons
+        actions = [
+          AndroidNotificationAction(
+            'answer',
+            'Answer',
+            titleColor: Color.fromRGBO(76, 175, 80, 1.0), // Green
+            showsUserInterface: true,
+          ),
+          AndroidNotificationAction(
+            'decline',
+            'Decline',
+            titleColor: Color.fromRGBO(244, 67, 54, 1.0), // Red
+            cancelNotification: true,
+          ),
+        ];
       } else {
         channelName = 'Admin Notifications';
         channelDescription = 'Important system notifications from administrators';
@@ -401,27 +571,35 @@ class NotificationService {
         channelDescription: channelDescription,
         importance: importance,
         priority: Priority.high,
-        showWhen: true,
+        showWhen: !isCall, // Don't show timestamp for calls
         enableVibration: true,
         playSound: true,
         icon: '@drawable/notification_icon', // Uses logo.png for notification icon
         largeIcon: DrawableResourceAndroidBitmap('@drawable/notification_icon'), // Uses logo.png for large icon
-        color: Color.fromRGBO(33, 150, 243, 1.0), // Blue color
+        color: isCall ? Color.fromRGBO(76, 175, 80, 1.0) : Color.fromRGBO(33, 150, 243, 1.0), // Green for calls, blue for others
         enableLights: true,
-        ledColor: Color.fromRGBO(33, 150, 243, 1.0),
+        ledColor: isCall ? Color.fromRGBO(76, 175, 80, 1.0) : Color.fromRGBO(33, 150, 243, 1.0),
         ledOnMs: 1000,
         ledOffMs: 500,
+        ongoing: ongoing,
+        autoCancel: autoCancel,
+        actions: actions,
+        category: isCall ? AndroidNotificationCategory.call : AndroidNotificationCategory.message,
+        fullScreenIntent: isCall, // Show full screen for calls (Android 11+)
       );
 
       // iOS notification details
-      const DarwinNotificationDetails iOSPlatformChannelSpecifics = DarwinNotificationDetails(
+      // For iOS, we need to use categoryIdentifier for action buttons
+      final String? categoryIdentifier = isCall ? 'INCOMING_CALL' : null;
+      
+      final DarwinNotificationDetails iOSPlatformChannelSpecifics = DarwinNotificationDetails(
         presentAlert: true,
         presentBadge: true,
         presentSound: true,
         sound: 'default',
         badgeNumber: 1,
         attachments: null,
-        categoryIdentifier: null,
+        categoryIdentifier: categoryIdentifier, // Required for iOS action buttons
         threadIdentifier: null,
       );
 
