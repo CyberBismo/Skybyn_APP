@@ -1,10 +1,23 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'dart:async';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 import '../models/post.dart';
 import 'auth_service.dart';
+import '../config/constants.dart';
 
-/// Firebase-based real-time service that replaces WebSocket for all communication
+/// Firebase-based real-time service for communication/signaling only
+/// 
+/// IMPORTANT: This service uses Firestore ONLY for real-time notifications/signaling.
+/// All actual data is stored in your own database and accessed via REST APIs.
+/// 
+/// Architecture:
+/// 1. Your backend stores data in your database
+/// 2. Your backend writes minimal notifications to Firestore
+/// 3. App receives Firestore notifications in real-time
+/// 4. App fetches actual data from your REST API
+/// 5. App updates UI with data from your API
 class FirebaseRealtimeService {
   static final FirebaseRealtimeService _instance = FirebaseRealtimeService._internal();
   factory FirebaseRealtimeService() => _instance;
@@ -112,11 +125,8 @@ class FirebaseRealtimeService {
         return;
       }
 
-      // Ensure user document exists in Firestore (create if doesn't exist)
-      await _ensureUserDocument();
-      
-      // Update user status to online
-      await _updateUserStatus(true);
+      // Note: We don't store user data in Firestore - only use it for real-time signaling
+      // User data and online status are stored in your own database
       
       // Set up real-time listeners
       await _setupListeners();
@@ -131,31 +141,43 @@ class FirebaseRealtimeService {
   }
 
   /// Set up all Firestore listeners
+  /// 
+  /// These listeners watch for NOTIFICATIONS only, not actual data.
+  /// When a notification is received, the app fetches the actual data from your REST API.
   Future<void> _setupListeners() async {
     if (_userId == null) return;
 
-    // Listen to new posts
+    // Listen to new post notifications
+    // Your backend should write to 'post_notifications' when a post is created
     _postsSubscription = _firestore
-        .collection('posts')
-        .orderBy('createdAt', descending: true)
+        .collection('post_notifications')
+        .where('status', isEqualTo: 'pending')
+        .orderBy('timestamp', descending: true)
         .limit(1)
         .snapshots()
         .listen((snapshot) {
-      if (snapshot.docs.isNotEmpty) {
-        final doc = snapshot.docs.first;
-        final data = doc.data();
-        if (data['userId'] != _userId) { // Don't notify for own posts
-          try {
-            final post = Post.fromJson({...data, 'id': doc.id});
-            _onNewPost?.call(post);
-          } catch (e) {
-            print('❌ [FirebaseRealtime] Error parsing post: $e');
+      for (var doc in snapshot.docChanges) {
+        if (doc.type == DocumentChangeType.added) {
+          final data = doc.doc.data() as Map<String, dynamic>?;
+          if (data != null) {
+            final postId = data['postId'] as String? ?? '';
+            final postUserId = data['userId'] as String? ?? '';
+            
+            // Don't notify for own posts
+            if (postId.isNotEmpty && postUserId != _userId) {
+              // Fetch actual post data from your API
+              _fetchPostFromAPI(postId);
+            }
+            
+            // Mark notification as processed
+            doc.doc.reference.update({'status': 'processed'});
           }
         }
       }
     });
 
-    // Listen to notifications
+    // Listen to user notifications (comments, etc.)
+    // Your backend should write to 'notifications' when events occur
     _notificationsSubscription = _firestore
         .collection('notifications')
         .where('userId', isEqualTo: _userId)
@@ -166,64 +188,58 @@ class FirebaseRealtimeService {
         if (doc.type == DocumentChangeType.added) {
           final data = doc.doc.data() as Map<String, dynamic>;
           _handleNotification(data);
+          // Mark as processed
+          doc.doc.reference.update({'status': 'processed'});
         }
       }
     });
 
-    // Listen to broadcasts
+    // Listen to broadcast notifications
+    // Your backend should write to 'broadcast_notifications' when broadcasting
     _broadcastsSubscription = _firestore
-        .collection('broadcasts')
-        .where('status', isEqualTo: 'sending')
+        .collection('broadcast_notifications')
+        .where('status', isEqualTo: 'pending')
         .snapshots()
         .listen((snapshot) {
       for (var doc in snapshot.docChanges) {
         if (doc.type == DocumentChangeType.added) {
           final data = doc.doc.data() as Map<String, dynamic>;
           final message = data['message'] as String? ?? '';
-          _onBroadcast?.call(message);
+          if (message.isNotEmpty) {
+            _onBroadcast?.call(message);
+          }
+          // Mark as processed
+          doc.doc.reference.update({'status': 'processed'});
         }
       }
     });
 
-    // Listen to app updates
+    // Listen to app update notifications
+    // Your backend should write to 'app_update_notifications' when updates are available
     _appUpdatesSubscription = _firestore
-        .collection('app_updates')
-        .where('isActive', isEqualTo: true)
+        .collection('app_update_notifications')
+        .where('status', isEqualTo: 'pending')
         .snapshots()
         .listen((snapshot) {
       for (var doc in snapshot.docChanges) {
         if (doc.type == DocumentChangeType.added) {
           _onAppUpdate?.call();
+          // Mark as processed
+          doc.doc.reference.update({'status': 'processed'});
         }
       }
     });
 
-    // Listen to chat messages (set up per chat in ChatScreen)
-    // Listen to typing status (set up per chat in ChatScreen)
-    // Listen to online status (set up per user in screens)
+    // Chat messages, typing status, and online status are set up per chat/user in screens
   }
 
   /// Handle notification from Firestore
+  /// Note: Notifications contain IDs/references, not full data
+  /// The app fetches actual data from your REST API
   void _handleNotification(Map<String, dynamic> data) {
     final type = data['type'] as String? ?? '';
     
     switch (type) {
-      case 'new_post':
-        final postId = data['payload']?['postId'] as String? ?? '';
-        if (postId.isNotEmpty) {
-          // Fetch post details and call onNewPost
-          _firestore.collection('posts').doc(postId).get().then((doc) {
-            if (doc.exists) {
-              try {
-                final post = Post.fromJson({...doc.data()!, 'id': doc.id});
-                _onNewPost?.call(post);
-              } catch (e) {
-                print('❌ [FirebaseRealtime] Error parsing post from notification: $e');
-              }
-            }
-          });
-        }
-        break;
       case 'new_comment':
         final postId = data['payload']?['postId'] as String? ?? '';
         final commentId = data['payload']?['commentId'] as String? ?? '';
@@ -244,39 +260,103 @@ class FirebaseRealtimeService {
           _onDeleteComment?.call(postId, commentId);
         }
         break;
+      // Note: new_post is handled in _setupListeners via _fetchPostFromAPI
     }
   }
 
   /// Set up chat message listener for a specific chat
+  /// Note: This listens to notifications, not message storage
+  /// Your backend should write chat message notifications to Firestore when messages are sent
   void setupChatListener(String friendId, Function(String, String, String, String) onMessage) {
     if (_userId == null) return;
 
     _chatMessagesSubscription?.cancel();
     
-    // Listen to messages between current user and friend
+    // Listen to chat message notifications
+    // Your backend should write notifications here when messages are sent
     _chatMessagesSubscription = _firestore
-        .collection('chat_messages')
-        .where('fromUserId', whereIn: [_userId, friendId])
-        .where('toUserId', whereIn: [_userId, friendId])
-        .orderBy('createdAt', descending: true)
+        .collection('chat_message_notifications')
+        .where('toUserId', isEqualTo: _userId)
+        .where('fromUserId', isEqualTo: friendId)
+        .where('status', isEqualTo: 'pending')
+        .orderBy('timestamp', descending: true)
         .limit(1)
         .snapshots()
         .listen((snapshot) {
       for (var doc in snapshot.docChanges) {
         if (doc.type == DocumentChangeType.added) {
           final data = doc.doc.data() as Map<String, dynamic>;
+          final messageId = data['messageId'] as String? ?? doc.doc.id;
           final fromUserId = data['fromUserId'] as String? ?? '';
           final toUserId = data['toUserId'] as String? ?? '';
-          final message = data['message'] as String? ?? '';
-          final messageId = doc.doc.id;
           
-          // Only notify if message is for current user
-          if (toUserId == _userId) {
-            onMessage(messageId, fromUserId, toUserId, message);
-          }
+          // Fetch actual message from your API
+          _fetchMessageFromAPI(messageId, fromUserId, toUserId, onMessage);
+          
+          // Mark notification as processed
+          doc.doc.reference.update({'status': 'processed'});
         }
       }
     });
+  }
+
+  /// Fetch post data from your API when notification is received
+  Future<void> _fetchPostFromAPI(String postId) async {
+    try {
+      // Fetch post from your REST API
+      final response = await http.post(
+        Uri.parse(ApiConstants.getPost),
+        body: {'postID': postId, 'userID': _userId},
+      ).timeout(const Duration(seconds: 10));
+      
+      if (response.statusCode == 200) {
+        String responseBody = response.body;
+        
+        // Handle HTML warnings mixed with JSON
+        if (responseBody.trim().startsWith('<')) {
+          final jsonMatch = RegExp(r'\[.*\]$', dotAll: true).firstMatch(responseBody);
+          if (jsonMatch != null) {
+            responseBody = jsonMatch.group(0)!;
+          }
+        }
+        
+        final List<dynamic> data = json.decode(responseBody);
+        if (data.isNotEmpty && data.first['responseCode'] == '1') {
+          final postMap = data.first as Map<String, dynamic>;
+          final post = Post.fromJson(postMap);
+          _onNewPost?.call(post);
+        }
+      }
+    } catch (e) {
+      print('❌ [FirebaseRealtime] Error fetching post from API: $e');
+    }
+  }
+
+  /// Fetch message data from your API when notification is received
+  Future<void> _fetchMessageFromAPI(
+    String messageId,
+    String fromUserId,
+    String toUserId,
+    Function(String, String, String, String) onMessage,
+  ) async {
+    try {
+      // Fetch message from your REST API
+      final response = await http.post(
+        Uri.parse('${ApiConstants.apiBase}/chat/get.php'),
+        body: {'messageId': messageId},
+      );
+      
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data['responseCode'] == '1' && data['message'] != null) {
+          final messageData = data['message'];
+          final message = messageData['message'] as String? ?? '';
+          onMessage(messageId, fromUserId, toUserId, message);
+        }
+      }
+    } catch (e) {
+      print('❌ [FirebaseRealtime] Error fetching message from API: $e');
+    }
   }
 
   /// Set up typing status listener for a specific chat
@@ -303,22 +383,38 @@ class FirebaseRealtimeService {
   }
 
   /// Set up online status listener for a specific user
-  void setupOnlineStatusListener(String userId, Function(String, bool) onStatusChange) {
-    _onlineStatusSubscription?.cancel();
-    
-    _onlineStatusSubscription = _firestore
-        .collection('users')
-        .doc(userId)
+  /// Note: This listens to a notification collection, not user data
+  /// Your backend should write online status notifications to Firestore when status changes
+  /// Returns a StreamSubscription that can be cancelled
+  StreamSubscription<QuerySnapshot<Map<String, dynamic>>> setupOnlineStatusListener(
+    String userId,
+    Function(String, bool) onStatusChange,
+  ) {
+    // Listen to online_status_notifications collection for this user
+    // Your backend should write notifications here when a user's online status changes
+    return _firestore
+        .collection('online_status_notifications')
+        .where('userId', isEqualTo: userId)
+        .where('status', isEqualTo: 'pending')
+        .orderBy('timestamp', descending: true)
+        .limit(1)
         .snapshots()
         .listen((snapshot) {
-      if (snapshot.exists) {
-        final data = snapshot.data() as Map<String, dynamic>;
-        final lastActive = data['last_active'] as int? ?? 0;
-        final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
-        final twoMinutesAgo = now - 120;
-        final isOnline = lastActive >= twoMinutesAgo;
-        
-        onStatusChange(userId, isOnline);
+      for (var doc in snapshot.docChanges) {
+        if (doc.type == DocumentChangeType.added) {
+          final data = doc.doc.data() as Map<String, dynamic>?;
+          if (data != null) {
+            final isOnline = data['isOnline'] == true || 
+                            data['isOnline'] == 1 ||
+                            data['isOnline'] == '1' ||
+                            data['isOnline'] == 'true';
+            
+            onStatusChange(userId, isOnline);
+            
+            // Mark notification as processed
+            doc.doc.reference.update({'status': 'processed'});
+          }
+        }
       }
     });
   }
@@ -347,69 +443,8 @@ class FirebaseRealtimeService {
     });
   }
 
-  /// Update user online status in Firestore
-  Future<void> updateUserStatus(bool isOnline) async {
-    if (_userId == null) return;
-    
-    try {
-      await _firestore.collection('users').doc(_userId).update({
-        'online': isOnline ? 1 : 0,
-        'last_active': FieldValue.serverTimestamp(),
-        'sessionId': _sessionId,
-      });
-      if (kDebugMode) {
-        print('✅ [FirebaseRealtime] Updated user status in Firestore: online=$isOnline');
-      }
-    } catch (e) {
-      print('❌ [FirebaseRealtime] Error updating user status in Firestore: $e');
-    }
-  }
-
-  /// Update user activity (last_active timestamp) in Firestore
-  Future<void> updateActivity() async {
-    if (_userId == null) return;
-    
-    try {
-      await _firestore.collection('users').doc(_userId).update({
-        'last_active': FieldValue.serverTimestamp(),
-      });
-    } catch (e) {
-      if (kDebugMode) {
-        print('⚠️ [FirebaseRealtime] Error updating activity in Firestore: $e');
-      }
-    }
-  }
-
-  /// Ensure user document exists in Firestore
-  Future<void> _ensureUserDocument() async {
-    if (_userId == null) return;
-    
-    try {
-      final userDoc = _firestore.collection('users').doc(_userId);
-      final doc = await userDoc.get();
-      
-      if (!doc.exists) {
-        // Create user document if it doesn't exist
-        await userDoc.set({
-          'userId': _userId,
-          'online': 0,
-          'last_active': FieldValue.serverTimestamp(),
-          'sessionId': _sessionId,
-          'createdAt': FieldValue.serverTimestamp(),
-        });
-        if (kDebugMode) {
-          print('✅ [FirebaseRealtime] Created user document in Firestore');
-        }
-      }
-    } catch (e) {
-      print('❌ [FirebaseRealtime] Error ensuring user document: $e');
-    }
-  }
-
-  /// Internal method for updating user status (used during connect/disconnect)
-  Future<void> _updateUserStatus(bool isOnline) async {
-    await updateUserStatus(isOnline);
-  }
+  // Note: User data (online status, activity) is stored in your own database, not Firestore
+  // Firestore is only used for ephemeral real-time signaling (typing status, call signals)
 
   /// Disconnect and clean up
   Future<void> disconnect() async {
@@ -417,8 +452,7 @@ class FirebaseRealtimeService {
 
     print('🔄 [FirebaseRealtime] Disconnecting...');
     
-    // Update user status to offline
-    await _updateUserStatus(false);
+    // Note: User status is updated in your own database, not Firestore
     
     // Cancel all subscriptions
     await _postsSubscription?.cancel();

@@ -12,7 +12,8 @@ import '../models/message.dart';
 import '../services/auth_service.dart';
 import '../services/call_service.dart';
 import '../services/chat_service.dart';
-import '../services/websocket_service.dart';
+import '../services/firebase_realtime_service.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../utils/translation_keys.dart';
 import '../widgets/translated_text.dart';
 import '../services/translation_service.dart';
@@ -41,7 +42,7 @@ class ChatScreen extends StatefulWidget {
 class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, WidgetsBindingObserver {
   final AuthService _authService = AuthService();
   final ChatService _chatService = ChatService();
-  final WebSocketService _wsService = WebSocketService();
+  final FirebaseRealtimeService _firebaseRealtimeService = FirebaseRealtimeService();
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
 
@@ -60,8 +61,8 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
   Timer? _typingStopTimer;
   late AnimationController _typingAnimationController;
   late Animation<double> _typingAnimation;
-  // Store the callback reference so we can remove it on dispose
-  void Function(String, bool)? _onlineStatusCallback;
+  // Store subscription for cleanup
+  StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _onlineStatusSubscription;
 
   @override
   void initState() {
@@ -126,13 +127,11 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
     _typingStopTimer?.cancel();
     _typingAnimationController.dispose();
     // Send typing stop when leaving screen
-    if (_wsService.isConnected && _currentUserId != null) {
-      _wsService.sendTypingStop(widget.friend.id);
-    }
-    // Remove online status callback when widget is disposed
-    if (_onlineStatusCallback != null) {
-      _wsService.removeOnlineStatusCallback(_onlineStatusCallback!);
-    }
+      if (_firebaseRealtimeService.isConnected && _currentUserId != null) {
+        _firebaseRealtimeService.sendTypingStop(widget.friend.id);
+      }
+      // Cancel online status subscription when widget is disposed
+      _onlineStatusSubscription?.cancel();
     super.dispose();
   }
 
@@ -187,7 +186,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
 
   void _setupTypingListener() {
     _messageController.addListener(() {
-      if (!_wsService.isConnected || _currentUserId == null) return;
+      if (!_firebaseRealtimeService.isConnected || _currentUserId == null) return;
       
       final text = _messageController.text;
       
@@ -196,18 +195,18 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
       
       if (text.isNotEmpty) {
         // Send typing start immediately
-        _wsService.sendTypingStart(widget.friend.id);
+        _firebaseRealtimeService.sendTypingStart(widget.friend.id);
         
         // Set timer to send typing stop after 2 seconds of no typing
         _typingTimer = Timer(const Duration(seconds: 2), () {
-          if (_wsService.isConnected && _messageController.text.isNotEmpty) {
+          if (_firebaseRealtimeService.isConnected && _messageController.text.isNotEmpty) {
             // Only send stop if still typing (text hasn't been cleared)
-            _wsService.sendTypingStop(widget.friend.id);
+            _firebaseRealtimeService.sendTypingStop(widget.friend.id);
           }
         });
       } else {
         // Text is empty, send typing stop
-        _wsService.sendTypingStop(widget.friend.id);
+        _firebaseRealtimeService.sendTypingStop(widget.friend.id);
       }
     });
   }
@@ -280,11 +279,50 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
   }
 
   void _setupWebSocketListener() {
-    // Update WebSocket callbacks to include chat handling
-    // This will update callbacks without disconnecting if already connected
-    // WebSocket is only connected when app is in foreground (handled by main.dart lifecycle)
-    _wsService.connect(
-      onChatMessage: (messageId, fromUserId, toUserId, message) {
+    // Set up Firebase real-time listeners for chat
+    // Set up online status listener for the friend
+    _onlineStatusSubscription = _firebaseRealtimeService.setupOnlineStatusListener(
+      widget.friend.id,
+      (userId, isOnline) {
+        if (userId == widget.friend.id && mounted) {
+          final oldStatus = _friendOnline;
+          print('🔥 [ChatScreen] Firebase online status update: userId=$userId, oldStatus=$oldStatus -> newStatus=$isOnline');
+          setState(() {
+            _friendOnline = isOnline;
+          });
+        }
+      },
+    );
+
+    // Set up typing status listener
+    _firebaseRealtimeService.setupTypingStatusListener(
+      widget.friend.id,
+      (userId, isTyping) {
+        if (userId == widget.friend.id && mounted) {
+          setState(() {
+            _isFriendTyping = isTyping;
+          });
+          // Auto-hide typing indicator after 3 seconds if no stop message received
+          if (isTyping) {
+            _typingStopTimer?.cancel();
+            _typingStopTimer = Timer(const Duration(seconds: 3), () {
+              if (mounted) {
+                setState(() {
+                  _isFriendTyping = false;
+                });
+              }
+            });
+          } else {
+            _typingStopTimer?.cancel();
+          }
+        }
+      },
+    );
+
+    // Set up chat message listener
+    _firebaseRealtimeService.setupChatListener(
+      widget.friend.id,
+      (messageId, fromUserId, toUserId, message) {
         // Only handle messages for this chat
         if ((fromUserId == widget.friend.id && toUserId == _currentUserId) ||
             (fromUserId == _currentUserId && toUserId == widget.friend.id)) {
@@ -312,39 +350,6 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
           }
         }
       },
-      onTypingStatus: (userId, isTyping) {
-        // Only handle typing status from the friend in this chat
-        if (userId == widget.friend.id && mounted) {
-          setState(() {
-            _isFriendTyping = isTyping;
-          });
-          // Auto-hide typing indicator after 3 seconds if no stop message received
-          if (isTyping) {
-            _typingStopTimer?.cancel();
-            _typingStopTimer = Timer(const Duration(seconds: 3), () {
-              if (mounted) {
-                setState(() {
-                  _isFriendTyping = false;
-                });
-              }
-            });
-          } else {
-            _typingStopTimer?.cancel();
-          }
-        }
-      },
-      onOnlineStatus: _onlineStatusCallback = (userId, isOnline) {
-        // Update friend's online status if it's the friend in this chat
-        if (userId == widget.friend.id && mounted) {
-          final oldStatus = _friendOnline;
-          print('📡 [ChatScreen] Updating online status for userId=$userId: oldStatus=$oldStatus -> newStatus=$isOnline');
-          setState(() {
-            _friendOnline = isOnline;
-          });
-        }
-      },
-      // Pass null for other callbacks to preserve existing ones
-      // The WebSocket service will merge callbacks
     );
   }
 
@@ -396,8 +401,8 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
       _scrollToBottom();
       
       // Send typing stop when message is sent
-      if (_wsService.isConnected) {
-        _wsService.sendTypingStop(widget.friend.id);
+      if (_firebaseRealtimeService.isConnected) {
+        _firebaseRealtimeService.sendTypingStop(widget.friend.id);
       }
       _typingTimer?.cancel();
 
@@ -418,27 +423,8 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
         // Scroll to bottom to show the sent message
         _scrollToBottom();
 
-        // Send via WebSocket for real-time delivery (if app is in focus)
-        if (_wsService.isConnected) {
-          try {
-            final wsSuccess = await _wsService.sendMessage(jsonEncode({
-              'type': 'chat',
-              'id': sentMessage.id,
-              'from': sentMessage.from,
-              'to': sentMessage.to,
-              'message': sentMessage.content,
-            }));
-            
-            if (!wsSuccess && mounted) {
-              // WebSocket send failed, but message was already saved via API
-              // Show a subtle notification (optional - message is already saved)
-              debugPrint('⚠️ [ChatScreen] WebSocket message send failed, but message was saved via API');
-            }
-          } catch (e) {
-            // WebSocket send error - message is already saved via API, so this is non-critical
-            debugPrint('⚠️ [ChatScreen] Error sending WebSocket message: $e');
-          }
-        }
+        // Note: Chat messages are sent via ChatService which handles Firebase
+        // Real-time delivery is handled by Firebase listeners set up in _setupWebSocketListener()
       }
     } catch (e) {
       debugPrint('❌ [ChatScreen] Error sending message: $e');

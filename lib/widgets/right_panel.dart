@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'dart:ui';
+import 'dart:async';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../services/friend_service.dart';
 import '../services/auth_service.dart';
-import '../services/websocket_service.dart';
+import '../services/firebase_realtime_service.dart';
 import '../models/friend.dart';
 import '../screens/chat_screen.dart';
 import '../screens/profile_screen.dart';
@@ -23,15 +24,15 @@ class RightPanel extends StatefulWidget {
 class _RightPanelState extends State<RightPanel> {
   final FriendService _friendService = FriendService();
   final AuthService _authService = AuthService();
-  final WebSocketService _wsService = WebSocketService();
+  final FirebaseRealtimeService _firebaseRealtimeService = FirebaseRealtimeService();
 
   List<Friend> _friends = [];
   bool _isLoading = true;
   bool _showFindFriendsBox = false;
   int _findFriendsBoxResetCounter = 0;
 
-  // Store the callback reference so we can remove it on dispose
-  void Function(String, bool)? _onlineStatusCallback;
+  // Store subscriptions for cleanup
+  Map<String, StreamSubscription> _onlineStatusSubscriptions = {};
 
   @override
   void initState() {
@@ -42,30 +43,40 @@ class _RightPanelState extends State<RightPanel> {
 
   @override
   void dispose() {
-    // Remove online status callback when widget is disposed
-    if (_onlineStatusCallback != null) {
-      _wsService.removeOnlineStatusCallback(_onlineStatusCallback!);
+    // Cancel all online status subscriptions when widget is disposed
+    for (var subscription in _onlineStatusSubscriptions.values) {
+      subscription.cancel();
     }
+    _onlineStatusSubscriptions.clear();
     super.dispose();
   }
 
   void _setupWebSocketListener() {
-    _onlineStatusCallback = (userId, isOnline) {
-      // Update friend's online status in the list
-      if (mounted) {
-        setState(() {
-          final index = _friends.indexWhere((f) => f.id == userId);
-          if (index != -1) {
-            final oldStatus = _friends[index].online;
-            print('📡 [RightPanel] Updating online status for userId=$userId: oldStatus=$oldStatus -> newStatus=$isOnline');
-            _friends[index] = _friends[index].copyWith(online: isOnline);
-          }
-        });
-      }
-    };
+    // Set up Firebase online status listeners for all friends
+    for (var friend in _friends) {
+      _setupOnlineStatusListenerForFriend(friend.id);
+    }
+  }
+
+  void _setupOnlineStatusListenerForFriend(String friendId) {
+    // Cancel existing subscription if any
+    _onlineStatusSubscriptions[friendId]?.cancel();
     
-    _wsService.connect(
-      onOnlineStatus: _onlineStatusCallback,
+    // Set up Firebase listener for this friend
+    _onlineStatusSubscriptions[friendId] = _firebaseRealtimeService.setupOnlineStatusListener(
+      friendId,
+      (userId, isOnline) {
+        if (mounted) {
+          setState(() {
+            final index = _friends.indexWhere((f) => f.id == userId);
+            if (index != -1) {
+              final oldStatus = _friends[index].online;
+              print('🔥 [RightPanel] Firebase online status update: userId=$userId, oldStatus=$oldStatus -> newStatus=$isOnline');
+              _friends[index] = _friends[index].copyWith(online: isOnline);
+            }
+          });
+        }
+      },
     );
   }
 
@@ -97,6 +108,11 @@ class _RightPanelState extends State<RightPanel> {
       _friends = friends;
       _isLoading = false;
     });
+    
+    // Set up Firebase online status listeners for all friends
+    for (var friend in _friends) {
+      _setupOnlineStatusListenerForFriend(friend.id);
+    }
   }
 
   @override
