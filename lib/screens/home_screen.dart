@@ -98,6 +98,16 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _loadData();
+    
+    // Safety timeout: ensure loading always completes after max 20 seconds
+    Timer(const Duration(seconds: 20), () {
+      if (mounted && _isLoading) {
+        print('⚠️ [HomeScreen] Loading timeout reached, forcing completion');
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    });
     _fetchUnreadNotificationCount();
     _loadFriendsCount();
 
@@ -302,6 +312,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
     // Load cached posts first (fast, non-blocking)
     final postService = PostService();
+    bool hasCachedData = false;
     try {
       // Try to get cached posts immediately
       final cachedPosts = await postService.loadTimelineFromCache();
@@ -311,6 +322,7 @@ class _HomeScreenState extends State<HomeScreen> {
           _isLoading = false; // Show cached data immediately
         });
         _stopNoPostsTimer();
+        hasCachedData = true;
       } else {
         setState(() => _isLoading = true);
       }
@@ -334,13 +346,17 @@ class _HomeScreenState extends State<HomeScreen> {
       }
     } catch (timelineError) {
       print('⚠️ [HomeScreen] Error loading fresh posts: $timelineError');
-      // If we don't have cached posts and fetch fails, show empty state
-      if (mounted && _posts.isEmpty) {
+      // Always set loading to false, even if we have cached data
+      if (mounted) {
         setState(() {
-          _posts = [];
-          _isLoading = false;
+          if (!hasCachedData && _posts.isEmpty) {
+            _posts = [];
+          }
+          _isLoading = false; // Always stop loading, even on error
         });
-        _startNoPostsTimer();
+        if (_posts.isEmpty) {
+          _startNoPostsTimer();
+        }
       }
     }
   }
@@ -784,7 +800,11 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         body: Stack(
           children: [
-            const BackgroundGradient(),
+            // Show grey background during initial loading, gradient otherwise
+            if (_isLoading)
+              Container(color: Colors.grey[900])
+            else
+              const BackgroundGradient(),
             if (_isLoading)
               const Center(child: CircularProgressIndicator())
             else if (_posts.isEmpty)

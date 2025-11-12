@@ -52,15 +52,15 @@ Future<void> main() async {
       // This loads cached translations first (fast), then updates from API in background
       await translationService.initialize();
 
-      // Run the app after translations are loaded
-      runApp(ChangeNotifierProvider.value(value: themeService, child: const MyApp()));
-
-      // Initialize Firebase in background (non-blocking)
-      _initializeFirebase().catchError((error) {
+      // Initialize Firebase BEFORE running the app (needed for Firestore)
+      await _initializeFirebase().catchError((error) {
         if (enableLogging) {
           print('⚠️ [Startup] Firebase initialization error: $error');
         }
       });
+
+      // Run the app after Firebase and translations are loaded
+      runApp(ChangeNotifierProvider.value(value: themeService, child: const MyApp()));
     },
     (error, stack) {
       if (enableLogging) {
@@ -79,23 +79,10 @@ Future<void> main() async {
 }
 
 Future<void> _initializeFirebase() async {
-  // Skip Firebase Messaging in debug mode
-  if (kDebugMode) {
-    print('ℹ️ [Firebase] Skipping Firebase Messaging initialization in debug mode');
-    print('ℹ️ [Firebase] Debug builds will use WebSocket only for notifications');
-    return;
-  }
-
-  // Skip Firebase on iOS - it requires APN configuration which is not set up
-  if (Platform.isIOS) {
-    print('ℹ️ [Firebase] Skipping Firebase initialization on iOS (APN not configured)');
-    print('ℹ️ [Firebase] iOS will use WebSocket only for notifications');
-    return;
-  }
-
   try {
     print('🔄 [Firebase] Starting Firebase initialization...');
     
+    // Always initialize Firebase Core (needed for Firestore)
     // Check if Firebase is already initialized
     if (Firebase.apps.isEmpty) {
       print('🔄 [Firebase] Initializing Firebase Core...');
@@ -104,13 +91,27 @@ Future<void> _initializeFirebase() async {
         print('✅ [Firebase] Firebase Core initialized successfully');
       } catch (e) {
         print('❌ [Firebase] Failed to initialize Firebase Core: $e');
-        rethrow; // Re-throw on Android to be caught by outer catch
+        rethrow; // Re-throw to be caught by outer catch
       }
     } else {
       print('✅ [Firebase] Firebase Core already initialized');
     }
 
-    // Initialize Firebase Messaging for push notifications (Android only)
+    // Skip Firebase Messaging in debug mode (but Firestore still works)
+    if (kDebugMode) {
+      print('ℹ️ [Firebase] Skipping Firebase Messaging initialization in debug mode');
+      print('ℹ️ [Firebase] Firestore is available for real-time communication');
+      return;
+    }
+
+    // Skip Firebase Messaging on iOS - it requires APN configuration which is not set up
+    if (Platform.isIOS) {
+      print('ℹ️ [Firebase] Skipping Firebase Messaging initialization on iOS (APN not configured)');
+      print('ℹ️ [Firebase] Firestore is available for real-time communication');
+      return;
+    }
+
+    // Initialize Firebase Messaging for push notifications (Android release only)
     print('🔄 [Firebase] Starting Firebase Messaging initialization...');
     try {
       final firebaseMessagingService = FirebaseMessagingService();
@@ -123,7 +124,7 @@ Future<void> _initializeFirebase() async {
       print('❌ [Firebase] Firebase Messaging initialization failed: $e');
     }
   } catch (e, stackTrace) {
-    // Only print detailed error for Android
+    // Print detailed error
     print('❌ [Firebase] Firebase initialization failed: $e');
     print('Stack trace: $stackTrace');
     // Continue without Firebase - app will still work
@@ -541,7 +542,8 @@ class __InitialScreenState extends State<_InitialScreen> with TickerProviderStat
 
   Future<void> _checkAuthStatus() async {
     try {
-      await _authService.initPrefs();
+      // Add timeout to ensure we always navigate
+      await _authService.initPrefs().timeout(const Duration(seconds: 5));
       final userId = await _authService.getStoredUserId();
       final userProfile = await _authService.getStoredUserProfile();
 
@@ -549,25 +551,25 @@ class __InitialScreenState extends State<_InitialScreen> with TickerProviderStat
         if (userId != null) {
           if (userProfile != null) {
             Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (context) => const HomeScreen()));
+            return;
           } else {
             // Try to fetch the profile again
             try {
               final username = await _authService.getStoredUsername();
               if (username != null) {
-                final profile = await _authService.fetchUserProfile(username);
-                if (profile != null) {
+                final profile = await _authService.fetchUserProfile(username).timeout(const Duration(seconds: 5));
+                if (profile != null && mounted) {
                   Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (context) => const HomeScreen()));
-                } else {
-                  Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (context) => const LoginScreen()));
+                  return;
                 }
-              } else {
-                Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (context) => const LoginScreen()));
               }
             } catch (e) {
-              Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (context) => const LoginScreen()));
+              print('⚠️ [Auth] Error fetching profile: $e');
             }
           }
-        } else {
+        }
+        // Navigate to login if we reach here
+        if (mounted) {
           Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (context) => const LoginScreen()));
         }
       }
@@ -588,9 +590,10 @@ class __InitialScreenState extends State<_InitialScreen> with TickerProviderStat
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.grey[900], // Grey background during initial load
       body: Stack(
         children: [
-          const BackgroundGradient(),
+          Container(color: Colors.grey[900]), // Grey background
           Center(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
