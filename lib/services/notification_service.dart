@@ -112,10 +112,10 @@ class NotificationService {
 
   void _onNotificationTapped(NotificationResponse response) {
     // Handle notification tap and action buttons
-    print('📱 [NotificationService] Notification tapped: action=${response.action}, payload=${response.payload}');
+    print('📱 [NotificationService] Notification tapped: actionId=${response.actionId}, payload=${response.payload}');
 
     final payload = response.payload;
-    final action = response.action;
+    final action = response.actionId;
     
     // Handle call notification actions
     if (action == 'answer' || action == 'decline') {
@@ -164,10 +164,10 @@ class NotificationService {
   @pragma('vm:entry-point')
   static void _onBackgroundNotificationTapped(NotificationResponse response) {
     // This is a static method that can be called from background
-    print('📱 [NotificationService] Background notification tapped: action=${response.action}, payload=${response.payload}');
+    print('📱 [NotificationService] Background notification tapped: actionId=${response.actionId}, payload=${response.payload}');
     
     final payload = response.payload;
-    final action = response.action;
+    final action = response.actionId;
     
     // Handle call notification actions
     if (action == 'answer' || action == 'decline') {
@@ -486,6 +486,7 @@ class NotificationService {
       // Check notification type from payload
       bool isAppUpdate = false;
       bool isChat = false;
+      bool isCall = false;
       if (payload != null) {
         if (payload == 'app_update' || payload == 'update_check') {
           isAppUpdate = true;
@@ -497,6 +498,8 @@ class NotificationService {
               isAppUpdate = true;
             } else if (type == 'chat') {
               isChat = true;
+            } else if (type == 'call') {
+              isCall = true;
             }
           } catch (e) {
             // Not JSON, ignore
@@ -513,6 +516,8 @@ class NotificationService {
         }
       } else if (isChat) {
         channelId = _chatMessagesChannelId;
+      } else if (isCall) {
+        channelId = _callsChannelId;
       }
 
       print('🔔 [NotificationService] Showing notification: $title - $body');
@@ -520,6 +525,7 @@ class NotificationService {
       print('🔔 [NotificationService] Channel ID: $channelId');
       print('🔔 [NotificationService] Is App Update: $isAppUpdate');
       print('🔔 [NotificationService] Is Chat: $isChat');
+      print('🔔 [NotificationService] Is Call: $isCall');
       print('🔔 [NotificationService] Payload: $payload');
 
       // Android notification details - use appropriate channel
