@@ -118,7 +118,7 @@ class NotificationService {
     final action = response.actionId;
     
     // Handle call notification actions
-    if (action == 'answer' || action == 'decline') {
+    if (action != null && (action == 'answer' || action == 'decline')) {
       _handleCallNotificationAction(action, payload);
       return;
     }
@@ -170,7 +170,7 @@ class NotificationService {
     final action = response.actionId;
     
     // Handle call notification actions
-    if (action == 'answer' || action == 'decline') {
+    if (action != null && (action == 'answer' || action == 'decline')) {
       // Parse payload to get call data
       if (payload != null && payload.startsWith('{')) {
         try {
