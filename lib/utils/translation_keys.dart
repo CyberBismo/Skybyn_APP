@@ -206,6 +206,22 @@ class TranslationKeys {
   static const String userBlocked = 'user_blocked';
   static const String userUnblocked = 'user_unblocked';
   static const String userReported = 'user_reported';
+  
+  // Chat Actions
+  static const String clearChatHistory = 'clear_chat_history';
+  static const String clearChatHistoryTitle = 'clear_chat_history_title';
+  static const String clearChatHistoryMessage = 'clear_chat_history_message';
+  static const String clearChatHistoryButton = 'clear_chat_history_button';
+  static const String chatHistoryCleared = 'chat_history_cleared';
+  static const String errorClearingChat = 'error_clearing_chat';
+  static const String blockUserConfirmation = 'block_user_confirmation';
+  static const String blockUserButton = 'block_user_button';
+  static const String errorBlockingUser = 'error_blocking_user';
+  static const String unfriendTitle = 'unfriend_title';
+  static const String unfriendConfirmation = 'unfriend_confirmation';
+  static const String unfriendButton = 'unfriend_button';
+  static const String userUnfriended = 'user_unfriended';
+  static const String errorUnfriendingUser = 'error_unfriending_user';
 
   // Settings
   static const String general = 'general';

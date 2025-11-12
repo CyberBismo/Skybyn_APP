@@ -937,7 +937,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
                                     children: [
                                       const Icon(Icons.delete_outline, size: 20, color: Colors.black87),
                                       const SizedBox(width: 12),
-                                      const Text('Clear Chat History'),
+                                      TranslatedText(TranslationKeys.clearChatHistory),
                                     ],
                                   ),
                                 ),
@@ -958,7 +958,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
                                     children: [
                                       const Icon(Icons.person_remove, size: 20, color: Colors.orange),
                                       const SizedBox(width: 12),
-                                      const Text('Unfriend'),
+                                      TranslatedText(TranslationKeys.removeFriend),
                                     ],
                                   ),
                                 ),
@@ -1373,8 +1373,8 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: const Text('Clear Chat History'),
-          content: const Text('Are you sure you want to clear all messages in this chat? This action cannot be undone.'),
+          title: TranslatedText(TranslationKeys.clearChatHistoryTitle),
+          content: TranslatedText(TranslationKeys.clearChatHistoryMessage),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
@@ -1385,9 +1385,9 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
                 Navigator.of(context).pop();
                 _clearChatHistory();
               },
-              child: const Text(
-                'Clear',
-                style: TextStyle(color: Colors.red),
+              child: TranslatedText(
+                TranslationKeys.clearChatHistoryButton,
+                style: const TextStyle(color: Colors.red),
               ),
             ),
           ],
@@ -1407,9 +1407,9 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
       
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Chat history cleared'),
-            duration: Duration(seconds: 2),
+          SnackBar(
+            content: TranslatedText(TranslationKeys.chatHistoryCleared),
+            duration: const Duration(seconds: 2),
           ),
         );
       }
@@ -1418,7 +1418,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error clearing chat: ${e.toString()}'),
+            content: TranslatedText(TranslationKeys.errorClearingChat),
             duration: const Duration(seconds: 3),
           ),
         );
@@ -1433,7 +1433,9 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
       builder: (BuildContext context) {
         return AlertDialog(
           title: TranslatedText(TranslationKeys.blockUser),
-          content: Text('Are you sure you want to block ${widget.friend.name}? You will not receive messages from this user.'),
+          content: Text(
+            TranslationKeys.blockUserConfirmation.tr.replaceAll('{name}', widget.friend.name),
+          ),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
@@ -1444,9 +1446,9 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
                 Navigator.of(context).pop();
                 _blockUser();
               },
-              child: const Text(
-                'Block',
-                style: TextStyle(color: Colors.red),
+              child: TranslatedText(
+                TranslationKeys.blockUserButton,
+                style: const TextStyle(color: Colors.red),
               ),
             ),
           ],
@@ -1464,9 +1466,9 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
       
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('User blocked'),
-            duration: Duration(seconds: 2),
+          SnackBar(
+            content: TranslatedText(TranslationKeys.userBlocked),
+            duration: const Duration(seconds: 2),
           ),
         );
         // Navigate back after blocking
@@ -1477,7 +1479,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error blocking user: ${e.toString()}'),
+            content: TranslatedText(TranslationKeys.errorBlockingUser),
             duration: const Duration(seconds: 3),
           ),
         );
@@ -1491,8 +1493,10 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: const Text('Unfriend'),
-          content: Text('Are you sure you want to unfriend ${widget.friend.name}?'),
+          title: TranslatedText(TranslationKeys.unfriendTitle),
+          content: Text(
+            TranslationKeys.unfriendConfirmation.tr.replaceAll('{name}', widget.friend.name),
+          ),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
@@ -1503,9 +1507,9 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
                 Navigator.of(context).pop();
                 _unfriendUser();
               },
-              child: const Text(
-                'Unfriend',
-                style: TextStyle(color: Colors.orange),
+              child: TranslatedText(
+                TranslationKeys.unfriendButton,
+                style: const TextStyle(color: Colors.orange),
               ),
             ),
           ],
@@ -1523,9 +1527,9 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
       
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('User unfriended'),
-            duration: Duration(seconds: 2),
+          SnackBar(
+            content: TranslatedText(TranslationKeys.userUnfriended),
+            duration: const Duration(seconds: 2),
           ),
         );
         // Navigate back after unfriending
@@ -1536,7 +1540,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error unfriending user: ${e.toString()}'),
+            content: TranslatedText(TranslationKeys.errorUnfriendingUser),
             duration: const Duration(seconds: 3),
           ),
         );
