@@ -26,6 +26,7 @@ import 'profile_screen.dart';
 import 'call_screen.dart';
 import '../config/constants.dart';
 import '../widgets/chat_list_modal.dart';
+import '../widgets/app_colors.dart';
 
 class ChatScreen extends StatefulWidget {
   final Friend friend;
@@ -63,6 +64,9 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
   late Animation<double> _typingAnimation;
   // Store subscription for cleanup
   StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _onlineStatusSubscription;
+  // Menu overlay
+  OverlayEntry? _menuOverlayEntry;
+  final GlobalKey _menuButtonKey = GlobalKey();
 
   @override
   void initState() {
@@ -132,6 +136,8 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
       }
       // Cancel online status subscription when widget is disposed
       _onlineStatusSubscription?.cancel();
+      // Close menu if open
+      _closeMenu();
     super.dispose();
   }
 
@@ -895,86 +901,31 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
                           ),
                           const SizedBox(width: 12),
                           // More options button
-                          Container(
-                            width: 44,
-                            height: 44,
-                            decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.15),
-                              shape: BoxShape.circle,
-                              border: Border.all(
-                                color: Colors.white.withOpacity(0.3),
-                                width: 1,
+                          GestureDetector(
+                            key: _menuButtonKey,
+                            onTap: () {
+                              if (_menuOverlayEntry == null) {
+                                _showChatMenu(context, _menuButtonKey);
+                              } else {
+                                _closeMenu();
+                              }
+                            },
+                            child: Container(
+                              width: 44,
+                              height: 44,
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.15),
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: Colors.white.withOpacity(0.3),
+                                  width: 1,
+                                ),
                               ),
-                            ),
-                            child: PopupMenuButton<String>(
-                              icon: const Icon(
+                              child: const Icon(
                                 Icons.more_vert,
                                 color: Colors.white,
                                 size: 20,
                               ),
-                              padding: EdgeInsets.zero,
-                              color: Colors.grey[900],
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              onSelected: (value) {
-                                _handleMenuAction(value);
-                              },
-                              itemBuilder: (BuildContext context) => [
-                                PopupMenuItem<String>(
-                                  value: 'view_profile',
-                                  child: Row(
-                                    children: [
-                                      const Icon(Icons.person, size: 18, color: Colors.white),
-                                      const SizedBox(width: 12),
-                                      TranslatedText(
-                                        TranslationKeys.profile,
-                                        style: const TextStyle(color: Colors.white),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                PopupMenuItem<String>(
-                                  value: 'clear_chat',
-                                  child: Row(
-                                    children: [
-                                      const Icon(Icons.delete_outline, size: 18, color: Colors.white),
-                                      const SizedBox(width: 12),
-                                      TranslatedText(
-                                        TranslationKeys.clearChatHistory,
-                                        style: const TextStyle(color: Colors.white),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                const PopupMenuDivider(),
-                                PopupMenuItem<String>(
-                                  value: 'block',
-                                  child: Row(
-                                    children: [
-                                      const Icon(Icons.block, size: 18, color: Colors.red),
-                                      const SizedBox(width: 12),
-                                      TranslatedText(
-                                        TranslationKeys.blockUser,
-                                        style: const TextStyle(color: Colors.red),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                PopupMenuItem<String>(
-                                  value: 'unfriend',
-                                  child: Row(
-                                    children: [
-                                      const Icon(Icons.person_remove, size: 18, color: Colors.white),
-                                      const SizedBox(width: 12),
-                                      TranslatedText(
-                                        TranslationKeys.removeFriend,
-                                        style: const TextStyle(color: Colors.white),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
                             ),
                           ),
                         ],
@@ -1348,6 +1299,152 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
             ),
           ],
         ],
+      ),
+    );
+  }
+
+  /// Close the menu overlay
+  void _closeMenu() {
+    _menuOverlayEntry?.remove();
+    _menuOverlayEntry = null;
+  }
+
+  /// Show the chat menu with transparent blurry background
+  void _showChatMenu(BuildContext context, GlobalKey buttonKey) {
+    _closeMenu(); // Close any existing menu
+
+    final RenderBox? renderBox = buttonKey.currentContext?.findRenderObject() as RenderBox?;
+    if (renderBox == null) return;
+
+    final buttonPosition = renderBox.localToGlobal(Offset.zero);
+    final buttonSize = renderBox.size;
+
+    _menuOverlayEntry = OverlayEntry(
+      builder: (BuildContext context) {
+        return Stack(
+          children: [
+            // Full screen gesture detector to close menu when tapping outside
+            Positioned.fill(
+              child: GestureDetector(
+                onTap: _closeMenu,
+                child: Container(
+                  color: Colors.transparent,
+                ),
+              ),
+            ),
+            // Menu content
+            Positioned(
+              right: 10,
+              top: buttonPosition.dy + buttonSize.height + 8,
+              child: GestureDetector(
+                onTap: () {
+                  // Prevent closing when tapping on the menu itself
+                },
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(10),
+                  child: BackdropFilter(
+                    filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                    child: Material(
+                      color: Colors.transparent,
+                      child: Container(
+                        width: 200,
+                        decoration: BoxDecoration(
+                          color: Colors.transparent,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: AppColors.getMenuBorderColor(context),
+                            width: 1,
+                          ),
+                        ),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            _buildMenuItem(
+                              context,
+                              icon: Icons.person,
+                              text: TranslationKeys.profile,
+                              onTap: () {
+                                _closeMenu();
+                                _navigateToProfile();
+                              },
+                            ),
+                            _buildMenuItem(
+                              context,
+                              icon: Icons.delete_outline,
+                              text: TranslationKeys.clearChatHistory,
+                              onTap: () {
+                                _closeMenu();
+                                _showClearChatConfirmation();
+                              },
+                            ),
+                            Divider(
+                              color: AppColors.getMenuDividerColor(context),
+                            ),
+                            _buildMenuItem(
+                              context,
+                              icon: Icons.block,
+                              text: TranslationKeys.blockUser,
+                              isDestructive: true,
+                              onTap: () {
+                                _closeMenu();
+                                _showBlockConfirmation();
+                              },
+                            ),
+                            _buildMenuItem(
+                              context,
+                              icon: Icons.person_remove,
+                              text: TranslationKeys.removeFriend,
+                              onTap: () {
+                                _closeMenu();
+                                _showUnfriendConfirmation();
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+
+    Overlay.of(context).insert(_menuOverlayEntry!);
+  }
+
+  /// Build a menu item widget
+  Widget _buildMenuItem(
+    BuildContext context, {
+    required IconData icon,
+    required String text,
+    required VoidCallback onTap,
+    bool isDestructive = false,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        child: Row(
+          children: [
+            Icon(
+              icon,
+              color: isDestructive ? Colors.red : Colors.white,
+              size: 18,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: TranslatedText(
+                text,
+                style: TextStyle(
+                  color: isDestructive ? Colors.red : Colors.white,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
