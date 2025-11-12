@@ -134,9 +134,20 @@ class FirebaseRealtimeService {
       _isConnected = true;
       print('✅ [FirebaseRealtime] Connected to Firebase');
     } catch (e) {
-      print('❌ [FirebaseRealtime] Error connecting: $e');
-      _isConnected = false;
-      rethrow;
+      // Check if it's a Firestore database not found error
+      if (e.toString().contains('does not exist') || 
+          e.toString().contains('NOT_FOUND') ||
+          e.toString().contains('database')) {
+        print('⚠️ [FirebaseRealtime] Firestore database not available: $e');
+        print('ℹ️ [FirebaseRealtime] App will continue without real-time notifications');
+        print('ℹ️ [FirebaseRealtime] To enable Firestore, create a database at: https://console.cloud.google.com/datastore/setup?project=skybyn');
+        _isConnected = false;
+        // Don't rethrow - allow app to continue without Firestore
+      } else {
+        print('❌ [FirebaseRealtime] Error connecting: $e');
+        _isConnected = false;
+        // Don't rethrow - allow app to continue
+      }
     }
   }
 
@@ -147,15 +158,16 @@ class FirebaseRealtimeService {
   Future<void> _setupListeners() async {
     if (_userId == null) return;
 
-    // Listen to new post notifications
-    // Your backend should write to 'post_notifications' when a post is created
-    _postsSubscription = _firestore
-        .collection('post_notifications')
-        .where('status', isEqualTo: 'pending')
-        .orderBy('timestamp', descending: true)
-        .limit(1)
-        .snapshots()
-        .listen((snapshot) {
+    try {
+      // Listen to new post notifications
+      // Your backend should write to 'post_notifications' when a post is created
+      _postsSubscription = _firestore
+          .collection('post_notifications')
+          .where('status', isEqualTo: 'pending')
+          .orderBy('timestamp', descending: true)
+          .limit(1)
+          .snapshots()
+          .listen((snapshot) {
       for (var doc in snapshot.docChanges) {
         if (doc.type == DocumentChangeType.added) {
           final data = doc.doc.data() as Map<String, dynamic>?;
@@ -174,6 +186,9 @@ class FirebaseRealtimeService {
           }
         }
       }
+    }, onError: (error) {
+      print('⚠️ [FirebaseRealtime] Error in post notifications listener: $error');
+      // Continue without this listener - app will still work
     });
 
     // Listen to user notifications (comments, etc.)
@@ -192,6 +207,8 @@ class FirebaseRealtimeService {
           doc.doc.reference.update({'status': 'processed'});
         }
       }
+    }, onError: (error) {
+      print('⚠️ [FirebaseRealtime] Error in notifications listener: $error');
     });
 
     // Listen to broadcast notifications
@@ -212,6 +229,8 @@ class FirebaseRealtimeService {
           doc.doc.reference.update({'status': 'processed'});
         }
       }
+    }, onError: (error) {
+      print('⚠️ [FirebaseRealtime] Error in broadcast notifications listener: $error');
     });
 
     // Listen to app update notifications
@@ -228,9 +247,17 @@ class FirebaseRealtimeService {
           doc.doc.reference.update({'status': 'processed'});
         }
       }
+    }, onError: (error) {
+      print('⚠️ [FirebaseRealtime] Error in app update notifications listener: $error');
     });
 
     // Chat messages, typing status, and online status are set up per chat/user in screens
+    } catch (e) {
+      print('⚠️ [FirebaseRealtime] Firestore database not available: $e');
+      print('ℹ️ [FirebaseRealtime] App will continue without real-time notifications');
+      print('ℹ️ [FirebaseRealtime] To enable Firestore, create a database at: https://console.cloud.google.com/datastore/setup?project=skybyn');
+      // Continue without Firestore - app will still work
+    }
   }
 
   /// Handle notification from Firestore
@@ -297,6 +324,8 @@ class FirebaseRealtimeService {
           doc.doc.reference.update({'status': 'processed'});
         }
       }
+    }, onError: (error) {
+      print('⚠️ [FirebaseRealtime] Error in chat message notifications listener: $error');
     });
   }
 
@@ -379,6 +408,8 @@ class FirebaseRealtimeService {
           onTyping(userId, isTyping);
         }
       }
+    }, onError: (error) {
+      print('⚠️ [FirebaseRealtime] Error in typing status listener: $error');
     });
   }
 
@@ -416,6 +447,8 @@ class FirebaseRealtimeService {
           }
         }
       }
+    }, onError: (error) {
+      print('⚠️ [FirebaseRealtime] Error in online status listener: $error');
     });
   }
 
