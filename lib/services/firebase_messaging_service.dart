@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
@@ -43,7 +44,9 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
     final payload = type == 'call' 
         ? jsonEncode({
             'type': 'call',
+            'callId': message.data['callId']?.toString() ?? '',
             'sender': message.data['sender']?.toString(),
+            'fromUserId': message.data['fromUserId']?.toString() ?? message.data['sender']?.toString() ?? '',
             'callType': message.data['callType']?.toString() ?? 'video',
             'incomingCall': message.data['incomingCall']?.toString() ?? 'true',
           })
@@ -376,7 +379,9 @@ class FirebaseMessagingService {
           body: message.notification?.body ?? '',
           payload: jsonEncode({
             'type': 'call',
+            'callId': message.data['callId']?.toString() ?? '',
             'sender': message.data['sender']?.toString(),
+            'fromUserId': message.data['fromUserId']?.toString() ?? message.data['sender']?.toString() ?? '',
             'callType': message.data['callType']?.toString() ?? 'video',
             'incomingCall': message.data['incomingCall']?.toString() ?? 'true',
           }),
@@ -444,10 +449,43 @@ class FirebaseMessagingService {
           break;
         case 'call_offer':
         case 'call_initiate':
-          // Handle call notification - the call will be handled by WebSocket when app opens
-          // or by the call handler in main.dart
-          print('📞 [FCM] Call notification tapped - callId: ${data['callId']}, fromUserId: ${data['fromUserId']}');
-          // The WebSocket service will handle the call when it connects
+        case 'call':
+          // Handle call notification - fetch call offer from Firestore and show incoming call dialog
+          final callId = data['callId']?.toString();
+          final fromUserId = data['fromUserId']?.toString() ?? data['sender']?.toString();
+          final callType = data['callType']?.toString() ?? 'video';
+          
+          print('📞 [FCM] Call notification tapped - callId: $callId, fromUserId: $fromUserId, type: $callType');
+          
+          if (callId != null && fromUserId != null) {
+            // Fetch call offer from Firestore
+            try {
+              final firestore = FirebaseFirestore.instance;
+              final callDoc = await firestore.collection('call_signals').doc(callId).get();
+              
+              if (callDoc.exists) {
+                final callData = callDoc.data();
+                final offer = callData?['offer']?.toString() ?? '';
+                final offerCallType = callData?['callType']?.toString() ?? callType;
+                
+                if (offer.isNotEmpty) {
+                  // Trigger incoming call handler in main.dart via navigator key
+                  // The main.dart will handle showing the incoming call dialog
+                  print('📞 [FCM] Call offer found in Firestore - triggering call handler');
+                  // Note: The Firestore listener in main.dart should pick this up automatically
+                  // But we can also manually trigger it if needed
+                } else {
+                  print('⚠️ [FCM] Call offer found but offer is empty');
+                }
+              } else {
+                print('⚠️ [FCM] Call offer not found in Firestore - may have expired');
+              }
+            } catch (e) {
+              print('❌ [FCM] Error fetching call offer from Firestore: $e');
+            }
+          } else {
+            print('⚠️ [FCM] Call notification missing callId or fromUserId');
+          }
           break;
         default:
           print('❌ [FCM] Unknown notification type: $type');

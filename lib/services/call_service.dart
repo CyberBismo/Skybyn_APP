@@ -41,9 +41,45 @@ class CallService {
   Map<String, dynamic> get _configuration {
     return {
       'iceServers': [
+        // STUN servers for NAT discovery
         {'urls': 'stun:stun.l.google.com:19302'},
-        // Add your TURN servers here if needed
-        // {'urls': 'turn:your-turn-server.com:3478', 'username': 'user', 'credential': 'pass'}
+        {'urls': 'stun:stun1.l.google.com:19302'},
+        {'urls': 'stun:stun2.l.google.com:19302'},
+        // TURN servers for relay (when direct P2P connection fails)
+        // Free public TURN servers (use with caution - may have rate limits)
+        {
+          'urls': 'turn:openrelay.metered.ca:80',
+          'username': 'openrelayproject',
+          'credential': 'openrelayproject'
+        },
+        {
+          'urls': 'turn:openrelay.metered.ca:443',
+          'username': 'openrelayproject',
+          'credential': 'openrelayproject'
+        },
+        {
+          'urls': 'turn:openrelay.metered.ca:443?transport=tcp',
+          'username': 'openrelayproject',
+          'credential': 'openrelayproject'
+        },
+        // Additional free TURN server
+        {
+          'urls': 'turn:relay.metered.ca:80',
+          'username': 'openrelayproject',
+          'credential': 'openrelayproject'
+        },
+        {
+          'urls': 'turn:relay.metered.ca:443',
+          'username': 'openrelayproject',
+          'credential': 'openrelayproject'
+        },
+        {
+          'urls': 'turn:relay.metered.ca:443?transport=tcp',
+          'username': 'openrelayproject',
+          'credential': 'openrelayproject'
+        },
+        // Note: For production, consider using your own TURN server
+        // Example: {'urls': 'turn:your-turn-server.com:3478', 'username': 'user', 'credential': 'pass'}
       ],
     };
   }

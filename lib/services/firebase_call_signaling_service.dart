@@ -1,7 +1,10 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'dart:async';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
 import 'auth_service.dart';
+import '../config/constants.dart';
 
 /// Firebase-based WebRTC signaling service
 class FirebaseCallSignalingService {
@@ -190,6 +193,7 @@ class FirebaseCallSignalingService {
     }
 
     try {
+      // Write call offer to Firestore for real-time signaling
       await _firestore.collection('call_signals').doc(callId).set({
         'type': 'call_offer',
         'callId': callId,
@@ -202,9 +206,63 @@ class FirebaseCallSignalingService {
       });
       
       print('📞 [FirebaseCallSignaling] Sent call_offer: callId=$callId, targetUserId=$targetUserId, type=$callType');
+      
+      // Send FCM push notification for background/offline users
+      await _sendCallNotification(targetUserId, callId, callType);
     } catch (e) {
       print('❌ [FirebaseCallSignaling] Error sending call offer: $e');
       rethrow;
+    }
+  }
+  
+  /// Send FCM push notification for incoming call
+  Future<void> _sendCallNotification(String targetUserId, String callId, String callType) async {
+    try {
+      // Get API base URL from constants
+      final apiBase = ApiConstants.apiBase;
+      
+      // Get sender's username/nickname for notification
+      final authService = AuthService();
+      final user = await authService.getStoredUserProfile();
+      final senderName = user?.nickname?.isNotEmpty == true 
+          ? user!.nickname 
+          : user?.username ?? 'Someone';
+      
+      final callTypeText = callType == 'video' ? 'video call' : 'voice call';
+      
+      // Send FCM notification via backend API
+      final response = await http.post(
+        Uri.parse('$apiBase/firebase.php'),
+        body: {
+          'user': targetUserId,
+          'title': senderName,
+          'body': 'Incoming $callTypeText',
+          'type': 'call',
+          'from': _userId!,
+          'priority': 'high',
+          'channel': 'calls',
+          'payload': jsonEncode({
+            'callId': callId,
+            'callType': callType,
+            'fromUserId': _userId,
+            'incomingCall': 'true',
+          }),
+        },
+      );
+      
+      if (response.statusCode == 200) {
+        final result = jsonDecode(response.body);
+        if (result['status'] == 'success') {
+          print('✅ [FirebaseCallSignaling] FCM call notification sent successfully');
+        } else {
+          print('⚠️ [FirebaseCallSignaling] FCM notification failed: ${result['message']}');
+        }
+      } else {
+        print('⚠️ [FirebaseCallSignaling] FCM notification HTTP error: ${response.statusCode}');
+      }
+    } catch (e) {
+      // Don't fail the call if FCM notification fails - it's optional
+      print('⚠️ [FirebaseCallSignaling] Error sending FCM notification: $e');
     }
   }
 
