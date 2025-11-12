@@ -1431,15 +1431,15 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
           children: [
             Icon(
               icon,
-              color: isDestructive ? Colors.red : Colors.white,
-              size: 18,
+              color: isDestructive ? Colors.red : AppColors.getIconColor(context),
+              size: 20,
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: 8),
             Expanded(
               child: TranslatedText(
                 text,
                 style: TextStyle(
-                  color: isDestructive ? Colors.red : Colors.white,
+                  color: isDestructive ? Colors.red : AppColors.getTextColor(context),
                 ),
               ),
             ),
