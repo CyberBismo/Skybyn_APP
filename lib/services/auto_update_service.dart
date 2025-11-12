@@ -219,6 +219,19 @@ class AutoUpdateService {
             contentLength = int.tryParse(contentLengthHeader);
           }
         }
+        
+        // Also check for Content-Range header (for partial downloads/resumable downloads)
+        if ((contentLength == null || contentLength == -1) && streamedResponse.headers.containsKey('content-range')) {
+          final contentRange = streamedResponse.headers['content-range'];
+          if (contentRange != null) {
+            // Parse "bytes 0-12345/67890" format
+            final match = RegExp(r'bytes \d+-\d+/(\d+)').firstMatch(contentRange);
+            if (match != null) {
+              contentLength = int.tryParse(match.group(1) ?? '');
+            }
+          }
+        }
+        
         print('📊 [AutoUpdate] Downloading APK (size: ${contentLength ?? 'unknown'} bytes)');
 
         // Update notification with initial progress
@@ -267,37 +280,49 @@ class AutoUpdateService {
             }
           } else {
             // Indeterminate progress if content length unknown
-            // Estimate progress based on typical APK sizes (5-50MB range)
-            // Use a logarithmic scale to show progress that slows down as download continues
-            // This gives a more realistic feel even without knowing the exact size
-            final estimatedSize = 20 * 1024 * 1024; // Estimate 20MB as typical size
-            final estimatedProgress = ((downloadedBytes / estimatedSize) * 90).round().clamp(0, 90);
-            
-            // Update every 50KB downloaded or every 5% estimated progress change
+            // Use a more conservative approach: show progress based on time/downloaded bytes
+            // but cap at 85% until we know the download is complete
+            // This prevents showing 90% when only 60% is actually downloaded
             final bytesSinceLastUpdate = downloadedBytes - lastReportedBytes;
+            
+            // Use a logarithmic scale that slows down as download continues
+            // Estimate based on typical APK sizes (10-50MB range)
+            // Start with a smaller estimate and increase as we download more
+            final baseEstimate = 15 * 1024 * 1024; // Start with 15MB estimate
+            final dynamicEstimate = downloadedBytes > baseEstimate 
+                ? downloadedBytes * 1.2 // If we've exceeded base, estimate 20% more
+                : baseEstimate;
+            
+            // Calculate progress but cap at 85% during download (reserve 15% for completion)
+            final rawProgress = ((downloadedBytes / dynamicEstimate) * 100).round();
+            final estimatedProgress = rawProgress.clamp(0, 85); // Cap at 85% during download
+            
+            // Update every 50KB downloaded or every 2% estimated progress change
             final progressSinceLastUpdate = (estimatedProgress - lastReportedProgress).abs();
-            if (bytesSinceLastUpdate >= 50000 || progressSinceLastUpdate >= 5) {
+            if (bytesSinceLastUpdate >= 50000 || progressSinceLastUpdate >= 2) {
               lastReportedProgress = estimatedProgress;
               lastReportedBytes = downloadedBytes;
               
               await notificationService.showUpdateProgressNotification(
                 title: 'Updating Skybyn',
-                status: 'Downloading... ${_formatBytes(downloadedBytes)} (~$estimatedProgress%)',
+                status: 'Downloading... ${_formatBytes(downloadedBytes)}',
                 progress: estimatedProgress,
                 indeterminate: true,
               );
               
               // Call progress callback with estimated progress
-              onProgress?.call(estimatedProgress, 'Downloading... ${_formatBytes(downloadedBytes)} (~$estimatedProgress%)');
+              onProgress?.call(estimatedProgress, 'Downloading... ${_formatBytes(downloadedBytes)}');
             }
           }
         }
 
-        // Update notification
+        // Update notification - only show 95% when we're actually saving
+        // If content length was unknown, we might have been at 85%, so jump to 95% here
+        final finalProgressBeforeSave = contentLength != null && contentLength > 0 ? 95 : 90;
         await notificationService.showUpdateProgressNotification(
           title: 'Updating Skybyn',
           status: 'Saving file...',
-          progress: 95,
+          progress: finalProgressBeforeSave,
         );
 
         // Write to file
