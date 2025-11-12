@@ -310,6 +310,12 @@ class WebSocketService {
       }
     }
 
+    // Ensure service is initialized before connecting
+    if (!_isInitialized) {
+      print('⚠️ [WebSocket] Service not initialized, initializing now...');
+      await initialize();
+    }
+    
     // Don't connect if already connected or connecting
     // Check and set _isConnecting atomically to prevent race conditions
     if (_isConnected) {
