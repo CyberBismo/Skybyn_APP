@@ -913,7 +913,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
                                 size: 20,
                               ),
                               padding: EdgeInsets.zero,
-                              color: Colors.white.withOpacity(0.95),
+                              color: Colors.grey[900],
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(12),
                               ),
@@ -925,9 +925,12 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
                                   value: 'view_profile',
                                   child: Row(
                                     children: [
-                                      const Icon(Icons.person, size: 20, color: Colors.black87),
+                                      const Icon(Icons.person, size: 18, color: Colors.white),
                                       const SizedBox(width: 12),
-                                      TranslatedText(TranslationKeys.profile),
+                                      TranslatedText(
+                                        TranslationKeys.profile,
+                                        style: const TextStyle(color: Colors.white),
+                                      ),
                                     ],
                                   ),
                                 ),
@@ -935,9 +938,12 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
                                   value: 'clear_chat',
                                   child: Row(
                                     children: [
-                                      const Icon(Icons.delete_outline, size: 20, color: Colors.black87),
+                                      const Icon(Icons.delete_outline, size: 18, color: Colors.white),
                                       const SizedBox(width: 12),
-                                      TranslatedText(TranslationKeys.clearChatHistory),
+                                      TranslatedText(
+                                        TranslationKeys.clearChatHistory,
+                                        style: const TextStyle(color: Colors.white),
+                                      ),
                                     ],
                                   ),
                                 ),
@@ -946,9 +952,12 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
                                   value: 'block',
                                   child: Row(
                                     children: [
-                                      const Icon(Icons.block, size: 20, color: Colors.red),
+                                      const Icon(Icons.block, size: 18, color: Colors.red),
                                       const SizedBox(width: 12),
-                                      TranslatedText(TranslationKeys.blockUser),
+                                      TranslatedText(
+                                        TranslationKeys.blockUser,
+                                        style: const TextStyle(color: Colors.red),
+                                      ),
                                     ],
                                   ),
                                 ),
@@ -956,9 +965,12 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
                                   value: 'unfriend',
                                   child: Row(
                                     children: [
-                                      const Icon(Icons.person_remove, size: 20, color: Colors.orange),
+                                      const Icon(Icons.person_remove, size: 18, color: Colors.white),
                                       const SizedBox(width: 12),
-                                      TranslatedText(TranslationKeys.removeFriend),
+                                      TranslatedText(
+                                        TranslationKeys.removeFriend,
+                                        style: const TextStyle(color: Colors.white),
+                                      ),
                                     ],
                                   ),
                                 ),
