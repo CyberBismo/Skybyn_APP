@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart';
 import 'dart:ui';
-import 'dart:io';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../widgets/custom_app_bar.dart';
@@ -20,7 +18,6 @@ import '../services/translation_service.dart';
 import 'package:timeago/timeago.dart' as timeago;
 import 'dart:convert';
 import 'dart:async';
-import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'profile_screen.dart';
 import 'call_screen.dart';
@@ -1447,24 +1444,6 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
         ),
       ),
     );
-  }
-
-  /// Handle menu actions from the 3-dot menu
-  void _handleMenuAction(String action) {
-    switch (action) {
-      case 'view_profile':
-        _navigateToProfile();
-        break;
-      case 'clear_chat':
-        _showClearChatConfirmation();
-        break;
-      case 'block':
-        _showBlockConfirmation();
-        break;
-      case 'unfriend':
-        _showUnfriendConfirmation();
-        break;
-    }
   }
 
   /// Navigate to friend's profile
