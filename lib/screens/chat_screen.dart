@@ -51,6 +51,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
   String? _currentUserId;
   Timer? _onlineStatusTimer;
   bool _friendOnline = false;
+  int? _friendLastActive;
   bool _showSearchForm = false;
   bool _hasMoreMessages = true;
   final FocusNode _messageFocusNode = FocusNode();
@@ -70,6 +71,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _friendOnline = widget.friend.online; // Initialize with friend's current status
+    _friendLastActive = widget.friend.lastActive; // Initialize with friend's last active
     _loadUserId();
     _loadMessages();
     _setupWebSocketListener();
@@ -231,14 +233,30 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
           // Check last_active timestamp
           // Online: last_active <= 2 minutes
           // Away: last_active > 2 minutes (shown as offline in UI)
-          final lastActive = int.tryParse(data['last_active']?.toString() ?? '0') ?? 0;
+          final lastActiveValue = data['last_active'];
+          int? lastActive;
+          if (lastActiveValue != null) {
+            if (lastActiveValue is int) {
+              // If it's a large number (milliseconds), convert to seconds
+              lastActive = lastActiveValue > 10000000000 
+                  ? lastActiveValue ~/ 1000 
+                  : lastActiveValue;
+            } else if (lastActiveValue is String) {
+              final parsed = int.tryParse(lastActiveValue);
+              if (parsed != null) {
+                lastActive = parsed > 10000000000 ? parsed ~/ 1000 : parsed;
+              }
+            }
+          }
+          
           final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
           final twoMinutesAgo = now - 120; // 2 minutes = 120 seconds
-          final isOnline = lastActive >= twoMinutesAgo;
+          final isOnline = lastActive != null && lastActive >= twoMinutesAgo;
 
-          if (mounted && _friendOnline != isOnline) {
+          if (mounted) {
             setState(() {
               _friendOnline = isOnline;
+              _friendLastActive = lastActive;
             });
           }
         }
@@ -800,9 +818,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
                                         ),
                                         const SizedBox(width: 6),
                                         Text(
-                                          _friendOnline
-                                              ? 'Online'
-                                              : 'Offline',
+                                          _getLastActiveStatus(),
                                           style: TextStyle(
                                             color: _friendOnline
                                                 ? Colors.greenAccent
@@ -1633,6 +1649,35 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
           ),
         );
       }
+    }
+  }
+  
+  /// Get formatted last active status string
+  String _getLastActiveStatus() {
+    if (_friendLastActive == null) {
+      return _friendOnline ? 'Online' : 'Offline';
+    }
+    
+    final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+    final twoMinutesAgo = now - 120; // 2 minutes = 120 seconds
+    
+    if (_friendLastActive! >= twoMinutesAgo) {
+      return 'Online';
+    }
+    
+    final secondsAgo = now - _friendLastActive!;
+    
+    if (secondsAgo < 60) {
+      return 'Last active ${secondsAgo}s ago';
+    } else if (secondsAgo < 3600) {
+      final minutes = secondsAgo ~/ 60;
+      return 'Last active ${minutes}m ago';
+    } else if (secondsAgo < 86400) {
+      final hours = secondsAgo ~/ 3600;
+      return 'Last active ${hours}h ago';
+    } else {
+      final days = secondsAgo ~/ 86400;
+      return 'Last active ${days}d ago';
     }
   }
 }

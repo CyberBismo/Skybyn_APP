@@ -259,7 +259,7 @@ class _ChatListModalState extends State<ChatListModal> {
                                         ),
                                         const SizedBox(width: 6),
                                         Text(
-                                          friend.online ? 'Online' : 'Offline',
+                                          friend.getLastActiveStatus(),
                                           style: TextStyle(
                                             color: friend.online ? Colors.greenAccent : Colors.white,
                                             fontSize: 12,

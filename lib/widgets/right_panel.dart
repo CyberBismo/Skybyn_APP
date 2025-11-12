@@ -277,18 +277,25 @@ class _RightPanelState extends State<RightPanel> {
                                             decoration: TextDecoration.none,
                                           ),
                                         ),
+                                        subtitle: Text(
+                                          friend.getLastActiveStatus(),
+                                          style: TextStyle(
+                                            color: friend.online ? Colors.greenAccent : Colors.white70,
+                                            fontSize: 12,
+                                            decoration: TextDecoration.none,
+                                          ),
+                                        ),
                                         trailing: Row(
                                           mainAxisSize: MainAxisSize.min,
                                           children: [
-                                            if (friend.online)
-                                              Container(
-                                                width: 10,
-                                                height: 10,
-                                                decoration: const BoxDecoration(
-                                                  color: Colors.green,
-                                                  shape: BoxShape.circle,
-                                                ),
+                                            Container(
+                                              width: 10,
+                                              height: 10,
+                                              decoration: BoxDecoration(
+                                                color: friend.online ? Colors.greenAccent : Colors.white70,
+                                                shape: BoxShape.circle,
                                               ),
+                                            ),
                                             const SizedBox(width: 8),
                                             const Icon(Icons.chevron_right, color: Colors.white70),
                                           ],

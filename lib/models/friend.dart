@@ -6,6 +6,7 @@ class Friend {
   final String nickname;
   final String avatar;
   final bool online;
+  final int? lastActive; // Unix timestamp in seconds
 
   Friend({
     required this.id,
@@ -13,6 +14,7 @@ class Friend {
     required this.nickname,
     required this.avatar,
     required this.online,
+    this.lastActive,
   });
 
   static bool _parseOnline(dynamic value) {
@@ -33,12 +35,30 @@ class Friend {
       }
     }
     
+    // Parse last_active timestamp (can be in seconds or milliseconds)
+    int? lastActive;
+    if (json['last_active'] != null) {
+      final lastActiveValue = json['last_active'];
+      if (lastActiveValue is int) {
+        // If it's a large number (milliseconds), convert to seconds
+        lastActive = lastActiveValue > 10000000000 
+            ? lastActiveValue ~/ 1000 
+            : lastActiveValue;
+      } else if (lastActiveValue is String) {
+        final parsed = int.tryParse(lastActiveValue);
+        if (parsed != null) {
+          lastActive = parsed > 10000000000 ? parsed ~/ 1000 : parsed;
+        }
+      }
+    }
+    
     return Friend(
       id: (json['friend_id'] ?? json['userID'] ?? json['id'] ?? '').toString(),
       username: (json['username'] ?? json['name'] ?? 'Unknown').toString(),
       nickname: (json['nickname'] ?? '').toString(),
       avatar: avatarUrl,
       online: _parseOnline(json['online']),
+      lastActive: lastActive,
     );
   }
 
@@ -49,18 +69,50 @@ class Friend {
       'nickname': nickname,
       'avatar': avatar,
       'online': online,
+      'last_active': lastActive,
     };
   }
 
   /// Create a copy of this friend with updated online status
-  Friend copyWith({bool? online}) {
+  Friend copyWith({bool? online, int? lastActive}) {
     return Friend(
       id: id,
       username: username,
       nickname: nickname,
       avatar: avatar,
       online: online ?? this.online,
+      lastActive: lastActive ?? this.lastActive,
     );
+  }
+  
+  /// Get formatted last active status string
+  /// Returns "Online" if active within 2 minutes, otherwise "Last active X ago"
+  String getLastActiveStatus() {
+    if (lastActive == null) {
+      return online ? 'Online' : 'Offline';
+    }
+    
+    final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+    final twoMinutesAgo = now - 120; // 2 minutes = 120 seconds
+    
+    if (lastActive! >= twoMinutesAgo) {
+      return 'Online';
+    }
+    
+    final secondsAgo = now - lastActive!;
+    
+    if (secondsAgo < 60) {
+      return 'Last active ${secondsAgo}s ago';
+    } else if (secondsAgo < 3600) {
+      final minutes = secondsAgo ~/ 60;
+      return 'Last active ${minutes}m ago';
+    } else if (secondsAgo < 86400) {
+      final hours = secondsAgo ~/ 3600;
+      return 'Last active ${hours}h ago';
+    } else {
+      final days = secondsAgo ~/ 86400;
+      return 'Last active ${days}d ago';
+    }
   }
 }
 

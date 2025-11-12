@@ -292,15 +292,15 @@ class FirebaseRealtimeService {
   }
 
   /// Set up chat message listener for a specific chat
-  /// Note: This listens to notifications, not message storage
-  /// Your backend should write chat message notifications to Firestore when messages are sent
+  /// Note: This receives full message text directly from Firestore
+  /// Backend writes chat message notifications to Firestore when messages are sent
   void setupChatListener(String friendId, Function(String, String, String, String) onMessage) {
     if (_userId == null) return;
 
     _chatMessagesSubscription?.cancel();
     
     // Listen to chat message notifications
-    // Your backend should write notifications here when messages are sent
+    // Backend writes full message text to Firestore for real-time delivery
     _chatMessagesSubscription = _firestore
         .collection('chat_message_notifications')
         .where('toUserId', isEqualTo: _userId)
@@ -316,9 +316,17 @@ class FirebaseRealtimeService {
           final messageId = data['messageId'] as String? ?? doc.doc.id;
           final fromUserId = data['fromUserId'] as String? ?? '';
           final toUserId = data['toUserId'] as String? ?? '';
+          // Get full message text directly from Firestore (no need to fetch from API)
+          final message = data['message'] as String? ?? '';
           
-          // Fetch actual message from your API
-          _fetchMessageFromAPI(messageId, fromUserId, toUserId, onMessage);
+          if (message.isNotEmpty) {
+            // Use message text directly from Firestore
+            onMessage(messageId, fromUserId, toUserId, message);
+          } else {
+            // Fallback: if message text is missing, fetch from API
+            print('⚠️ [FirebaseRealtime] Message text missing in Firestore, fetching from API');
+            _fetchMessageFromAPI(messageId, fromUserId, toUserId, onMessage);
+          }
           
           // Mark notification as processed
           doc.doc.reference.update({'status': 'processed'});
