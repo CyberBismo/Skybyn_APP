@@ -213,8 +213,12 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   /// Update user activity
   Future<void> _updateActivity() async {
     try {
+      // Update both REST API (for backward compatibility) and Firestore
       final authService = AuthService();
-      await authService.updateActivity();
+      await Future.wait([
+        authService.updateActivity(), // REST API
+        _firebaseRealtimeService.updateActivity(), // Firestore
+      ]);
     } catch (e) {
       // Silently fail - activity updates are not critical
       if (kDebugMode) {
@@ -279,8 +283,12 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     // Debounce: wait 500ms before updating to prevent rapid successive calls
     _onlineStatusDebounceTimer = Timer(const Duration(milliseconds: 500), () async {
       try {
+        // Update both REST API (for backward compatibility) and Firestore
         final authService = AuthService();
-        await authService.updateOnlineStatus(isOnline);
+        await Future.wait([
+          authService.updateOnlineStatus(isOnline), // REST API
+          _firebaseRealtimeService.updateUserStatus(isOnline), // Firestore
+        ]);
       } catch (e) {
         print('⚠️ [MyApp] Failed to update online status: $e');
       }

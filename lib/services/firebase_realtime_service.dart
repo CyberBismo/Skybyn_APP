@@ -112,6 +112,9 @@ class FirebaseRealtimeService {
         return;
       }
 
+      // Ensure user document exists in Firestore (create if doesn't exist)
+      await _ensureUserDocument();
+      
       // Update user status to online
       await _updateUserStatus(true);
       
@@ -344,15 +347,68 @@ class FirebaseRealtimeService {
     });
   }
 
-  /// Update user online status
-  Future<void> _updateUserStatus(bool isOnline) async {
+  /// Update user online status in Firestore
+  Future<void> updateUserStatus(bool isOnline) async {
     if (_userId == null) return;
     
-    await _firestore.collection('users').doc(_userId).update({
-      'online': isOnline ? 1 : 0,
-      'last_active': FieldValue.serverTimestamp(),
-      'sessionId': _sessionId,
-    });
+    try {
+      await _firestore.collection('users').doc(_userId).update({
+        'online': isOnline ? 1 : 0,
+        'last_active': FieldValue.serverTimestamp(),
+        'sessionId': _sessionId,
+      });
+      if (kDebugMode) {
+        print('✅ [FirebaseRealtime] Updated user status in Firestore: online=$isOnline');
+      }
+    } catch (e) {
+      print('❌ [FirebaseRealtime] Error updating user status in Firestore: $e');
+    }
+  }
+
+  /// Update user activity (last_active timestamp) in Firestore
+  Future<void> updateActivity() async {
+    if (_userId == null) return;
+    
+    try {
+      await _firestore.collection('users').doc(_userId).update({
+        'last_active': FieldValue.serverTimestamp(),
+      });
+    } catch (e) {
+      if (kDebugMode) {
+        print('⚠️ [FirebaseRealtime] Error updating activity in Firestore: $e');
+      }
+    }
+  }
+
+  /// Ensure user document exists in Firestore
+  Future<void> _ensureUserDocument() async {
+    if (_userId == null) return;
+    
+    try {
+      final userDoc = _firestore.collection('users').doc(_userId);
+      final doc = await userDoc.get();
+      
+      if (!doc.exists) {
+        // Create user document if it doesn't exist
+        await userDoc.set({
+          'userId': _userId,
+          'online': 0,
+          'last_active': FieldValue.serverTimestamp(),
+          'sessionId': _sessionId,
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+        if (kDebugMode) {
+          print('✅ [FirebaseRealtime] Created user document in Firestore');
+        }
+      }
+    } catch (e) {
+      print('❌ [FirebaseRealtime] Error ensuring user document: $e');
+    }
+  }
+
+  /// Internal method for updating user status (used during connect/disconnect)
+  Future<void> _updateUserStatus(bool isOnline) async {
+    await updateUserStatus(isOnline);
   }
 
   /// Disconnect and clean up
