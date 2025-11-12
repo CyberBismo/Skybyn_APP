@@ -62,7 +62,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
   late AnimationController _typingAnimationController;
   late Animation<double> _typingAnimation;
   // Store subscription for cleanup
-  StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _onlineStatusSubscription;
+  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _onlineStatusSubscription;
 
   @override
   void initState() {
