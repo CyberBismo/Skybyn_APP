@@ -407,11 +407,11 @@ class FirebaseMessagingService {
     // Check if app was opened from notification
     RemoteMessage? initialMessage = await _messaging!.getInitialMessage();
     if (initialMessage != null) {
-      _handleNotificationTap(initialMessage.data);
+      await _handleNotificationTap(initialMessage.data);
     }
   }
 
-  void _handleNotificationTap(Map<String, dynamic> data) {
+  Future<void> _handleNotificationTap(Map<String, dynamic> data) async {
     try {
       final type = data['type']?.toString();
       final payload = data['payload']?.toString();
