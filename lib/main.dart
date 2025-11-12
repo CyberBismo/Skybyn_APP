@@ -13,7 +13,8 @@ import 'dart:async';
 import 'services/focus_service.dart';
 import 'services/auth_service.dart';
 import 'services/notification_service.dart';
-import 'services/websocket_service.dart';
+import 'services/firebase_realtime_service.dart';
+import 'services/firebase_call_signaling_service.dart';
 import 'services/firebase_messaging_service.dart';
 import 'services/translation_service.dart';
 import 'services/background_update_scheduler.dart';
@@ -141,7 +142,8 @@ final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   final NotificationService _notificationService = NotificationService();
-  final WebSocketService _webSocketService = WebSocketService();
+  final FirebaseRealtimeService _firebaseRealtimeService = FirebaseRealtimeService();
+  final FirebaseCallSignalingService _firebaseCallSignalingService = FirebaseCallSignalingService();
   final BackgroundUpdateScheduler _backgroundUpdateScheduler = BackgroundUpdateScheduler();
   final CallService _callService = CallService();
   final FriendService _friendService = FriendService();
@@ -164,10 +166,11 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
 
   Future<void> _initializeServices() async {
     try {
-      // Initialize notification and WebSocket services in parallel (non-blocking)
+      // Initialize notification and Firebase services in parallel (non-blocking)
       await Future.wait([
         _notificationService.initialize(),
-        _webSocketService.initialize(),
+        _firebaseRealtimeService.initialize(),
+        _firebaseCallSignalingService.initialize(),
       ]);
 
       // Initialize background update scheduler
@@ -235,14 +238,14 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     
     switch (state) {
       case AppLifecycleState.resumed:
-        // App is in foreground - ensure WebSocket is connected
-        print('✅ [MyApp] App resumed - ensuring WebSocket connection');
+        // App is in foreground - ensure Firebase is connected
+        print('✅ [MyApp] App resumed - ensuring Firebase connection');
         // Update online status to true when app comes to foreground
         _updateOnlineStatus(true);
-        // Reconnect WebSocket if not connected (it may have been disconnected in background)
-        if (!_webSocketService.isConnected) {
-          print('🔄 [MyApp] WebSocket not connected, reconnecting...');
-          _webSocketService.connect();
+        // Reconnect Firebase if not connected (it may have been disconnected in background)
+        if (!_firebaseRealtimeService.isConnected) {
+          print('🔄 [MyApp] Firebase not connected, reconnecting...');
+          _firebaseRealtimeService.connect();
         }
         break;
       case AppLifecycleState.paused:
@@ -258,9 +261,10 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         print('ℹ️ [MyApp] Online status will be determined by last_active timestamp (updated every 1 minute)');
         break;
       case AppLifecycleState.detached:
-        // App is being terminated - disconnect WebSocket and set offline
-        print('ℹ️ [MyApp] App detached - disconnecting WebSocket and setting offline');
-        _webSocketService.disconnect();
+        // App is being terminated - disconnect Firebase and set offline
+        print('ℹ️ [MyApp] App detached - disconnecting Firebase and setting offline');
+        _firebaseRealtimeService.disconnect();
+        _firebaseCallSignalingService.disconnect();
         // Explicitly set user as offline when app is closed
         _updateOnlineStatus(false);
         break;
@@ -285,7 +289,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
 
   /// Set up call handlers for incoming calls
   void _setupCallHandlers() {
-    _webSocketService.setCallCallbacks(
+    _firebaseCallSignalingService.setCallCallbacks(
       onCallOffer: (callId, fromUserId, offer, callType) async {
         print('📞 [MyApp] Incoming call offer: callId=$callId, fromUserId=$fromUserId, type=$callType');
         

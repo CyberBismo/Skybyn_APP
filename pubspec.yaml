@@ -74,7 +74,7 @@ dependencies:
   open_file: ^3.5.3
   url_launcher: ^6.2.5
   # firebase_app_distribution: ^1.1.1  # Temporarily disabled due to build variant conflicts
-  # cloud_firestore: ^4.14.0
+  cloud_firestore: ^6.1.0
   # firebase_auth: ^4.16.0
 
 

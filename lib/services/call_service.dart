@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:flutter/material.dart';
-import 'websocket_service.dart';
+import 'firebase_call_signaling_service.dart';
 import 'auth_service.dart';
 
 enum CallType { audio, video }
@@ -34,7 +34,7 @@ class CallService {
   String? get otherUserId => _otherUserId;
   bool get isCaller => _isCaller;
 
-  final WebSocketService _webSocketService = WebSocketService();
+  final FirebaseCallSignalingService _signalingService = FirebaseCallSignalingService();
   final AuthService _authService = AuthService();
 
   /// Initialize WebRTC configuration
@@ -74,23 +74,20 @@ class CallService {
       final offer = await _peerConnection!.createOffer();
       await _peerConnection!.setLocalDescription(offer);
 
-      // Check if WebSocket is connected before sending offer
-      if (!_webSocketService.isConnected) {
-        print('⚠️ [CallService] WebSocket not connected, cannot send call offer');
-        _updateCallState(CallState.ended);
-        onCallError?.call('WebSocket not connected. Please check your connection.');
-        return;
+      // Ensure signaling service is initialized
+      if (!_signalingService.isInitialized) {
+        await _signalingService.initialize();
       }
 
-      // Send offer through WebSocket
-      _webSocketService.sendCallOffer(
+      // Send offer through Firebase
+      await _signalingService.sendCallOffer(
         callId: _currentCallId!,
         targetUserId: otherUserId,
         offer: offer.sdp!,
         callType: callType == CallType.video ? 'video' : 'audio',
       );
 
-      print('📞 [CallService] Call initiated: $callType to $otherUserId (WebSocket connected: ${_webSocketService.isConnected})');
+      print('📞 [CallService] Call initiated: $callType to $otherUserId');
     } catch (e) {
       print('❌ [CallService] Error starting call: $e');
       _updateCallState(CallState.ended);
@@ -134,8 +131,8 @@ class CallService {
       final answer = await _peerConnection!.createAnswer();
       await _peerConnection!.setLocalDescription(answer);
 
-      // Send answer through WebSocket
-      _webSocketService.sendCallAnswer(
+      // Send answer through Firebase
+      await _signalingService.sendCallAnswer(
         callId: callId,
         targetUserId: fromUserId,
         answer: answer.sdp!,
@@ -194,7 +191,7 @@ class CallService {
   /// Reject incoming call
   Future<void> rejectCall() async {
     if (_currentCallId != null && _otherUserId != null) {
-      _webSocketService.sendCallEnd(
+      await _signalingService.sendCallEnd(
         callId: _currentCallId!,
         targetUserId: _otherUserId!,
       );
@@ -206,7 +203,7 @@ class CallService {
   Future<void> endCall() async {
     try {
       if (_currentCallId != null && _otherUserId != null && _isCaller) {
-        _webSocketService.sendCallEnd(
+        await _signalingService.sendCallEnd(
           callId: _currentCallId!,
           targetUserId: _otherUserId!,
         );
@@ -265,7 +262,7 @@ class CallService {
       // Handle ICE candidates
       _peerConnection!.onIceCandidate = (RTCIceCandidate candidate) {
         if (_currentCallId != null && _otherUserId != null) {
-          _webSocketService.sendIceCandidate(
+          _signalingService.sendIceCandidate(
             callId: _currentCallId!,
             targetUserId: _otherUserId!,
             candidate: candidate.candidate!,

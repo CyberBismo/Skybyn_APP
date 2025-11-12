@@ -13,7 +13,7 @@ import '../widgets/custom_snack_bar.dart';
 import '../services/auth_service.dart';
 import '../services/post_service.dart';
 import '../services/notification_service.dart';
-import '../services/websocket_service.dart';
+import '../services/firebase_realtime_service.dart';
 import '../services/auto_update_service.dart';
 import '../services/firebase_messaging_service.dart';
 import 'create_post_screen.dart';
@@ -76,7 +76,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final _authService = AuthService();
-  final _webSocketService = WebSocketService();
+  final _firebaseRealtimeService = FirebaseRealtimeService();
   final _scrollController = ScrollController();
   final _scaffoldMessengerKey = GlobalKey<ScaffoldMessengerState>();
   static const MethodChannel _notificationChannel = MethodChannel('no.skybyn.app/notification');
@@ -128,7 +128,7 @@ class _HomeScreenState extends State<HomeScreen> {
       }
     });
 
-    _webSocketService.connect(
+    _firebaseRealtimeService.connect(
       onAppUpdate: _checkForUpdates,
       onNewPost: (Post newPost) {
         if (mounted) {
@@ -206,7 +206,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void dispose() {
     _noPostsTimer?.cancel();
-    _webSocketService.disconnect();
+    _firebaseRealtimeService.disconnect();
     _scrollController.dispose();
     if (_lifecycleEventHandler != null) {
       WidgetsBinding.instance.removeObserver(_lifecycleEventHandler!);
