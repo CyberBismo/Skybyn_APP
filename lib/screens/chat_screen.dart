@@ -50,7 +50,6 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
   bool _isLoadingOlder = false;
   bool _isSending = false;
   String? _currentUserId;
-  Timer? _refreshTimer;
   Timer? _onlineStatusTimer;
   bool _friendOnline = false;
   bool _showSearchForm = false;
@@ -77,12 +76,8 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
     _setupTypingListener();
     _setupTypingAnimation();
     _checkFriendOnlineStatus(); // Check immediately
-    // Refresh messages every 3 seconds when screen is active
-    _refreshTimer = Timer.periodic(const Duration(seconds: 3), (_) {
-      if (mounted) {
-        _refreshMessages();
-      }
-    });
+    // Messages are loaded once when opening chat, then WebSocket handles all updates
+    // No need for periodic refresh - WebSocket provides real-time message delivery
     // Check online status every 10 seconds
     _onlineStatusTimer = Timer.periodic(const Duration(seconds: 10), (_) {
       if (mounted) {
@@ -98,13 +93,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
     switch (state) {
       case AppLifecycleState.resumed:
         // App is in foreground - resume timers
-        if (_refreshTimer == null || !_refreshTimer!.isActive) {
-          _refreshTimer = Timer.periodic(const Duration(seconds: 3), (_) {
-            if (mounted) {
-              _refreshMessages();
-            }
-          });
-        }
+        // Messages are handled by WebSocket - no periodic refresh needed
         if (_onlineStatusTimer == null || !_onlineStatusTimer!.isActive) {
           _onlineStatusTimer = Timer.periodic(const Duration(seconds: 10), (_) {
             if (mounted) {
@@ -117,8 +106,6 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
       case AppLifecycleState.inactive:
       case AppLifecycleState.hidden:
         // App is in background - pause timers to prevent DNS lookup failures
-        _refreshTimer?.cancel();
-        _refreshTimer = null;
         _onlineStatusTimer?.cancel();
         _onlineStatusTimer = null;
         break;
@@ -134,7 +121,6 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
     _messageFocusNode.dispose();
     _messageController.dispose();
     _scrollController.dispose();
-    _refreshTimer?.cancel();
     _onlineStatusTimer?.cancel();
     _typingTimer?.cancel();
     _typingStopTimer?.cancel();
@@ -350,6 +336,8 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
       onOnlineStatus: _onlineStatusCallback = (userId, isOnline) {
         // Update friend's online status if it's the friend in this chat
         if (userId == widget.friend.id && mounted) {
+          final oldStatus = _friendOnline;
+          print('📡 [ChatScreen] Updating online status for userId=$userId: oldStatus=$oldStatus -> newStatus=$isOnline');
           setState(() {
             _friendOnline = isOnline;
           });

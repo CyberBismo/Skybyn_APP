@@ -65,7 +65,7 @@ class WebSocketService {
   Function(String, String, String, String)? _onCallOffer; // callId, fromUserId, offer, callType
   Function(String, String)? _onCallAnswer; // callId, answer
   Function(String, String, String, int)? _onIceCandidate; // callId, candidate, sdpMid, sdpMLineIndex
-  Function(String)? _onCallEnd; // callId
+  Function(String, String, String)? _onCallEnd; // callId, fromUserId, targetUserId
   Function(String, String, String, String)? _onCallInitiate; // callId, fromUserId, callType, fromUsername
 
   // Services
@@ -561,12 +561,22 @@ class WebSocketService {
               final fromUserId = data['fromUserId']?.toString() ?? '';
               final offer = data['offer']?.toString() ?? '';
               final callType = data['callType']?.toString() ?? 'audio';
-              _onCallOffer?.call(callId, fromUserId, offer, callType);
+              print('📞 [WebSocket] Received call_offer: callId=$callId, fromUserId=$fromUserId, type=$callType');
+              if (_onCallOffer == null) {
+                print('⚠️ [WebSocket] call_offer callback is null');
+              } else {
+                _onCallOffer?.call(callId, fromUserId, offer, callType);
+              }
               break;
             case 'call_answer':
               final callId = data['callId']?.toString() ?? '';
               final answer = data['answer']?.toString() ?? '';
-              _onCallAnswer?.call(callId, answer);
+              print('📞 [WebSocket] Received call_answer: callId=$callId, answerLength=${answer.length}');
+              if (_onCallAnswer == null) {
+                print('⚠️ [WebSocket] call_answer callback is null');
+              } else {
+                _onCallAnswer?.call(callId, answer);
+              }
               break;
             case 'ice_candidate':
               final callId = data['callId']?.toString() ?? '';
@@ -577,7 +587,14 @@ class WebSocketService {
               break;
             case 'call_end':
               final callId = data['callId']?.toString() ?? '';
-              _onCallEnd?.call(callId);
+              final fromUserId = data['fromUserId']?.toString() ?? '';
+              final targetUserId = data['targetUserId']?.toString() ?? '';
+              print('📞 [WebSocket] Received call_end: callId=$callId, fromUserId=$fromUserId, targetUserId=$targetUserId');
+              if (_onCallEnd == null) {
+                print('⚠️ [WebSocket] call_end callback is null');
+              } else {
+                _onCallEnd?.call(callId, fromUserId, targetUserId);
+              }
               break;
             case 'chat':
               final messageId = data['id']?.toString() ?? '';
@@ -598,16 +615,20 @@ class WebSocketService {
               final userId = data['userId']?.toString() ?? 
                             data['user_id']?.toString() ?? 
                             data['userID']?.toString() ?? '';
-              final isOnline = data['isOnline'] == true || 
-                              data['isOnline'] == 'true' || 
-                              data['isOnline'] == 1 ||
-                              data['online'] == true ||
-                              data['online'] == 'true' ||
-                              data['online'] == 1 ||
-                              data['online'] == '1';
+              // Parse isOnline value - check multiple possible field names and formats
+              final isOnlineRaw = data['isOnline'] ?? data['online'];
+              final parsedIsOnline = isOnlineRaw == true || 
+                              isOnlineRaw == 'true' || 
+                              isOnlineRaw == 1 ||
+                              isOnlineRaw == '1';
+              
+              // Invert the value if server is sending reversed status
+              // Server might be sending: true = offline, false = online
+              final isOnline = !parsedIsOnline;
               
               if (kDebugMode) {
-                print('📡 [WebSocket] Received online_status: userId=$userId, isOnline=$isOnline');
+                print('📡 [WebSocket] Received online_status: userId=$userId, isOnlineRaw=$isOnlineRaw, parsed=$parsedIsOnline, inverted=$isOnline');
+                print('📡 [WebSocket] Raw data: isOnline=${data['isOnline']}, online=${data['online']}');
               }
               
               if (userId.isEmpty) {
@@ -821,7 +842,7 @@ class WebSocketService {
     Function(String, String, String, String)? onCallOffer,
     Function(String, String)? onCallAnswer,
     Function(String, String, String, int)? onIceCandidate,
-    Function(String)? onCallEnd,
+    Function(String, String, String)? onCallEnd, // callId, fromUserId, targetUserId
   }) {
     _onCallInitiate = onCallInitiate;
     _onCallOffer = onCallOffer;
@@ -845,6 +866,7 @@ class WebSocketService {
       'callType': callType,
       'sessionId': _sessionId,
     };
+    print('📞 [WebSocket] Sending call_offer: callId=$callId, targetUserId=$targetUserId, type=$callType, connected=$_isConnected');
     _sendMessageInternal(message);
   }
 
@@ -881,6 +903,9 @@ class WebSocketService {
       'sdpMLineIndex': sdpMLineIndex,
       'sessionId': _sessionId,
     };
+    if (kDebugMode) {
+      print('📞 [WebSocket] Sending ice_candidate: callId=$callId, targetUserId=$targetUserId');
+    }
     _sendMessageInternal(message);
   }
 
@@ -895,6 +920,7 @@ class WebSocketService {
       'targetUserId': targetUserId,
       'sessionId': _sessionId,
     };
+    print('📞 [WebSocket] Sending call_end: callId=$callId, targetUserId=$targetUserId');
     _sendMessageInternal(message);
   }
 

@@ -313,17 +313,41 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
           sdpMLineIndex: sdpMLineIndex,
         );
       },
-      onCallEnd: (callId) {
-        print('📞 [MyApp] Call ended: callId=$callId');
-        // Clear active call tracking
-        if (_activeCallId == callId) {
-          setState(() {
-            _activeCallId = null;
-            _activeCallFriend = null;
-          });
+      onCallEnd: (callId, fromUserId, targetUserId) async {
+        print('📞 [MyApp] Call ended: callId=$callId, fromUserId=$fromUserId, targetUserId=$targetUserId');
+        
+        // Get current user ID to determine if this call_end is for us
+        final authService = AuthService();
+        final currentUserId = await authService.getStoredUserId();
+        if (currentUserId == null) return;
+        
+        // Check if this call_end is for the current user
+        // Either we're the target (someone ended a call to us) or we're the sender (we ended a call)
+        final isForCurrentUser = targetUserId == currentUserId || fromUserId == currentUserId;
+        
+        if (isForCurrentUser) {
+          // Check if we have an active call that matches
+          final activeOtherUserId = _callService.otherUserId;
+          final activeCallId = _callService.currentCallId;
+          
+          // Match by callId if available, otherwise match by user ID
+          final shouldEndCall = callId.isEmpty || 
+                                 activeCallId == callId ||
+                                 (activeOtherUserId != null && 
+                                  (activeOtherUserId == fromUserId || activeOtherUserId == targetUserId));
+          
+          if (shouldEndCall) {
+            // Clear active call tracking
+            if (mounted) {
+              setState(() {
+                _activeCallId = null;
+                _activeCallFriend = null;
+              });
+            }
+            // End the call in CallService
+            await _callService.endCall();
+          }
         }
-        // End the call in CallService
-        _callService.endCall();
       },
     );
   }

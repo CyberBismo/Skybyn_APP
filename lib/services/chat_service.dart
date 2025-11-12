@@ -456,9 +456,6 @@ class ChatService {
     int? offset,
   ) async {
     final url = ApiConstants.chatGet;
-    if (kDebugMode) {
-      debugPrint('🔧 [ChatService] Fetching messages from: $url');
-    }
     
     try {
       final response = await _retryHttpRequest(

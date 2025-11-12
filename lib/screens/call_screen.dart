@@ -2,12 +2,14 @@ import 'package:flutter/material.dart';
 import 'dart:ui';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../services/call_service.dart';
 import '../models/friend.dart';
 import '../widgets/background_gradient.dart';
 import '../utils/translation_keys.dart';
 import '../widgets/translated_text.dart';
 import '../services/translation_service.dart';
+import '../config/constants.dart';
 
 class CallScreen extends StatefulWidget {
   final Friend? friend; // null if receiving call
@@ -305,21 +307,34 @@ class _CallScreenState extends State<CallScreen> {
                                 decoration: BoxDecoration(
                                   shape: BoxShape.circle,
                                   border: Border.all(color: Colors.white, width: 3),
-                                  image: friend?.avatar.isNotEmpty == true
-                                      ? DecorationImage(
-                                          image: NetworkImage(friend!.avatar),
-                                          fit: BoxFit.cover,
-                                        )
-                                      : null,
                                 ),
-                                child: friend?.avatar.isEmpty != false
-                                    ? Image.asset(
+                                child: friend?.avatar.isNotEmpty == true
+                                    ? ClipOval(
+                                        child: CachedNetworkImage(
+                                          imageUrl: UrlHelper.convertUrl(friend!.avatar),
+                                          width: 120,
+                                          height: 120,
+                                          fit: BoxFit.cover,
+                                          placeholder: (context, url) => Image.asset(
+                                            'assets/images/icon.png',
+                                            width: 120,
+                                            height: 120,
+                                            fit: BoxFit.cover,
+                                          ),
+                                          errorWidget: (context, url, error) => Image.asset(
+                                            'assets/images/icon.png',
+                                            width: 120,
+                                            height: 120,
+                                            fit: BoxFit.cover,
+                                          ),
+                                        ),
+                                      )
+                                    : Image.asset(
                                         'assets/images/icon.png',
                                         width: 120,
                                         height: 120,
                                         fit: BoxFit.cover,
-                                      )
-                                    : null,
+                                      ),
                               ),
                             const SizedBox(height: 32),
                             // Friend name

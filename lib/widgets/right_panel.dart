@@ -56,6 +56,8 @@ class _RightPanelState extends State<RightPanel> {
         setState(() {
           final index = _friends.indexWhere((f) => f.id == userId);
           if (index != -1) {
+            final oldStatus = _friends[index].online;
+            print('📡 [RightPanel] Updating online status for userId=$userId: oldStatus=$oldStatus -> newStatus=$isOnline');
             _friends[index] = _friends[index].copyWith(online: isOnline);
           }
         });

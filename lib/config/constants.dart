@@ -139,50 +139,30 @@ class UrlHelper {
     // Replace https://skybyn.com with dev base
     if (url.contains('https://skybyn.com')) {
       convertedUrl = url.replaceAll('https://skybyn.com', devBase);
-      assert(() {
-        print('🔧 [UrlHelper] Converted skybyn.com URL: $url -> $convertedUrl');
-        return true;
-      }());
       return convertedUrl;
     }
     
     // Replace https://skybyn.no with dev base
     if (url.contains('https://skybyn.no')) {
       convertedUrl = url.replaceAll('https://skybyn.no', devBase);
-      assert(() {
-        print('🔧 [UrlHelper] Converted skybyn.no URL: $url -> $convertedUrl');
-        return true;
-      }());
       return convertedUrl;
     }
     
     // Replace https://app.skybyn.no with dev app base
     if (url.contains('https://app.skybyn.no')) {
       convertedUrl = url.replaceAll('https://app.skybyn.no', ApiConstants.appBase);
-      assert(() {
-        print('🔧 [UrlHelper] Converted app.skybyn.no URL: $url -> $convertedUrl');
-        return true;
-      }());
       return convertedUrl;
     }
     
     // Replace https://api.skybyn.no with dev api base
     if (url.contains('https://api.skybyn.no')) {
       convertedUrl = url.replaceAll('https://api.skybyn.no', ApiConstants.apiBase);
-      assert(() {
-        print('🔧 [UrlHelper] Converted api.skybyn.no URL: $url -> $convertedUrl');
-        return true;
-      }());
       return convertedUrl;
     }
     
     // If URL doesn't contain a domain, assume it's a relative path and prepend dev base
     if (url.startsWith('/')) {
       convertedUrl = '$devBase$url';
-      assert(() {
-        print('🔧 [UrlHelper] Converted relative URL: $url -> $convertedUrl');
-        return true;
-      }());
       return convertedUrl;
     }
     

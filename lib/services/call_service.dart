@@ -74,6 +74,14 @@ class CallService {
       final offer = await _peerConnection!.createOffer();
       await _peerConnection!.setLocalDescription(offer);
 
+      // Check if WebSocket is connected before sending offer
+      if (!_webSocketService.isConnected) {
+        print('⚠️ [CallService] WebSocket not connected, cannot send call offer');
+        _updateCallState(CallState.ended);
+        onCallError?.call('WebSocket not connected. Please check your connection.');
+        return;
+      }
+
       // Send offer through WebSocket
       _webSocketService.sendCallOffer(
         callId: _currentCallId!,
@@ -82,7 +90,7 @@ class CallService {
         callType: callType == CallType.video ? 'video' : 'audio',
       );
 
-      print('📞 [CallService] Call initiated: $callType to $otherUserId');
+      print('📞 [CallService] Call initiated: $callType to $otherUserId (WebSocket connected: ${_webSocketService.isConnected})');
     } catch (e) {
       print('❌ [CallService] Error starting call: $e');
       _updateCallState(CallState.ended);
@@ -144,10 +152,15 @@ class CallService {
   /// Handle incoming call answer
   Future<void> handleIncomingAnswer(String answer) async {
     try {
+      if (_peerConnection == null) {
+        print('⚠️ [CallService] Cannot handle answer - peer connection is null');
+        return;
+      }
+      print('📞 [CallService] Handling call answer (length: ${answer.length})');
       await _peerConnection!.setRemoteDescription(
         RTCSessionDescription(answer, 'answer'),
       );
-      print('📞 [CallService] Call answer received');
+      print('✅ [CallService] Call answer processed successfully');
     } catch (e) {
       print('❌ [CallService] Error handling answer: $e');
       onCallError?.call('Failed to handle answer: $e');
@@ -277,10 +290,21 @@ class CallService {
       // Handle connection state changes
       _peerConnection!.onConnectionState = (RTCPeerConnectionState state) {
         print('📞 [CallService] Connection state: $state');
-        if (state == RTCPeerConnectionState.RTCPeerConnectionStateDisconnected ||
-            state == RTCPeerConnectionState.RTCPeerConnectionStateFailed ||
-            state == RTCPeerConnectionState.RTCPeerConnectionStateClosed) {
+        if (state == RTCPeerConnectionState.RTCPeerConnectionStateDisconnected) {
+          print('⚠️ [CallService] Connection disconnected - may reconnect');
+          // Don't end call immediately on disconnect - wait to see if it reconnects
+        } else if (state == RTCPeerConnectionState.RTCPeerConnectionStateFailed) {
+          print('❌ [CallService] Connection failed - ending call');
+          onCallError?.call('Connection failed. Please try again.');
           endCall();
+        } else if (state == RTCPeerConnectionState.RTCPeerConnectionStateClosed) {
+          print('❌ [CallService] Connection closed - ending call');
+          // Only end call if it wasn't already ended
+          if (_callState != CallState.ended && _callState != CallState.idle) {
+            endCall();
+          }
+        } else if (state == RTCPeerConnectionState.RTCPeerConnectionStateConnected) {
+          print('✅ [CallService] Connection established');
         }
       };
 
