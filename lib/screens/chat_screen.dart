@@ -948,7 +948,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
                                     children: [
                                       const Icon(Icons.block, size: 20, color: Colors.red),
                                       const SizedBox(width: 12),
-                                      TranslatedText(TranslationKeys.block),
+                                      TranslatedText(TranslationKeys.blockUser),
                                     ],
                                   ),
                                 ),
@@ -1434,7 +1434,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
         return AlertDialog(
           title: TranslatedText(TranslationKeys.blockUser),
           content: Text(
-            TranslationKeys.blockUserConfirmation.tr.replaceAll('{name}', widget.friend.name),
+            TranslationKeys.blockUserConfirmation.tr.replaceAll('{name}', widget.friend.username),
           ),
           actions: [
             TextButton(
@@ -1495,7 +1495,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
         return AlertDialog(
           title: TranslatedText(TranslationKeys.unfriendTitle),
           content: Text(
-            TranslationKeys.unfriendConfirmation.tr.replaceAll('{name}', widget.friend.name),
+            TranslationKeys.unfriendConfirmation.tr.replaceAll('{name}', widget.friend.username),
           ),
           actions: [
             TextButton(
