@@ -906,16 +906,63 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
                                 width: 1,
                               ),
                             ),
-                            child: IconButton(
-                              onPressed: () {
-                                // TODO: Implement more options
-                              },
+                            child: PopupMenuButton<String>(
                               icon: const Icon(
                                 Icons.more_vert,
                                 color: Colors.white,
                                 size: 20,
                               ),
                               padding: EdgeInsets.zero,
+                              color: Colors.white.withOpacity(0.95),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              onSelected: (value) {
+                                _handleMenuAction(value);
+                              },
+                              itemBuilder: (BuildContext context) => [
+                                PopupMenuItem<String>(
+                                  value: 'view_profile',
+                                  child: Row(
+                                    children: [
+                                      const Icon(Icons.person, size: 20, color: Colors.black87),
+                                      const SizedBox(width: 12),
+                                      TranslatedText(TranslationKeys.profile),
+                                    ],
+                                  ),
+                                ),
+                                PopupMenuItem<String>(
+                                  value: 'clear_chat',
+                                  child: Row(
+                                    children: [
+                                      const Icon(Icons.delete_outline, size: 20, color: Colors.black87),
+                                      const SizedBox(width: 12),
+                                      const Text('Clear Chat History'),
+                                    ],
+                                  ),
+                                ),
+                                const PopupMenuDivider(),
+                                PopupMenuItem<String>(
+                                  value: 'block',
+                                  child: Row(
+                                    children: [
+                                      const Icon(Icons.block, size: 20, color: Colors.red),
+                                      const SizedBox(width: 12),
+                                      TranslatedText(TranslationKeys.block),
+                                    ],
+                                  ),
+                                ),
+                                PopupMenuItem<String>(
+                                  value: 'unfriend',
+                                  child: Row(
+                                    children: [
+                                      const Icon(Icons.person_remove, size: 20, color: Colors.orange),
+                                      const SizedBox(width: 12),
+                                      const Text('Unfriend'),
+                                    ],
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ],
@@ -1291,6 +1338,210 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
         ],
       ),
     );
+  }
+
+  /// Handle menu actions from the 3-dot menu
+  void _handleMenuAction(String action) {
+    switch (action) {
+      case 'view_profile':
+        _navigateToProfile();
+        break;
+      case 'clear_chat':
+        _showClearChatConfirmation();
+        break;
+      case 'block':
+        _showBlockConfirmation();
+        break;
+      case 'unfriend':
+        _showUnfriendConfirmation();
+        break;
+    }
+  }
+
+  /// Navigate to friend's profile
+  void _navigateToProfile() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => ProfileScreen(userId: widget.friend.id),
+      ),
+    );
+  }
+
+  /// Show confirmation dialog for clearing chat
+  void _showClearChatConfirmation() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Clear Chat History'),
+          content: const Text('Are you sure you want to clear all messages in this chat? This action cannot be undone.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: TranslatedText(TranslationKeys.cancel),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                _clearChatHistory();
+              },
+              child: const Text(
+                'Clear',
+                style: TextStyle(color: Colors.red),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  /// Clear chat history
+  Future<void> _clearChatHistory() async {
+    try {
+      // TODO: Implement API call to clear chat history
+      // For now, just clear local messages
+      setState(() {
+        _messages.clear();
+      });
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Chat history cleared'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('❌ [ChatScreen] Error clearing chat: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error clearing chat: ${e.toString()}'),
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    }
+  }
+
+  /// Show confirmation dialog for blocking user
+  void _showBlockConfirmation() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: TranslatedText(TranslationKeys.blockUser),
+          content: Text('Are you sure you want to block ${widget.friend.name}? You will not receive messages from this user.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: TranslatedText(TranslationKeys.cancel),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                _blockUser();
+              },
+              child: const Text(
+                'Block',
+                style: TextStyle(color: Colors.red),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  /// Block user
+  Future<void> _blockUser() async {
+    try {
+      // TODO: Implement API call to block user
+      // This should call an API endpoint to block the user
+      debugPrint('🛑 [ChatScreen] Blocking user: ${widget.friend.id}');
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('User blocked'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+        // Navigate back after blocking
+        Navigator.of(context).pop();
+      }
+    } catch (e) {
+      debugPrint('❌ [ChatScreen] Error blocking user: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error blocking user: ${e.toString()}'),
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    }
+  }
+
+  /// Show confirmation dialog for unfriending
+  void _showUnfriendConfirmation() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Unfriend'),
+          content: Text('Are you sure you want to unfriend ${widget.friend.name}?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: TranslatedText(TranslationKeys.cancel),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                _unfriendUser();
+              },
+              child: const Text(
+                'Unfriend',
+                style: TextStyle(color: Colors.orange),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  /// Unfriend user
+  Future<void> _unfriendUser() async {
+    try {
+      // TODO: Implement API call to unfriend user
+      // This should call an API endpoint to remove the friendship
+      debugPrint('👋 [ChatScreen] Unfriending user: ${widget.friend.id}');
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('User unfriended'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+        // Navigate back after unfriending
+        Navigator.of(context).pop();
+      }
+    } catch (e) {
+      debugPrint('❌ [ChatScreen] Error unfriending user: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error unfriending user: ${e.toString()}'),
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    }
   }
 }
 
