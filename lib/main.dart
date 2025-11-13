@@ -16,6 +16,7 @@ import 'services/notification_service.dart';
 import 'services/firebase_realtime_service.dart';
 import 'services/firebase_call_signaling_service.dart';
 import 'services/firebase_messaging_service.dart';
+import 'services/websocket_service.dart';
 import 'services/translation_service.dart';
 import 'services/background_update_scheduler.dart';
 import 'services/call_service.dart';
@@ -144,13 +145,14 @@ final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   final NotificationService _notificationService = NotificationService();
   final FirebaseRealtimeService _firebaseRealtimeService = FirebaseRealtimeService();
-  final FirebaseCallSignalingService _firebaseCallSignalingService = FirebaseCallSignalingService();
+  final WebSocketService _webSocketService = WebSocketService();
   final BackgroundUpdateScheduler _backgroundUpdateScheduler = BackgroundUpdateScheduler();
   final CallService _callService = CallService();
   final FriendService _friendService = FriendService();
   Timer? _serviceCheckTimer;
   Timer? _activityUpdateTimer;
   Timer? _onlineStatusDebounceTimer;
+  Timer? _webSocketConnectionCheckTimer;
   
   // Track active incoming call
   String? _activeCallId;
@@ -171,18 +173,20 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       await Future.wait([
         _notificationService.initialize(),
         _firebaseRealtimeService.initialize(),
-        _firebaseCallSignalingService.initialize(),
       ]);
 
       // Initialize background update scheduler
       await _backgroundUpdateScheduler.initialize();
       
-      // Set up call callbacks for incoming calls
+      // Set up call callbacks for incoming calls via WebSocket
       _setupCallHandlers();
+      
+      // Set up WebSocket connection state listener
+      _setupWebSocketConnectionListener();
       
       // WebSocket will be connected by home_screen.dart when it mounts with proper callbacks
 
-      // Start periodic activity updates (every 2 minutes)
+      // Start periodic activity updates (every 5 seconds when WebSocket is connected)
       _startActivityUpdates();
 
       // Check for updates after a delay
@@ -198,6 +202,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   }
 
   /// Start periodic activity updates
+  /// Updates activity every few seconds while WebSocket is connected
   void _startActivityUpdates() {
     // Cancel any existing timer
     _activityUpdateTimer?.cancel();
@@ -205,9 +210,17 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     // Update activity immediately
     _updateActivity();
     
-    // Then update every 1 minute (60 seconds)
-    _activityUpdateTimer = Timer.periodic(const Duration(minutes: 1), (timer) {
-      _updateActivity();
+    // Update every 5 seconds while WebSocket is connected
+    // This keeps the user's last_active timestamp fresh and shows them as online
+    _activityUpdateTimer = Timer.periodic(const Duration(seconds: 5), (timer) {
+      // Only update if WebSocket is connected
+      if (_webSocketService.isConnected) {
+        _updateActivity();
+      } else {
+        // If WebSocket is not connected, stop the timer
+        timer.cancel();
+        _activityUpdateTimer = null;
+      }
     });
   }
 
@@ -231,6 +244,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     _serviceCheckTimer?.cancel(); // This can be removed if _serviceCheckTimer is not used elsewhere
     _activityUpdateTimer?.cancel();
     _onlineStatusDebounceTimer?.cancel();
+    _webSocketConnectionCheckTimer?.cancel();
     super.dispose();
   }
 
@@ -242,8 +256,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       case AppLifecycleState.resumed:
         // App is in foreground - ensure Firebase is connected
         print('✅ [MyApp] App resumed - ensuring Firebase connection');
-        // Update online status to true when app comes to foreground
-        _updateOnlineStatus(true);
+        // Online status will be updated by WebSocket connection listener
         // Reconnect Firebase if not connected (it may have been disconnected in background)
         if (!_firebaseRealtimeService.isConnected) {
           print('🔄 [MyApp] Firebase not connected, reconnecting...');
@@ -254,23 +267,59 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       case AppLifecycleState.inactive:
       case AppLifecycleState.hidden:
         // App is in background - keep WebSocket connected to respond to pings
-        // Don't update online status - let last_active handle it
-        // The last_active timestamp continues to update every 1 minute via _activityUpdateTimer
+        // Online status and activity updates continue while WebSocket is connected
+        // Activity updates every 5 seconds while WebSocket is connected
         // Friends will see user as:
         // - Online: last_active <= 2 minutes
         // - Away: last_active > 2 minutes
         print('ℹ️ [MyApp] App backgrounded - keeping WebSocket connected for ping/pong');
-        print('ℹ️ [MyApp] Online status will be determined by last_active timestamp (updated every 1 minute)');
+        print('ℹ️ [MyApp] Online status and activity updates continue while WebSocket is connected');
         break;
       case AppLifecycleState.detached:
         // App is being terminated - disconnect Firebase and set offline
         print('ℹ️ [MyApp] App detached - disconnecting Firebase and setting offline');
         _firebaseRealtimeService.disconnect();
-        _firebaseCallSignalingService.disconnect();
+        // Online status will be updated by WebSocket connection listener when WebSocket disconnects
         // Explicitly set user as offline when app is closed
         _updateOnlineStatus(false);
         break;
     }
+  }
+
+  /// Set up WebSocket connection state listener
+  /// Updates online status and activity based on WebSocket connection state
+  void _setupWebSocketConnectionListener() {
+    // Cancel any existing timer
+    _webSocketConnectionCheckTimer?.cancel();
+    
+    // Check WebSocket connection state periodically
+    _webSocketConnectionCheckTimer = Timer.periodic(const Duration(seconds: 2), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        _webSocketConnectionCheckTimer = null;
+        return;
+      }
+      
+      final isConnected = _webSocketService.isConnected;
+      
+      // Update online status based on WebSocket connection
+      if (isConnected) {
+        // WebSocket is connected - user is online
+        _updateOnlineStatus(true);
+        
+        // Ensure activity updates are running
+        if (_activityUpdateTimer == null || !_activityUpdateTimer!.isActive) {
+          _startActivityUpdates();
+        }
+      } else {
+        // WebSocket is disconnected - user is offline
+        _updateOnlineStatus(false);
+        
+        // Stop activity updates when disconnected
+        _activityUpdateTimer?.cancel();
+        _activityUpdateTimer = null;
+      }
+    });
   }
 
   /// Update online status with debounce to prevent rapid updates
@@ -290,9 +339,11 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     });
   }
 
-  /// Set up call handlers for incoming calls
+  /// Set up call handlers for incoming calls via WebSocket
   void _setupCallHandlers() {
-    _firebaseCallSignalingService.setCallCallbacks(
+    // Set up call callbacks directly on WebSocketService
+    // These will be used when WebSocket receives call signals
+    _webSocketService.setCallCallbacks(
       onCallOffer: (callId, fromUserId, offer, callType) async {
         print('📞 [MyApp] Incoming call offer: callId=$callId, fromUserId=$fromUserId, type=$callType');
         

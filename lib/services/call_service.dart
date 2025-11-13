@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:flutter/material.dart';
-import 'firebase_call_signaling_service.dart';
+import 'websocket_service.dart';
 import 'auth_service.dart';
 
 enum CallType { audio, video }
@@ -34,7 +34,7 @@ class CallService {
   String? get otherUserId => _otherUserId;
   bool get isCaller => _isCaller;
 
-  final FirebaseCallSignalingService _signalingService = FirebaseCallSignalingService();
+  final WebSocketService _signalingService = WebSocketService();
   final AuthService _authService = AuthService();
 
   /// Initialize WebRTC configuration
@@ -110,13 +110,16 @@ class CallService {
       final offer = await _peerConnection!.createOffer();
       await _peerConnection!.setLocalDescription(offer);
 
-      // Ensure signaling service is initialized
-      if (!_signalingService.isInitialized) {
-        await _signalingService.initialize();
+      // Ensure WebSocket is connected
+      if (!_signalingService.isConnected) {
+        // WebSocket should already be connected, but try to connect if not
+        print('⚠️ [CallService] WebSocket not connected, attempting to connect...');
+        // Note: WebSocket connection is typically handled by home_screen.dart
+        // If not connected, the call will fail - this is expected behavior
       }
 
-      // Send offer through Firebase
-      await _signalingService.sendCallOffer(
+      // Send offer through WebSocket
+      _signalingService.sendCallOffer(
         callId: _currentCallId!,
         targetUserId: otherUserId,
         offer: offer.sdp!,
@@ -167,8 +170,8 @@ class CallService {
       final answer = await _peerConnection!.createAnswer();
       await _peerConnection!.setLocalDescription(answer);
 
-      // Send answer through Firebase
-      await _signalingService.sendCallAnswer(
+      // Send answer through WebSocket
+      _signalingService.sendCallAnswer(
         callId: callId,
         targetUserId: fromUserId,
         answer: answer.sdp!,
@@ -227,7 +230,7 @@ class CallService {
   /// Reject incoming call
   Future<void> rejectCall() async {
     if (_currentCallId != null && _otherUserId != null) {
-      await _signalingService.sendCallEnd(
+      _signalingService.sendCallEnd(
         callId: _currentCallId!,
         targetUserId: _otherUserId!,
       );
@@ -238,8 +241,8 @@ class CallService {
   /// End the call
   Future<void> endCall() async {
     try {
-      if (_currentCallId != null && _otherUserId != null && _isCaller) {
-        await _signalingService.sendCallEnd(
+      if (_currentCallId != null && _otherUserId != null) {
+        _signalingService.sendCallEnd(
           callId: _currentCallId!,
           targetUserId: _otherUserId!,
         );

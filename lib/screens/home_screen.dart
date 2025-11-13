@@ -93,6 +93,10 @@ class _HomeScreenState extends State<HomeScreen> {
   int _unreadNotificationCount = 0;
   bool _showNoPostsMessage = false;
   Timer? _noPostsTimer;
+  Timer? _postRefreshTimer;
+  bool _hasScrolled = false;
+  bool _showNewPostIndicator = false;
+  int _lastPostCount = 0;
 
   @override
   void initState() {
@@ -138,6 +142,25 @@ class _HomeScreenState extends State<HomeScreen> {
       }
     });
 
+    // Set up scroll listener to track if user has scrolled
+    _scrollController.addListener(() {
+      if (_scrollController.hasClients) {
+        final isScrolled = _scrollController.offset > 100; // Consider scrolled if more than 100px
+        if (isScrolled != _hasScrolled) {
+          setState(() {
+            _hasScrolled = isScrolled;
+            // Hide indicator if user scrolls back to top
+            if (!_hasScrolled) {
+              _showNewPostIndicator = false;
+            }
+          });
+        }
+      }
+    });
+
+    // Start periodic post refresh (every 5 minutes)
+    _startPostRefreshTimer();
+
     _firebaseRealtimeService.connect(
       onAppUpdate: _checkForUpdates,
       onNewPost: (Post newPost) {
@@ -145,6 +168,10 @@ class _HomeScreenState extends State<HomeScreen> {
           setState(() {
             if (!_posts.any((post) => post.id == newPost.id)) {
               _posts.insert(0, newPost);
+              // Show indicator if user has scrolled
+              if (_hasScrolled) {
+                _showNewPostIndicator = true;
+              }
             }
           });
         }
@@ -216,12 +243,70 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void dispose() {
     _noPostsTimer?.cancel();
+    _postRefreshTimer?.cancel();
     _firebaseRealtimeService.disconnect();
     _scrollController.dispose();
     if (_lifecycleEventHandler != null) {
       WidgetsBinding.instance.removeObserver(_lifecycleEventHandler!);
     }
     super.dispose();
+  }
+
+  /// Start periodic post refresh timer (every 5 minutes)
+  void _startPostRefreshTimer() {
+    _postRefreshTimer?.cancel();
+    
+    // Store initial post count
+    _lastPostCount = _posts.length;
+    
+    // Refresh posts every 5 minutes
+    _postRefreshTimer = Timer.periodic(const Duration(minutes: 5), (timer) async {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      
+      await _refreshPostsInBackground();
+    });
+  }
+
+  /// Refresh posts in background and show indicator if new posts found
+  Future<void> _refreshPostsInBackground() async {
+    try {
+      final userId = await _authService.getStoredUserId();
+      if (userId == null) return;
+
+      final postService = PostService();
+      final newPosts = await postService.fetchPostsForUser(userId: userId).timeout(const Duration(seconds: 15));
+
+      if (mounted) {
+        final oldPostCount = _posts.length;
+        final newPostCount = newPosts.length;
+        
+        // Check if there are new posts (more posts than before or different first post)
+        final hasNewPosts = newPostCount > oldPostCount || 
+            (newPostCount > 0 && oldPostCount > 0 && newPosts.first.id != _posts.first.id);
+        
+        setState(() {
+          _posts = newPosts;
+          _lastPostCount = newPostCount;
+          
+          // Show indicator if new posts found and user has scrolled
+          if (hasNewPosts && _hasScrolled) {
+            _showNewPostIndicator = true;
+          }
+        });
+
+        if (_posts.isEmpty) {
+          _startNoPostsTimer();
+        } else {
+          _stopNoPostsTimer();
+        }
+      }
+    } catch (e) {
+      print('⚠️ [HomeScreen] Error refreshing posts in background: $e');
+      // Silently fail - background refresh shouldn't disrupt user
+    }
   }
 
   Future<void> _updatePost(String postId) async {
@@ -805,6 +890,73 @@ class _HomeScreenState extends State<HomeScreen> {
               Container(color: Colors.grey[900])
             else
               const BackgroundGradient(),
+            
+            // Floating new post indicator
+            if (_showNewPostIndicator && !_isLoading)
+              Positioned(
+                top: 60.0 + MediaQuery.of(context).padding.top + 10.0,
+                left: 0,
+                right: 0,
+                child: Center(
+                  child: GestureDetector(
+                    onTap: () {
+                      // Scroll to top when tapped
+                      if (_scrollController.hasClients) {
+                        _scrollController.animateTo(
+                          0,
+                          duration: const Duration(milliseconds: 300),
+                          curve: Curves.easeOut,
+                        );
+                        setState(() {
+                          _showNewPostIndicator = false;
+                        });
+                      }
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.3),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: Colors.white.withOpacity(0.2),
+                          width: 1,
+                        ),
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(20),
+                        child: BackdropFilter(
+                          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.arrow_upward,
+                                size: 16,
+                                color: Colors.white.withOpacity(0.9),
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                'new post',
+                                style: TextStyle(
+                                  color: Colors.white.withOpacity(0.9),
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              Icon(
+                                Icons.arrow_upward,
+                                size: 16,
+                                color: Colors.white.withOpacity(0.9),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
             if (_isLoading)
               const Center(child: CircularProgressIndicator())
             else if (_posts.isEmpty)
@@ -865,6 +1017,10 @@ class _HomeScreenState extends State<HomeScreen> {
             else
               RefreshIndicator(
                 onRefresh: () async {
+                  // Hide indicator when manually refreshing
+                  setState(() {
+                    _showNewPostIndicator = false;
+                  });
                   await _refreshData();
                 },
                 color: Colors.white, // White refresh indicator to match theme
