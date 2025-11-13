@@ -292,15 +292,16 @@ class FirebaseRealtimeService {
   }
 
   /// Set up chat message listener for a specific chat
-  /// Note: This receives full message text directly from Firestore
-  /// Backend writes chat message notifications to Firestore when messages are sent
+  /// Note: This listens to notifications, not message storage
+  /// WebSocket is the primary method for real-time chat delivery
+  /// This Firestore listener is a fallback/backup only
   void setupChatListener(String friendId, Function(String, String, String, String) onMessage) {
     if (_userId == null) return;
 
     _chatMessagesSubscription?.cancel();
     
-    // Listen to chat message notifications
-    // Backend writes full message text to Firestore for real-time delivery
+    // Listen to chat message notifications (fallback only - WebSocket is primary)
+    // Backend may write notifications here, but WebSocket should handle real-time delivery
     _chatMessagesSubscription = _firestore
         .collection('chat_message_notifications')
         .where('toUserId', isEqualTo: _userId)
@@ -316,17 +317,9 @@ class FirebaseRealtimeService {
           final messageId = data['messageId'] as String? ?? doc.doc.id;
           final fromUserId = data['fromUserId'] as String? ?? '';
           final toUserId = data['toUserId'] as String? ?? '';
-          // Get full message text directly from Firestore (no need to fetch from API)
-          final message = data['message'] as String? ?? '';
           
-          if (message.isNotEmpty) {
-            // Use message text directly from Firestore
-            onMessage(messageId, fromUserId, toUserId, message);
-          } else {
-            // Fallback: if message text is missing, fetch from API
-            print('⚠️ [FirebaseRealtime] Message text missing in Firestore, fetching from API');
-            _fetchMessageFromAPI(messageId, fromUserId, toUserId, onMessage);
-          }
+          // Always fetch actual message from API (WebSocket is primary, this is fallback)
+          _fetchMessageFromAPI(messageId, fromUserId, toUserId, onMessage);
           
           // Mark notification as processed
           doc.doc.reference.update({'status': 'processed'});

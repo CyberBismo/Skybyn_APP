@@ -207,8 +207,11 @@ class FirebaseCallSignalingService {
       
       print('📞 [FirebaseCallSignaling] Sent call_offer: callId=$callId, targetUserId=$targetUserId, type=$callType');
       
-      // Send FCM push notification for background/offline users
-      await _sendCallNotification(targetUserId, callId, callType);
+      // Send FCM push notification for background/offline users (non-blocking)
+      // Don't await - let it run in background so it doesn't block call signaling
+      _sendCallNotification(targetUserId, callId, callType).catchError((error) {
+        print('⚠️ [FirebaseCallSignaling] FCM notification failed (non-critical): $error');
+      });
     } catch (e) {
       print('❌ [FirebaseCallSignaling] Error sending call offer: $e');
       rethrow;
