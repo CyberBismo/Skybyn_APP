@@ -138,6 +138,8 @@ class _HomeScreenState extends State<HomeScreen> {
             }
             // Check for notification intent when app resumes
             _checkNotificationIntent();
+            // Reconnect WebSocket if disconnected
+            _reconnectWebSocketIfNeeded();
           },
         );
         WidgetsBinding.instance.addObserver(_lifecycleEventHandler!);
@@ -221,6 +223,11 @@ class _HomeScreenState extends State<HomeScreen> {
     );
 
     // Connect to WebSocket service
+    _connectWebSocket();
+  }
+
+  /// Connect to WebSocket service with callbacks
+  void _connectWebSocket() {
     print('🔄 [HomeScreen] Attempting to connect WebSocket...');
     _webSocketService.connect(
       onAppUpdate: _checkForUpdates,
@@ -281,6 +288,16 @@ class _HomeScreenState extends State<HomeScreen> {
       print('❌ [HomeScreen] Error connecting WebSocket: $error');
     });
     print('✅ [HomeScreen] WebSocket connect() called');
+  }
+
+  /// Reconnect WebSocket if needed when app resumes
+  /// Note: WebSocket connection is managed globally by main.dart
+  /// This just ensures our callbacks are registered
+  void _reconnectWebSocketIfNeeded() {
+    print('🔄 [HomeScreen] App resumed - ensuring WebSocket callbacks are registered...');
+    // Just register our callbacks - the connection is managed globally
+    // If not connected, main.dart will handle reconnection
+    _connectWebSocket();
   }
 
   void _startNoPostsTimer() {

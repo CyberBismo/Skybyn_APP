@@ -184,7 +184,9 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       // Set up WebSocket connection state listener
       _setupWebSocketConnectionListener();
       
-      // WebSocket will be connected by home_screen.dart when it mounts with proper callbacks
+      // Initialize and connect WebSocket globally (works from any screen)
+      await _webSocketService.initialize();
+      _connectWebSocketGlobally();
 
       // Start periodic activity updates (every 5 seconds when WebSocket is connected)
       _startActivityUpdates();
@@ -254,14 +256,21 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     
     switch (state) {
       case AppLifecycleState.resumed:
-        // App is in foreground - ensure Firebase is connected
-        print('✅ [MyApp] App resumed - ensuring Firebase connection');
-        // Online status will be updated by WebSocket connection listener
+        // App is in foreground - ensure Firebase and WebSocket are connected
+        print('✅ [MyApp] App resumed - ensuring Firebase and WebSocket connections');
         // Reconnect Firebase if not connected (it may have been disconnected in background)
         if (!_firebaseRealtimeService.isConnected) {
           print('🔄 [MyApp] Firebase not connected, reconnecting...');
           _firebaseRealtimeService.connect();
         }
+        // Reconnect WebSocket if not connected (it may have been disconnected in background)
+        if (!_webSocketService.isConnected) {
+          print('🔄 [MyApp] WebSocket not connected, reconnecting...');
+          _connectWebSocketGlobally();
+        } else {
+          print('✅ [MyApp] WebSocket is already connected');
+        }
+        // Online status will be updated by WebSocket connection listener
         break;
       case AppLifecycleState.paused:
       case AppLifecycleState.inactive:
@@ -336,6 +345,15 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       } catch (e) {
         print('⚠️ [MyApp] Failed to update online status: $e');
       }
+    });
+  }
+
+  /// Connect WebSocket globally (works from any screen)
+  /// This ensures WebSocket is always connected as long as the app is running
+  void _connectWebSocketGlobally() {
+    print('🔄 [MyApp] Connecting WebSocket globally...');
+    _webSocketService.connect().catchError((error) {
+      print('❌ [MyApp] Error connecting WebSocket globally: $error');
     });
   }
 

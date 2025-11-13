@@ -302,6 +302,7 @@ class WebSocketService {
 
   /// Connect to WebSocket with callbacks
   /// Only connects when app is in foreground
+  /// Can be called multiple times to update callbacks or reconnect
   Future<void> connect({
     Function(Post)? onNewPost,
     Function(String, String)? onNewComment,
@@ -341,7 +342,9 @@ class WebSocketService {
     // Don't connect if already connected or connecting
     // Check and set _isConnecting atomically to prevent race conditions
     if (_isConnected) {
-      print('ℹ️ [WebSocket] Already connected, skipping connection (callbacks updated)');
+      print('ℹ️ [WebSocket] Already connected, callbacks updated (no reconnection needed)');
+      // Callbacks have already been updated above, so we can return
+      // This allows screens to register their callbacks after connection is established
       return;
     }
     
