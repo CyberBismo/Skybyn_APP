@@ -11,6 +11,7 @@ import 'notification_service.dart';
 import 'auth_service.dart';
 import 'device_service.dart';
 import '../config/constants.dart';
+import 'background_activity_service.dart';
 
 // Handle background messages
 @pragma('vm:entry-point')
@@ -27,6 +28,16 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
     // Check if Firebase is already initialized
     if (Firebase.apps.isEmpty) {
       await Firebase.initializeApp();
+    }
+    
+    // Update user activity when receiving notification (user is active)
+    // This helps maintain online status even when app is closed
+    try {
+      final authService = AuthService();
+      await authService.updateActivity();
+      print('✅ [FCM] Activity updated from background notification');
+    } catch (e) {
+      print('⚠️ [FCM] Failed to update activity from background: $e');
     }
 
     // Show local notification for background messages
@@ -348,6 +359,11 @@ class FirebaseMessagingService {
     FirebaseMessaging.onMessage.listen((RemoteMessage message) async {
       final type = message.data['type']?.toString();
       print('📱 [FCM] Received foreground message: type=$type');
+      
+      // Update activity when receiving notification (user is active)
+      // This helps maintain online status even when app is in background
+      final authService = AuthService();
+      await authService.updateActivity();
       
       // For chat messages in foreground, ignore Firebase notification
       // WebSocket will handle real-time delivery when app is in focus

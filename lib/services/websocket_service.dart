@@ -339,13 +339,20 @@ class WebSocketService {
       await initialize();
     }
     
-    // Don't connect if already connected or connecting
-    // Check and set _isConnecting atomically to prevent race conditions
+    // Test connection if it appears connected
     if (_isConnected) {
-      print('ℹ️ [WebSocket] Already connected, callbacks updated (no reconnection needed)');
-      // Callbacks have already been updated above, so we can return
-      // This allows screens to register their callbacks after connection is established
-      return;
+      // Verify the connection is actually alive
+      if (_testConnection()) {
+        print('ℹ️ [WebSocket] Already connected and healthy, callbacks updated (no reconnection needed)');
+        // Callbacks have already been updated above, so we can return
+        // This allows screens to register their callbacks after connection is established
+        return;
+      } else {
+        print('⚠️ [WebSocket] Connection appears connected but is actually dead - reconnecting...');
+        // Connection is dead, reset state and reconnect
+        _isConnected = false;
+        _channel = null;
+      }
     }
     
     if (_isConnecting) {
@@ -1075,6 +1082,63 @@ class WebSocketService {
     }
   }
 
+  /// Test if the WebSocket connection is actually alive
+  /// Returns true if connection is alive, false if dead
+  bool _testConnection() {
+    if (!_isConnected || _channel == null) {
+      return false;
+    }
+    
+    try {
+      // Try to check if the channel is still valid by checking if it's closed
+      // Note: WebSocketChannel doesn't expose a direct "isClosed" property,
+      // but we can try to send a test message or check the sink
+      // For now, we'll check if we've received a ping recently
+      if (_lastPingReceivedTime != null) {
+        final now = DateTime.now().millisecondsSinceEpoch;
+        final timeSinceLastPing = now - _lastPingReceivedTime!;
+        // If we haven't received a ping in 2 minutes, connection is likely dead
+        if (timeSinceLastPing > 120000) {
+          print('⚠️ [WebSocket] Connection test failed: No ping received in ${timeSinceLastPing ~/ 1000} seconds');
+          return false;
+        }
+      }
+      return true;
+    } catch (e) {
+      print('❌ [WebSocket] Connection test error: $e');
+      return false;
+    }
+  }
+
+  /// Force reconnection even if connection appears to be active
+  /// Useful when app resumes from background
+  Future<void> forceReconnect() async {
+    print('🔄 [WebSocket] Force reconnecting...');
+    
+    // Disconnect current connection if it exists
+    if (_channel != null) {
+      try {
+        _channel!.sink.close();
+      } catch (e) {
+        print('⚠️ [WebSocket] Error closing channel during force reconnect: $e');
+      }
+    }
+    
+    // Reset connection state
+    _channel = null;
+    _isConnected = false;
+    _isConnecting = false;
+    _lastPingReceivedTime = null;
+    _reconnectAttempts = 0;
+    
+    // Cancel any existing reconnect timers
+    _reconnectTimer?.cancel();
+    _connectionHealthTimer?.cancel();
+    
+    // Reconnect immediately
+    await connect();
+  }
+
   /// Disconnect from WebSocket
   void disconnect() {
     print('🔌 [WebSocket] Disconnecting from WebSocket...');
@@ -1112,11 +1176,18 @@ class WebSocketService {
       print('ℹ️ [WebSocket] Server will send PINGs - client will only respond with PONGs');
     }
     
-    // Check every 30 seconds (same as server ping interval)
-    // If we haven't received a ping from server in 90 seconds (3x interval), connection might be dead
-    _connectionHealthTimer = Timer.periodic(const Duration(seconds: 30), (timer) {
+    // Check every 20 seconds to detect dead connections faster
+    // If we haven't received a ping from server in 60 seconds (2x interval), connection is likely dead
+    _connectionHealthTimer = Timer.periodic(const Duration(seconds: 20), (timer) {
       if (!_isConnected || _channel == null) {
         timer.cancel();
+        return;
+      }
+      
+      // Test connection health
+      if (!_testConnection()) {
+        print('⚠️ [WebSocket] Connection health check failed - forcing reconnection');
+        _onConnectionClosed();
         return;
       }
       
@@ -1124,13 +1195,23 @@ class WebSocketService {
         final now = DateTime.now().millisecondsSinceEpoch;
         final timeSinceLastPing = now - _lastPingReceivedTime!;
         
-        // If we haven't received a ping from server in 90 seconds, connection might be dead
-        if (timeSinceLastPing > 90000) {
-          if (kDebugMode) {
-            print('⚠️ [WebSocket] No PING from server in ${timeSinceLastPing ~/ 1000} seconds - connection may be dead');
-          }
+        // If we haven't received a ping from server in 60 seconds, connection is likely dead
+        if (timeSinceLastPing > 60000) {
+          print('⚠️ [WebSocket] No PING from server in ${timeSinceLastPing ~/ 1000} seconds - connection may be dead');
           // Connection appears dead, trigger reconnection
           _onConnectionClosed();
+        }
+      } else {
+        // If we've never received a ping and it's been more than 30 seconds since connection,
+        // the connection might be dead
+        final connectionStartTime = _connectionMetrics['connectionStartTime'] as int?;
+        if (connectionStartTime != null) {
+          final now = DateTime.now().millisecondsSinceEpoch;
+          final timeSinceConnection = now - connectionStartTime;
+          if (timeSinceConnection > 30000) {
+            print('⚠️ [WebSocket] No PING received since connection (${timeSinceConnection ~/ 1000} seconds ago) - connection may be dead');
+            _onConnectionClosed();
+          }
         }
       }
     });
@@ -1148,3 +1229,4 @@ class WebSocketService {
     _onOnlineStatusCallbacks.remove(callback);
   }
 }
+

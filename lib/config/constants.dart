@@ -108,6 +108,10 @@ class ApiConstants {
   // Activity
   static String get updateActivity => '$apiBase/update_activity.php';
   
+  // Admin
+  static String get adminUsers => '$apiBase/admin/users.php';
+  static String get adminReports => '$apiBase/admin/reports.php';
+  
   // API Key for unrestricted access (bypasses bot protection)
   static const String apiKey = 'DP4HOA9PYSUAPFP1SHEMHNPJ0S6QZF3X';
 }

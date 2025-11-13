@@ -36,6 +36,7 @@ class Friend {
     }
     
     // Parse last_active timestamp (can be in seconds or milliseconds)
+    // Also check for last_seen (human-readable) from new API
     int? lastActive;
     if (json['last_active'] != null) {
       final lastActiveValue = json['last_active'];
@@ -52,12 +53,18 @@ class Friend {
       }
     }
     
+    // Use calculated online status from API if available (Facebook/Messenger style)
+    // Otherwise fall back to online field
+    final calculatedOnline = json['online_status'] != null 
+        ? json['online_status'] == 'online'
+        : _parseOnline(json['online']);
+    
     return Friend(
       id: (json['friend_id'] ?? json['userID'] ?? json['id'] ?? '').toString(),
       username: (json['username'] ?? json['name'] ?? 'Unknown').toString(),
       nickname: (json['nickname'] ?? '').toString(),
       avatar: avatarUrl,
-      online: _parseOnline(json['online']),
+      online: calculatedOnline,
       lastActive: lastActive,
     );
   }

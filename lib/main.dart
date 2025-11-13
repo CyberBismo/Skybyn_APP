@@ -19,6 +19,7 @@ import 'services/firebase_messaging_service.dart';
 import 'services/websocket_service.dart';
 import 'services/translation_service.dart';
 import 'services/background_update_scheduler.dart';
+import 'services/background_activity_service.dart';
 import 'services/call_service.dart';
 import 'services/friend_service.dart';
 import 'widgets/background_gradient.dart';
@@ -178,6 +179,9 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       // Initialize background update scheduler
       await _backgroundUpdateScheduler.initialize();
       
+      // Initialize background activity service (updates activity even when app is closed)
+      await BackgroundActivityService.initialize();
+      
       // Set up call callbacks for incoming calls via WebSocket
       _setupCallHandlers();
       
@@ -263,13 +267,12 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
           print('🔄 [MyApp] Firebase not connected, reconnecting...');
           _firebaseRealtimeService.connect();
         }
-        // Reconnect WebSocket if not connected (it may have been disconnected in background)
-        if (!_webSocketService.isConnected) {
-          print('🔄 [MyApp] WebSocket not connected, reconnecting...');
-          _connectWebSocketGlobally();
-        } else {
-          print('✅ [MyApp] WebSocket is already connected');
-        }
+        // Always force reconnect WebSocket when app resumes to ensure connection is alive
+        // The connection might appear connected but actually be dead after backgrounding
+        print('🔄 [MyApp] Force reconnecting WebSocket to ensure active connection...');
+        _webSocketService.forceReconnect().catchError((error) {
+          print('❌ [MyApp] Error force reconnecting WebSocket: $error');
+        });
         // Online status will be updated by WebSocket connection listener
         break;
       case AppLifecycleState.paused:

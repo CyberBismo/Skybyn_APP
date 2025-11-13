@@ -6,6 +6,8 @@ import '../widgets/app_colors.dart';
 import '../utils/translation_keys.dart';
 import '../widgets/translated_text.dart';
 import '../services/translation_service.dart';
+import 'admin/user_management_screen.dart';
+import 'admin/moderation_tools_screen.dart';
 
 class AdminScreen extends StatefulWidget {
   const AdminScreen({super.key});
@@ -72,13 +74,12 @@ class _AdminScreenState extends State<AdminScreen> {
                         children: [
                           _buildFeatureCard(
                             icon: Icons.people,
-                            title: 'User Management',
+                            title: translationService.translate(TranslationKeys.userManagement),
                             description: 'Manage users, view profiles, and handle user-related actions',
                             onTap: () {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('User Management - Coming soon'),
-                                  duration: Duration(seconds: 2),
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (context) => const UserManagementScreen(),
                                 ),
                               );
                             },
@@ -86,13 +87,12 @@ class _AdminScreenState extends State<AdminScreen> {
                           const SizedBox(height: 12),
                           _buildFeatureCard(
                             icon: Icons.shield,
-                            title: 'Moderation Tools',
+                            title: translationService.translate(TranslationKeys.moderationTools),
                             description: 'Review reports, moderate content, and manage community guidelines',
                             onTap: () {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Moderation Tools - Coming soon'),
-                                  duration: Duration(seconds: 2),
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (context) => const ModerationToolsScreen(),
                                 ),
                               );
                             },
@@ -100,13 +100,13 @@ class _AdminScreenState extends State<AdminScreen> {
                           const SizedBox(height: 12),
                           _buildFeatureCard(
                             icon: Icons.settings,
-                            title: 'System Settings',
+                            title: translationService.translate(TranslationKeys.systemSettings),
                             description: 'Configure system-wide settings and preferences',
                             onTap: () {
                               ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('System Settings - Coming soon'),
-                                  duration: Duration(seconds: 2),
+                                SnackBar(
+                                  content: Text(translationService.translate(TranslationKeys.comingSoon)),
+                                  duration: const Duration(seconds: 2),
                                 ),
                               );
                             },
@@ -114,13 +114,13 @@ class _AdminScreenState extends State<AdminScreen> {
                           const SizedBox(height: 12),
                           _buildFeatureCard(
                             icon: Icons.analytics,
-                            title: 'Analytics & Reports',
+                            title: translationService.translate(TranslationKeys.analyticsAndReports),
                             description: 'View platform statistics, user activity, and system reports',
                             onTap: () {
                               ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Analytics & Reports - Coming soon'),
-                                  duration: Duration(seconds: 2),
+                                SnackBar(
+                                  content: Text(translationService.translate(TranslationKeys.comingSoon)),
+                                  duration: const Duration(seconds: 2),
                                 ),
                               );
                             },
