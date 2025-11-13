@@ -5,6 +5,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import '../services/friend_service.dart';
 import '../services/auth_service.dart';
 import '../services/firebase_realtime_service.dart';
+import '../services/websocket_service.dart';
 import '../models/friend.dart';
 import '../screens/chat_screen.dart';
 import '../screens/profile_screen.dart';
@@ -25,6 +26,7 @@ class _RightPanelState extends State<RightPanel> {
   final FriendService _friendService = FriendService();
   final AuthService _authService = AuthService();
   final FirebaseRealtimeService _firebaseRealtimeService = FirebaseRealtimeService();
+  final WebSocketService _webSocketService = WebSocketService();
 
   List<Friend> _friends = [];
   bool _isLoading = true;
@@ -33,6 +35,8 @@ class _RightPanelState extends State<RightPanel> {
 
   // Store subscriptions for cleanup
   Map<String, StreamSubscription> _onlineStatusSubscriptions = {};
+  // Store WebSocket online status callback for cleanup
+  void Function(String, bool)? _webSocketOnlineStatusCallback;
 
   @override
   void initState() {
@@ -48,14 +52,39 @@ class _RightPanelState extends State<RightPanel> {
       subscription.cancel();
     }
     _onlineStatusSubscriptions.clear();
+    // Remove WebSocket online status callback when widget is disposed
+    if (_webSocketOnlineStatusCallback != null) {
+      _webSocketService.removeOnlineStatusCallback(_webSocketOnlineStatusCallback!);
+      _webSocketOnlineStatusCallback = null;
+    }
     super.dispose();
   }
 
   void _setupWebSocketListener() {
-    // Set up Firebase online status listeners for all friends
+    // Set up Firebase online status listeners for all friends (fallback)
     for (var friend in _friends) {
       _setupOnlineStatusListenerForFriend(friend.id);
     }
+
+    // Set up WebSocket online status listener (primary real-time source)
+    // This single callback handles all friends' online status updates
+    _webSocketOnlineStatusCallback = (userId, isOnline) {
+      if (mounted) {
+        setState(() {
+          final index = _friends.indexWhere((f) => f.id == userId);
+          if (index != -1) {
+            final oldStatus = _friends[index].online;
+            print('📡 [RightPanel] WebSocket online status update: userId=$userId, oldStatus=$oldStatus -> newStatus=$isOnline');
+            _friends[index] = _friends[index].copyWith(online: isOnline);
+          }
+        });
+      }
+    };
+    
+    // Register callback with WebSocket service
+    _webSocketService.connect(
+      onOnlineStatus: _webSocketOnlineStatusCallback,
+    );
   }
 
   void _setupOnlineStatusListenerForFriend(String friendId) {

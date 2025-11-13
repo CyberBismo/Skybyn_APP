@@ -273,8 +273,30 @@ class WebSocketService {
         return IOWebSocketChannel.connect(uri);
       }
     } else {
-      // In release mode, use standard connection with proper SSL validation
-      return IOWebSocketChannel.connect(uri);
+      // In release mode, try with SSL certificate handling first
+      // Some servers may have self-signed certificates even in production
+      try {
+        // Create an HttpClient with custom certificate handling for release mode too
+        final httpClient = HttpClient();
+        httpClient.badCertificateCallback = (cert, host, port) {
+          print('⚠️ [WebSocket] Accepting certificate for $host:$port in release mode');
+          return true; // Accept all certificates (needed for some server configurations)
+        };
+        
+        // Create WebSocket connection using the custom HttpClient
+        final webSocket = await WebSocket.connect(
+          url,
+          customClient: httpClient,
+        );
+        
+        // Wrap the socket in an IOWebSocketChannel
+        return IOWebSocketChannel(webSocket);
+      } catch (e) {
+        print('❌ [WebSocket] Error creating WebSocket connection with custom client: $e');
+        print('🔄 [WebSocket] Falling back to standard connection...');
+        // Fall back to standard connection
+        return IOWebSocketChannel.connect(uri);
+      }
     }
   }
 
@@ -343,25 +365,34 @@ class WebSocketService {
       print('🔄 [WebSocket] Connecting to WebSocket: $wsUrl');
 
       // Create WebSocket connection with SSL certificate handling
+      print('🔄 [WebSocket] Creating WebSocket channel...');
       _channel = await _createWebSocketChannel(wsUrl);
+      print('✅ [WebSocket] WebSocket channel created successfully');
 
       // Listen to messages
+      print('🔄 [WebSocket] Setting up message listeners...');
       _channel!.stream.listen(
         (message) {
           _handleMessage(message); // Fire and forget - async method
         },
         onError: (error) {
+          print('❌ [WebSocket] Stream error: $error');
           _onConnectionError(error);
         },
         onDone: () {
+          print('🔌 [WebSocket] Stream done (connection closed)');
           _onConnectionClosed();
         },
         cancelOnError: false,
       );
+      print('✅ [WebSocket] Message listeners set up');
 
       // Send connect message after a short delay to ensure connection is established
+      print('🔄 [WebSocket] Waiting 500ms before sending connect message...');
       await Future.delayed(const Duration(milliseconds: 500));
+      print('🔄 [WebSocket] Sending connect message...');
       await _sendConnectMessage();
+      print('✅ [WebSocket] Connect message sent');
 
       // Only update state and print if we're still the one connecting (prevent duplicate messages)
       if (_isConnecting) {
@@ -388,29 +419,44 @@ class WebSocketService {
 
   /// Send connection message
   Future<void> _sendConnectMessage() async {
-    final authService = AuthService();
-    final user = await authService.getStoredUserProfile();
-    _userId = user?.id;
-    final userName = user?.username ?? ''; // Use username field as userName
-    final deviceService = DeviceService();
-    final deviceInfo = await deviceService.getDeviceInfo();
+    try {
+      if (_channel == null) {
+        print('❌ [WebSocket] Cannot send connect message: channel is null');
+        return;
+      }
 
-    // Remove the 'device' field from deviceInfo to avoid overwriting our device type
-    deviceInfo.remove('device');
+      final authService = AuthService();
+      final user = await authService.getStoredUserProfile();
+      _userId = user?.id;
+      final userName = user?.username ?? ''; // Use username field as userName
+      
+      print('🔄 [WebSocket] Preparing connect message: userId=$_userId, userName=$userName, sessionId=$_sessionId');
+      
+      final deviceService = DeviceService();
+      final deviceInfo = await deviceService.getDeviceInfo();
 
-    final connectMessage = {
-      'type': 'connect',
-      'sessionId': _sessionId,
-      'userId': _userId,
-      'userName': userName,
-      'deviceInfo': {
-        'device': await _getDeviceType(deviceInfo),
-        'browser': 'Skybyn App',
-        ...deviceInfo,
-      },
-    };
-    final messageJson = jsonEncode(connectMessage);
-    _channel?.sink.add(messageJson);
+      // Remove the 'device' field from deviceInfo to avoid overwriting our device type
+      deviceInfo.remove('device');
+
+      final connectMessage = {
+        'type': 'connect',
+        'sessionId': _sessionId,
+        'userId': _userId,
+        'userName': userName,
+        'deviceInfo': {
+          'device': await _getDeviceType(deviceInfo),
+          'browser': 'Skybyn App',
+          ...deviceInfo,
+        },
+      };
+      final messageJson = jsonEncode(connectMessage);
+      print('📤 [WebSocket] Sending connect message: $messageJson');
+      _channel!.sink.add(messageJson);
+      print('✅ [WebSocket] Connect message sent successfully');
+    } catch (e, stackTrace) {
+      print('❌ [WebSocket] Error sending connect message: $e');
+      print('❌ [WebSocket] Stack trace: $stackTrace');
+    }
   }
 
   /// Get device type string

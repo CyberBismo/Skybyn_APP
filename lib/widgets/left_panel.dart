@@ -57,12 +57,19 @@ class _LeftPanelState extends State<LeftPanel> {
             _shortcuts = List<Map<String, dynamic>>.from(data);
             _isLoading = false;
           });
+          print('✅ [LeftPanel] Loaded ${_shortcuts.length} shortcuts');
+          // Debug: print shortcut names
+          for (var shortcut in _shortcuts) {
+            print('  - ${shortcut['name']} (icon: ${shortcut['icon']})');
+          }
         } else {
+          print('⚠️ [LeftPanel] API returned non-list data: $data');
           setState(() {
             _isLoading = false;
           });
         }
       } else {
+        print('⚠️ [LeftPanel] API returned status ${response.statusCode}');
         setState(() {
           _isLoading = false;
         });
@@ -134,6 +141,17 @@ class _LeftPanelState extends State<LeftPanel> {
     final url = Uri.parse('https://discord.gg/wBhPvEvn87');
     if (await canLaunchUrl(url)) {
       await launchUrl(url, mode: LaunchMode.externalApplication);
+    }
+  }
+
+  Future<void> _openUrl(String urlString) async {
+    try {
+      final url = Uri.parse(urlString);
+      if (await canLaunchUrl(url)) {
+        await launchUrl(url, mode: LaunchMode.externalApplication);
+      }
+    } catch (e) {
+      print('❌ [LeftPanel] Error opening URL: $e');
     }
   }
 
@@ -266,31 +284,47 @@ class _LeftPanelState extends State<LeftPanel> {
         color: Colors.white.withOpacity(0.10),
         borderRadius: BorderRadius.circular(12),
       ),
-      child: ListTile(
-        leading: Icon(iconData, color: Colors.white),
-        title: Text(
-          name,
-          style: const TextStyle(
-            color: Colors.white,
-            decoration: TextDecoration.none,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () {
+            if (url != null && url.isNotEmpty) {
+              _openUrl(url);
+            } else {
+              // Handle other shortcuts - can be implemented later
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('$name feature coming soon'),
+                  duration: const Duration(seconds: 2),
+                ),
+              );
+            }
+          },
+          borderRadius: BorderRadius.circular(12),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            child: Row(
+              children: [
+                Icon(iconData, color: Colors.white, size: 24),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Text(
+                    name,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      decoration: TextDecoration.none,
+                    ),
+                  ),
+                ),
+                if (url != null && url.isNotEmpty)
+                  const Icon(Icons.open_in_new, color: Colors.white70, size: 18)
+                else
+                  const Icon(Icons.chevron_right, color: Colors.white70, size: 18),
+              ],
+            ),
           ),
         ),
-        trailing: url != null
-            ? const Icon(Icons.open_in_new, color: Colors.white70, size: 18)
-            : const Icon(Icons.chevron_right, color: Colors.white70),
-        onTap: () {
-          if (url != null) {
-            _openDiscord();
-          } else {
-            // Handle other shortcuts - can be implemented later
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('$name feature coming soon'),
-                duration: const Duration(seconds: 2),
-              ),
-            );
-          }
-        },
       ),
     );
   }
@@ -368,12 +402,29 @@ class _LeftPanelState extends State<LeftPanel> {
                                 // Discord section (always shown, like on website)
                                 _buildDiscordSection(),
                                 const SizedBox(height: 16),
-                                // Other shortcuts
+                                // Other shortcuts (filter out Discord since it's shown separately)
                                 ..._shortcuts
                                     .where((shortcut) => 
                                         shortcut['name']?.toString().toLowerCase() != 'discord')
                                     .map((shortcut) => _buildShortcutItem(shortcut))
                                     .toList(),
+                                // Show message if no shortcuts (after filtering)
+                                if (_shortcuts
+                                    .where((shortcut) => 
+                                        shortcut['name']?.toString().toLowerCase() != 'discord')
+                                    .isEmpty)
+                                  Padding(
+                                    padding: const EdgeInsets.all(16.0),
+                                    child: Center(
+                                      child: Text(
+                                        'No shortcuts available',
+                                        style: TextStyle(
+                                          color: Colors.white.withOpacity(0.6),
+                                          fontSize: 14,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
                               ],
                             ),
                     ),

@@ -5,9 +5,11 @@ import '../screens/profile_screen.dart';
 import '../screens/settings_screen.dart';
 import '../screens/qr_scanner_screen.dart';
 import '../screens/share_screen.dart';
+import '../screens/admin_screen.dart';
 import 'app_colors.dart';
 import '../utils/translation_keys.dart';
 import '../services/translation_service.dart';
+import '../services/auth_service.dart';
 import 'translated_text.dart';
 
 /// Menu item definition
@@ -129,7 +131,7 @@ class UnifiedMenu {
   }) {
     return GestureDetector(
       key: menuKey,
-      onTap: () {
+      onTap: () async {
         if (_currentOverlayEntry != null) {
           closeCurrentMenu();
         } else {
@@ -137,6 +139,12 @@ class UnifiedMenu {
           if (isSearchFormVisible && onSearchFormToggle != null) {
             onSearchFormToggle();
           }
+          
+          // Check user rank for admin access
+          final authService = AuthService();
+          final user = await authService.getStoredUserProfile();
+          final userRank = user?.rank != null ? int.tryParse(user!.rank) : 0;
+          final isAdmin = userRank != null && userRank > 5;
           
           final List<MenuItem> items = [
             MenuItem(
@@ -184,6 +192,17 @@ class UnifiedMenu {
                 );
               },
             ),
+            // Admin panel (only for rank > 5)
+            if (isAdmin)
+              MenuItem(
+                icon: Icons.admin_panel_settings,
+                translationKey: TranslationKeys.adminPanel,
+                onTap: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(builder: (context) => const AdminScreen()),
+                  );
+                },
+              ),
             MenuItem(
               icon: Icons.logout,
               translationKey: TranslationKeys.logout,

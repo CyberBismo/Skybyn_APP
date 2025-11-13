@@ -273,6 +273,7 @@ class TranslationKeys {
   static const String callError = 'call_error';
   static const String postCreatedButCouldNotLoadDetails = 'post_created_but_could_not_load_details';
   static const String qrScanner = 'qr_scanner';
+  static const String adminPanel = 'admin_panel';
   static const String report = 'report';
   static const String searchFriends = 'search_friends';
   static const String noFriendsFound = 'no_friends_found';

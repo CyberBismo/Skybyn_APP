@@ -205,34 +205,50 @@ class AutoUpdateService {
         progress: 5,
       );
 
-      // Create request
+      // Create GET request for actual download
       final request = http.Request('GET', Uri.parse(downloadUrl));
       final streamedResponse = await http.Client().send(request);
 
       if (streamedResponse.statusCode == 200) {
-        // Get content length for progress tracking
-        // Try to get from Content-Length header if contentLength is null
+        // Get content length for progress tracking from the actual download response
+        // The server sets Content-Length dynamically based on the actual file size
         int? contentLength = streamedResponse.contentLength;
+        
+        // Try to get from Content-Length header if contentLength is null or -1
         if (contentLength == null || contentLength == -1) {
           final contentLengthHeader = streamedResponse.headers['content-length'];
-          if (contentLengthHeader != null) {
-            contentLength = int.tryParse(contentLengthHeader);
+          if (contentLengthHeader != null && contentLengthHeader.isNotEmpty) {
+            contentLength = int.tryParse(contentLengthHeader.trim());
+            if (contentLength != null && contentLength <= 0) {
+              contentLength = null; // Invalid size, treat as unknown
+            }
           }
         }
         
         // Also check for Content-Range header (for partial downloads/resumable downloads)
         if ((contentLength == null || contentLength == -1) && streamedResponse.headers.containsKey('content-range')) {
           final contentRange = streamedResponse.headers['content-range'];
-          if (contentRange != null) {
+          if (contentRange != null && contentRange.isNotEmpty) {
             // Parse "bytes 0-12345/67890" format
             final match = RegExp(r'bytes \d+-\d+/(\d+)').firstMatch(contentRange);
             if (match != null) {
-              contentLength = int.tryParse(match.group(1) ?? '');
+              final totalSize = match.group(1);
+              if (totalSize != null && totalSize.isNotEmpty) {
+                contentLength = int.tryParse(totalSize.trim());
+                if (contentLength != null && contentLength <= 0) {
+                  contentLength = null; // Invalid size, treat as unknown
+                }
+              }
             }
           }
         }
         
-        print('📊 [AutoUpdate] Downloading APK (size: ${contentLength ?? 'unknown'} bytes)');
+        // Log the detected file size for debugging
+        if (contentLength != null && contentLength > 0) {
+          print('📊 [AutoUpdate] Downloading APK (size: ${_formatBytes(contentLength)} / $contentLength bytes)');
+        } else {
+          print('⚠️ [AutoUpdate] File size unknown - will show indeterminate progress');
+        }
 
         // Update notification with initial progress
         await notificationService.showUpdateProgressNotification(
@@ -279,39 +295,24 @@ class AutoUpdateService {
               onProgress?.call(progress, statusText);
             }
           } else {
-            // Indeterminate progress if content length unknown
-            // Use a more conservative approach: show progress based on time/downloaded bytes
-            // but cap at 85% until we know the download is complete
-            // This prevents showing 90% when only 60% is actually downloaded
+            // Content length is unknown - we can't calculate accurate percentage
+            // Show indeterminate progress and update based on downloaded bytes only
             final bytesSinceLastUpdate = downloadedBytes - lastReportedBytes;
             
-            // Use a logarithmic scale that slows down as download continues
-            // Estimate based on typical APK sizes (10-50MB range)
-            // Start with a smaller estimate and increase as we download more
-            final baseEstimate = 15 * 1024 * 1024; // Start with 15MB estimate
-            final dynamicEstimate = downloadedBytes > baseEstimate 
-                ? downloadedBytes * 1.2 // If we've exceeded base, estimate 20% more
-                : baseEstimate;
-            
-            // Calculate progress but cap at 85% during download (reserve 15% for completion)
-            final rawProgress = ((downloadedBytes / dynamicEstimate) * 100).round();
-            final estimatedProgress = rawProgress.clamp(0, 85); // Cap at 85% during download
-            
-            // Update every 50KB downloaded or every 2% estimated progress change
-            final progressSinceLastUpdate = (estimatedProgress - lastReportedProgress).abs();
-            if (bytesSinceLastUpdate >= 50000 || progressSinceLastUpdate >= 2) {
-              lastReportedProgress = estimatedProgress;
+            // Update every 50KB downloaded
+            if (bytesSinceLastUpdate >= 50000) {
               lastReportedBytes = downloadedBytes;
               
+              // Show indeterminate progress (no percentage, just bytes downloaded)
               await notificationService.showUpdateProgressNotification(
                 title: 'Updating Skybyn',
                 status: 'Downloading... ${_formatBytes(downloadedBytes)}',
-                progress: estimatedProgress,
+                progress: 0, // 0 means indeterminate
                 indeterminate: true,
               );
               
-              // Call progress callback with estimated progress
-              onProgress?.call(estimatedProgress, 'Downloading... ${_formatBytes(downloadedBytes)}');
+              // Call progress callback with 0 (indeterminate)
+              onProgress?.call(0, 'Downloading... ${_formatBytes(downloadedBytes)}');
             }
           }
         }

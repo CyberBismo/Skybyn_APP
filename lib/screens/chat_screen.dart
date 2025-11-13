@@ -11,6 +11,7 @@ import '../services/auth_service.dart';
 import '../services/call_service.dart';
 import '../services/chat_service.dart';
 import '../services/firebase_realtime_service.dart';
+import '../services/websocket_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../utils/translation_keys.dart';
 import '../widgets/translated_text.dart';
@@ -41,6 +42,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
   final AuthService _authService = AuthService();
   final ChatService _chatService = ChatService();
   final FirebaseRealtimeService _firebaseRealtimeService = FirebaseRealtimeService();
+  final WebSocketService _webSocketService = WebSocketService();
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
 
@@ -62,6 +64,8 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
   late Animation<double> _typingAnimation;
   // Store subscription for cleanup
   StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _onlineStatusSubscription;
+  // Store WebSocket online status callback for cleanup
+  void Function(String, bool)? _webSocketOnlineStatusCallback;
   // Menu overlay
   OverlayEntry? _menuOverlayEntry;
   final GlobalKey _menuButtonKey = GlobalKey();
@@ -135,6 +139,11 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
       }
       // Cancel online status subscription when widget is disposed
       _onlineStatusSubscription?.cancel();
+      // Remove WebSocket online status callback when widget is disposed
+      if (_webSocketOnlineStatusCallback != null) {
+        _webSocketService.removeOnlineStatusCallback(_webSocketOnlineStatusCallback!);
+        _webSocketOnlineStatusCallback = null;
+      }
       // Close menu if open
       _closeMenu();
     super.dispose();
@@ -300,7 +309,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
   }
 
   void _setupWebSocketListener() {
-    // Set up Firebase real-time listeners for chat
+    // Set up Firebase real-time listeners for chat (fallback)
     // Set up online status listener for the friend
     _onlineStatusSubscription = _firebaseRealtimeService.setupOnlineStatusListener(
       widget.friend.id,
@@ -313,6 +322,22 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
           });
         }
       },
+    );
+
+    // Set up WebSocket online status listener (primary real-time source)
+    _webSocketOnlineStatusCallback = (userId, isOnline) {
+      if (userId == widget.friend.id && mounted) {
+        final oldStatus = _friendOnline;
+        print('📡 [ChatScreen] WebSocket online status update: userId=$userId, oldStatus=$oldStatus -> newStatus=$isOnline');
+        setState(() {
+          _friendOnline = isOnline;
+        });
+      }
+    };
+    
+    // Register callback with WebSocket service
+    _webSocketService.connect(
+      onOnlineStatus: _webSocketOnlineStatusCallback,
     );
 
     // Set up typing status listener
