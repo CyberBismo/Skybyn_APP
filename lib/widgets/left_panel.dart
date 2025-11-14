@@ -90,6 +90,9 @@ class _LeftPanelState extends State<LeftPanel> {
             for (var shortcut in _shortcuts) {
               print('  - ${shortcut['name']} (icon: ${shortcut['icon'] ?? 'no icon'})');
             }
+            if (_shortcuts.isEmpty) {
+              print('⚠️ [LeftPanel] WARNING: Shortcuts list is empty!');
+            }
           } else if (data is Map) {
             if (data.containsKey('error')) {
               print('❌ [LeftPanel] API returned error: ${data['error']}');
@@ -522,19 +525,32 @@ class _LeftPanelState extends State<LeftPanel> {
                     Expanded(
                       child: _isLoading
                           ? const Center(child: CircularProgressIndicator())
-                          : ListView(
-                              padding: const EdgeInsets.symmetric(horizontal: 16),
-                              children: [
-                                // Discord section (always shown, like on website)
-                                _buildDiscordSection(),
-                                const SizedBox(height: 16),
-                                // Other shortcuts (filter out Discord since it's shown separately)
-                                ..._shortcuts
-                                    .where((shortcut) => 
-                                        shortcut['name']?.toString().toLowerCase() != 'discord')
-                                    .map((shortcut) => _buildShortcutItem(shortcut))
-                                    .toList(),
-                              ],
+                          : Builder(
+                              builder: (context) {
+                                // Filter shortcuts (exclude Discord since it's shown separately)
+                                final filteredShortcuts = _shortcuts
+                                    .where((shortcut) {
+                                      final name = shortcut['name']?.toString().toLowerCase() ?? '';
+                                      return name != 'discord';
+                                    })
+                                    .toList();
+                                
+                                print('🔍 [LeftPanel] Displaying ${filteredShortcuts.length} shortcuts (total: ${_shortcuts.length})');
+                                
+                                return ListView(
+                                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                                  children: [
+                                    // Discord section (always shown, like on website)
+                                    _buildDiscordSection(),
+                                    const SizedBox(height: 16),
+                                    // Other shortcuts
+                                    ...filteredShortcuts.map((shortcut) {
+                                      print('✅ [LeftPanel] Building shortcut item: ${shortcut['name']}');
+                                      return _buildShortcutItem(shortcut);
+                                    }),
+                                  ],
+                                );
+                              },
                             ),
                     ),
                   ],
