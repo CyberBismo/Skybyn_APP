@@ -377,48 +377,43 @@ class _LeftPanelState extends State<LeftPanel> {
     }
   }
 
-  Future<void> _navigateToShortcut(String name) async {
-    // Skip Discord - it has its own handler
-    if (name.toLowerCase() == 'discord') {
-      return;
-    }
-
-    // Navigate to dedicated screen for each shortcut
-    Widget? screen;
-    switch (name.toLowerCase()) {
+  Future<void> _navigateToShortcut(String screen) async {
+    // Navigate to dedicated screen based on screen identifier from API
+    Widget? targetScreen;
+    switch (screen.toLowerCase()) {
       case 'music':
-        screen = const MusicScreen();
+        targetScreen = const MusicScreen();
         break;
       case 'games':
-        screen = const GamesScreen();
+        targetScreen = const GamesScreen();
         break;
       case 'events':
-        screen = const EventsScreen();
+        targetScreen = const EventsScreen();
         break;
       case 'groups':
-        screen = const GroupsScreen();
+        targetScreen = const GroupsScreen();
         break;
       case 'pages':
-        screen = const PagesScreen();
+        targetScreen = const PagesScreen();
         break;
       case 'markets':
-        screen = const MarketsScreen();
+        targetScreen = const MarketsScreen();
         break;
-      case 'beta feedback':
-        screen = const FeedbackScreen();
+      case 'feedback':
+        targetScreen = const FeedbackScreen();
         break;
       default:
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('$name feature coming soon')),
+            SnackBar(content: Text('$screen feature coming soon')),
           );
         }
         return;
     }
 
-    if (screen != null && mounted) {
+    if (targetScreen != null && mounted) {
       Navigator.of(context).push(
-        MaterialPageRoute(builder: (context) => screen!),
+        MaterialPageRoute(builder: (context) => targetScreen!),
       );
     }
   }
@@ -427,6 +422,7 @@ class _LeftPanelState extends State<LeftPanel> {
     final name = shortcut['name']?.toString() ?? '';
     final icon = shortcut['icon']?.toString() ?? '';
     final url = shortcut['url']?.toString();
+    final screen = shortcut['screen']?.toString();
 
     IconData iconData;
     switch (icon) {
@@ -474,9 +470,12 @@ class _LeftPanelState extends State<LeftPanel> {
             } else if (url != null && url.isNotEmpty) {
               // If shortcut has URL, open in external browser
               _openUrl(url);
+            } else if (screen != null && screen.isNotEmpty) {
+              // Navigate to dedicated screen using screen identifier from API
+              _navigateToShortcut(screen);
             } else {
-              // Navigate to dedicated screen
-              _navigateToShortcut(name);
+              // Fallback: try using name (for backward compatibility)
+              _navigateToShortcut(name.toLowerCase());
             }
           },
           borderRadius: BorderRadius.circular(12),
