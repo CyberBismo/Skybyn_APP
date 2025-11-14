@@ -247,11 +247,7 @@ class AuthService {
           }
 
           // Update online status to true after successful login
-          try {
-            await updateOnlineStatus(true);
-          } catch (e) {
-            print('⚠️ [Login] Failed to update online status: $e');
-          }
+          // Online status is now calculated from last_active, no need to update
 
           return data;
         }
@@ -441,12 +437,7 @@ class AuthService {
     // Reset cached online status on logout
       _lastKnownOnlineStatus = null;
       
-      // Update online status to false before logging out
-      try {
-        await updateOnlineStatus(false);
-      } catch (e) {
-        print('⚠️ [Logout] Failed to update online status: $e');
-      }
+      // Online status is now calculated from last_active, no need to update
 
     await initPrefs();
     await _prefs?.remove(userIdKey);
@@ -941,10 +932,7 @@ class AuthService {
 
       // Update online status to true after successful registration
       try {
-        await updateOnlineStatus(true);
-      } catch (e) {
-        print('⚠️ [Registration] Failed to update online status: $e');
-      }
+        // Online status is now calculated from last_active, no need to update
 
       print('✅ [Registration] User automatically logged in after registration');
     } catch (e) {

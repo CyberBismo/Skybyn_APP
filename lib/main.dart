@@ -152,7 +152,6 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   final FriendService _friendService = FriendService();
   Timer? _serviceCheckTimer;
   Timer? _activityUpdateTimer;
-  Timer? _onlineStatusDebounceTimer;
   Timer? _webSocketConnectionCheckTimer;
   
   // Track active incoming call
@@ -249,7 +248,6 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     WidgetsBinding.instance.removeObserver(this);
     _serviceCheckTimer?.cancel(); // This can be removed if _serviceCheckTimer is not used elsewhere
     _activityUpdateTimer?.cancel();
-    _onlineStatusDebounceTimer?.cancel();
     _webSocketConnectionCheckTimer?.cancel();
     super.dispose();
   }
@@ -273,33 +271,31 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         _webSocketService.forceReconnect().catchError((error) {
           print('❌ [MyApp] Error force reconnecting WebSocket: $error');
         });
-        // Online status will be updated by WebSocket connection listener
+        // Activity updates continue while WebSocket is connected
         break;
       case AppLifecycleState.paused:
       case AppLifecycleState.inactive:
       case AppLifecycleState.hidden:
         // App is in background - keep WebSocket connected to respond to pings
-        // Online status and activity updates continue while WebSocket is connected
+        // Activity updates continue while WebSocket is connected
         // Activity updates every 5 seconds while WebSocket is connected
         // Friends will see user as:
         // - Online: last_active <= 2 minutes
         // - Away: last_active > 2 minutes
         print('ℹ️ [MyApp] App backgrounded - keeping WebSocket connected for ping/pong');
-        print('ℹ️ [MyApp] Online status and activity updates continue while WebSocket is connected');
+        print('ℹ️ [MyApp] Activity updates continue while WebSocket is connected');
         break;
       case AppLifecycleState.detached:
-        // App is being terminated - disconnect Firebase and set offline
-        print('ℹ️ [MyApp] App detached - disconnecting Firebase and setting offline');
+        // App is being terminated - disconnect Firebase
+        print('ℹ️ [MyApp] App detached - disconnecting Firebase');
         _firebaseRealtimeService.disconnect();
-        // Online status will be updated by WebSocket connection listener when WebSocket disconnects
-        // Explicitly set user as offline when app is closed
-        _updateOnlineStatus(false);
+        // Online status is now calculated from last_active, no need to update
         break;
     }
   }
 
   /// Set up WebSocket connection state listener
-  /// Updates online status and activity based on WebSocket connection state
+  /// Manages activity updates based on WebSocket connection state
   void _setupWebSocketConnectionListener() {
     // Cancel any existing timer
     _webSocketConnectionCheckTimer?.cancel();
@@ -314,39 +310,16 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       
       final isConnected = _webSocketService.isConnected;
       
-      // Update online status based on WebSocket connection
+      // Manage activity updates based on WebSocket connection
       if (isConnected) {
-        // WebSocket is connected - user is online
-        _updateOnlineStatus(true);
-        
-        // Ensure activity updates are running
+        // WebSocket is connected - ensure activity updates are running
         if (_activityUpdateTimer == null || !_activityUpdateTimer!.isActive) {
           _startActivityUpdates();
         }
       } else {
-        // WebSocket is disconnected - user is offline
-        _updateOnlineStatus(false);
-        
         // Stop activity updates when disconnected
         _activityUpdateTimer?.cancel();
         _activityUpdateTimer = null;
-      }
-    });
-  }
-
-  /// Update online status with debounce to prevent rapid updates
-  Future<void> _updateOnlineStatus(bool isOnline) async {
-    // Cancel any pending update
-    _onlineStatusDebounceTimer?.cancel();
-    
-    // Debounce: wait 500ms before updating to prevent rapid successive calls
-    _onlineStatusDebounceTimer = Timer(const Duration(milliseconds: 500), () async {
-      try {
-        // Update online status in your own database only
-        final authService = AuthService();
-        await authService.updateOnlineStatus(isOnline);
-      } catch (e) {
-        print('⚠️ [MyApp] Failed to update online status: $e');
       }
     });
   }
