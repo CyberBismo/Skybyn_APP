@@ -59,14 +59,21 @@ class _LeftPanelState extends State<LeftPanel> {
       ).timeout(const Duration(seconds: 10));
 
       print('📡 [LeftPanel] API response status: ${response.statusCode}');
-      print('📡 [LeftPanel] API response body: ${response.body}');
+      print('📡 [LeftPanel] API response body length: ${response.body.length}');
+      print('📡 [LeftPanel] API response body (first 500 chars): ${response.body.length > 500 ? response.body.substring(0, 500) : response.body}');
 
       if (response.statusCode == 200) {
         try {
-          final data = json.decode(response.body);
+          // Trim response body in case of whitespace
+          final trimmedBody = response.body.trim();
+          print('📡 [LeftPanel] Trimmed body length: ${trimmedBody.length}');
+          
+          final data = json.decode(trimmedBody);
           print('📡 [LeftPanel] Parsed data type: ${data.runtimeType}');
+          print('📡 [LeftPanel] Parsed data: $data');
           
           if (data is List) {
+            print('📡 [LeftPanel] Data is a List with ${data.length} items');
             // Validate and filter shortcuts
             final validShortcuts = <Map<String, dynamic>>[];
             for (var item in data) {
