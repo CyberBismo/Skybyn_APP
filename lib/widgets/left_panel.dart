@@ -9,7 +9,12 @@ import '../services/auth_service.dart';
 import '../config/constants.dart';
 import '../utils/translation_keys.dart';
 import '../widgets/translated_text.dart';
-import '../screens/browser_screen.dart';
+import '../screens/music_screen.dart';
+import '../screens/games_screen.dart';
+import '../screens/events_screen.dart';
+import '../screens/groups_screen.dart';
+import '../screens/pages_screen.dart';
+import '../screens/markets_screen.dart';
 
 class LeftPanel extends StatefulWidget {
   const LeftPanel({super.key});
@@ -139,7 +144,7 @@ class _LeftPanelState extends State<LeftPanel> {
   }
 
   Future<void> _openDiscord() async {
-    // Try to open Discord app first, then fallback to in-app browser
+    // Try to open Discord app first, then fallback to external browser
     final discordUrl = Uri.parse('https://discord.gg/wBhPvEvn87');
     final discordAppUrl = Uri.parse('discord://discord.gg/wBhPvEvn87');
     
@@ -154,16 +159,9 @@ class _LeftPanelState extends State<LeftPanel> {
         }
       }
       
-      // Fallback to in-app browser
+      // Fallback to external browser
       if (await canLaunchUrl(discordUrl)) {
-        await launchUrl(
-          discordUrl,
-          mode: LaunchMode.inAppWebView,
-          webViewConfiguration: const WebViewConfiguration(
-            enableJavaScript: true,
-            enableDomStorage: true,
-          ),
-        );
+        await launchUrl(discordUrl, mode: LaunchMode.externalApplication);
       }
     } catch (e) {
       print('❌ [LeftPanel] Error opening Discord: $e');
@@ -258,18 +256,11 @@ class _LeftPanelState extends State<LeftPanel> {
     );
   }
 
-  Future<void> _openUrlInApp(String urlString) async {
+  Future<void> _openUrl(String urlString) async {
     try {
       final url = Uri.parse(urlString);
       if (await canLaunchUrl(url)) {
-        await launchUrl(
-          url,
-          mode: LaunchMode.inAppWebView,
-          webViewConfiguration: const WebViewConfiguration(
-            enableJavaScript: true,
-            enableDomStorage: true,
-          ),
-        );
+        await launchUrl(url, mode: LaunchMode.externalApplication);
       }
     } catch (e) {
       print('❌ [LeftPanel] Error opening URL: $e');
@@ -282,38 +273,47 @@ class _LeftPanelState extends State<LeftPanel> {
       return;
     }
 
-    // Navigate to in-app content screen
-    if (mounted) {
-      Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (context) => BrowserScreen(
-            shortcutName: name,
-            shortcutIcon: _getShortcutIcon(name),
-          ),
-        ),
-      );
-    }
-  }
-
-  String _getShortcutIcon(String name) {
-    // Map shortcut name to icon for the screen
+    // Navigate to dedicated screen for each shortcut
+    Widget? screen;
     switch (name.toLowerCase()) {
-      case 'beta feedback':
-        return 'fa-solid fa-bug';
       case 'music':
-        return 'fa-solid fa-music';
+        screen = const MusicScreen();
+        break;
       case 'games':
-        return 'fa-solid fa-gamepad';
+        screen = const GamesScreen();
+        break;
       case 'events':
-        return 'fa-solid fa-calendar-days';
+        screen = const EventsScreen();
+        break;
       case 'groups':
-        return 'fa-solid fa-comments';
+        screen = const GroupsScreen();
+        break;
       case 'pages':
-        return 'fa-regular fa-newspaper';
+        screen = const PagesScreen();
+        break;
       case 'markets':
-        return 'fa-solid fa-store';
+        screen = const MarketsScreen();
+        break;
+      case 'beta feedback':
+        // BETA Feedback opens in external browser
+        final url = Uri.parse('${ApiConstants.webBase}/feedback');
+        if (await canLaunchUrl(url)) {
+          await launchUrl(url, mode: LaunchMode.externalApplication);
+        }
+        return;
       default:
-        return 'fa-solid fa-link';
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('$name feature coming soon')),
+          );
+        }
+        return;
+    }
+
+    if (screen != null && mounted) {
+      Navigator.of(context).push(
+        MaterialPageRoute(builder: (context) => screen!),
+      );
     }
   }
 
@@ -366,10 +366,10 @@ class _LeftPanelState extends State<LeftPanel> {
             if (name.toLowerCase() == 'discord') {
               _openDiscord();
             } else if (url != null && url.isNotEmpty) {
-              // If shortcut has URL, open in in-app browser
-              _openUrlInApp(url);
+              // If shortcut has URL, open in external browser
+              _openUrl(url);
             } else {
-              // Navigate to in-app content screen
+              // Navigate to dedicated screen
               _navigateToShortcut(name);
             }
           },
@@ -390,10 +390,7 @@ class _LeftPanelState extends State<LeftPanel> {
                     ),
                   ),
                 ),
-                if (url != null && url.isNotEmpty)
-                  const Icon(Icons.open_in_new, color: Colors.white70, size: 18)
-                else
-                  const Icon(Icons.chevron_right, color: Colors.white70, size: 18),
+                const Icon(Icons.chevron_right, color: Colors.white70, size: 18),
               ],
             ),
           ),

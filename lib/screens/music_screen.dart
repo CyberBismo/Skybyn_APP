@@ -2,27 +2,21 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../config/constants.dart';
 import '../services/auth_service.dart';
 import '../widgets/app_colors.dart';
 
-class BrowserScreen extends StatefulWidget {
-  final String shortcutName;
-  final String shortcutIcon;
-
-  const BrowserScreen({
-    super.key,
-    required this.shortcutName,
-    required this.shortcutIcon,
-  });
+class MusicScreen extends StatefulWidget {
+  const MusicScreen({super.key});
 
   @override
-  State<BrowserScreen> createState() => _BrowserScreenState();
+  State<MusicScreen> createState() => _MusicScreenState();
 }
 
-class _BrowserScreenState extends State<BrowserScreen> {
+class _MusicScreenState extends State<MusicScreen> {
   bool _isLoading = true;
-  String? _contentUrl;
+  List<Map<String, dynamic>> _items = [];
   String? _error;
   final AuthService _authService = AuthService();
 
@@ -48,12 +42,11 @@ class _BrowserScreenState extends State<BrowserScreen> {
         return;
       }
 
-      // Fetch content URL from API
       final response = await http.post(
         Uri.parse('${ApiConstants.apiBase}/shortcut_content.php'),
         body: {
           'uid': userId,
-          'shortcut': widget.shortcutName,
+          'shortcut': 'Music',
         },
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
@@ -62,13 +55,12 @@ class _BrowserScreenState extends State<BrowserScreen> {
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        if (data['success'] == true && data['url'] != null) {
+        if (data['success'] == true && data['content'] != null) {
+          final content = data['content'] as Map<String, dynamic>;
           setState(() {
-            _contentUrl = data['url'];
+            _items = List<Map<String, dynamic>>.from(content['items'] ?? []);
             _isLoading = false;
           });
-          // Open URL in in-app webview
-          _openInAppWebView(data['url']);
         } else {
           setState(() {
             _error = data['error'] ?? 'Failed to load content';
@@ -89,33 +81,92 @@ class _BrowserScreenState extends State<BrowserScreen> {
     }
   }
 
-  Future<void> _openInAppWebView(String url) async {
+  Future<void> _openUrl(String url) async {
     try {
       final uri = Uri.parse(url);
       if (await canLaunchUrl(uri)) {
-        // Use in-app browser mode
-        await launchUrl(
-          uri,
-          mode: LaunchMode.inAppWebView,
-          webViewConfiguration: const WebViewConfiguration(
-            enableJavaScript: true,
-            enableDomStorage: true,
-          ),
-        );
-      } else {
-        if (mounted) {
-          setState(() {
-            _error = 'Could not open URL';
-          });
-        }
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
       }
     } catch (e) {
       if (mounted) {
-        setState(() {
-          _error = 'Error opening URL: $e';
-        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error opening URL: $e')),
+        );
       }
     }
+  }
+
+  Widget _buildListItem(Map<String, dynamic> item) {
+    final title = item['title']?.toString() ?? '';
+    final icon = item['icon']?.toString();
+    final url = item['url']?.toString();
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: url != null ? () => _openUrl(url) : null,
+          borderRadius: BorderRadius.circular(12),
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Row(
+              children: [
+                if (icon != null && icon.isNotEmpty)
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: CachedNetworkImage(
+                      imageUrl: icon,
+                      width: 60,
+                      height: 60,
+                      fit: BoxFit.cover,
+                      placeholder: (context, url) => Container(
+                        width: 60,
+                        height: 60,
+                        color: Colors.white.withOpacity(0.1),
+                        child: const Icon(Icons.music_note, color: Colors.white70),
+                      ),
+                      errorWidget: (context, url, error) => Container(
+                        width: 60,
+                        height: 60,
+                        color: Colors.white.withOpacity(0.1),
+                        child: const Icon(Icons.music_note, color: Colors.white70),
+                      ),
+                    ),
+                  )
+                else
+                  Container(
+                    width: 60,
+                    height: 60,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(Icons.music_note, color: Colors.white70),
+                  ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    title,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                const Icon(Icons.chevron_right, color: Colors.white70, size: 20),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   @override
@@ -131,9 +182,9 @@ class _BrowserScreenState extends State<BrowserScreen> {
           icon: const Icon(Icons.arrow_back, color: Colors.white),
           onPressed: () => Navigator.of(context).pop(),
         ),
-        title: Text(
-          widget.shortcutName,
-          style: const TextStyle(color: Colors.white),
+        title: const Text(
+          'Music',
+          style: TextStyle(color: Colors.white),
         ),
       ),
       body: _isLoading
@@ -170,36 +221,38 @@ class _BrowserScreenState extends State<BrowserScreen> {
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.white,
                           foregroundColor: primaryColor,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 24,
-                            vertical: 12,
-                          ),
                         ),
                         child: const Text('Retry'),
                       ),
                     ],
                   ),
                 )
-              : _contentUrl != null
+              : _items.isEmpty
                   ? Center(
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          const CircularProgressIndicator(
-                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                          Icon(
+                            Icons.music_off,
+                            color: Colors.white.withOpacity(0.5),
+                            size: 64,
                           ),
                           const SizedBox(height: 16),
                           Text(
-                            'Opening ${widget.shortcutName}...',
-                            style: const TextStyle(
-                              color: Colors.white,
+                            'No music available',
+                            style: TextStyle(
+                              color: Colors.white.withOpacity(0.7),
                               fontSize: 16,
                             ),
                           ),
                         ],
                       ),
                     )
-                  : const SizedBox(),
+                  : ListView.builder(
+                      padding: const EdgeInsets.all(16),
+                      itemCount: _items.length,
+                      itemBuilder: (context, index) => _buildListItem(_items[index]),
+                    ),
     );
   }
 }
