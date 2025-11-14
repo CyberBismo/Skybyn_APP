@@ -155,6 +155,7 @@ class _GamesScreenState extends State<GamesScreen> {
                       color: Colors.white,
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
+                      decoration: TextDecoration.none,
                     ),
                   ),
                 ),
@@ -183,7 +184,7 @@ class _GamesScreenState extends State<GamesScreen> {
         ),
         title: const Text(
           'Games',
-          style: TextStyle(color: Colors.white),
+          style: TextStyle(color: Colors.white, decoration: TextDecoration.none),
         ),
       ),
       body: _isLoading
@@ -210,6 +211,7 @@ class _GamesScreenState extends State<GamesScreen> {
                           style: TextStyle(
                             color: Colors.white.withOpacity(0.9),
                             fontSize: 16,
+                            decoration: TextDecoration.none,
                           ),
                           textAlign: TextAlign.center,
                         ),
@@ -242,6 +244,7 @@ class _GamesScreenState extends State<GamesScreen> {
                             style: TextStyle(
                               color: Colors.white.withOpacity(0.7),
                               fontSize: 16,
+                              decoration: TextDecoration.none,
                             ),
                           ),
                         ],
