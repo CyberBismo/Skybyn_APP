@@ -1119,6 +1119,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     clipBehavior: Clip.none,
                     children: [
                       SizedBox(
+                        width: double.infinity,
                         height: 200,
                         child: const ProfileBackgroundSkeleton(),
                       ),
@@ -1203,21 +1204,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       clipBehavior: Clip.none,
                       children: [
                         SizedBox(
+                          width: double.infinity,
                           height: 200,
                           child: useDefaultWallpaper
                               ? Image.asset(
                                   'assets/images/background.png',
+                                  width: double.infinity,
                                   fit: BoxFit.cover,
                                 )
                               : CachedNetworkImage(
                                   imageUrl: UrlHelper.convertUrl(wallpaperUrl),
+                                  width: double.infinity,
                                   fit: BoxFit.cover,
                                   placeholder: (context, url) => Image.asset(
                                     'assets/images/background.png',
+                                    width: double.infinity,
                                     fit: BoxFit.cover,
                                   ),
                                   errorWidget: (context, url, error) => Image.asset(
                                     'assets/images/background.png',
+                                    width: double.infinity,
                                     fit: BoxFit.cover,
                                   ),
                                 ),
