@@ -930,14 +930,8 @@ class AuthService {
         print('❌ [Registration] Failed to subscribe to user topics: $e');
       }
 
-      // Update online status to true after successful registration
-      try {
-        // Online status is now calculated from last_active, no need to update
+      // Online status is now calculated from last_active, no need to update
 
       print('✅ [Registration] User automatically logged in after registration');
-    } catch (e) {
-      print('❌ [Registration] Error during post-registration login: $e');
-      // Don't throw - registration was successful, login setup is optional
-    }
   }
 }
