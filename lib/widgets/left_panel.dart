@@ -5,6 +5,8 @@ import 'dart:convert';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:crypto/crypto.dart';
 import '../services/auth_service.dart';
 import '../config/constants.dart';
 import '../utils/translation_keys.dart';
@@ -47,7 +49,27 @@ class _LeftPanelState extends State<LeftPanel> {
     }
 
     try {
-      // Load shortcuts from API
+      // Load cached data first
+      final prefs = await SharedPreferences.getInstance();
+      final cachedData = prefs.getString('left_panel_shortcuts');
+      final cachedHash = prefs.getString('left_panel_hash');
+      
+      if (cachedData != null && cachedHash != null) {
+        try {
+          final cachedShortcuts = List<Map<String, dynamic>>.from(
+            json.decode(cachedData) as List
+          );
+          setState(() {
+            _shortcuts = cachedShortcuts;
+            _isLoading = false;
+          });
+          print('✅ [LeftPanel] Loaded ${_shortcuts.length} shortcuts from cache');
+        } catch (e) {
+          print('⚠️ [LeftPanel] Failed to load cache: $e');
+        }
+      }
+
+      // Check for updates from API
       final response = await http.post(
         Uri.parse('${ApiConstants.apiBase}/left_panel.php'),
         body: {
@@ -59,106 +81,118 @@ class _LeftPanelState extends State<LeftPanel> {
       ).timeout(const Duration(seconds: 10));
 
       print('📡 [LeftPanel] API response status: ${response.statusCode}');
-      print('📡 [LeftPanel] API response body length: ${response.body.length}');
-      print('📡 [LeftPanel] API response body (first 500 chars): ${response.body.length > 500 ? response.body.substring(0, 500) : response.body}');
 
       if (response.statusCode == 200) {
         try {
-          // Trim response body in case of whitespace
           final trimmedBody = response.body.trim();
-          print('📡 [LeftPanel] Trimmed body length: ${trimmedBody.length}');
-          
           final data = json.decode(trimmedBody);
-          print('📡 [LeftPanel] Parsed data type: ${data.runtimeType}');
-          print('📡 [LeftPanel] Parsed data: $data');
           
-          if (data is List) {
-            print('📡 [LeftPanel] Data is a List with ${data.length} items');
-            // Validate and filter shortcuts
-            final validShortcuts = <Map<String, dynamic>>[];
-            for (var item in data) {
-              if (item is Map<String, dynamic>) {
-                // Ensure required fields exist
-                if (item.containsKey('name') && item['name'] != null) {
-                  validShortcuts.add(item);
-                } else {
-                  print('⚠️ [LeftPanel] Skipping invalid shortcut: missing name field');
-                }
-              } else {
-                print('⚠️ [LeftPanel] Skipping invalid shortcut: not a Map');
+          List<Map<String, dynamic>> validShortcuts = [];
+          String? newHash;
+          
+          // Handle new format with hash
+          if (data is Map && data.containsKey('shortcuts')) {
+            newHash = data['hash']?.toString();
+            final shortcutsList = data['shortcuts'] as List;
+            for (var item in shortcutsList) {
+              if (item is Map<String, dynamic> && item.containsKey('name')) {
+                validShortcuts.add(item);
               }
             }
+          } 
+          // Handle old format (direct list)
+          else if (data is List) {
+            for (var item in data) {
+              if (item is Map<String, dynamic> && item.containsKey('name')) {
+                validShortcuts.add(item);
+              }
+            }
+            // Calculate hash for old format
+            newHash = _calculateHash(validShortcuts);
+          }
+          // Handle error response
+          else if (data is Map && data.containsKey('error')) {
+            print('❌ [LeftPanel] API returned error: ${data['error']}');
+            // Keep cached data if available
+            if (_shortcuts.isEmpty && cachedData != null) {
+              return; // Already loaded from cache
+            }
+            setState(() {
+              _shortcuts = [];
+              _isLoading = false;
+            });
+            return;
+          }
+
+          // Check if data has changed
+          if (newHash != null && newHash != cachedHash) {
+            print('🔄 [LeftPanel] Data changed, updating cache');
+            // Update cache
+            await prefs.setString('left_panel_shortcuts', json.encode(validShortcuts));
+            await prefs.setString('left_panel_hash', newHash);
             
             setState(() {
               _shortcuts = validShortcuts;
               _isLoading = false;
             });
-            print('✅ [LeftPanel] Loaded ${_shortcuts.length} shortcuts');
-            // Debug: print shortcut names
-            for (var shortcut in _shortcuts) {
-              print('  - ${shortcut['name']} (icon: ${shortcut['icon'] ?? 'no icon'})');
-            }
-            if (_shortcuts.isEmpty) {
-              print('⚠️ [LeftPanel] WARNING: Shortcuts list is empty!');
-            }
-          } else if (data is Map) {
-            if (data.containsKey('error')) {
-              print('❌ [LeftPanel] API returned error: ${data['error']}');
-            } else if (data.containsKey('shortcuts') && data['shortcuts'] is List) {
-              // Handle alternative response format with 'shortcuts' key
-              final shortcutsList = data['shortcuts'] as List;
-              final validShortcuts = <Map<String, dynamic>>[];
-              for (var item in shortcutsList) {
-                if (item is Map<String, dynamic> && item.containsKey('name')) {
-                  validShortcuts.add(item);
-                }
-              }
-              setState(() {
-                _shortcuts = validShortcuts;
-                _isLoading = false;
-              });
-              print('✅ [LeftPanel] Loaded ${_shortcuts.length} shortcuts from shortcuts key');
-            } else {
-              print('⚠️ [LeftPanel] API returned Map but no recognized format: $data');
-              setState(() {
-                _shortcuts = [];
-                _isLoading = false;
-              });
-            }
+            print('✅ [LeftPanel] Updated ${_shortcuts.length} shortcuts');
+          } else if (newHash == cachedHash) {
+            print('✅ [LeftPanel] Data unchanged, using cache');
+            // Data is the same, no update needed
           } else {
-            print('⚠️ [LeftPanel] API returned unexpected data type: ${data.runtimeType}');
-            print('⚠️ [LeftPanel] Data content: $data');
+            // No hash available, update anyway
+            await prefs.setString('left_panel_shortcuts', json.encode(validShortcuts));
+            if (newHash != null) {
+              await prefs.setString('left_panel_hash', newHash);
+            }
+            setState(() {
+              _shortcuts = validShortcuts;
+              _isLoading = false;
+            });
+            print('✅ [LeftPanel] Updated ${_shortcuts.length} shortcuts (no hash)');
+          }
+        } catch (e) {
+          print('❌ [LeftPanel] JSON decode error: $e');
+          print('❌ [LeftPanel] Response body: ${response.body}');
+          // Keep cached data if available
+          if (_shortcuts.isEmpty) {
             setState(() {
               _shortcuts = [];
               _isLoading = false;
             });
           }
-        } catch (e) {
-          print('❌ [LeftPanel] JSON decode error: $e');
-          print('❌ [LeftPanel] Response body: ${response.body}');
+        }
+      } else {
+        print('⚠️ [LeftPanel] API returned status ${response.statusCode}');
+        // Keep cached data if available
+        if (_shortcuts.isEmpty) {
           setState(() {
             _shortcuts = [];
             _isLoading = false;
           });
         }
-      } else {
-        print('⚠️ [LeftPanel] API returned status ${response.statusCode}');
-        print('⚠️ [LeftPanel] Response body: ${response.body}');
-        setState(() {
-          _shortcuts = [];
-          _isLoading = false;
-        });
       }
 
       // Load Discord widget data
       _loadDiscordWidget();
     } catch (e) {
       print('❌ [LeftPanel] Error loading panel data: $e');
-      setState(() {
-        _shortcuts = [];
-        _isLoading = false;
-      });
+      // Keep cached data if available
+      if (_shortcuts.isEmpty) {
+        setState(() {
+          _shortcuts = [];
+          _isLoading = false;
+        });
+      }
     }
+  }
+
+  String _calculateHash(List<Map<String, dynamic>> shortcuts) {
+    // Calculate MD5 hash to match API
+    final jsonString = json.encode(shortcuts);
+    final bytes = utf8.encode(jsonString);
+    final digest = md5.convert(bytes);
+    return digest.toString();
   }
 
   Future<void> _loadDiscordWidget() async {
