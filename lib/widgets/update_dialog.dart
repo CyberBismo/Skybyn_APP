@@ -171,17 +171,6 @@ class _UpdateDialogState extends State<UpdateDialog> {
     }
   }
 
-  /// Extract percentage from status text (e.g., "Downloading... 5.2 MB / 10.5 MB (49.5%)" -> "49.5%")
-  String? _extractPercentageFromStatus(String status) {
-    // Look for pattern like "(49.5%)" or "(50%)"
-    final regex = RegExp(r'\((\d+\.?\d*)%\)');
-    final match = regex.firstMatch(status);
-    if (match != null) {
-      return '${match.group(1)}%';
-    }
-    return null;
-  }
-
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -227,8 +216,8 @@ class _UpdateDialogState extends State<UpdateDialog> {
                   const SizedBox(height: 16),
                   TranslatedText(
                     TranslationKeys.updateAvailable,
-                    style: TextStyle(
-                      color: textColor,
+                    style: const TextStyle(
+                      color: Colors.white,
                       fontSize: 22,
                       fontWeight: FontWeight.w600,
                     ),
@@ -237,8 +226,8 @@ class _UpdateDialogState extends State<UpdateDialog> {
                   const SizedBox(height: 6),
                   TranslatedText(
                     TranslationKeys.newVersionAvailable,
-                    style: TextStyle(
-                      color: secondaryTextColor,
+                    style: const TextStyle(
+                      color: Colors.white,
                       fontSize: 14,
                     ),
                     textAlign: TextAlign.center,
@@ -271,8 +260,8 @@ class _UpdateDialogState extends State<UpdateDialog> {
                           children: [
                             Text(
                               'Current',
-                              style: TextStyle(
-                                color: secondaryTextColor,
+                              style: const TextStyle(
+                                color: Colors.white,
                                 fontSize: 12,
                                 fontWeight: FontWeight.w500,
                               ),
@@ -280,17 +269,17 @@ class _UpdateDialogState extends State<UpdateDialog> {
                             const SizedBox(height: 6),
                             Text(
                               widget.currentVersion,
-                              style: TextStyle(
-                                color: textColor,
+                              style: const TextStyle(
+                                color: Colors.white,
                                 fontSize: 16,
                                 fontWeight: FontWeight.w600,
                               ),
                             ),
                           ],
                         ),
-                        Icon(
+                        const Icon(
                           Icons.arrow_forward_rounded,
-                          color: primaryColor,
+                          color: Colors.white,
                           size: 20,
                         ),
                         Column(
@@ -298,8 +287,8 @@ class _UpdateDialogState extends State<UpdateDialog> {
                           children: [
                             Text(
                               'Latest',
-                              style: TextStyle(
-                                color: secondaryTextColor,
+                              style: const TextStyle(
+                                color: Colors.white,
                                 fontSize: 12,
                                 fontWeight: FontWeight.w500,
                               ),
@@ -307,8 +296,8 @@ class _UpdateDialogState extends State<UpdateDialog> {
                             const SizedBox(height: 6),
                             Text(
                               widget.latestVersion,
-                              style: TextStyle(
-                                color: primaryColor,
+                              style: const TextStyle(
+                                color: Colors.white,
                                 fontSize: 16,
                                 fontWeight: FontWeight.w600,
                               ),
@@ -323,10 +312,10 @@ class _UpdateDialogState extends State<UpdateDialog> {
                   if (widget.releaseNotes != null &&
                       widget.releaseNotes!.isNotEmpty) ...[
                     const SizedBox(height: 20),
-                    Text(
+                    const Text(
                       'What\'s new',
                       style: TextStyle(
-                        color: textColor,
+                        color: Colors.white,
                         fontSize: 15,
                         fontWeight: FontWeight.w600,
                       ),
@@ -342,8 +331,8 @@ class _UpdateDialogState extends State<UpdateDialog> {
                       ),
                       child: Text(
                         widget.releaseNotes!,
-                        style: TextStyle(
-                          color: textColor.withOpacity(0.9),
+                        style: const TextStyle(
+                          color: Colors.white,
                           fontSize: 14,
                           height: 1.5,
                         ),
@@ -374,30 +363,19 @@ class _UpdateDialogState extends State<UpdateDialog> {
                           height: 16,
                           child: CircularProgressIndicator(
                             strokeWidth: 2,
-                            valueColor: AlwaysStoppedAnimation<Color>(primaryColor),
+                            valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
                           ),
                         ),
                         const SizedBox(width: 12),
                         Expanded(
                           child: Text(
                             _updateStatus,
-                            style: TextStyle(
-                              color: textColor,
+                            style: const TextStyle(
+                              color: Colors.white,
                               fontSize: 14,
                               fontWeight: FontWeight.w500,
                             ),
                             textAlign: TextAlign.center,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        // Extract percentage from status text if available, otherwise calculate from progress
-                        Text(
-                          _extractPercentageFromStatus(_updateStatus) ?? 
-                          '${(_updateProgress.clamp(0.0, 1.0) * 100).toStringAsFixed(1)}%',
-                          style: TextStyle(
-                            color: primaryColor,
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
                           ),
                         ),
                       ],
