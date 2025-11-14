@@ -232,16 +232,9 @@ class FirebaseCallSignalingService {
       
       print('📞 [FirebaseCallSignaling] Sent call_offer: callId=$callId, targetUserId=$targetUserId, type=$finalCallType (original: $callType)');
       
-      // ALWAYS send FCM push notification (for both online and offline users)
-      // This ensures the recipient gets a notification even if they're offline or the app is closed
-      // Await the notification to ensure it's sent, but don't fail the call if it fails
-      try {
-        await _sendCallNotification(targetUserId, callId, finalCallType);
-        print('✅ [FirebaseCallSignaling] FCM notification sent successfully');
-      } catch (error) {
-        // Don't fail the call if FCM notification fails - it's optional but log the error
-        print('⚠️ [FirebaseCallSignaling] FCM notification failed (non-critical): $error');
-      }
+      // Note: FCM notifications are handled by the backend WebSocket server
+      // The backend will send notifications when it receives the call_offer via WebSocket
+      // This service is only used for Firestore-based signaling (fallback/alternative path)
     } catch (e) {
       print('❌ [FirebaseCallSignaling] Error sending call offer: $e');
       rethrow;
