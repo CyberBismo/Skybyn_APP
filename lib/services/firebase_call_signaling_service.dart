@@ -251,6 +251,8 @@ class FirebaseCallSignalingService {
   /// Send FCM push notification for incoming call
   Future<void> _sendCallNotification(String targetUserId, String callId, String callType) async {
     try {
+      print('📞 [FirebaseCallSignaling] Sending FCM notification - targetUserId: $targetUserId, callId: $callId, callType: $callType');
+      
       // Get API base URL from constants
       final apiBase = ApiConstants.apiBase;
       
@@ -263,25 +265,35 @@ class FirebaseCallSignalingService {
       
       final callTypeText = callType == 'video' ? 'video call' : 'voice call';
       
+      final requestBody = {
+        'user': targetUserId,
+        'title': senderName,
+        'body': 'Incoming $callTypeText',
+        'type': 'call',
+        'from': _userId!,
+        'priority': 'high',
+        'channel': 'calls',
+        'payload': jsonEncode({
+          'callId': callId,
+          'callType': callType,
+          'fromUserId': _userId,
+          'incomingCall': 'true',
+        }),
+      };
+      
+      print('📞 [FirebaseCallSignaling] FCM request body: $requestBody');
+      
       // Send FCM notification via backend API
       final response = await http.post(
         Uri.parse('$apiBase/firebase.php'),
-        body: {
-          'user': targetUserId,
-          'title': senderName,
-          'body': 'Incoming $callTypeText',
-          'type': 'call',
-          'from': _userId!,
-          'priority': 'high',
-          'channel': 'calls',
-          'payload': jsonEncode({
-            'callId': callId,
-            'callType': callType,
-            'fromUserId': _userId,
-            'incomingCall': 'true',
-          }),
+        body: requestBody,
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
         },
-      );
+      ).timeout(const Duration(seconds: 10));
+      
+      print('📞 [FirebaseCallSignaling] FCM response status: ${response.statusCode}');
+      print('📞 [FirebaseCallSignaling] FCM response body: ${response.body}');
       
       if (response.statusCode == 200) {
         final result = jsonDecode(response.body);
@@ -292,10 +304,12 @@ class FirebaseCallSignalingService {
         }
       } else {
         print('⚠️ [FirebaseCallSignaling] FCM notification HTTP error: ${response.statusCode}');
+        print('⚠️ [FirebaseCallSignaling] FCM response: ${response.body}');
       }
-    } catch (e) {
+    } catch (e, stackTrace) {
       // Don't fail the call if FCM notification fails - it's optional
-      print('⚠️ [FirebaseCallSignaling] Error sending FCM notification: $e');
+      print('❌ [FirebaseCallSignaling] Error sending FCM notification: $e');
+      print('❌ [FirebaseCallSignaling] Stack trace: $stackTrace');
     }
   }
 
