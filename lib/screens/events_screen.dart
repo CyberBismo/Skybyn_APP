@@ -99,7 +99,8 @@ class _EventsScreenState extends State<EventsScreen> {
     final title = item['title']?.toString() ?? '';
     final description = item['description']?.toString();
     final icon = item['icon']?.toString();
-    final url = item['url']?.toString();
+    final id = item['id']?.toString();
+    final url = id != null ? '${ApiConstants.webBase}/event?id=$id' : null;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),

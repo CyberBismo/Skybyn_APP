@@ -99,7 +99,8 @@ class _PagesScreenState extends State<PagesScreen> {
     final title = item['title']?.toString() ?? '';
     final description = item['description']?.toString();
     final icon = item['icon']?.toString();
-    final url = item['url']?.toString();
+    final id = item['id']?.toString();
+    final url = id != null ? '${ApiConstants.webBase}/page?id=$id' : null;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
