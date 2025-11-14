@@ -491,6 +491,7 @@ class _LeftPanelState extends State<LeftPanel> {
                                         style: TextStyle(
                                           color: Colors.white.withOpacity(0.6),
                                           fontSize: 14,
+                                          decoration: TextDecoration.none,
                                         ),
                                       ),
                                     ),
