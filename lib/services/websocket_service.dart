@@ -626,8 +626,21 @@ class WebSocketService {
               final callId = data['callId']?.toString() ?? '';
               final fromUserId = data['fromUserId']?.toString() ?? '';
               final offer = data['offer']?.toString() ?? '';
-              final callType = data['callType']?.toString() ?? 'audio';
-              print('📞 [WebSocket] Received call_offer: callId=$callId, fromUserId=$fromUserId, type=$callType');
+              // Extract callType - must be present, log warning if missing
+              final callTypeRaw = data['callType'];
+              String callType;
+              if (callTypeRaw != null) {
+                callType = callTypeRaw.toString().toLowerCase().trim();
+                // Normalize to 'video' or 'audio'
+                if (callType != 'video' && callType != 'audio') {
+                  print('⚠️ [WebSocket] Invalid callType: $callType, defaulting to audio');
+                  callType = 'audio';
+                }
+              } else {
+                print('⚠️ [WebSocket] callType missing in call_offer, defaulting to audio');
+                callType = 'audio';
+              }
+              print('📞 [WebSocket] Received call_offer: callId=$callId, fromUserId=$fromUserId, type=$callType (raw: $callTypeRaw)');
               if (_onCallOffer == null) {
                 print('⚠️ [WebSocket] call_offer callback is null');
               } else {

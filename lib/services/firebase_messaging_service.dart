@@ -474,9 +474,19 @@ class FirebaseMessagingService {
           // Handle call notification - fetch call offer from Firestore and show incoming call dialog
           final callId = data['callId']?.toString();
           final fromUserId = data['fromUserId']?.toString() ?? data['sender']?.toString();
-          final callType = data['callType']?.toString() ?? 'video';
+          // Get callType from notification - this is just a fallback, real callType comes from Firestore
+          final callTypeRaw = data['callType'];
+          String callType;
+          if (callTypeRaw != null) {
+            callType = callTypeRaw.toString().toLowerCase().trim();
+            if (callType != 'video' && callType != 'audio') {
+              callType = 'audio'; // Default to audio if invalid
+            }
+          } else {
+            callType = 'audio'; // Default to audio if missing
+          }
           
-          print('📞 [FCM] Call notification tapped - callId: $callId, fromUserId: $fromUserId, type: $callType');
+          print('📞 [FCM] Call notification tapped - callId: $callId, fromUserId: $fromUserId, type from notification: $callType');
           
           if (callId != null && fromUserId != null) {
             // Fetch call offer from Firestore
@@ -487,7 +497,22 @@ class FirebaseMessagingService {
               if (callDoc.exists) {
                 final callData = callDoc.data();
                 final offer = callData?['offer']?.toString() ?? '';
-                final offerCallType = callData?['callType']?.toString() ?? callType;
+                // Extract callType from Firestore - this is the authoritative source
+                final callTypeFromFirestore = callData?['callType'];
+                String offerCallType;
+                if (callTypeFromFirestore != null) {
+                  offerCallType = callTypeFromFirestore.toString().toLowerCase().trim();
+                  // Normalize to 'video' or 'audio'
+                  if (offerCallType != 'video' && offerCallType != 'audio') {
+                    print('⚠️ [FCM] Invalid callType from Firestore: $offerCallType, using fallback: $callType');
+                    offerCallType = callType;
+                  }
+                } else {
+                  print('⚠️ [FCM] callType missing in Firestore, using fallback: $callType');
+                  offerCallType = callType;
+                }
+                
+                print('📞 [FCM] Call offer data - callType from Firestore: $callTypeFromFirestore, parsed: $offerCallType, fallback: $callType');
                 
                 if (offer.isNotEmpty) {
                   // Trigger incoming call handler to show the call screen

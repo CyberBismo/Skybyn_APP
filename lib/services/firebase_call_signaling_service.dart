@@ -94,9 +94,24 @@ class FirebaseCallSignalingService {
           final callId = doc.doc.id;
           final fromUserId = data['fromUserId'] as String? ?? '';
           final offer = data['offer'] as String? ?? '';
-          final callType = data['callType'] as String? ?? 'audio';
+          // Extract callType - must be present, log warning if missing
+          final callTypeRaw = data['callType'];
+          String callType;
+          if (callTypeRaw != null) {
+            callType = callTypeRaw is String 
+                ? callTypeRaw.toLowerCase().trim()
+                : callTypeRaw.toString().toLowerCase().trim();
+            // Normalize to 'video' or 'audio'
+            if (callType != 'video' && callType != 'audio') {
+              print('⚠️ [FirebaseCallSignaling] Invalid callType: $callType, defaulting to audio');
+              callType = 'audio';
+            }
+          } else {
+            print('⚠️ [FirebaseCallSignaling] callType missing in call_offer, defaulting to audio');
+            callType = 'audio';
+          }
           
-          print('📞 [FirebaseCallSignaling] Received call_offer: callId=$callId, fromUserId=$fromUserId');
+          print('📞 [FirebaseCallSignaling] Received call_offer: callId=$callId, fromUserId=$fromUserId, callType=$callType (raw: $callTypeRaw)');
           _onCallOffer?.call(callId, fromUserId, offer, callType);
           
           // Mark as received
@@ -193,6 +208,16 @@ class FirebaseCallSignalingService {
     }
 
     try {
+      // Normalize callType to ensure it's 'video' or 'audio'
+      final normalizedCallType = callType.toLowerCase().trim();
+      final finalCallType = (normalizedCallType == 'video' || normalizedCallType == 'audio') 
+          ? normalizedCallType 
+          : 'audio';
+      
+      if (finalCallType != normalizedCallType) {
+        print('⚠️ [FirebaseCallSignaling] Invalid callType "$callType" normalized to "$finalCallType"');
+      }
+      
       // Write call offer to Firestore for real-time signaling
       await _firestore.collection('call_signals').doc(callId).set({
         'type': 'call_offer',
@@ -200,19 +225,23 @@ class FirebaseCallSignalingService {
         'fromUserId': _userId,
         'targetUserId': targetUserId,
         'offer': offer,
-        'callType': callType,
+        'callType': finalCallType, // Store normalized callType
         'status': 'pending',
         'createdAt': FieldValue.serverTimestamp(),
       });
       
-      print('📞 [FirebaseCallSignaling] Sent call_offer: callId=$callId, targetUserId=$targetUserId, type=$callType');
+      print('📞 [FirebaseCallSignaling] Sent call_offer: callId=$callId, targetUserId=$targetUserId, type=$finalCallType (original: $callType)');
       
       // ALWAYS send FCM push notification (for both online and offline users)
       // This ensures the recipient gets a notification even if they're offline or the app is closed
-      // Don't await - let it run in background so it doesn't block call signaling
-      _sendCallNotification(targetUserId, callId, callType).catchError((error) {
+      // Await the notification to ensure it's sent, but don't fail the call if it fails
+      try {
+        await _sendCallNotification(targetUserId, callId, finalCallType);
+        print('✅ [FirebaseCallSignaling] FCM notification sent successfully');
+      } catch (error) {
+        // Don't fail the call if FCM notification fails - it's optional but log the error
         print('⚠️ [FirebaseCallSignaling] FCM notification failed (non-critical): $error');
-      });
+      }
     } catch (e) {
       print('❌ [FirebaseCallSignaling] Error sending call offer: $e');
       rethrow;
