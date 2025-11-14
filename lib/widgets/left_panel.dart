@@ -243,6 +243,52 @@ class _LeftPanelState extends State<LeftPanel> {
     );
   }
 
+  Future<void> _navigateToShortcut(String name) async {
+    // Map shortcut names to their web URLs
+    String? webUrl;
+    switch (name.toLowerCase()) {
+      case 'discord':
+        webUrl = 'https://discord.gg/wBhPvEvn87';
+        break;
+      case 'beta feedback':
+        webUrl = '${ApiConstants.webBase}/feedback';
+        break;
+      case 'music':
+        webUrl = '${ApiConstants.webBase}/music';
+        break;
+      case 'games':
+        webUrl = '${ApiConstants.webBase}/games';
+        break;
+      case 'events':
+        webUrl = '${ApiConstants.webBase}/event';
+        break;
+      case 'groups':
+        webUrl = '${ApiConstants.webBase}/groups';
+        break;
+      case 'pages':
+        webUrl = '${ApiConstants.webBase}/pages';
+        break;
+      case 'markets':
+        webUrl = '${ApiConstants.webBase}/market';
+        break;
+      default:
+        // Unknown shortcut - show message
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('$name feature coming soon'),
+              duration: const Duration(seconds: 2),
+            ),
+          );
+        }
+        return;
+    }
+
+    if (webUrl != null) {
+      await _openUrl(webUrl);
+    }
+  }
+
   Widget _buildShortcutItem(Map<String, dynamic> shortcut) {
     final name = shortcut['name']?.toString() ?? '';
     final icon = shortcut['icon']?.toString() ?? '';
@@ -291,13 +337,8 @@ class _LeftPanelState extends State<LeftPanel> {
             if (url != null && url.isNotEmpty) {
               _openUrl(url);
             } else {
-              // Handle other shortcuts - can be implemented later
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('$name feature coming soon'),
-                  duration: const Duration(seconds: 2),
-                ),
-              );
+              // Navigate to the appropriate web page based on shortcut name
+              _navigateToShortcut(name);
             }
           },
           borderRadius: BorderRadius.circular(12),
