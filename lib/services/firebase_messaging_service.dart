@@ -478,10 +478,11 @@ class FirebaseMessagingService {
         case 'call_offer':
         case 'call_initiate':
         case 'call':
-          // Handle call notification - fetch call offer from Firestore and show incoming call dialog
+          // Handle call notification
+          // Note: Calls use WebSocket, not Firestore, so we just wake the app
+          // The WebSocket will receive the call_offer when it reconnects
           final callId = data['callId']?.toString();
           final fromUserId = data['fromUserId']?.toString() ?? data['sender']?.toString();
-          // Get callType from notification - this is just a fallback, real callType comes from Firestore
           final callTypeRaw = data['callType'];
           String callType;
           if (callTypeRaw != null) {
@@ -493,97 +494,12 @@ class FirebaseMessagingService {
             callType = 'audio'; // Default to audio if missing
           }
           
-          print('📞 [FCM] Call notification tapped - callId: $callId, fromUserId: $fromUserId, type from notification: $callType');
+          print('📞 [FCM] Call notification tapped - callId: $callId, fromUserId: $fromUserId, type: $callType');
+          print('📞 [FCM] App will receive call_offer via WebSocket when connection is established');
           
-          if (callId != null && fromUserId != null) {
-            // Fetch call offer from Firestore
-            try {
-              final firestore = FirebaseFirestore.instance;
-              final callDoc = await firestore.collection('call_signals').doc(callId).get();
-              
-              if (callDoc.exists) {
-                final callData = callDoc.data();
-                final offer = callData?['offer']?.toString() ?? '';
-                // Extract callType from Firestore - this is the authoritative source
-                final callTypeFromFirestore = callData?['callType'];
-                String offerCallType;
-                if (callTypeFromFirestore != null) {
-                  offerCallType = callTypeFromFirestore.toString().toLowerCase().trim();
-                  // Normalize to 'video' or 'audio'
-                  if (offerCallType != 'video' && offerCallType != 'audio') {
-                    print('⚠️ [FCM] Invalid callType from Firestore: $offerCallType, using fallback: $callType');
-                    offerCallType = callType;
-                  }
-                } else {
-                  print('⚠️ [FCM] callType missing in Firestore, using fallback: $callType');
-                  offerCallType = callType;
-                }
-                
-                print('📞 [FCM] Call offer data - callType from Firestore: $callTypeFromFirestore, parsed: $offerCallType, fallback: $callType');
-                
-                if (offer.isNotEmpty) {
-                  // Trigger incoming call handler to show the call screen
-                  print('📞 [FCM] Call offer found in Firestore - triggering call handler');
-                  
-                  try {
-                    // Get the CallService and handle the incoming offer
-                    final callService = CallService();
-                    await callService.handleIncomingOffer(
-                      callId: callId,
-                      fromUserId: fromUserId,
-                      offer: offer,
-                      callType: offerCallType,
-                    );
-                    
-                    // Navigate to call screen using the navigator key from main.dart
-                    if (navigatorKey.currentContext != null) {
-                      // Fetch friend information
-                      final authService = AuthService();
-                      final currentUserId = await authService.getStoredUserId();
-                      if (currentUserId != null) {
-                        final friendService = FriendService();
-                        final friends = await friendService.fetchFriendsForUser(userId: currentUserId);
-                        final friend = friends.firstWhere(
-                          (f) => f.id == fromUserId,
-                          orElse: () => Friend(
-                            id: fromUserId,
-                            username: fromUserId,
-                            nickname: '',
-                            avatar: '',
-                            online: false,
-                          ),
-                        );
-                        
-                        // Navigate to call screen
-                        Navigator.of(navigatorKey.currentContext!).push(
-                          MaterialPageRoute(
-                            builder: (context) => CallScreen(
-                              friend: friend,
-                              callType: offerCallType == 'video' ? CallType.video : CallType.audio,
-                              isIncoming: true,
-                            ),
-                          ),
-                        );
-                        print('✅ [FCM] Navigated to call screen for incoming call');
-                      }
-                    } else {
-                      print('⚠️ [FCM] Navigator key not available - cannot navigate to call screen');
-                    }
-                  } catch (e) {
-                    print('❌ [FCM] Error handling call offer: $e');
-                  }
-                } else {
-                  print('⚠️ [FCM] Call offer found but offer is empty');
-                }
-              } else {
-                print('⚠️ [FCM] Call offer not found in Firestore - may have expired');
-              }
-            } catch (e) {
-              print('❌ [FCM] Error fetching call offer from Firestore: $e');
-            }
-          } else {
-            print('⚠️ [FCM] Call notification missing callId or fromUserId');
-          }
+          // The WebSocket service will handle the incoming call offer when it reconnects
+          // The main.dart call handlers will show the incoming call dialog
+          // No need to fetch from Firestore since calls use WebSocket
           break;
         default:
           print('❌ [FCM] Unknown notification type: $type');
