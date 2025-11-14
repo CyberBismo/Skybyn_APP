@@ -110,12 +110,30 @@ class CallService {
       final offer = await _peerConnection!.createOffer();
       await _peerConnection!.setLocalDescription(offer);
 
-      // Ensure WebSocket is connected
+      // Ensure WebSocket is connected before sending call offer
       if (!_signalingService.isConnected) {
-        // WebSocket should already be connected, but try to connect if not
         print('⚠️ [CallService] WebSocket not connected, attempting to connect...');
-        // Note: WebSocket connection is typically handled by home_screen.dart
-        // If not connected, the call will fail - this is expected behavior
+        // Try to connect WebSocket
+        await _signalingService.connect().timeout(
+          const Duration(seconds: 5),
+          onTimeout: () {
+            print('❌ [CallService] WebSocket connection timeout');
+            throw Exception('WebSocket connection timeout');
+          },
+        );
+        
+        // Wait a bit more for connection to be fully established
+        int waitAttempts = 0;
+        while (!_signalingService.isConnected && waitAttempts < 10) {
+          await Future.delayed(const Duration(milliseconds: 200));
+          waitAttempts++;
+        }
+        
+        if (!_signalingService.isConnected) {
+          throw Exception('WebSocket failed to connect');
+        }
+        
+        print('✅ [CallService] WebSocket connected, proceeding with call');
       }
 
       // Send offer through WebSocket
@@ -167,8 +185,21 @@ class CallService {
       );
 
       // Create and send answer
-      final answer = await _peerConnection!.createAnswer();
+      // The answer will automatically include the tracks we added to the peer connection
+      // For video calls, we need to ensure the answer includes video tracks
+      final answer = await _peerConnection!.createAnswer({
+        'offerToReceiveAudio': true,
+        'offerToReceiveVideo': _currentCallType == CallType.video,
+      });
       await _peerConnection!.setLocalDescription(answer);
+      
+      // Log tracks to verify they're included
+      print('📞 [CallService] Answer created - local tracks: ${_localStream?.getTracks().length ?? 0}');
+      if (_localStream != null) {
+        final videoTracks = _localStream!.getVideoTracks();
+        final audioTracks = _localStream!.getAudioTracks();
+        print('📞 [CallService] Local video tracks: ${videoTracks.length}, audio tracks: ${audioTracks.length}');
+      }
 
       // Send answer through WebSocket
       _signalingService.sendCallAnswer(
@@ -176,6 +207,11 @@ class CallService {
         targetUserId: fromUserId,
         answer: answer.sdp!,
       );
+
+      // Update state to "calling" to indicate we've answered and are connecting
+      // This prevents showing the answer button again in CallScreen
+      // The state will be updated to connected when remote stream is received
+      _updateCallState(CallState.calling);
 
       print('📞 [CallService] Incoming call answered: $callType from $fromUserId');
     } catch (e) {
@@ -222,8 +258,10 @@ class CallService {
   /// Accept incoming call
   Future<void> acceptCall() async {
     if (_callState == CallState.ringing) {
-      _updateCallState(CallState.connected);
       // Answer was already sent in handleIncomingOffer
+      // Update state to indicate we're connecting (waiting for ICE connection)
+      // The state will be updated to connected when remote stream is received
+      _updateCallState(CallState.calling); // Use calling state to indicate "connecting"
     }
   }
 
@@ -316,16 +354,26 @@ class CallService {
         if (event.streams.isNotEmpty) {
           _remoteStream = event.streams[0];
           onRemoteStream?.call(_remoteStream);
+          
+          // Log remote stream details
+          final videoTracks = _remoteStream!.getVideoTracks();
+          final audioTracks = _remoteStream!.getAudioTracks();
+          print('📞 [CallService] Remote stream received - video tracks: ${videoTracks.length}, audio tracks: ${audioTracks.length}');
+          print('📞 [CallService] Remote stream received, current state: $_callState');
+          
+          // Update to connected if we're in calling or ringing state
           if (_callState == CallState.calling || _callState == CallState.ringing) {
+            print('📞 [CallService] Updating call state to connected');
             _updateCallState(CallState.connected);
           }
-          print('📞 [CallService] Remote stream received');
+        } else {
+          print('⚠️ [CallService] onTrack event received but streams is empty');
         }
       };
 
       // Handle connection state changes
       _peerConnection!.onConnectionState = (RTCPeerConnectionState state) {
-        print('📞 [CallService] Connection state: $state');
+        print('📞 [CallService] Connection state: $state, current call state: $_callState');
         if (state == RTCPeerConnectionState.RTCPeerConnectionStateDisconnected) {
           print('⚠️ [CallService] Connection disconnected - may reconnect');
           // Don't end call immediately on disconnect - wait to see if it reconnects
@@ -340,7 +388,12 @@ class CallService {
             endCall();
           }
         } else if (state == RTCPeerConnectionState.RTCPeerConnectionStateConnected) {
-          print('✅ [CallService] Connection established');
+          print('✅ [CallService] Connection established, updating call state to connected');
+          // Also update call state to connected when peer connection is established
+          // This is a backup in case onTrack doesn't fire (e.g., for audio-only calls)
+          if (_callState == CallState.calling || _callState == CallState.ringing) {
+            _updateCallState(CallState.connected);
+          }
         }
       };
 

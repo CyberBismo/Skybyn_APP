@@ -428,6 +428,45 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
           }
         }
       },
+      onCallError: (callId, targetUserId, errorMessage) async {
+        print('❌ [MyApp] Call error: callId=$callId, targetUserId=$targetUserId, message=$errorMessage');
+        
+        // Get current user ID
+        final authService = AuthService();
+        final currentUserId = await authService.getStoredUserId();
+        if (currentUserId == null) return;
+        
+        // Check if this error is for a call we initiated
+        final activeOtherUserId = _callService.otherUserId;
+        final activeCallId = _callService.currentCallId;
+        
+        if (activeCallId == callId || activeOtherUserId == targetUserId) {
+          // This error is for our active call
+          // End the call and show error message
+          await _callService.endCall();
+          
+          // Show error to user
+          if (mounted) {
+            final context = navigatorKey.currentContext;
+            if (context != null) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(errorMessage),
+                  duration: const Duration(seconds: 3),
+                ),
+              );
+            }
+          }
+          
+          // Clear active call tracking
+          if (mounted) {
+            setState(() {
+              _activeCallId = null;
+              _activeCallFriend = null;
+            });
+          }
+        }
+      },
     );
   }
 
@@ -472,7 +511,9 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         showDialog(
           context: context,
           barrierDismissible: false,
-            builder: (dialogContext) => IncomingCallNotification(
+          barrierColor: Colors.black.withOpacity(0.5),
+          builder: (dialogContext) => Center(
+            child: IncomingCallNotification(
             callId: callId,
             fromUserId: fromUserId,
             fromUsername: friend.nickname.isNotEmpty ? friend.nickname : friend.username,
@@ -515,6 +556,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
               });
             },
           ),
+        ),
         );
       }
     } catch (e) {

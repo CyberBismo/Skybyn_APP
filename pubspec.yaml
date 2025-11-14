@@ -76,7 +76,7 @@ dependencies:
   # firebase_app_distribution: ^1.1.1  # Temporarily disabled due to build variant conflicts
   cloud_firestore: ^6.1.0
   # firebase_auth: ^4.16.0
-  workmanager: ^0.5.2  # For background tasks to update activity
+  # workmanager: ^0.5.1  # Temporarily disabled due to compatibility issues - using push notifications for activity updates instead
 
 
 dev_dependencies:

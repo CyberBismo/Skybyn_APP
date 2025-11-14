@@ -429,10 +429,25 @@ class ChatService {
     while (attempt < maxRetries) {
       try {
         final response = await request();
+        // Log response details for debugging
+        debugPrint('📥 [ChatService] Retry attempt ${attempt + 1}: Status ${response.statusCode}');
         if (response.statusCode < 500) {
           return response;
         }
+        // For 500 errors, log the response body before throwing
         if (response.statusCode >= 500) {
+          debugPrint('❌ [ChatService] Server error ${response.statusCode}, response body: ${response.body}');
+          // Try to extract error message from response
+          try {
+            final errorData = json.decode(response.body) as Map<String, dynamic>?;
+            if (errorData != null && errorData.containsKey('message')) {
+              final errorMsg = errorData['message'] as String?;
+              debugPrint('❌ [ChatService] Server error message: $errorMsg');
+              throw HttpException('Server error: ${response.statusCode} - ${errorMsg ?? "Unknown error"}');
+            }
+          } catch (e) {
+            // If we can't parse the error, just use the status code
+          }
           throw HttpException('Server error: ${response.statusCode}');
         }
         return response;

@@ -12,6 +12,11 @@ import 'auth_service.dart';
 import 'device_service.dart';
 import '../config/constants.dart';
 import 'background_activity_service.dart';
+import 'call_service.dart';
+import 'friend_service.dart';
+import '../screens/call_screen.dart';
+import '../models/friend.dart';
+import '../main.dart' show navigatorKey;
 
 // Handle background messages
 @pragma('vm:entry-point')
@@ -485,11 +490,56 @@ class FirebaseMessagingService {
                 final offerCallType = callData?['callType']?.toString() ?? callType;
                 
                 if (offer.isNotEmpty) {
-                  // Trigger incoming call handler in main.dart via navigator key
-                  // The main.dart will handle showing the incoming call dialog
+                  // Trigger incoming call handler to show the call screen
                   print('📞 [FCM] Call offer found in Firestore - triggering call handler');
-                  // Note: The Firestore listener in main.dart should pick this up automatically
-                  // But we can also manually trigger it if needed
+                  
+                  try {
+                    // Get the CallService and handle the incoming offer
+                    final callService = CallService();
+                    await callService.handleIncomingOffer(
+                      callId: callId,
+                      fromUserId: fromUserId,
+                      offer: offer,
+                      callType: offerCallType,
+                    );
+                    
+                    // Navigate to call screen using the navigator key from main.dart
+                    if (navigatorKey.currentContext != null) {
+                      // Fetch friend information
+                      final authService = AuthService();
+                      final currentUserId = await authService.getStoredUserId();
+                      if (currentUserId != null) {
+                        final friendService = FriendService();
+                        final friends = await friendService.fetchFriendsForUser(userId: currentUserId);
+                        final friend = friends.firstWhere(
+                          (f) => f.id == fromUserId,
+                          orElse: () => Friend(
+                            id: fromUserId,
+                            username: fromUserId,
+                            nickname: '',
+                            avatar: '',
+                            online: false,
+                          ),
+                        );
+                        
+                        // Navigate to call screen
+                        Navigator.of(navigatorKey.currentContext!).push(
+                          MaterialPageRoute(
+                            builder: (context) => CallScreen(
+                              friend: friend,
+                              callType: offerCallType == 'video' ? CallType.video : CallType.audio,
+                              isIncoming: true,
+                            ),
+                          ),
+                        );
+                        print('✅ [FCM] Navigated to call screen for incoming call');
+                      }
+                    } else {
+                      print('⚠️ [FCM] Navigator key not available - cannot navigate to call screen');
+                    }
+                  } catch (e) {
+                    print('❌ [FCM] Error handling call offer: $e');
+                  }
                 } else {
                   print('⚠️ [FCM] Call offer found but offer is empty');
                 }

@@ -67,6 +67,7 @@ class WebSocketService {
   Function(String, String, String, int)? _onIceCandidate; // callId, candidate, sdpMid, sdpMLineIndex
   Function(String, String, String)? _onCallEnd; // callId, fromUserId, targetUserId
   Function(String, String, String, String)? _onCallInitiate; // callId, fromUserId, callType, fromUsername
+  Function(String, String, String)? _onCallError; // callId, targetUserId, error message
 
   // Services
   final NotificationService _notificationService = NotificationService();
@@ -412,6 +413,9 @@ class WebSocketService {
         _lastPingReceivedTime = DateTime.now().millisecondsSinceEpoch;
         _updateConnectionMetrics('connected'); // This already logs the connection message
         
+        // Process any queued messages now that we're connected
+        _processMessageQueue();
+        
         // Start connection health monitoring
         _startConnectionHealthMonitor();
         
@@ -656,6 +660,18 @@ class WebSocketService {
                 print('⚠️ [WebSocket] call_end callback is null');
               } else {
                 _onCallEnd?.call(callId, fromUserId, targetUserId);
+              }
+              break;
+            case 'call_error':
+              final callId = data['callId']?.toString() ?? '';
+              final targetUserId = data['targetUserId']?.toString() ?? '';
+              final error = data['error']?.toString() ?? 'unknown';
+              final errorMessage = data['message']?.toString() ?? 'Call failed';
+              print('❌ [WebSocket] Received call_error: callId=$callId, targetUserId=$targetUserId, error=$error, message=$errorMessage');
+              if (_onCallError == null) {
+                print('⚠️ [WebSocket] call_error callback is null');
+              } else {
+                _onCallError?.call(callId, targetUserId, errorMessage);
               }
               break;
             case 'chat':
@@ -905,12 +921,14 @@ class WebSocketService {
     Function(String, String)? onCallAnswer,
     Function(String, String, String, int)? onIceCandidate,
     Function(String, String, String)? onCallEnd, // callId, fromUserId, targetUserId
+    Function(String, String, String)? onCallError, // callId, targetUserId, error message
   }) {
     _onCallInitiate = onCallInitiate;
     _onCallOffer = onCallOffer;
     _onCallAnswer = onCallAnswer;
     _onIceCandidate = onIceCandidate;
     _onCallEnd = onCallEnd;
+    _onCallError = onCallError;
   }
 
   /// Send call offer

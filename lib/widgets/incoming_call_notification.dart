@@ -29,8 +29,9 @@ class IncomingCallNotification extends StatelessWidget {
     return Material(
       color: Colors.transparent,
       child: Container(
-        margin: const EdgeInsets.all(16),
-        padding: const EdgeInsets.all(20),
+        margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+        padding: const EdgeInsets.all(16),
+        constraints: const BoxConstraints(maxWidth: 400),
         decoration: BoxDecoration(
           color: Colors.black.withOpacity(0.8),
           borderRadius: BorderRadius.circular(20),

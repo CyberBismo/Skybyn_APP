@@ -45,11 +45,12 @@ class _CallScreenState extends State<CallScreen> {
     _remoteRenderer = RTCVideoRenderer();
     _initializeRenderers();
     _setupCallService();
+    // Get actual call state from CallService instead of defaulting
+    _callState = _callService.callState;
     if (!widget.isIncoming && widget.friend != null) {
       _startCall();
-    } else if (widget.isIncoming) {
-      _callState = CallState.ringing;
     }
+    // For incoming calls, the state is already set by CallService when handleIncomingOffer is called
   }
 
   Future<void> _initializeRenderers() async {
@@ -58,6 +59,9 @@ class _CallScreenState extends State<CallScreen> {
   }
 
   void _setupCallService() {
+    // Get initial state from CallService
+    _callState = _callService.callState;
+    
     _callService.onCallStateChanged = (state) {
       if (mounted) {
         setState(() {
@@ -122,13 +126,17 @@ class _CallScreenState extends State<CallScreen> {
   }
 
   Future<void> _acceptCall() async {
-    // Check permissions before accepting call
-    final hasPermission = await _checkCallPermissions(widget.callType);
-    if (hasPermission) {
-      await _callService.acceptCall();
-    } else {
-      // If permissions denied, end the call
-      await _endCall();
+    // Only accept if call is still ringing
+    // If call was already accepted from notification, this should not be called
+    if (_callState == CallState.ringing) {
+      // Check permissions before accepting call
+      final hasPermission = await _checkCallPermissions(widget.callType);
+      if (hasPermission) {
+        await _callService.acceptCall();
+      } else {
+        // If permissions denied, end the call
+        await _endCall();
+      }
     }
   }
 
@@ -409,6 +417,8 @@ class _CallScreenState extends State<CallScreen> {
                               : Colors.red.withOpacity(0.8),
                         ),
                       // Accept/End call button
+                      // Only show accept button if call is ringing AND incoming
+                      // Otherwise show hang up button (for connected, calling, or ended calls)
                       if (_callState == CallState.ringing && widget.isIncoming)
                         _buildCallButton(
                           icon: Icons.call,
@@ -463,10 +473,12 @@ class _CallScreenState extends State<CallScreen> {
       case CallState.idle:
         return 'Connecting...';
       case CallState.calling:
-        return 'Calling...';
+        // For incoming calls, show "Connecting..." instead of "Calling..."
+        return widget.isIncoming ? 'Connecting...' : 'Calling...';
       case CallState.ringing:
         return widget.isIncoming ? 'Incoming call' : 'Ringing...';
       case CallState.connected:
+        // Show connected status or elapsed time if available
         return widget.callType == CallType.video ? 'Video call' : 'Audio call';
       case CallState.ended:
         return 'Call ended';

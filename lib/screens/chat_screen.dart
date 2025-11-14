@@ -527,10 +527,20 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
         _messages.removeWhere((m) => m.id.startsWith('temp_'));
       });
       
+      // Provide user-friendly error messages
+      String userFriendlyMessage = errorMessage;
+      if (lowerError.contains('500') || lowerError.contains('server error')) {
+        userFriendlyMessage = 'Server error. Please try again in a moment.';
+      } else if (lowerError.contains('timeout') || lowerError.contains('connection')) {
+        userFriendlyMessage = 'Connection timeout. Please check your internet and try again.';
+      } else if (lowerError.contains('network') || lowerError.contains('unreachable')) {
+        userFriendlyMessage = 'Network error. Please check your connection and try again.';
+      }
+      
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(errorMessage),
+            content: Text(userFriendlyMessage),
             backgroundColor: Colors.red,
             duration: const Duration(seconds: 4),
           ),
