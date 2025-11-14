@@ -15,6 +15,7 @@ import '../screens/events_screen.dart';
 import '../screens/groups_screen.dart';
 import '../screens/pages_screen.dart';
 import '../screens/markets_screen.dart';
+import '../screens/feedback_screen.dart';
 
 class LeftPanel extends StatefulWidget {
   const LeftPanel({super.key});
@@ -56,33 +57,82 @@ class _LeftPanelState extends State<LeftPanel> {
         },
       ).timeout(const Duration(seconds: 10));
 
+      print('📡 [LeftPanel] API response status: ${response.statusCode}');
+      print('📡 [LeftPanel] API response body: ${response.body}');
+
       if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        if (data is List) {
-          setState(() {
-            _shortcuts = List<Map<String, dynamic>>.from(data);
-            _isLoading = false;
-          });
-          print('✅ [LeftPanel] Loaded ${_shortcuts.length} shortcuts');
-          // Debug: print shortcut names
-          for (var shortcut in _shortcuts) {
-            print('  - ${shortcut['name']} (icon: ${shortcut['icon']})');
+        try {
+          final data = json.decode(response.body);
+          print('📡 [LeftPanel] Parsed data type: ${data.runtimeType}');
+          
+          if (data is List) {
+            // Validate and filter shortcuts
+            final validShortcuts = <Map<String, dynamic>>[];
+            for (var item in data) {
+              if (item is Map<String, dynamic>) {
+                // Ensure required fields exist
+                if (item.containsKey('name') && item['name'] != null) {
+                  validShortcuts.add(item);
+                } else {
+                  print('⚠️ [LeftPanel] Skipping invalid shortcut: missing name field');
+                }
+              } else {
+                print('⚠️ [LeftPanel] Skipping invalid shortcut: not a Map');
+              }
+            }
+            
+            setState(() {
+              _shortcuts = validShortcuts;
+              _isLoading = false;
+            });
+            print('✅ [LeftPanel] Loaded ${_shortcuts.length} shortcuts');
+            // Debug: print shortcut names
+            for (var shortcut in _shortcuts) {
+              print('  - ${shortcut['name']} (icon: ${shortcut['icon'] ?? 'no icon'})');
+            }
+          } else if (data is Map) {
+            if (data.containsKey('error')) {
+              print('❌ [LeftPanel] API returned error: ${data['error']}');
+            } else if (data.containsKey('shortcuts') && data['shortcuts'] is List) {
+              // Handle alternative response format with 'shortcuts' key
+              final shortcutsList = data['shortcuts'] as List;
+              final validShortcuts = <Map<String, dynamic>>[];
+              for (var item in shortcutsList) {
+                if (item is Map<String, dynamic> && item.containsKey('name')) {
+                  validShortcuts.add(item);
+                }
+              }
+              setState(() {
+                _shortcuts = validShortcuts;
+                _isLoading = false;
+              });
+              print('✅ [LeftPanel] Loaded ${_shortcuts.length} shortcuts from shortcuts key');
+            } else {
+              print('⚠️ [LeftPanel] API returned Map but no recognized format: $data');
+              setState(() {
+                _shortcuts = [];
+                _isLoading = false;
+              });
+            }
+          } else {
+            print('⚠️ [LeftPanel] API returned unexpected data type: ${data.runtimeType}');
+            print('⚠️ [LeftPanel] Data content: $data');
+            setState(() {
+              _shortcuts = [];
+              _isLoading = false;
+            });
           }
-        } else if (data is Map && data.containsKey('error')) {
-          print('❌ [LeftPanel] API returned error: ${data['error']}');
-          setState(() {
-            _shortcuts = [];
-            _isLoading = false;
-          });
-        } else {
-          print('⚠️ [LeftPanel] API returned non-list data: $data');
+        } catch (e) {
+          print('❌ [LeftPanel] JSON decode error: $e');
+          print('❌ [LeftPanel] Response body: ${response.body}');
           setState(() {
             _shortcuts = [];
             _isLoading = false;
           });
         }
       } else {
-        print('⚠️ [LeftPanel] API returned status ${response.statusCode}: ${response.body}');
+        print('⚠️ [LeftPanel] API returned status ${response.statusCode}');
+        print('⚠️ [LeftPanel] Response body: ${response.body}');
         setState(() {
           _shortcuts = [];
           _isLoading = false;
@@ -305,12 +355,8 @@ class _LeftPanelState extends State<LeftPanel> {
         screen = const MarketsScreen();
         break;
       case 'beta feedback':
-        // BETA Feedback opens in external browser
-        final url = Uri.parse('${ApiConstants.webBase}/feedback');
-        if (await canLaunchUrl(url)) {
-          await launchUrl(url, mode: LaunchMode.externalApplication);
-        }
-        return;
+        screen = const FeedbackScreen();
+        break;
       default:
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
