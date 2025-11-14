@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:ui';
+import 'dart:async';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -37,6 +38,9 @@ class _CallScreenState extends State<CallScreen> {
   bool _isFrontCamera = true;
   RTCVideoRenderer? _localRenderer;
   RTCVideoRenderer? _remoteRenderer;
+  Timer? _callDurationTimer;
+  DateTime? _callStartTime;
+  Duration _callDuration = Duration.zero;
 
   @override
   void initState() {
@@ -66,6 +70,20 @@ class _CallScreenState extends State<CallScreen> {
       if (mounted) {
         setState(() {
           _callState = state;
+          
+          // Start timer when call becomes connected
+          if (state == CallState.connected && _callStartTime == null) {
+            _callStartTime = DateTime.now();
+            _callDuration = Duration.zero;
+            _startCallDurationTimer();
+          }
+          
+          // Stop timer when call ends
+          if (state == CallState.ended || state == CallState.idle) {
+            _stopCallDurationTimer();
+            _callStartTime = null;
+            _callDuration = Duration.zero;
+          }
         });
       }
     };
@@ -242,8 +260,31 @@ class _CallScreenState extends State<CallScreen> {
     });
   }
 
+  void _startCallDurationTimer() {
+    _callDurationTimer?.cancel();
+    _callDurationTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (mounted && _callStartTime != null) {
+        setState(() {
+          _callDuration = DateTime.now().difference(_callStartTime!);
+        });
+      }
+    });
+  }
+
+  void _stopCallDurationTimer() {
+    _callDurationTimer?.cancel();
+    _callDurationTimer = null;
+  }
+
+  String _formatCallDuration(Duration duration) {
+    final minutes = duration.inMinutes;
+    final seconds = duration.inSeconds % 60;
+    return '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
+  }
+
   @override
   void dispose() {
+    _stopCallDurationTimer();
     if (_callState != CallState.ended && _callState != CallState.idle) {
       _callService.endCall();
     }
@@ -478,7 +519,11 @@ class _CallScreenState extends State<CallScreen> {
       case CallState.ringing:
         return widget.isIncoming ? 'Incoming call' : 'Ringing...';
       case CallState.connected:
-        // Show connected status or elapsed time if available
+        // Show call duration when connected
+        if (_callDuration.inSeconds > 0) {
+          return _formatCallDuration(_callDuration);
+        }
+        // Fallback to call type if duration not available yet
         return widget.callType == CallType.video ? 'Video call' : 'Audio call';
       case CallState.ended:
         return 'Call ended';
