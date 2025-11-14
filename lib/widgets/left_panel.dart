@@ -218,40 +218,28 @@ class _LeftPanelState extends State<LeftPanel> {
     final discordWebUrl = 'https://discord.gg/wBhPvEvn87';
     
     try {
-      // Try to open Discord app first (Android/iOS deep link)
-      final discordAppUrl = Uri.parse('discord://');
-      
-      if (await canLaunchUrl(discordAppUrl)) {
-        try {
-          // Try opening Discord app with invite
-          final inviteUrl = Uri.parse('discord://invite/wBhPvEvn87');
-          if (await canLaunchUrl(inviteUrl)) {
-            await launchUrl(inviteUrl, mode: LaunchMode.externalApplication);
-            return;
-          }
-          // If invite format doesn't work, just open Discord app
-          await launchUrl(discordAppUrl, mode: LaunchMode.externalApplication);
-          return;
-        } catch (e) {
-          print('⚠️ [LeftPanel] Discord app launch failed: $e, using browser');
-        }
+      // Try to open Discord app first with invite deep link
+      try {
+        final inviteUrl = Uri.parse('discord://invite/wBhPvEvn87');
+        await launchUrl(inviteUrl, mode: LaunchMode.externalApplication);
+        return;
+      } catch (e) {
+        print('⚠️ [LeftPanel] Discord app invite failed: $e, trying web URL');
       }
       
-      // Fallback to external browser with web URL
+      // Fallback to web URL in external browser
       final webUri = Uri.parse(discordWebUrl);
-      if (await canLaunchUrl(webUri)) {
-        await launchUrl(webUri, mode: LaunchMode.externalApplication);
-      } else {
-        print('❌ [LeftPanel] Cannot launch Discord URL');
-      }
+      await launchUrl(webUri, mode: LaunchMode.externalApplication);
     } catch (e) {
       print('❌ [LeftPanel] Error opening Discord: $e');
-      // Last resort: try opening web URL directly
-      try {
-        final webUri = Uri.parse(discordWebUrl);
-        await launchUrl(webUri, mode: LaunchMode.externalApplication);
-      } catch (e2) {
-        print('❌ [LeftPanel] Failed to open Discord in browser: $e2');
+      // Show error to user
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Unable to open Discord. Please try again.'),
+            duration: Duration(seconds: 2),
+          ),
+        );
       }
     }
   }
