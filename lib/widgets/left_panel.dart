@@ -9,6 +9,7 @@ import '../services/auth_service.dart';
 import '../config/constants.dart';
 import '../utils/translation_keys.dart';
 import '../widgets/translated_text.dart';
+import '../screens/browser_screen.dart';
 
 class LeftPanel extends StatefulWidget {
   const LeftPanel({super.key});
@@ -138,20 +139,34 @@ class _LeftPanelState extends State<LeftPanel> {
   }
 
   Future<void> _openDiscord() async {
-    final url = Uri.parse('https://discord.gg/wBhPvEvn87');
-    if (await canLaunchUrl(url)) {
-      await launchUrl(url, mode: LaunchMode.externalApplication);
-    }
-  }
-
-  Future<void> _openUrl(String urlString) async {
+    // Try to open Discord app first, then fallback to in-app browser
+    final discordUrl = Uri.parse('https://discord.gg/wBhPvEvn87');
+    final discordAppUrl = Uri.parse('discord://discord.gg/wBhPvEvn87');
+    
     try {
-      final url = Uri.parse(urlString);
-      if (await canLaunchUrl(url)) {
-        await launchUrl(url, mode: LaunchMode.externalApplication);
+      // Try Discord app first
+      if (await canLaunchUrl(discordAppUrl)) {
+        try {
+          await launchUrl(discordAppUrl, mode: LaunchMode.externalApplication);
+          return;
+        } catch (e) {
+          print('⚠️ [LeftPanel] Discord app not available, using browser');
+        }
+      }
+      
+      // Fallback to in-app browser
+      if (await canLaunchUrl(discordUrl)) {
+        await launchUrl(
+          discordUrl,
+          mode: LaunchMode.inAppWebView,
+          webViewConfiguration: const WebViewConfiguration(
+            enableJavaScript: true,
+            enableDomStorage: true,
+          ),
+        );
       }
     } catch (e) {
-      print('❌ [LeftPanel] Error opening URL: $e');
+      print('❌ [LeftPanel] Error opening Discord: $e');
     }
   }
 
@@ -243,49 +258,62 @@ class _LeftPanelState extends State<LeftPanel> {
     );
   }
 
+  Future<void> _openUrlInApp(String urlString) async {
+    try {
+      final url = Uri.parse(urlString);
+      if (await canLaunchUrl(url)) {
+        await launchUrl(
+          url,
+          mode: LaunchMode.inAppWebView,
+          webViewConfiguration: const WebViewConfiguration(
+            enableJavaScript: true,
+            enableDomStorage: true,
+          ),
+        );
+      }
+    } catch (e) {
+      print('❌ [LeftPanel] Error opening URL: $e');
+    }
+  }
+
   Future<void> _navigateToShortcut(String name) async {
-    // Map shortcut names to their web URLs
-    String? webUrl;
-    switch (name.toLowerCase()) {
-      case 'discord':
-        webUrl = 'https://discord.gg/wBhPvEvn87';
-        break;
-      case 'beta feedback':
-        webUrl = '${ApiConstants.webBase}/feedback';
-        break;
-      case 'music':
-        webUrl = '${ApiConstants.webBase}/music';
-        break;
-      case 'games':
-        webUrl = '${ApiConstants.webBase}/games';
-        break;
-      case 'events':
-        webUrl = '${ApiConstants.webBase}/event';
-        break;
-      case 'groups':
-        webUrl = '${ApiConstants.webBase}/groups';
-        break;
-      case 'pages':
-        webUrl = '${ApiConstants.webBase}/pages';
-        break;
-      case 'markets':
-        webUrl = '${ApiConstants.webBase}/market';
-        break;
-      default:
-        // Unknown shortcut - show message
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('$name feature coming soon'),
-              duration: const Duration(seconds: 2),
-            ),
-          );
-        }
-        return;
+    // Skip Discord - it has its own handler
+    if (name.toLowerCase() == 'discord') {
+      return;
     }
 
-    if (webUrl != null) {
-      await _openUrl(webUrl);
+    // Navigate to in-app content screen
+    if (mounted) {
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (context) => BrowserScreen(
+            shortcutName: name,
+            shortcutIcon: _getShortcutIcon(name),
+          ),
+        ),
+      );
+    }
+  }
+
+  String _getShortcutIcon(String name) {
+    // Map shortcut name to icon for the screen
+    switch (name.toLowerCase()) {
+      case 'beta feedback':
+        return 'fa-solid fa-bug';
+      case 'music':
+        return 'fa-solid fa-music';
+      case 'games':
+        return 'fa-solid fa-gamepad';
+      case 'events':
+        return 'fa-solid fa-calendar-days';
+      case 'groups':
+        return 'fa-solid fa-comments';
+      case 'pages':
+        return 'fa-regular fa-newspaper';
+      case 'markets':
+        return 'fa-solid fa-store';
+      default:
+        return 'fa-solid fa-link';
     }
   }
 
@@ -334,10 +362,14 @@ class _LeftPanelState extends State<LeftPanel> {
         color: Colors.transparent,
         child: InkWell(
           onTap: () {
-            if (url != null && url.isNotEmpty) {
-              _openUrl(url);
+            // Discord has special handling
+            if (name.toLowerCase() == 'discord') {
+              _openDiscord();
+            } else if (url != null && url.isNotEmpty) {
+              // If shortcut has URL, open in in-app browser
+              _openUrlInApp(url);
             } else {
-              // Navigate to the appropriate web page based on shortcut name
+              // Navigate to in-app content screen
               _navigateToShortcut(name);
             }
           },
