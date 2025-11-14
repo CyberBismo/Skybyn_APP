@@ -69,6 +69,9 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
   // Menu overlay
   OverlayEntry? _menuOverlayEntry;
   final GlobalKey _menuButtonKey = GlobalKey();
+  // Message options overlay
+  OverlayEntry? _messageOptionsOverlay;
+  Message? _selectedMessage;
 
   @override
   void initState() {
@@ -126,6 +129,8 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _closeMenu();
+    _closeMessageOptions();
     _messageFocusNode.dispose();
     _messageController.dispose();
     _scrollController.dispose();
@@ -1225,128 +1230,133 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
     final isFromMe = message.isFromMe;
     final timeAgo = timeago.format(message.date, locale: 'en_short');
 
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Row(
-        mainAxisAlignment:
-            isFromMe ? MainAxisAlignment.end : MainAxisAlignment.start,
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          if (!isFromMe) ...[
-            CircleAvatar(
-              radius: 16,
-              backgroundColor: Colors.white.withOpacity(0.2),
-              child: widget.friend.avatar.isNotEmpty
-                  ? ClipOval(
-                      child: CachedNetworkImage(
-                        imageUrl: UrlHelper.convertUrl(widget.friend.avatar),
-                        width: 32,
-                        height: 32,
-                        fit: BoxFit.cover,
-                        placeholder: (context, url) => Image.asset(
-                          'assets/images/icon.png',
+    return GestureDetector(
+      onLongPress: () => _showMessageOptions(context, message),
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: 12),
+        child: Row(
+          mainAxisAlignment:
+              isFromMe ? MainAxisAlignment.end : MainAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            if (!isFromMe) ...[
+              CircleAvatar(
+                radius: 16,
+                backgroundColor: Colors.white.withOpacity(0.2),
+                child: widget.friend.avatar.isNotEmpty
+                    ? ClipOval(
+                        child: CachedNetworkImage(
+                          imageUrl: UrlHelper.convertUrl(widget.friend.avatar),
                           width: 32,
                           height: 32,
                           fit: BoxFit.cover,
-                        ),
-                        errorWidget: (context, url, error) => Image.asset(
-                          'assets/images/icon.png',
-                          width: 32,
-                          height: 32,
-                          fit: BoxFit.cover,
-                        ),
-                      ),
-                    )
-                  : Image.asset(
-                      'assets/images/icon.png',
-                      width: 32,
-                      height: 32,
-                      fit: BoxFit.cover,
-                    ),
-            ),
-            const SizedBox(width: 8),
-          ],
-          Flexible(
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-              decoration: BoxDecoration(
-                color: isFromMe
-                    ? Colors.blue.withOpacity(0.8)
-                    : Colors.white.withOpacity(0.15),
-                borderRadius: BorderRadius.only(
-                  topLeft: const Radius.circular(18),
-                  topRight: const Radius.circular(18),
-                  bottomLeft: Radius.circular(isFromMe ? 18 : 4),
-                  bottomRight: Radius.circular(isFromMe ? 4 : 18),
-                ),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    message.content,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 15,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    timeAgo,
-                    style: TextStyle(
-                      color: Colors.white.withOpacity(0.6),
-                      fontSize: 11,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          if (isFromMe) ...[
-            const SizedBox(width: 8),
-            CircleAvatar(
-              radius: 16,
-              backgroundColor: Colors.white.withOpacity(0.2),
-              child: FutureBuilder<String?>(
-                future: _authService.getStoredUserProfile().then((u) => u?.avatar),
-                builder: (context, snapshot) {
-                  if (snapshot.hasData && snapshot.data != null && snapshot.data!.isNotEmpty) {
-                    return ClipOval(
-                      child: CachedNetworkImage(
-                        imageUrl: UrlHelper.convertUrl(snapshot.data!),
-                        width: 32,
-                        height: 32,
-                        fit: BoxFit.cover,
-                        httpHeaders: const {},
-                        placeholder: (context, url) => Image.asset(
-                          'assets/images/icon.png',
-                          width: 32,
-                          height: 32,
-                          fit: BoxFit.cover,
-                        ),
-                        errorWidget: (context, url, error) {
-                          // Handle all errors including 404 (HttpExceptionWithStatus)
-                          return Image.asset(
+                          placeholder: (context, url) => Image.asset(
                             'assets/images/icon.png',
                             width: 32,
                             height: 32,
                             fit: BoxFit.cover,
-                          );
-                        },
+                          ),
+                          errorWidget: (context, url, error) => Image.asset(
+                            'assets/images/icon.png',
+                            width: 32,
+                            height: 32,
+                            fit: BoxFit.cover,
+                          ),
+                        ),
+                      )
+                    : Image.asset(
+                        'assets/images/icon.png',
+                        width: 32,
+                        height: 32,
+                        fit: BoxFit.cover,
                       ),
-                    );
-                  }
-                  return Image.asset(
-                    'assets/images/icon.png',
-                    width: 32,
-                    height: 32,
-                    fit: BoxFit.cover,
-                  );
-                },
+              ),
+              const SizedBox(width: 8),
+            ],
+            Flexible(
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                decoration: BoxDecoration(
+                  color: isFromMe
+                      ? Colors.blue.withOpacity(0.8)
+                      : Colors.white.withOpacity(0.15),
+                  borderRadius: BorderRadius.only(
+                    topLeft: const Radius.circular(18),
+                    topRight: const Radius.circular(18),
+                    bottomLeft: Radius.circular(isFromMe ? 18 : 4),
+                    bottomRight: Radius.circular(isFromMe ? 4 : 18),
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      message.content,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 15,
+                        decoration: TextDecoration.none,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      timeAgo,
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.6),
+                        fontSize: 11,
+                        decoration: TextDecoration.none,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
+            if (isFromMe) ...[
+              const SizedBox(width: 8),
+              CircleAvatar(
+                radius: 16,
+                backgroundColor: Colors.white.withOpacity(0.2),
+                child: FutureBuilder<String?>(
+                  future: _authService.getStoredUserProfile().then((u) => u?.avatar),
+                  builder: (context, snapshot) {
+                    if (snapshot.hasData && snapshot.data != null && snapshot.data!.isNotEmpty) {
+                      return ClipOval(
+                        child: CachedNetworkImage(
+                          imageUrl: UrlHelper.convertUrl(snapshot.data!),
+                          width: 32,
+                          height: 32,
+                          fit: BoxFit.cover,
+                          httpHeaders: const {},
+                          placeholder: (context, url) => Image.asset(
+                            'assets/images/icon.png',
+                            width: 32,
+                            height: 32,
+                            fit: BoxFit.cover,
+                          ),
+                          errorWidget: (context, url, error) {
+                            // Handle all errors including 404 (HttpExceptionWithStatus)
+                            return Image.asset(
+                              'assets/images/icon.png',
+                              width: 32,
+                              height: 32,
+                              fit: BoxFit.cover,
+                            );
+                          },
+                        ),
+                      );
+                    }
+                    return Image.asset(
+                      'assets/images/icon.png',
+                      width: 32,
+                      height: 32,
+                      fit: BoxFit.cover,
+                    );
+                  },
+                ),
+              ),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }
@@ -1355,6 +1365,362 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
   void _closeMenu() {
     _menuOverlayEntry?.remove();
     _menuOverlayEntry = null;
+  }
+
+  /// Close the message options overlay
+  void _closeMessageOptions() {
+    _messageOptionsOverlay?.remove();
+    _messageOptionsOverlay = null;
+    _selectedMessage = null;
+  }
+
+  /// Show message options when long-pressed
+  void _showMessageOptions(BuildContext context, Message message) {
+    _closeMessageOptions(); // Close any existing options
+    
+    _selectedMessage = message;
+    final screenWidth = MediaQuery.of(context).size.width;
+    final screenHeight = MediaQuery.of(context).size.height;
+
+    _messageOptionsOverlay = OverlayEntry(
+      builder: (BuildContext overlayContext) {
+        return Stack(
+          children: [
+            // Backdrop - tap to close
+            GestureDetector(
+              onTap: _closeMessageOptions,
+              child: Container(
+                color: Colors.black.withOpacity(0.3),
+                width: double.infinity,
+                height: double.infinity,
+              ),
+            ),
+            // Options bar positioned in the center-bottom area
+            Positioned(
+              bottom: screenHeight * 0.15, // Position from bottom
+              left: (screenWidth - 240) / 2, // Center the options bar
+              child: Material(
+                color: Colors.transparent,
+                child: Container(
+                  constraints: const BoxConstraints(maxWidth: 240),
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.85),
+                    borderRadius: BorderRadius.circular(25),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.3),
+                        blurRadius: 10,
+                        spreadRadius: 2,
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      // Like button (always visible)
+                      _buildMessageOptionButton(
+                        icon: Icons.favorite_border,
+                        label: 'Like',
+                        onTap: () => _likeMessage(message),
+                      ),
+                      // Edit button (only for own messages)
+                      if (message.isFromMe) ...[
+                        const SizedBox(width: 8),
+                        _buildMessageOptionButton(
+                          icon: Icons.edit,
+                          label: 'Edit',
+                          onTap: () => _editMessage(message),
+                        ),
+                      ],
+                      // Delete button (only for own messages)
+                      if (message.isFromMe) ...[
+                        const SizedBox(width: 8),
+                        _buildMessageOptionButton(
+                          icon: Icons.delete_outline,
+                          label: 'Delete',
+                          onTap: () => _deleteMessage(message),
+                          isDestructive: true,
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+
+    Overlay.of(context).insert(_messageOptionsOverlay!);
+  }
+
+  Widget _buildMessageOptionButton({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+    bool isDestructive = false,
+  }) {
+    return GestureDetector(
+      onTap: () {
+        _closeMessageOptions();
+        onTap();
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              color: isDestructive ? Colors.red : Colors.white,
+              size: 20,
+            ),
+            const SizedBox(height: 2),
+            Text(
+              label,
+              style: TextStyle(
+                color: isDestructive ? Colors.red : Colors.white,
+                fontSize: 10,
+                decoration: TextDecoration.none,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _likeMessage(Message message) async {
+    // TODO: Implement like message functionality
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Like message feature coming soon'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+    }
+  }
+
+  Future<void> _editMessage(Message message) async {
+    _closeMessageOptions();
+    
+    // Show edit dialog
+    final TextEditingController editController = TextEditingController(text: message.content);
+    
+    final result = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: Colors.black.withOpacity(0.9),
+        title: const Text(
+          'Edit Message',
+          style: TextStyle(color: Colors.white, decoration: TextDecoration.none),
+        ),
+        content: TextField(
+          controller: editController,
+          style: const TextStyle(color: Colors.white),
+          decoration: const InputDecoration(
+            hintText: 'Enter message...',
+            hintStyle: TextStyle(color: Colors.white70),
+            enabledBorder: UnderlineInputBorder(
+              borderSide: BorderSide(color: Colors.white70),
+            ),
+            focusedBorder: UnderlineInputBorder(
+              borderSide: BorderSide(color: Colors.white),
+            ),
+          ),
+          maxLines: 3,
+          autofocus: true,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel', style: TextStyle(color: Colors.white70)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(editController.text.trim()),
+            child: const Text('Save', style: TextStyle(color: Colors.blue)),
+          ),
+        ],
+      ),
+    );
+
+    if (result != null && result.isNotEmpty && result != message.content && _currentUserId != null) {
+      try {
+        final response = await http.post(
+          Uri.parse('${ApiConstants.apiBase}/message/edit.php'),
+          body: {
+            'userID': _currentUserId!,
+            'friendID': widget.friend.id,
+            'messageID': message.id,
+            'content': result,
+          },
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
+        ).timeout(const Duration(seconds: 10));
+
+        if (response.statusCode == 200) {
+          final data = json.decode(response.body);
+          if (data['responseCode'] == 1) {
+            // Update message in list
+            setState(() {
+              final index = _messages.indexWhere((m) => m.id == message.id);
+              if (index != -1) {
+                _messages[index] = Message(
+                  id: message.id,
+                  from: message.from,
+                  to: message.to,
+                  content: result,
+                  date: message.date,
+                  viewed: message.viewed,
+                  isFromMe: message.isFromMe,
+                );
+              }
+            });
+            
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Message updated'),
+                  backgroundColor: Colors.green,
+                  duration: Duration(seconds: 2),
+                ),
+              );
+            }
+          } else {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(data['message'] ?? 'Failed to update message'),
+                  backgroundColor: Colors.red,
+                  duration: const Duration(seconds: 2),
+                ),
+              );
+            }
+          }
+        } else {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Failed to update message'),
+                backgroundColor: Colors.red,
+                duration: Duration(seconds: 2),
+              ),
+            );
+          }
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error: $e'),
+              backgroundColor: Colors.red,
+              duration: const Duration(seconds: 2),
+            ),
+          );
+        }
+      }
+    }
+  }
+
+  Future<void> _deleteMessage(Message message) async {
+    _closeMessageOptions();
+    
+    // Show confirmation dialog
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: Colors.black.withOpacity(0.9),
+        title: const Text(
+          'Delete Message',
+          style: TextStyle(color: Colors.white, decoration: TextDecoration.none),
+        ),
+        content: const Text(
+          'Are you sure you want to delete this message?',
+          style: TextStyle(color: Colors.white70, decoration: TextDecoration.none),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel', style: TextStyle(color: Colors.white70)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Delete', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true && _currentUserId != null) {
+      try {
+        final response = await http.post(
+          Uri.parse('${ApiConstants.apiBase}/message/delete.php'),
+          body: {
+            'userID': _currentUserId!,
+            'friendID': widget.friend.id,
+            'messageID': message.id,
+          },
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
+        ).timeout(const Duration(seconds: 10));
+
+        if (response.statusCode == 200) {
+          final data = json.decode(response.body);
+          if (data['responseCode'] == 1) {
+            // Remove message from list
+            setState(() {
+              _messages.removeWhere((m) => m.id == message.id);
+            });
+            
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Message deleted'),
+                  backgroundColor: Colors.green,
+                  duration: Duration(seconds: 2),
+                ),
+              );
+            }
+          } else {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(data['message'] ?? 'Failed to delete message'),
+                  backgroundColor: Colors.red,
+                  duration: const Duration(seconds: 2),
+                ),
+              );
+            }
+          }
+        } else {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Failed to delete message'),
+                backgroundColor: Colors.red,
+                duration: Duration(seconds: 2),
+              ),
+            );
+          }
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error: $e'),
+              backgroundColor: Colors.red,
+              duration: const Duration(seconds: 2),
+            ),
+          );
+        }
+      }
+    }
   }
 
   /// Show the chat menu with transparent blurry background
