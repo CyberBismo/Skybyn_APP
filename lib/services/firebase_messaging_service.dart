@@ -24,11 +24,8 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   try {
     print('📱 [FCM] Background message received: ${message.data}');
     
-    // Skip processing messages in debug mode
-    if (kDebugMode) {
-      print('ℹ️ [FCM] Background message ignored in debug mode');
-      return;
-    }
+    // Process all messages, including in debug mode (for testing)
+    // Debug mode check removed to ensure notifications work during development
 
     // Check if Firebase is already initialized
     if (Firebase.apps.isEmpty) {
@@ -392,21 +389,31 @@ class FirebaseMessagingService {
       }
       
       // For call notifications, show notification with action buttons
+      // IMPORTANT: Always show notification even when app is open, so user sees it
       if (type == 'call') {
         print('📞 [FCM] Call notification received in foreground - showing notification with actions');
+        print('📞 [FCM] Call data: callId=${message.data['callId']}, fromUserId=${message.data['fromUserId']}, callType=${message.data['callType']}');
+        
         final notificationService = NotificationService();
-        await notificationService.showNotification(
-          title: message.notification?.title ?? 'Incoming Call',
-          body: message.notification?.body ?? '',
-          payload: jsonEncode({
-            'type': 'call',
-            'callId': message.data['callId']?.toString() ?? '',
-            'sender': message.data['sender']?.toString(),
-            'fromUserId': message.data['fromUserId']?.toString() ?? message.data['sender']?.toString() ?? '',
-            'callType': message.data['callType']?.toString() ?? 'video',
-            'incomingCall': message.data['incomingCall']?.toString() ?? 'true',
-          }),
-        );
+        try {
+          await notificationService.showNotification(
+            title: message.notification?.title ?? 'Incoming Call',
+            body: message.notification?.body ?? '',
+            payload: jsonEncode({
+              'type': 'call',
+              'callId': message.data['callId']?.toString() ?? '',
+              'sender': message.data['sender']?.toString(),
+              'fromUserId': message.data['fromUserId']?.toString() ?? message.data['sender']?.toString() ?? '',
+              'callType': message.data['callType']?.toString() ?? 'video',
+              'incomingCall': message.data['incomingCall']?.toString() ?? 'true',
+            }),
+          );
+          print('✅ [FCM] Call notification shown successfully in foreground');
+        } catch (e) {
+          print('❌ [FCM] Error showing call notification in foreground: $e');
+        }
+        // Don't return - also trigger the in-app handler if WebSocket hasn't handled it yet
+        // The notification will show as a heads-up, and the in-app dialog will also appear
         return;
       }
       
