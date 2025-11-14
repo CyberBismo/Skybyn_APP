@@ -68,15 +68,23 @@ class _LeftPanelState extends State<LeftPanel> {
           for (var shortcut in _shortcuts) {
             print('  - ${shortcut['name']} (icon: ${shortcut['icon']})');
           }
+        } else if (data is Map && data.containsKey('error')) {
+          print('❌ [LeftPanel] API returned error: ${data['error']}');
+          setState(() {
+            _shortcuts = [];
+            _isLoading = false;
+          });
         } else {
           print('⚠️ [LeftPanel] API returned non-list data: $data');
           setState(() {
+            _shortcuts = [];
             _isLoading = false;
           });
         }
       } else {
-        print('⚠️ [LeftPanel] API returned status ${response.statusCode}');
+        print('⚠️ [LeftPanel] API returned status ${response.statusCode}: ${response.body}');
         setState(() {
+          _shortcuts = [];
           _isLoading = false;
         });
       }
@@ -84,7 +92,9 @@ class _LeftPanelState extends State<LeftPanel> {
       // Load Discord widget data
       _loadDiscordWidget();
     } catch (e) {
+      print('❌ [LeftPanel] Error loading panel data: $e');
       setState(() {
+        _shortcuts = [];
         _isLoading = false;
       });
     }
@@ -478,24 +488,6 @@ class _LeftPanelState extends State<LeftPanel> {
                                         shortcut['name']?.toString().toLowerCase() != 'discord')
                                     .map((shortcut) => _buildShortcutItem(shortcut))
                                     .toList(),
-                                // Show message if no shortcuts (after filtering)
-                                if (_shortcuts
-                                    .where((shortcut) => 
-                                        shortcut['name']?.toString().toLowerCase() != 'discord')
-                                    .isEmpty)
-                                  Padding(
-                                    padding: const EdgeInsets.all(16.0),
-                                    child: Center(
-                                      child: Text(
-                                        'No shortcuts available',
-                                        style: TextStyle(
-                                          color: Colors.white.withOpacity(0.6),
-                                          fontSize: 14,
-                                          decoration: TextDecoration.none,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
                               ],
                             ),
                     ),
