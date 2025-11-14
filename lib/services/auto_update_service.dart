@@ -268,40 +268,55 @@ class AutoUpdateService {
         final bytes = <int>[];
         int downloadedBytes = 0;
 
-        int lastReportedProgress = -1;
+        double lastReportedProgress = -1.0;
         int lastReportedBytes = 0;
+        DateTime lastUpdateTime = DateTime.now();
         await for (var chunk in streamedResponse.stream) {
           bytes.addAll(chunk);
           downloadedBytes += chunk.length;
 
           // Update progress based on actual download progress (0-100%)
           if (contentLength != null && contentLength > 0) {
-            final progress = ((downloadedBytes / contentLength) * 100).round().clamp(0, 100);
+            // Calculate progress with decimal precision for smoother updates
+            final progressDouble = (downloadedBytes / contentLength) * 100;
+            final progress = progressDouble.round().clamp(0, 100);
             
-            // Update progress callback every 1% change or every 50KB, whichever comes first
+            // Update progress callback more frequently for real-time feedback:
+            // - Every 0.1% change (for smooth progress bar)
+            // - Every 10KB downloaded (for small files)
+            // - At least every 100ms (for UI responsiveness)
             final bytesSinceLastUpdate = downloadedBytes - lastReportedBytes;
-            if (progress != lastReportedProgress || bytesSinceLastUpdate >= 50000) {
-              lastReportedProgress = progress;
+            final timeSinceLastUpdate = DateTime.now().difference(lastUpdateTime);
+            final progressChange = (progressDouble - lastReportedProgress).abs();
+            
+            if (progressChange >= 0.1 || bytesSinceLastUpdate >= 10000 || timeSinceLastUpdate.inMilliseconds >= 100) {
+              lastReportedProgress = progressDouble;
               lastReportedBytes = downloadedBytes;
+              lastUpdateTime = DateTime.now();
+              
+              // Format progress with one decimal place for more precision
+              final progressFormatted = progressDouble.toStringAsFixed(1);
               
               await notificationService.showUpdateProgressNotification(
                 title: 'Updating Skybyn',
-                status: 'Downloading... ${_formatBytes(downloadedBytes)} / ${_formatBytes(contentLength)} ($progress%)',
+                status: 'Downloading... ${_formatBytes(downloadedBytes)} / ${_formatBytes(contentLength)} ($progressFormatted%)',
                 progress: progress,
               );
 
-              // Call progress callback with 0-100% range and detailed status
-              final statusText = 'Downloading... ${_formatBytes(downloadedBytes)} / ${_formatBytes(contentLength)} ($progress%)';
+              // Call progress callback with precise percentage and detailed status
+              final statusText = 'Downloading... ${_formatBytes(downloadedBytes)} / ${_formatBytes(contentLength)} ($progressFormatted%)';
               onProgress?.call(progress, statusText);
             }
           } else {
             // Content length is unknown - we can't calculate accurate percentage
             // Show indeterminate progress and update based on downloaded bytes only
             final bytesSinceLastUpdate = downloadedBytes - lastReportedBytes;
+            final timeSinceLastUpdate = DateTime.now().difference(lastUpdateTime);
             
-            // Update every 50KB downloaded
-            if (bytesSinceLastUpdate >= 50000) {
+            // Update every 10KB downloaded or every 100ms, whichever comes first
+            if (bytesSinceLastUpdate >= 10000 || timeSinceLastUpdate.inMilliseconds >= 100) {
               lastReportedBytes = downloadedBytes;
+              lastUpdateTime = DateTime.now();
               
               // Show indeterminate progress (no percentage, just bytes downloaded)
               await notificationService.showUpdateProgressNotification(

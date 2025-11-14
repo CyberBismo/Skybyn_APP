@@ -77,13 +77,10 @@ class _UpdateDialogState extends State<UpdateDialog> {
           if (mounted) {
             setState(() {
               // Use actual download progress (0-100%)
+              // Progress is already in 0-100 range, convert to 0.0-1.0 for progress indicator
               _updateProgress = (progress / 100.0).clamp(0.0, 1.0);
-              // Extract status text or use default
-              if (status.contains('Downloading')) {
-                _updateStatus = status;
-              } else {
-                _updateStatus = 'Downloading... $progress%';
-              }
+              // Use the detailed status text from the service which includes bytes and percentage
+              _updateStatus = status;
             });
           }
         },
@@ -172,6 +169,17 @@ class _UpdateDialogState extends State<UpdateDialog> {
         );
       }
     }
+  }
+
+  /// Extract percentage from status text (e.g., "Downloading... 5.2 MB / 10.5 MB (49.5%)" -> "49.5%")
+  String? _extractPercentageFromStatus(String status) {
+    // Look for pattern like "(49.5%)" or "(50%)"
+    final regex = RegExp(r'\((\d+\.?\d*)%\)');
+    final match = regex.firstMatch(status);
+    if (match != null) {
+      return '${match.group(1)}%';
+    }
+    return null;
   }
 
   @override
@@ -382,8 +390,10 @@ class _UpdateDialogState extends State<UpdateDialog> {
                           ),
                         ),
                         const SizedBox(width: 8),
+                        // Extract percentage from status text if available, otherwise calculate from progress
                         Text(
-                          '${(_updateProgress.clamp(0.0, 1.0) * 100).toInt()}%',
+                          _extractPercentageFromStatus(_updateStatus) ?? 
+                          '${(_updateProgress.clamp(0.0, 1.0) * 100).toStringAsFixed(1)}%',
                           style: TextStyle(
                             color: primaryColor,
                             fontSize: 14,
