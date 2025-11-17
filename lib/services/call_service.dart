@@ -20,6 +20,8 @@ class CallService {
   String? _currentCallId;
   String? _otherUserId;
   bool _isCaller = false;
+  Timer? _callTimeoutTimer;
+  static const Duration _callTimeoutDuration = Duration(seconds: 45);
 
   // Callbacks
   Function(CallState)? onCallStateChanged;
@@ -86,38 +88,72 @@ class CallService {
 
   /// Start a call (initiate)
   Future<void> startCall(String otherUserId, CallType callType) async {
+    print('');
+    print('═══════════════════════════════════════════════════════════');
+    print('📞 [CALL] STEP 0: CALL INITIATION STARTED');
+    print('📞 [CALL] Target: $otherUserId | Type: $callType');
+    print('═══════════════════════════════════════════════════════════');
     try {
       _otherUserId = otherUserId;
       _currentCallType = callType;
       _isCaller = true;
       _currentCallId = DateTime.now().millisecondsSinceEpoch.toString();
+      print('📞 [CALL] Call ID: $_currentCallId');
       _updateCallState(CallState.calling);
+      print('📞 [CALL] State: calling');
 
       // Get user media
+      print('');
+      print('📞 [CALL] STEP 1: GETTING USER MEDIA');
+      print('─────────────────────────────────────────────────────────');
       await _getUserMedia(callType);
+      print('✅ [CALL] STEP 1: COMPLETE - User media obtained');
 
       // Create peer connection
+      print('');
+      print('📞 [CALL] STEP 2: CREATING PEER CONNECTION');
+      print('─────────────────────────────────────────────────────────');
       await _createPeerConnection();
+      print('✅ [CALL] STEP 2: COMPLETE - Peer connection created');
 
       // Add local stream to peer connection
+      print('');
+      print('📞 [CALL] STEP 3: ADDING LOCAL STREAM TRACKS');
+      print('─────────────────────────────────────────────────────────');
       if (_localStream != null) {
-        _localStream!.getTracks().forEach((track) {
+        final tracks = _localStream!.getTracks();
+        print('📞 [CALL] Found ${tracks.length} tracks in local stream');
+        tracks.forEach((track) {
+          print('📞 [CALL] Adding track: ${track.kind} (enabled: ${track.enabled})');
           _peerConnection?.addTrack(track, _localStream!);
         });
+        print('✅ [CALL] STEP 3: COMPLETE - All tracks added');
+      } else {
+        print('❌ [CALL] STEP 3: FAILED - Local stream is null!');
+        throw Exception('Local stream is null');
       }
 
       // Create and send offer
+      print('');
+      print('📞 [CALL] STEP 4: CREATING OFFER');
+      print('─────────────────────────────────────────────────────────');
       final offer = await _peerConnection!.createOffer();
+      print('📞 [CALL] Offer created - SDP length: ${offer.sdp?.length ?? 0}');
+      print('📞 [CALL] Offer type: ${offer.type}');
       await _peerConnection!.setLocalDescription(offer);
+      print('✅ [CALL] STEP 4: COMPLETE - Local description set');
 
       // Ensure WebSocket is connected before sending call offer
+      print('');
+      print('📞 [CALL] STEP 5: CHECKING WEBSOCKET CONNECTION');
+      print('─────────────────────────────────────────────────────────');
       if (!_signalingService.isConnected) {
-        print('⚠️ [CallService] WebSocket not connected, attempting to connect...');
+        print('⚠️ [CALL] WebSocket not connected, attempting to connect...');
         // Try to connect WebSocket
         await _signalingService.connect().timeout(
           const Duration(seconds: 5),
           onTimeout: () {
-            print('❌ [CallService] WebSocket connection timeout');
+            print('❌ [CALL] STEP 5: FAILED - WebSocket connection timeout');
             throw Exception('WebSocket connection timeout');
           },
         );
@@ -130,21 +166,43 @@ class CallService {
         }
         
         if (!_signalingService.isConnected) {
+          print('❌ [CALL] STEP 5: FAILED - WebSocket failed to connect');
           throw Exception('WebSocket failed to connect');
         }
         
-        print('✅ [CallService] WebSocket connected, proceeding with call');
+        print('✅ [CALL] WebSocket connected');
+      } else {
+        print('✅ [CALL] WebSocket already connected');
       }
+      print('✅ [CALL] STEP 5: COMPLETE');
 
       // Send offer through WebSocket
+      print('');
+      print('📞 [CALL] STEP 6: SENDING OFFER VIA WEBSOCKET');
+      print('─────────────────────────────────────────────────────────');
+      print('📞 [CALL] Call ID: $_currentCallId');
+      print('📞 [CALL] Target User ID: $otherUserId');
+      print('📞 [CALL] Offer SDP preview: ${offer.sdp?.substring(0, 100) ?? 'null'}...');
       _signalingService.sendCallOffer(
         callId: _currentCallId!,
         targetUserId: otherUserId,
         offer: offer.sdp!,
         callType: callType == CallType.video ? 'video' : 'audio',
       );
+      print('✅ [CALL] STEP 6: COMPLETE - Offer sent via WebSocket');
 
-      print('📞 [CallService] Call initiated: $callType to $otherUserId');
+      // Start call timeout timer
+      print('');
+      print('📞 [CALL] STEP 7: STARTING CALL TIMEOUT TIMER');
+      print('─────────────────────────────────────────────────────────');
+      _startCallTimeout();
+      print('✅ [CALL] STEP 7: COMPLETE - Timeout timer started');
+
+      print('');
+      print('═══════════════════════════════════════════════════════════');
+      print('✅ [CALL] CALL INITIATION COMPLETE - Waiting for answer...');
+      print('═══════════════════════════════════════════════════════════');
+      print('');
     } catch (e) {
       print('❌ [CallService] Error starting call: $e');
       _updateCallState(CallState.ended);
@@ -159,39 +217,79 @@ class CallService {
     required String offer,
     required String callType,
   }) async {
+    print('');
+    print('═══════════════════════════════════════════════════════════');
+    print('📞 [CALL] INCOMING CALL - HANDLING OFFER');
+    print('📞 [CALL] From: $fromUserId | Type: $callType | Call ID: $callId');
+    print('═══════════════════════════════════════════════════════════');
     try {
       _currentCallId = callId;
       _otherUserId = fromUserId;
       _isCaller = false;
       _currentCallType = callType == 'video' ? CallType.video : CallType.audio;
       _updateCallState(CallState.ringing);
+      print('📞 [CALL] State: ringing');
+
+      // Start call timeout timer
+      print('');
+      print('📞 [CALL] STEP A1: STARTING CALL TIMEOUT TIMER');
+      print('─────────────────────────────────────────────────────────');
+      _startCallTimeout();
+      print('✅ [CALL] STEP A1: COMPLETE');
 
       // Get user media
+      print('');
+      print('📞 [CALL] STEP A2: GETTING USER MEDIA');
+      print('─────────────────────────────────────────────────────────');
       await _getUserMedia(_currentCallType!);
+      print('✅ [CALL] STEP A2: COMPLETE');
 
       // Create peer connection
+      print('');
+      print('📞 [CALL] STEP A3: CREATING PEER CONNECTION');
+      print('─────────────────────────────────────────────────────────');
       await _createPeerConnection();
+      print('✅ [CALL] STEP A3: COMPLETE');
 
       // Add local stream to peer connection
+      print('');
+      print('📞 [CALL] STEP A4: ADDING LOCAL STREAM TRACKS');
+      print('─────────────────────────────────────────────────────────');
       if (_localStream != null) {
+        final tracks = _localStream!.getTracks();
+        print('📞 [CALL] Found ${tracks.length} tracks');
         _localStream!.getTracks().forEach((track) {
           _peerConnection?.addTrack(track, _localStream!);
         });
+        print('✅ [CALL] STEP A4: COMPLETE');
+      } else {
+        print('❌ [CALL] STEP A4: FAILED - Local stream is null');
+        throw Exception('Local stream is null');
       }
 
       // Set remote description
+      print('');
+      print('📞 [CALL] STEP A5: SETTING REMOTE DESCRIPTION (OFFER)');
+      print('─────────────────────────────────────────────────────────');
+      print('📞 [CALL] Offer length: ${offer.length}');
+      print('📞 [CALL] Offer preview: ${offer.substring(0, 100)}...');
       await _peerConnection!.setRemoteDescription(
         RTCSessionDescription(offer, 'offer'),
       );
+      print('✅ [CALL] STEP A5: COMPLETE');
 
       // Create and send answer
-      // The answer will automatically include the tracks we added to the peer connection
-      // For video calls, we need to ensure the answer includes video tracks
+      print('');
+      print('📞 [CALL] STEP A6: CREATING ANSWER');
+      print('─────────────────────────────────────────────────────────');
       final answer = await _peerConnection!.createAnswer({
         'offerToReceiveAudio': true,
         'offerToReceiveVideo': _currentCallType == CallType.video,
       });
+      print('📞 [CALL] Answer created - SDP length: ${answer.sdp?.length ?? 0}');
+      print('📞 [CALL] Answer type: ${answer.type}');
       await _peerConnection!.setLocalDescription(answer);
+      print('✅ [CALL] STEP A6: COMPLETE');
       
       // Log tracks to verify they're included
       print('📞 [CallService] Answer created - local tracks: ${_localStream?.getTracks().length ?? 0}');
@@ -202,11 +300,24 @@ class CallService {
       }
 
       // Send answer through WebSocket
+      print('');
+      print('📞 [CALL] STEP A7: SENDING ANSWER VIA WEBSOCKET');
+      print('─────────────────────────────────────────────────────────');
+      print('📞 [CALL] Call ID: $callId');
+      print('📞 [CALL] Target User ID: $fromUserId');
+      print('📞 [CALL] Answer SDP preview: ${answer.sdp?.substring(0, 100) ?? 'null'}...');
       _signalingService.sendCallAnswer(
         callId: callId,
         targetUserId: fromUserId,
         answer: answer.sdp!,
       );
+      print('✅ [CALL] STEP A7: COMPLETE - Answer sent');
+      
+      print('');
+      print('═══════════════════════════════════════════════════════════');
+      print('✅ [CALL] INCOMING CALL HANDLED - Waiting for connection...');
+      print('═══════════════════════════════════════════════════════════');
+      print('');
 
       // Update state to "calling" to indicate we've answered and are connecting
       // This prevents showing the answer button again in CallScreen
@@ -223,16 +334,29 @@ class CallService {
 
   /// Handle incoming call answer
   Future<void> handleIncomingAnswer(String answer) async {
+    print('');
+    print('═══════════════════════════════════════════════════════════');
+    print('📞 [CALL] RECEIVED ANSWER');
+    print('═══════════════════════════════════════════════════════════');
     try {
       if (_peerConnection == null) {
-        print('⚠️ [CallService] Cannot handle answer - peer connection is null');
+        print('❌ [CALL] Cannot handle answer - peer connection is null');
         return;
       }
-      print('📞 [CallService] Handling call answer (length: ${answer.length})');
+      print('📞 [CALL] Answer length: ${answer.length}');
+      print('📞 [CALL] Answer preview: ${answer.substring(0, 100)}...');
       await _peerConnection!.setRemoteDescription(
         RTCSessionDescription(answer, 'answer'),
       );
-      print('✅ [CallService] Call answer processed successfully');
+      print('✅ [CALL] Remote description (answer) set');
+      
+      // Log current ICE connection state after setting answer
+      final iceState = _peerConnection?.iceConnectionState;
+      final connectionState = _peerConnection?.connectionState;
+      print('📞 [CALL] ICE state: $iceState');
+      print('📞 [CALL] Connection state: $connectionState');
+      print('═══════════════════════════════════════════════════════════');
+      print('');
     } catch (e) {
       print('❌ [CallService] Error handling answer: $e');
       onCallError?.call('Failed to handle answer: $e');
@@ -246,12 +370,15 @@ class CallService {
     required int sdpMLineIndex,
   }) async {
     try {
+      print('📞 [CALL] ICE candidate received: ${candidate.substring(0, 50)}...');
+      print('📞 [CALL] sdpMid: $sdpMid, index: $sdpMLineIndex');
       await _peerConnection?.addCandidate(
         RTCIceCandidate(candidate, sdpMid, sdpMLineIndex),
       );
-      print('📞 [CallService] ICE candidate added');
+      print('✅ [CALL] ICE candidate added');
     } catch (e) {
       print('❌ [CallService] Error handling ICE candidate: $e');
+      // Don't fail the call on ICE candidate errors - they're often non-critical
     }
   }
 
@@ -279,6 +406,9 @@ class CallService {
   /// End the call
   Future<void> endCall() async {
     try {
+      // Cancel timeout timer
+      _cancelCallTimeout();
+
       if (_currentCallId != null && _otherUserId != null) {
         _signalingService.sendCallEnd(
           callId: _currentCallId!,
@@ -305,6 +435,24 @@ class CallService {
     } catch (e) {
       print('❌ [CallService] Error ending call: $e');
     }
+  }
+
+  /// Start call timeout timer
+  void _startCallTimeout() {
+    _cancelCallTimeout();
+    _callTimeoutTimer = Timer(_callTimeoutDuration, () {
+      if (_callState == CallState.calling || _callState == CallState.ringing) {
+        print('⏰ [CallService] Call timeout - ending call');
+        onCallError?.call('Call timeout - no answer received');
+        endCall();
+      }
+    });
+  }
+
+  /// Cancel call timeout timer
+  void _cancelCallTimeout() {
+    _callTimeoutTimer?.cancel();
+    _callTimeoutTimer = null;
   }
 
   /// Get user media (camera/microphone)
@@ -339,6 +487,7 @@ class CallService {
       // Handle ICE candidates
       _peerConnection!.onIceCandidate = (RTCIceCandidate candidate) {
         if (_currentCallId != null && _otherUserId != null) {
+          print('📞 [CALL] ICE candidate generated: ${candidate.candidate?.substring(0, 50)}...');
           _signalingService.sendIceCandidate(
             callId: _currentCallId!,
             targetUserId: _otherUserId!,
@@ -365,10 +514,32 @@ class CallService {
           if (_callState == CallState.calling || _callState == CallState.ringing) {
             print('📞 [CallService] Updating call state to connected');
             _updateCallState(CallState.connected);
+            // Cancel timeout when call is connected
+            _cancelCallTimeout();
           }
         } else {
           print('⚠️ [CallService] onTrack event received but streams is empty');
         }
+      };
+
+      // Handle ICE connection state changes
+      _peerConnection!.onIceConnectionState = (RTCIceConnectionState state) {
+        print('📞 [CallService] ICE connection state: $state, current call state: $_callState');
+        if (state == RTCIceConnectionState.RTCIceConnectionStateFailed) {
+          print('❌ [CallService] ICE connection failed - attempting to restart ICE');
+          // Try to restart ICE before giving up
+          _peerConnection?.restartIce();
+        } else if (state == RTCIceConnectionState.RTCIceConnectionStateDisconnected) {
+          print('⚠️ [CallService] ICE connection disconnected - may reconnect');
+        } else if (state == RTCIceConnectionState.RTCIceConnectionStateConnected ||
+                   state == RTCIceConnectionState.RTCIceConnectionStateCompleted) {
+          print('✅ [CallService] ICE connection established');
+        }
+      };
+
+      // Handle ICE gathering state
+      _peerConnection!.onIceGatheringState = (RTCIceGatheringState state) {
+        print('📞 [CallService] ICE gathering state: $state');
       };
 
       // Handle connection state changes
@@ -378,9 +549,20 @@ class CallService {
           print('⚠️ [CallService] Connection disconnected - may reconnect');
           // Don't end call immediately on disconnect - wait to see if it reconnects
         } else if (state == RTCPeerConnectionState.RTCPeerConnectionStateFailed) {
-          print('❌ [CallService] Connection failed - ending call');
-          onCallError?.call('Connection failed. Please try again.');
-          endCall();
+          print('❌ [CallService] Connection failed - checking ICE state before ending');
+          // Check ICE state before ending - might be able to recover
+          final iceState = _peerConnection?.iceConnectionState;
+          print('📞 [CallService] Current ICE state: $iceState');
+          
+          // Give it a moment to potentially recover
+          Future.delayed(const Duration(seconds: 2), () {
+            final currentState = _peerConnection?.connectionState;
+            if (currentState == RTCPeerConnectionState.RTCPeerConnectionStateFailed) {
+              print('❌ [CallService] Connection still failed after 2 seconds - ending call');
+              onCallError?.call('Connection failed. Please check your network and try again.');
+              endCall();
+            }
+          });
         } else if (state == RTCPeerConnectionState.RTCPeerConnectionStateClosed) {
           print('❌ [CallService] Connection closed - ending call');
           // Only end call if it wasn't already ended
@@ -393,6 +575,8 @@ class CallService {
           // This is a backup in case onTrack doesn't fire (e.g., for audio-only calls)
           if (_callState == CallState.calling || _callState == CallState.ringing) {
             _updateCallState(CallState.connected);
+            // Cancel timeout when call is connected
+            _cancelCallTimeout();
           }
         }
       };

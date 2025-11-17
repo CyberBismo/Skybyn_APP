@@ -46,9 +46,6 @@ class _ModerationToolsScreenState extends State<ModerationToolsScreen> {
     } else {
       httpClient = HttpClient();
     }
-    if (kDebugMode) {
-      httpClient.badCertificateCallback = (cert, host, port) => true;
-    }
     httpClient.userAgent = 'Skybyn-App/1.0';
     httpClient.connectionTimeout = const Duration(seconds: 30);
     return IOClient(httpClient);

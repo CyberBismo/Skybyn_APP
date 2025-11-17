@@ -25,6 +25,7 @@ import 'call_screen.dart';
 import '../config/constants.dart';
 import '../widgets/chat_list_modal.dart';
 import '../widgets/app_colors.dart';
+import '../services/chat_message_count_service.dart';
 
 class ChatScreen extends StatefulWidget {
   final Friend friend;
@@ -43,6 +44,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
   final ChatService _chatService = ChatService();
   final FirebaseRealtimeService _firebaseRealtimeService = FirebaseRealtimeService();
   final WebSocketService _webSocketService = WebSocketService();
+  final ChatMessageCountService _chatMessageCountService = ChatMessageCountService();
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
 
@@ -51,6 +53,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
   bool _isLoadingOlder = false;
   bool _isSending = false;
   String? _currentUserId;
+  int? _userRank; // Store user's rank
   Timer? _onlineStatusTimer;
   bool _friendOnline = false;
   int? _friendLastActive;
@@ -87,6 +90,8 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
     _setupTypingListener();
     _setupTypingAnimation();
     _checkFriendOnlineStatus(); // Check immediately
+    // Clear unread count when opening chat
+    _chatMessageCountService.clearUnreadCount(widget.friend.id);
     // Messages are loaded once when opening chat, then WebSocket handles all updates
     // No need for periodic refresh - WebSocket provides real-time message delivery
     // Check online status every 10 seconds
@@ -232,6 +237,14 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
 
   Future<void> _loadUserId() async {
     _currentUserId = await _authService.getStoredUserId();
+    // Load user profile to get rank
+    final user = await _authService.getStoredUserProfile();
+    if (user != null && user.rank.isNotEmpty) {
+      _userRank = int.tryParse(user.rank);
+      if (mounted) {
+        setState(() {}); // Update UI to show/hide call buttons based on rank
+      }
+    }
   }
 
   Future<void> _checkFriendOnlineStatus() async {
@@ -340,9 +353,51 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
       }
     };
     
-    // Register callback with WebSocket service
+    // Register callbacks with WebSocket service
     _webSocketService.connect(
       onOnlineStatus: _webSocketOnlineStatusCallback,
+      onChatMessage: (messageId, fromUserId, toUserId, message) {
+        debugPrint('💬 [ChatScreen] Received WebSocket chat message: messageId=$messageId, from=$fromUserId, to=$toUserId');
+        // Only handle messages for this chat
+        if ((fromUserId == widget.friend.id && toUserId == _currentUserId) ||
+            (fromUserId == _currentUserId && toUserId == widget.friend.id)) {
+          // Check if message already exists
+          final existingMessageIndex = _messages.indexWhere((m) => m.id == messageId);
+          if (existingMessageIndex == -1) {
+            // Message doesn't exist, add it
+            final newMessage = Message(
+              id: messageId,
+              from: fromUserId,
+              to: toUserId,
+              content: message,
+              date: DateTime.now(),
+              viewed: false,
+              isFromMe: fromUserId == _currentUserId,
+            );
+            if (mounted) {
+              setState(() {
+                // Add new message to the end (bottom) of the list
+                _messages.add(newMessage);
+                // Sort messages by date to ensure correct order (oldest to newest)
+                _messages.sort((a, b) => a.date.compareTo(b.date));
+              });
+              // Always scroll to bottom for new messages
+              _scrollToBottom();
+              debugPrint('✅ [ChatScreen] Added new message via WebSocket: messageId=$messageId');
+              
+              // If message is from friend and we're not viewing this chat, increment badge
+              if (fromUserId == widget.friend.id && toUserId == _currentUserId) {
+                // We're viewing this chat, so don't increment badge
+                // Badge is only for when we're NOT viewing the chat
+              }
+            }
+          } else {
+            debugPrint('ℹ️ [ChatScreen] Message already exists, skipping: messageId=$messageId');
+          }
+        } else {
+          debugPrint('⚠️ [ChatScreen] Message not for this chat: from=$fromUserId, to=$toUserId, currentUserId=$_currentUserId, friendId=${widget.friend.id}');
+        }
+      },
     );
 
     // Set up typing status listener
@@ -427,8 +482,12 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
 
   Future<void> _sendMessage() async {
     final message = _messageController.text.trim();
-    if (message.isEmpty || _isSending) return;
+    if (message.isEmpty || _isSending) {
+      debugPrint('⚠️ [ChatScreen] Cannot send: isEmpty=${message.isEmpty}, _isSending=$_isSending');
+      return;
+    }
 
+    debugPrint('📤 [ChatScreen] Starting to send message, setting _isSending=true');
     setState(() {
       _isSending = true;
     });
@@ -445,10 +504,26 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
         isFromMe: true,
       );
 
+      // Store current focus state before state update
+      final hadFocus = _messageFocusNode.hasFocus;
+      
       setState(() {
         _messages.add(tempMessage);
       });
+      
+      // Clear text but maintain focus to keep keyboard open
       _messageController.clear();
+      
+      // Maintain focus if it was already focused (prevents keyboard from closing)
+      if (hadFocus && mounted) {
+        // Use post-frame callback to ensure focus is maintained after state update
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted && _messageFocusNode.canRequestFocus && !_messageFocusNode.hasFocus) {
+            _messageFocusNode.requestFocus();
+          }
+        });
+      }
+      
       _scrollToBottom();
       
       // Send typing stop when message is sent
@@ -463,7 +538,19 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
         content: message,
       );
 
+      // Reset _isSending IMMEDIATELY after API call succeeds (before WebSocket/Firebase)
+      // This ensures the button is enabled even if WebSocket/Firebase calls hang
+      debugPrint('✅ [ChatScreen] API call completed, resetting _isSending=false immediately');
+      if (mounted) {
+        setState(() {
+          _isSending = false;
+        });
+      }
+
       if (sentMessage != null && mounted) {
+        // Store focus state before state update
+        final hadFocus = _messageFocusNode.hasFocus;
+        
         // Replace temp message with real one
         setState(() {
           _messages.removeWhere((m) => m.id == tempMessage.id);
@@ -471,11 +558,60 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
           // Sort messages by date to ensure correct order (oldest to newest)
           _messages.sort((a, b) => a.date.compareTo(b.date));
         });
+        
         // Scroll to bottom to show the sent message
         _scrollToBottom();
+        
+        // Maintain focus after state update to keep keyboard open
+        if (hadFocus) {
+          // Use post-frame callback to ensure focus is maintained after state update
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted && _messageFocusNode.canRequestFocus && !_messageFocusNode.hasFocus) {
+              _messageFocusNode.requestFocus();
+            }
+          });
+        }
 
-        // Note: Chat messages are sent via ChatService which handles Firebase
-        // Real-time delivery is handled by Firebase listeners set up in _setupWebSocketListener()
+        // Send message via both WebSocket and Firebase for real-time delivery
+        // WebSocket: For immediate delivery when recipient's app is running
+        // Firebase: For delivery when app is in background (triggers push notification)
+        // NOTE: These are fire-and-forget - don't block on them
+        try {
+          // Send via WebSocket (non-blocking)
+          if (_webSocketService.isConnected) {
+            _webSocketService.sendChatMessage(
+              messageId: sentMessage.id,
+              targetUserId: widget.friend.id,
+              content: message,
+            );
+          }
+          
+          // Send via Firebase (non-blocking, but await to catch errors)
+          if (_firebaseRealtimeService.isConnected) {
+            _firebaseRealtimeService.sendChatMessageNotification(
+              messageId: sentMessage.id,
+              targetUserId: widget.friend.id,
+              content: message,
+            ).catchError((e) {
+              debugPrint('⚠️ [ChatScreen] Error sending Firebase notification: $e');
+            });
+          }
+        } catch (e) {
+          debugPrint('⚠️ [ChatScreen] Error sending real-time notifications: $e');
+          // Don't fail the send - message was already saved via HTTP API
+        }
+      } else {
+        // sentMessage is null or not mounted - remove temp message and reset
+        debugPrint('⚠️ [ChatScreen] sentMessage is null or not mounted (sentMessage=${sentMessage != null}, mounted=$mounted)');
+        if (mounted) {
+          setState(() {
+            _messages.removeWhere((m) => m.id == tempMessage.id);
+            _isSending = false; // Always reset _isSending
+          });
+        } else {
+          // Not mounted, but still need to reset _isSending (finally will handle it, but reset here too for safety)
+          debugPrint('⚠️ [ChatScreen] Widget not mounted, _isSending will be reset in finally block');
+        }
       }
     } catch (e) {
       debugPrint('❌ [ChatScreen] Error sending message: $e');
@@ -524,6 +660,12 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
             ),
           );
         }
+        // Reset _isSending before returning (finally will also reset it, but this ensures it's reset immediately)
+        if (mounted) {
+          setState(() {
+            _isSending = false;
+          });
+        }
         return;
       }
       
@@ -552,10 +694,14 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
         );
       }
     } finally {
+      debugPrint('🔄 [ChatScreen] Finally block executing, resetting _isSending=false');
       if (mounted) {
         setState(() {
           _isSending = false;
         });
+        debugPrint('✅ [ChatScreen] _isSending reset to false in finally block');
+      } else {
+        debugPrint('⚠️ [ChatScreen] Widget not mounted, cannot reset _isSending in finally');
       }
     }
   }
@@ -879,80 +1025,82 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
                       Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          // Call button
-                          Container(
-                            width: 44,
-                            height: 44,
-                            decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.15),
-                              shape: BoxShape.circle,
-                              border: Border.all(
-                                color: Colors.white.withOpacity(0.3),
-                                width: 1,
+                          // Call button - only visible if rank > 3
+                          if (_userRank != null && _userRank! > 3) ...[
+                            Container(
+                              width: 44,
+                              height: 44,
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.15),
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: Colors.white.withOpacity(0.3),
+                                  width: 1,
+                                ),
                               ),
-                            ),
-                            child: IconButton(
-                              onPressed: () async {
-                                // Check permissions before starting call
-                                final hasPermission = await _checkCallPermissions(CallType.audio);
-                                if (hasPermission && mounted) {
-                                  Navigator.of(context).push(
-                                    MaterialPageRoute(
-                                      builder: (context) => CallScreen(
-                                        friend: widget.friend,
-                                        callType: CallType.audio,
-                                        isIncoming: false,
+                              child: IconButton(
+                                onPressed: () async {
+                                  // Check permissions before starting call
+                                  final hasPermission = await _checkCallPermissions(CallType.audio);
+                                  if (hasPermission && mounted) {
+                                    Navigator.of(context).push(
+                                      MaterialPageRoute(
+                                        builder: (context) => CallScreen(
+                                          friend: widget.friend,
+                                          callType: CallType.audio,
+                                          isIncoming: false,
+                                        ),
                                       ),
-                                    ),
-                                  );
-                                }
-                              },
-                              icon: const Icon(
-                                Icons.call,
-                                color: Colors.white,
-                                size: 20,
-                              ),
-                              padding: EdgeInsets.zero,
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          // Video call button
-                          Container(
-                            width: 44,
-                            height: 44,
-                            decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.15),
-                              shape: BoxShape.circle,
-                              border: Border.all(
-                                color: Colors.white.withOpacity(0.3),
-                                width: 1,
+                                    );
+                                  }
+                                },
+                                icon: const Icon(
+                                  Icons.call,
+                                  color: Colors.white,
+                                  size: 20,
+                                ),
+                                padding: EdgeInsets.zero,
                               ),
                             ),
-                            child: IconButton(
-                              onPressed: () async {
-                                // Check permissions before starting call
-                                final hasPermission = await _checkCallPermissions(CallType.video);
-                                if (hasPermission && mounted) {
-                                  Navigator.of(context).push(
-                                    MaterialPageRoute(
-                                      builder: (context) => CallScreen(
-                                        friend: widget.friend,
-                                        callType: CallType.video,
-                                        isIncoming: false,
+                            const SizedBox(width: 12),
+                            // Video call button - only visible if rank > 3
+                            Container(
+                              width: 44,
+                              height: 44,
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.15),
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: Colors.white.withOpacity(0.3),
+                                  width: 1,
+                                ),
+                              ),
+                              child: IconButton(
+                                onPressed: () async {
+                                  // Check permissions before starting call
+                                  final hasPermission = await _checkCallPermissions(CallType.video);
+                                  if (hasPermission && mounted) {
+                                    Navigator.of(context).push(
+                                      MaterialPageRoute(
+                                        builder: (context) => CallScreen(
+                                          friend: widget.friend,
+                                          callType: CallType.video,
+                                          isIncoming: false,
+                                        ),
                                       ),
-                                    ),
-                                  );
-                                }
-                              },
-                              icon: const Icon(
-                                Icons.videocam,
-                                color: Colors.white,
-                                size: 20,
+                                    );
+                                  }
+                                },
+                                icon: const Icon(
+                                  Icons.videocam,
+                                  color: Colors.white,
+                                  size: 20,
+                                ),
+                                padding: EdgeInsets.zero,
                               ),
-                              padding: EdgeInsets.zero,
                             ),
-                          ),
-                          const SizedBox(width: 12),
+                            const SizedBox(width: 12),
+                          ],
                           // More options button
                           GestureDetector(
                             key: _menuButtonKey,

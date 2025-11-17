@@ -22,6 +22,7 @@ import 'services/background_update_scheduler.dart';
 import 'services/background_activity_service.dart';
 import 'services/call_service.dart';
 import 'services/friend_service.dart';
+import 'services/chat_message_count_service.dart';
 import 'widgets/background_gradient.dart';
 import 'widgets/incoming_call_notification.dart';
 import 'screens/call_screen.dart';
@@ -99,13 +100,6 @@ Future<void> _initializeFirebase() async {
       print('✅ [Firebase] Firebase Core already initialized');
     }
 
-    // Skip Firebase Messaging in debug mode (but Firestore still works)
-    if (kDebugMode) {
-      print('ℹ️ [Firebase] Skipping Firebase Messaging initialization in debug mode');
-      print('ℹ️ [Firebase] Firestore is available for real-time communication');
-      return;
-    }
-
     // Skip Firebase Messaging on iOS - it requires APN configuration which is not set up
     if (Platform.isIOS) {
       print('ℹ️ [Firebase] Skipping Firebase Messaging initialization on iOS (APN not configured)');
@@ -150,6 +144,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   final BackgroundUpdateScheduler _backgroundUpdateScheduler = BackgroundUpdateScheduler();
   final CallService _callService = CallService();
   final FriendService _friendService = FriendService();
+  final ChatMessageCountService _chatMessageCountService = ChatMessageCountService();
   Timer? _serviceCheckTimer;
   Timer? _activityUpdateTimer;
   Timer? _webSocketConnectionCheckTimer;
@@ -173,6 +168,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       await Future.wait([
         _notificationService.initialize(),
         _firebaseRealtimeService.initialize(),
+        _chatMessageCountService.initialize(),
       ]);
 
       // Initialize background update scheduler
@@ -190,6 +186,9 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       // Initialize and connect WebSocket globally (works from any screen)
       await _webSocketService.initialize();
       _connectWebSocketGlobally();
+      
+      // Set up global chat message listener for badge count
+      _setupGlobalChatMessageListener();
 
       // Start periodic activity updates (every 5 seconds when WebSocket is connected)
       _startActivityUpdates();
@@ -237,9 +236,6 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       await authService.updateActivity();
     } catch (e) {
       // Silently fail - activity updates are not critical
-      if (kDebugMode) {
-        print('⚠️ [MyApp] Failed to update activity: $e');
-      }
     }
   }
 
@@ -331,6 +327,42 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     _webSocketService.connect().catchError((error) {
       print('❌ [MyApp] Error connecting WebSocket globally: $error');
     });
+  }
+
+  /// Set up global chat message listener to update badge count
+  void _setupGlobalChatMessageListener() {
+    // Listen for chat messages via WebSocket to update badge count
+    _webSocketService.connect(
+      onChatMessage: (messageId, fromUserId, toUserId, message) async {
+        // Get current user ID
+        final authService = AuthService();
+        final currentUserId = await authService.getStoredUserId();
+        
+        // Only increment badge if message is for current user and from someone else
+        if (currentUserId != null && toUserId == currentUserId && fromUserId != currentUserId) {
+          // Increment unread count for this friend
+          await _chatMessageCountService.incrementUnreadCount(fromUserId);
+          print('💬 [MyApp] Incremented unread count for friend: $fromUserId');
+        }
+      },
+    );
+    
+    // Also listen via Firebase Realtime for messages when app is in background
+    _firebaseRealtimeService.setupChatListener(
+      '', // Empty friendId means listen to all chats
+      (messageId, fromUserId, toUserId, message) async {
+        // Get current user ID
+        final authService = AuthService();
+        final currentUserId = await authService.getStoredUserId();
+        
+        // Only increment badge if message is for current user and from someone else
+        if (currentUserId != null && toUserId == currentUserId && fromUserId != currentUserId) {
+          // Increment unread count for this friend
+          await _chatMessageCountService.incrementUnreadCount(fromUserId);
+          print('💬 [MyApp] Incremented unread count (Firebase) for friend: $fromUserId');
+        }
+      },
+    );
   }
 
   /// Set up call handlers for incoming calls via WebSocket
@@ -549,7 +581,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       builder: (context, themeService, child) {
         return MaterialApp(
           navigatorKey: navigatorKey,
-          title: kDebugMode ? 'Skybyn DEV' : 'Skybyn',
+          title: 'Skybyn',
           theme: ThemeData(
             brightness: Brightness.light,
             primaryColor: webLightPrimary,
@@ -736,15 +768,7 @@ class MyHttpOverrides extends HttpOverrides {
   HttpClient createHttpClient(SecurityContext? context) {
     final client = super.createHttpClient(context);
     
-    // Only bypass SSL certificate validation in debug mode
-    // This allows dev servers with self-signed certificates to work
-    if (kDebugMode) {
-      client.badCertificateCallback = (X509Certificate cert, String host, int port) {
-        print('⚠️ [HTTP] Accepting certificate for $host:$port in debug mode');
-        return true; // Accept all certificates in debug mode
-      };
-    }
-    // In release mode, use default SSL validation (secure)
+    // Use default SSL validation (secure)
     
     return client;
   }

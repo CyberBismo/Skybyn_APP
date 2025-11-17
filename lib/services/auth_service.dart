@@ -19,22 +19,11 @@ class AuthService {
   static const String usernameKey = StorageKeys.username;
   SharedPreferences? _prefs;
   
-  // HTTP client that respects SSL settings
-  // In debug mode, recreate client to ensure SSL bypass is active
+  // HTTP client with standard SSL validation
   static http.Client? _httpClient;
   static http.Client get _client {
-    // In debug mode, always recreate to ensure SSL bypass is configured
-    if (kDebugMode) {
-      if (_httpClient == null) {
-        _httpClient = _createHttpClient();
-      }
-      // Verify the client has SSL bypass configured
-      // Note: We can't directly check IOClient's internal HttpClient,
-      // but we can ensure it's recreated if needed
-    } else {
-      if (_httpClient == null) {
-        _httpClient = _createHttpClient();
-      }
+    if (_httpClient == null) {
+      _httpClient = _createHttpClient();
     }
     return _httpClient!;
   }
@@ -43,53 +32,22 @@ class AuthService {
     print('🔧 [AuthService] Creating HTTP client...');
     HttpClient httpClient;
     
-    // In debug mode, create HttpClient with SSL bypass
-    if (kDebugMode) {
-      print('🔧 [AuthService] Debug mode detected, configuring SSL bypass...');
-      
-      // Try to use HttpOverrides from main.dart first (this should have SSL bypass configured)
-      if (HttpOverrides.current != null) {
-        print('🔧 [AuthService] Using HttpOverrides.current to create HttpClient');
-        httpClient = HttpOverrides.current!.createHttpClient(null);
-        
-        // Ensure badCertificateCallback is set (double-check, in case HttpOverrides didn't set it)
-        httpClient.badCertificateCallback = (X509Certificate cert, String host, int port) {
-          print('⚠️ [AuthService] Certificate validation callback triggered for $host:$port');
-          print('⚠️ [AuthService] Accepting certificate in debug mode');
-          return true; // Always accept in debug mode
-        };
-      } else {
-        // Fallback: create our own HttpClient with explicit SSL bypass
-        print('🔧 [AuthService] HttpOverrides.current is null, creating custom HttpClient');
-        httpClient = HttpClient();
-        
-        // CRITICAL: Set badCertificateCallback to accept ALL certificates in debug mode
-        httpClient.badCertificateCallback = (X509Certificate cert, String host, int port) {
-          print('⚠️ [AuthService] Certificate validation callback triggered for $host:$port');
-          print('⚠️ [AuthService] Accepting certificate in debug mode');
-          return true; // Always accept in debug mode
-        };
-      }
-      
-      // Set user agent and timeouts
-      httpClient.userAgent = 'Skybyn-App-Debug/1.0';
-      httpClient.connectionTimeout = const Duration(seconds: 30);
-      httpClient.idleTimeout = const Duration(seconds: 30);
-      
-      // Set auto-uncompress to handle compressed responses
-      httpClient.autoUncompress = true;
-      
-      print('✅ [AuthService] HTTP client created with SSL bypass enabled for debug mode');
-      print('✅ [AuthService] badCertificateCallback configured to accept all certificates');
+    // Use default HttpClient with standard SSL validation
+    if (HttpOverrides.current != null) {
+      httpClient = HttpOverrides.current!.createHttpClient(null);
     } else {
-      // Release mode: use default HttpClient with standard SSL validation
-      if (HttpOverrides.current != null) {
-        httpClient = HttpOverrides.current!.createHttpClient(null);
-      } else {
-        httpClient = HttpClient();
-      }
-      print('✅ [AuthService] HTTP client created with standard SSL validation for release mode');
+      httpClient = HttpClient();
     }
+    
+    // Set user agent and timeouts
+    httpClient.userAgent = 'Skybyn-App/1.0';
+    httpClient.connectionTimeout = const Duration(seconds: 30);
+    httpClient.idleTimeout = const Duration(seconds: 30);
+    
+    // Set auto-uncompress to handle compressed responses
+    httpClient.autoUncompress = true;
+    
+    print('✅ [AuthService] HTTP client created with standard SSL validation');
     
     final ioClient = IOClient(httpClient);
     print('✅ [AuthService] IOClient wrapper created');
@@ -114,61 +72,33 @@ class AuthService {
   Future<Map<String, dynamic>> login(String username, String password) async {
     try {
       // Ensure HTTP client is initialized
-      // In debug mode, we'll create it with SSL bypass if it doesn't exist
-      // But we won't force recreation each time, as that might cause issues
       if (_httpClient == null) {
-        if (kDebugMode) {
-          print('🔧 [Login] Creating HTTP client with SSL bypass...');
-        }
         _httpClient = _createHttpClient();
-        if (kDebugMode) {
-          print('🔧 [Login] HTTP client created: ${_httpClient != null}');
-        }
-      } else if (kDebugMode) {
-        print('🔧 [Login] Using existing HTTP client with SSL bypass');
       }
       
       final deviceService = DeviceService();
       final deviceInfo = await deviceService.getDeviceInfo();
 
       // Get FCM token if available and add it to deviceInfo
-      // Skip FCM token in debug mode
-      if (!kDebugMode) {
-        try {
-          final firebaseService = FirebaseMessagingService();
-          if (firebaseService.isInitialized && firebaseService.fcmToken != null) {
-            deviceInfo['fcmToken'] = firebaseService.fcmToken!;
-            print('✅ [Login] FCM token included in deviceInfo');
-          } else {
-            print('⚠️ [Login] FCM token not available yet (service not initialized or token not ready)');
-          }
-        } catch (e) {
-          print('⚠️ [Login] Could not get FCM token: $e');
+      try {
+        final firebaseService = FirebaseMessagingService();
+        if (firebaseService.isInitialized && firebaseService.fcmToken != null) {
+          deviceInfo['fcmToken'] = firebaseService.fcmToken!;
+          print('✅ [Login] FCM token included in deviceInfo');
+        } else {
+          print('⚠️ [Login] FCM token not available yet (service not initialized or token not ready)');
         }
-      } else {
-        print('ℹ️ [Login] FCM token skipped in debug mode');
+      } catch (e) {
+        print('⚠️ [Login] Could not get FCM token: $e');
       }
 
       // Get the client (should already be initialized above)
       final client = _client;
       final loginUrl = ApiConstants.login;
-      if (kDebugMode) {
-        print('🔧 [Login] Using custom HTTP client with SSL bypass');
-        print('🔧 [Login] Login URL: $loginUrl');
-        print('🔧 [Login] API Base: ${ApiConstants.apiBase}');
-        print('🔧 [Login] Client type: ${client.runtimeType}');
-      }
       
       // Make the HTTP request
-      // In debug mode, if SSL bypass is configured, the request should succeed
-      // If it fails, we'll catch and handle it below
       http.Response response;
       try {
-        if (kDebugMode) {
-          print('🔧 [Login] Attempting HTTPS connection to: $loginUrl');
-          print('🔧 [Login] SSL bypass is configured via badCertificateCallback');
-        }
-        
         response = await client.post(
           Uri.parse(loginUrl), 
           body: {
@@ -182,22 +112,10 @@ class AuthService {
             throw TimeoutException('Login request timed out after 30 seconds');
           },
         );
-        
-        if (kDebugMode) {
-          print('✅ [Login] HTTPS connection successful! Status: ${response.statusCode}');
-        }
       } on HandshakeException catch (e) {
         // Re-throw to be caught by outer catch block with more context
-        if (kDebugMode) {
-          print('❌ [Login] HandshakeException during HTTPS request');
-          print('❌ [Login] This means the TLS handshake failed before certificate validation');
-          print('❌ [Login] The badCertificateCallback was never invoked');
-        }
         rethrow;
       } on TimeoutException catch (e) {
-        if (kDebugMode) {
-          print('❌ [Login] Request timed out: $e');
-        }
         rethrow;
       }
 
@@ -219,31 +137,21 @@ class AuthService {
           }
 
           // Subscribe to user-specific topics after successful login
-          // Skip in debug mode
-          if (!kDebugMode) {
-            try {
-              final firebaseService = FirebaseMessagingService();
-              await firebaseService.subscribeToUserTopics();
-            } catch (e) {
-              print('❌ [Login] Failed to subscribe to user topics: $e');
-            }
-          } else {
-            print('ℹ️ [Login] FCM topic subscription skipped in debug mode');
+          try {
+            final firebaseService = FirebaseMessagingService();
+            await firebaseService.subscribeToUserTopics();
+          } catch (e) {
+            print('❌ [Login] Failed to subscribe to user topics: $e');
           }
 
           // Register/update FCM token with user ID after successful login
-          // Skip in debug mode
-          if (!kDebugMode) {
-            try {
-              final firebaseService = FirebaseMessagingService();
-              if (firebaseService.isInitialized) {
-                await firebaseService.sendFCMTokenToServer();
-              }
-            } catch (e) {
-              print('⚠️ [Login] Failed to register FCM token: $e');
+          try {
+            final firebaseService = FirebaseMessagingService();
+            if (firebaseService.isInitialized) {
+              await firebaseService.sendFCMTokenToServer();
             }
-          } else {
-            print('ℹ️ [Login] FCM token registration skipped in debug mode');
+          } catch (e) {
+            print('⚠️ [Login] Failed to register FCM token: $e');
           }
 
           // Update online status to true after successful login
@@ -260,66 +168,11 @@ class AuthService {
         return data;
       }
     } catch (e) {
-      // In debug mode, provide detailed error information and diagnostic steps
-      if (kDebugMode) {
-        print('❌ [Login] Exception occurred: ${e.runtimeType}');
-        print('❌ [Login] Error details: $e');
-        
-        if (e is HandshakeException) {
-          print('');
-          print('═══════════════════════════════════════════════════════════');
-          print('⚠️  SSL HANDSHAKE FAILURE - SERVER-SIDE ISSUE');
-          print('═══════════════════════════════════════════════════════════');
-          print('');
-          print('The TLS handshake is failing BEFORE certificate validation.');
-          print('This means the SSL bypass (badCertificateCallback) cannot help.');
-          print('');
-          print('🔍 DIAGNOSTIC STEPS:');
-          print('');
-          print('1. Check server logs when this error occurs:');
-          print('   - Look for SSL/TLS errors in your web server logs');
-          print('   - Check if the connection even reaches the server');
-          print('');
-          print('2. Test server SSL from command line:');
-          print('   openssl s_client -connect skybyn.ddns.net:443 -showcerts');
-          print('');
-          print('3. Verify server SSL/TLS configuration:');
-          print('   - Supported TLS versions (should support TLS 1.2+)');
-          print('   - Cipher suites configuration');
-          print('   - Certificate validity and chain');
-          print('');
-          print('4. Check for recent changes:');
-          print('   - SSL certificate renewal/update');
-          print('   - Server software updates');
-          print('   - Firewall/security rule changes');
-          print('   - Reverse proxy/load balancer configuration');
-          print('');
-          print('5. Network connectivity:');
-          print('   - Can you access https://skybyn.ddns.net/api from a browser?');
-          print('   - Are there any network restrictions/firewalls?');
-          print('');
-          print('═══════════════════════════════════════════════════════════');
-          print('');
-        } else if (e is SocketException) {
-          print('⚠️ [Login] Socket connection failed.');
-          print('⚠️ [Login] Check network connectivity and server availability.');
-          print('⚠️ [Login] Verify the server is running and accessible.');
-        } else if (e is TimeoutException) {
-          print('⚠️ [Login] Request timed out.');
-          print('⚠️ [Login] Server may be slow or unresponsive.');
-          print('⚠️ [Login] Check server status and network connection.');
-        }
-      }
+      print('❌ [Login] Exception occurred: ${e.runtimeType}');
+      print('❌ [Login] Error details: $e');
       
       // Return error response
-      String errorMessage;
-      if (kDebugMode && e is HandshakeException) {
-        errorMessage = 'SSL/TLS handshake failed. This is a server-side configuration issue. '
-            'The client SSL bypass is correctly configured, but the handshake fails before '
-            'certificate validation. Check server SSL/TLS configuration and logs.';
-      } else {
-        errorMessage = 'Connection error: ${e.toString()}';
-      }
+      String errorMessage = 'Connection error: ${e.toString()}';
       
       print('❌ [Login] Returning error response');
       return {
@@ -666,24 +519,15 @@ class AuthService {
         
         // Don't retry if it's not a transient error
         if (!_isTransientError(e)) {
-          if (kDebugMode && operationName != null) {
-            print('❌ [$operationName] Non-transient error, not retrying: $e');
-          }
           rethrow;
         }
         
         // Don't retry if we've exhausted all attempts
         if (attempt >= maxRetries) {
-          if (kDebugMode && operationName != null) {
-            print('❌ [$operationName] All retry attempts failed after $attempt tries');
-          }
           rethrow;
         }
         
         // Wait before retrying with exponential backoff
-        if (kDebugMode && operationName != null) {
-          print('⚠️ [$operationName] Retry attempt $attempt/$maxRetries after ${delay.inMilliseconds}ms: $e');
-        }
         await Future.delayed(delay);
         
         // Exponential backoff: double the delay for next retry
@@ -722,10 +566,6 @@ class AuthService {
       }
     } catch (e) {
       // Silently fail - activity updates are not critical
-      // Only log in debug mode
-      if (kDebugMode) {
-        print('⚠️ [Auth] Failed to update activity: $e');
-      }
     }
   }
 

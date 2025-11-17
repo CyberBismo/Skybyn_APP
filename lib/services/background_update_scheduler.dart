@@ -211,11 +211,6 @@ class BackgroundUpdateScheduler {
 
   /// Check for updates and cache if available
   Future<void> _checkForUpdates() async {
-    if (kDebugMode) {
-      print('⚠️ [BackgroundUpdateScheduler] Update check skipped in debug mode');
-      return;
-    }
-
     try {
       final updateInfo = await AutoUpdateService.checkForUpdates();
 
@@ -293,10 +288,6 @@ class BackgroundUpdateScheduler {
 
   /// Check for cached update on app startup and show dialog if available
   Future<void> _checkCachedUpdate() async {
-    if (kDebugMode) {
-      print('⚠️ [BackgroundUpdateScheduler] Cached update check skipped in debug mode');
-      return;
-    }
 
     try {
       final cachedData = await _getCachedUpdate();

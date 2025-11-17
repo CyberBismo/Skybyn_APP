@@ -1,5 +1,4 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/foundation.dart';
 import 'dart:async';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
@@ -97,9 +96,6 @@ class FirebaseRealtimeService {
     if (onTypingStatus != null) _onTypingStatus = onTypingStatus;
     if (onOnlineStatus != null) {
       _onOnlineStatusCallbacks.add(onOnlineStatus);
-      if (kDebugMode) {
-        print('✅ [FirebaseRealtime] onOnlineStatus callback registered (total: ${_onOnlineStatusCallbacks.length})');
-      }
     }
 
     // Ensure service is initialized
@@ -170,7 +166,7 @@ class FirebaseRealtimeService {
           .listen((snapshot) {
       for (var doc in snapshot.docChanges) {
         if (doc.type == DocumentChangeType.added) {
-          final data = doc.doc.data() as Map<String, dynamic>?;
+          final data = doc.doc.data();
           if (data != null) {
             final postId = data['postId'] as String? ?? '';
             final postUserId = data['userId'] as String? ?? '';
@@ -295,6 +291,7 @@ class FirebaseRealtimeService {
   /// Note: This listens to notifications, not message storage
   /// WebSocket is the primary method for real-time chat delivery
   /// This Firestore listener is a fallback/backup only
+  /// If friendId is empty, listens to all chats (for global badge count)
   void setupChatListener(String friendId, Function(String, String, String, String) onMessage) {
     if (_userId == null) return;
 
@@ -302,13 +299,22 @@ class FirebaseRealtimeService {
     
     // Listen to chat message notifications (fallback only - WebSocket is primary)
     // Backend may write notifications here, but WebSocket should handle real-time delivery
-    _chatMessagesSubscription = _firestore
-        .collection('chat_message_notifications')
+    // Build query conditionally based on whether friendId is provided
+    CollectionReference<Map<String, dynamic>> collectionRef = 
+        _firestore.collection('chat_message_notifications');
+    
+    Query<Map<String, dynamic>> query = collectionRef
         .where('toUserId', isEqualTo: _userId)
-        .where('fromUserId', isEqualTo: friendId)
-        .where('status', isEqualTo: 'pending')
+        .where('status', isEqualTo: 'pending');
+    
+    // If friendId is provided, filter by fromUserId; otherwise listen to all chats
+    if (friendId.isNotEmpty) {
+      query = query.where('fromUserId', isEqualTo: friendId);
+    }
+    
+    _chatMessagesSubscription = query
         .orderBy('timestamp', descending: true)
-        .limit(1)
+        .limit(50) // Limit to recent messages
         .snapshots()
         .listen((snapshot) {
       for (var doc in snapshot.docChanges) {
@@ -317,9 +323,15 @@ class FirebaseRealtimeService {
           final messageId = data['messageId'] as String? ?? doc.doc.id;
           final fromUserId = data['fromUserId'] as String? ?? '';
           final toUserId = data['toUserId'] as String? ?? '';
+          final message = data['message'] as String? ?? '';
           
-          // Always fetch actual message from API (WebSocket is primary, this is fallback)
-          _fetchMessageFromAPI(messageId, fromUserId, toUserId, onMessage);
+          // If we have the message content, use it directly; otherwise fetch from API
+          if (message.isNotEmpty) {
+            onMessage(messageId, fromUserId, toUserId, message);
+          } else {
+            // Always fetch actual message from API (WebSocket is primary, this is fallback)
+            _fetchMessageFromAPI(messageId, fromUserId, toUserId, onMessage);
+          }
           
           // Mark notification as processed
           doc.doc.reference.update({'status': 'processed'});
@@ -434,7 +446,7 @@ class FirebaseRealtimeService {
         .listen((snapshot) {
       for (var doc in snapshot.docChanges) {
         if (doc.type == DocumentChangeType.added) {
-          final data = doc.doc.data() as Map<String, dynamic>?;
+          final data = doc.doc.data();
           if (data != null) {
             final isOnline = data['isOnline'] == true || 
                             data['isOnline'] == 1 ||
@@ -475,6 +487,37 @@ class FirebaseRealtimeService {
       'isTyping': false,
       'timestamp': FieldValue.serverTimestamp(),
     });
+  }
+
+  /// Send chat message notification to Firebase
+  /// This ensures the recipient gets notified even if the app is in background
+  /// The server will also send push notifications, but this provides real-time delivery
+  Future<void> sendChatMessageNotification({
+    required String messageId,
+    required String targetUserId,
+    required String content,
+  }) async {
+    if (_userId == null) return;
+    
+    try {
+      // Write to chat_message_notifications collection
+      // The recipient's app will listen to this and show the message
+      await _firestore
+          .collection('chat_message_notifications')
+          .doc(messageId)
+          .set({
+        'messageId': messageId,
+        'fromUserId': _userId,
+        'toUserId': targetUserId,
+        'message': content,
+        'status': 'pending',
+        'timestamp': FieldValue.serverTimestamp(),
+      });
+      print('💬 [FirebaseRealtime] Sent chat message notification: messageId=$messageId, targetUserId=$targetUserId');
+    } catch (e) {
+      print('❌ [FirebaseRealtime] Error sending chat message notification: $e');
+      // Don't throw - Firebase is a fallback, HTTP API is primary
+    }
   }
 
   // Note: User data (online status, activity) is stored in your own database, not Firestore

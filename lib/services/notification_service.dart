@@ -129,11 +129,6 @@ class NotificationService {
 
     // Handle app_update payload
     if (payload == 'app_update' || payload == 'update_check') {
-      // Skip app update notifications in debug mode
-      if (kDebugMode) {
-        print('⚠️ [NotificationService] App update notification ignored in debug mode');
-        return;
-      }
       print('🔄 [NotificationService] App update notification tapped - triggering update check');
       // Trigger background update scheduler
       BackgroundUpdateScheduler().triggerUpdateCheck();
@@ -143,11 +138,6 @@ class NotificationService {
         final Map<String, dynamic> data = json.decode(payload);
         final type = data['type']?.toString();
         if (type == 'app_update') {
-          // Skip app update notifications in debug mode
-          if (kDebugMode) {
-            print('⚠️ [NotificationService] App update notification ignored in debug mode');
-            return;
-          }
           print('🔄 [NotificationService] App update notification tapped (from JSON) - triggering update check');
           _triggerUpdateCheck();
         } else if (type == 'call') {
@@ -259,12 +249,6 @@ class NotificationService {
   /// Trigger update check for app_update notifications
   /// This shows the update dialog directly when notification is tapped
   Future<void> _triggerUpdateCheck() async {
-    // Skip app update checks in debug mode
-    if (kDebugMode) {
-      print('⚠️ [NotificationService] Update check ignored in debug mode');
-      return;
-    }
-
     if (!Platform.isAndroid) {
       // Only Android supports auto-updates
       return;

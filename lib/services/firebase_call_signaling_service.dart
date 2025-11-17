@@ -159,9 +159,6 @@ class FirebaseCallSignalingService {
           final sdpMid = data['sdpMid'] as String? ?? '';
           final sdpMLineIndex = (data['sdpMLineIndex'] as num?)?.toInt() ?? 0;
           
-          if (kDebugMode) {
-            print('📞 [FirebaseCallSignaling] Received ice_candidate: callId=$callId');
-          }
           _onIceCandidate?.call(callId, candidate, sdpMid, sdpMLineIndex);
           
           // Mark as received and delete (ICE candidates are one-time use)
@@ -360,10 +357,6 @@ class FirebaseCallSignalingService {
         'status': 'pending',
         'createdAt': FieldValue.serverTimestamp(),
       });
-      
-      if (kDebugMode) {
-        print('📞 [FirebaseCallSignaling] Sent ice_candidate: callId=$callId, targetUserId=$targetUserId');
-      }
     } catch (e) {
       print('❌ [FirebaseCallSignaling] Error sending ICE candidate: $e');
       rethrow;

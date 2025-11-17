@@ -23,6 +23,7 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'dart:io';
 import '../services/friend_service.dart';
+import '../services/chat_message_count_service.dart';
 import '../widgets/search_form.dart';
 import '../widgets/app_colors.dart';
 import '../widgets/global_search_overlay.dart';
@@ -92,7 +93,9 @@ class _HomeScreenState extends State<HomeScreen> {
   String? _focusedPostId;
   LifecycleEventHandler? _lifecycleEventHandler;
   final GlobalKey _notificationButtonKey = GlobalKey();
+  final ChatMessageCountService _chatMessageCountService = ChatMessageCountService();
   int _unreadNotificationCount = 0;
+  int _unreadChatCount = 0;
   bool _showNoPostsMessage = false;
   Timer? _noPostsTimer;
   Timer? _postRefreshTimer;
@@ -104,6 +107,7 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _loadData();
+    _setupChatMessageCountListener();
     
     // Safety timeout: ensure loading always completes after max 20 seconds
     Timer(const Duration(seconds: 20), () {
@@ -677,11 +681,6 @@ class _HomeScreenState extends State<HomeScreen> {
       final notificationType = await _notificationChannel.invokeMethod<String>('getNotificationType');
       
       if (notificationType == 'app_update') {
-        // Skip app update notifications in debug mode
-        if (kDebugMode) {
-          print('⚠️ [HomeScreen] App update notification ignored in debug mode');
-          return;
-        }
         print('📱 [HomeScreen] App opened from app_update notification - showing update dialog');
         // Wait for next frame to ensure UI is ready
         WidgetsBinding.instance.addPostFrameCallback((_) async {
@@ -701,11 +700,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // Check for app updates
   Future<void> _checkForUpdates() async {
-    // Skip app update checks in debug mode
-    if (kDebugMode) {
-      print('⚠️ [HomeScreen] Update check ignored in debug mode');
-      return;
-    }
 
     final translationService = TranslationService();
 
@@ -900,6 +894,21 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  /// Set up listener for chat message count changes
+  void _setupChatMessageCountListener() {
+    // Listen to chat message count service for badge updates
+    _chatMessageCountService.addListener(() {
+      if (mounted) {
+        setState(() {
+          _unreadChatCount = _chatMessageCountService.totalUnreadCount;
+        });
+      }
+    });
+    
+    // Load initial count
+    _unreadChatCount = _chatMessageCountService.totalUnreadCount;
+  }
+
   @override
   Widget build(BuildContext context) {
     final translationService = TranslationService();
@@ -961,6 +970,7 @@ class _HomeScreenState extends State<HomeScreen> {
               }
             },
             unreadNotificationCount: _unreadNotificationCount,
+            unreadChatCount: _unreadChatCount,
             notificationButtonKey: _notificationButtonKey,
             onUnreadCountChanged: _onUnreadCountChanged,
           ),

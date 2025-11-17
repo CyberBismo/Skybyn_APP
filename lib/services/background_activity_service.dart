@@ -69,16 +69,12 @@ class BackgroundActivityService {
 /// Update user activity via API
 Future<void> _updateActivity(String userId) async {
   try {
-    // Create HTTP client with SSL handling
+    // Create HTTP client with standard SSL validation
     HttpClient httpClient;
     if (HttpOverrides.current != null) {
       httpClient = HttpOverrides.current!.createHttpClient(null);
     } else {
       httpClient = HttpClient();
-    }
-    
-    if (kDebugMode) {
-      httpClient.badCertificateCallback = (cert, host, port) => true;
     }
     
     httpClient.userAgent = 'Skybyn-App/1.0';

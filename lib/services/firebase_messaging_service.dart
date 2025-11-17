@@ -2,7 +2,6 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
@@ -17,6 +16,8 @@ import 'friend_service.dart';
 import '../screens/call_screen.dart';
 import '../models/friend.dart';
 import '../main.dart' show navigatorKey;
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'dart:async';
 
 // Handle background messages
 @pragma('vm:entry-point')
@@ -47,9 +48,7 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
     final type = message.data['type']?.toString();
     print('📱 [FCM] Background message type: $type');
     
-    if (type == 'chat') {
-      print('💬 [FCM] Chat message received in background - showing notification');
-    } else if (type == 'call') {
+    if (type == 'call') {
       print('📞 [FCM] Call notification received in background - showing notification with actions');
     }
     
@@ -103,12 +102,6 @@ class FirebaseMessagingService {
 
   Future<void> initialize() async {
     try {
-      // Skip Firebase Messaging in debug mode
-      if (kDebugMode) {
-        print('ℹ️ [FCM] Skipping Firebase Messaging initialization in debug mode');
-        _isInitialized = false;
-        return;
-      }
 
       print('🔄 [FCM] Initializing Firebase Messaging service...');
       
@@ -226,18 +219,10 @@ class FirebaseMessagingService {
         return;
       }
       
-      if (kDebugMode) {
-        print('🔄 [FCM] Requesting FCM token from Firebase...');
-      }
-      
       _fcmToken = await _messaging!.getToken();
       
       if (_fcmToken != null) {
         print('✅ [FCM] Token retrieved successfully: ${_fcmToken!.substring(0, 20)}...');
-        if (kDebugMode) {
-          print('✅ [FCM] Full token length: ${_fcmToken!.length} characters');
-          print('✅ [FCM] Token preview: ${_fcmToken!.substring(0, 20)}...${_fcmToken!.substring(_fcmToken!.length - 10)}');
-        }
       } else {
         print('❌ [FCM] Token retrieval returned null');
       }
@@ -246,9 +231,6 @@ class FirebaseMessagingService {
       await _storeFCMTokenLocally();
     } catch (e) {
       print('❌ [FCM] Error getting FCM token: $e');
-      if (kDebugMode) {
-        print('❌ [FCM] This may indicate Firebase is not properly configured');
-      }
       _fcmToken = null;
     }
   }
@@ -367,24 +349,15 @@ class FirebaseMessagingService {
       final authService = AuthService();
       await authService.updateActivity();
       
-      // For chat messages in foreground, ignore Firebase notification
+      // For app_update notifications in foreground, ignore Firebase notification
       // WebSocket will handle real-time delivery when app is in focus
-      if (type == 'chat' || type == 'app_update') {
-        if (type == 'app_update') {
-          // Skip app update notifications in debug mode
-          if (kDebugMode) {
-            print('⚠️ [FCM] App update notification ignored in debug mode');
-            return;
-          }
-          
-          print('📱 [FCM] App update notification received in foreground - WebSocket will handle notification display');
-          
-          // Don't show notification here - WebSocket will handle it to avoid duplicates
-          // Just trigger the update check callback
-          _triggerUpdateCheck();
-        }
-        // For chat messages, ignore in foreground - WebSocket handles it
-        print('💬 [FCM] Chat message received in foreground - WebSocket should handle it (ignoring Firebase notification)');
+      if (type == 'app_update') {
+        
+        print('📱 [FCM] App update notification received in foreground - WebSocket will handle notification display');
+        
+        // Don't show notification here - WebSocket will handle it to avoid duplicates
+        // Just trigger the update check callback
+        _triggerUpdateCheck();
         return;
       }
       
@@ -445,18 +418,6 @@ class FirebaseMessagingService {
       final payload = data['payload']?.toString();
 
       switch (type) {
-        case 'chat':
-          // Navigate to chat screen
-          // The payload should contain friend/user ID
-          try {
-            final payloadData = json.decode(payload ?? '{}');
-            final fromUserId = payloadData['from']?.toString() ?? '';
-            // Navigation will be handled by the app's notification handler
-            print('💬 [FCM] Chat notification tapped - from: $fromUserId');
-          } catch (e) {
-            print('❌ [FCM] Error parsing chat payload: $e');
-          }
-          break;
         case 'new_post':
           // Navigate to post details
           break;
@@ -467,20 +428,13 @@ class FirebaseMessagingService {
           // Show broadcast message
           break;
         case 'app_update':
-          // Skip app update notifications in debug mode
-          if (kDebugMode) {
-            print('⚠️ [FCM] App update notification ignored in debug mode');
-            return;
-          }
           // Trigger update check - the home screen will handle showing the dialog
           _triggerUpdateCheck();
           break;
         case 'call_offer':
         case 'call_initiate':
         case 'call':
-          // Handle call notification
-          // Note: Calls use WebSocket, not Firestore, so we just wake the app
-          // The WebSocket will receive the call_offer when it reconnects
+          // Handle call notification - fetch call offer from Firestore
           final callId = data['callId']?.toString();
           final fromUserId = data['fromUserId']?.toString() ?? data['sender']?.toString();
           final callTypeRaw = data['callType'];
@@ -495,11 +449,106 @@ class FirebaseMessagingService {
           }
           
           print('📞 [FCM] Call notification tapped - callId: $callId, fromUserId: $fromUserId, type: $callType');
-          print('📞 [FCM] App will receive call_offer via WebSocket when connection is established');
           
-          // The WebSocket service will handle the incoming call offer when it reconnects
-          // The main.dart call handlers will show the incoming call dialog
-          // No need to fetch from Firestore since calls use WebSocket
+          if (callId != null && fromUserId != null) {
+            // Fetch call offer from Firestore (stored by WebSocket server)
+            try {
+              final firestore = FirebaseFirestore.instance;
+              final callDoc = await firestore.collection('call_signals').doc(callId).get().timeout(
+                const Duration(seconds: 5),
+                onTimeout: () {
+                  print('⚠️ [FCM] Firestore timeout - database may not be configured');
+                  throw TimeoutException('Firestore query timeout');
+                },
+              );
+              
+              if (callDoc.exists) {
+                final callData = callDoc.data();
+                final offer = callData?['offer']?.toString() ?? '';
+                final callTypeFromFirestore = callData?['callType']?.toString() ?? callType;
+                String offerCallType = callTypeFromFirestore.toLowerCase().trim();
+                if (offerCallType != 'video' && offerCallType != 'audio') {
+                  offerCallType = callType;
+                }
+                
+                print('📞 [FCM] Call offer found in Firestore - callType: $offerCallType');
+                
+                if (offer.isNotEmpty) {
+                  // Wait for app to fully initialize, then handle the call
+                  Future.delayed(const Duration(milliseconds: 500), () async {
+                    try {
+                      final callService = CallService();
+                      await callService.handleIncomingOffer(
+                        callId: callId,
+                        fromUserId: fromUserId,
+                        offer: offer,
+                        callType: offerCallType,
+                      );
+                      
+                      // Navigate to call screen
+                      if (navigatorKey.currentContext != null) {
+                        final authService = AuthService();
+                        final currentUserId = await authService.getStoredUserId();
+                        if (currentUserId != null) {
+                          final friendService = FriendService();
+                          final friends = await friendService.fetchFriendsForUser(userId: currentUserId);
+                          final friend = friends.firstWhere(
+                            (f) => f.id == fromUserId,
+                            orElse: () => Friend(
+                              id: fromUserId,
+                              username: fromUserId,
+                              nickname: '',
+                              avatar: '',
+                              online: false,
+                            ),
+                          );
+                          
+                          Navigator.of(navigatorKey.currentContext!).push(
+                            MaterialPageRoute(
+                              builder: (context) => CallScreen(
+                                friend: friend,
+                                callType: offerCallType == 'video' ? CallType.video : CallType.audio,
+                                isIncoming: true,
+                              ),
+                            ),
+                          );
+                          print('✅ [FCM] Navigated to call screen for incoming call');
+                        }
+                      }
+                    } catch (e) {
+                      print('❌ [FCM] Error handling call offer from Firestore: $e');
+                    }
+                  });
+                } else {
+                  print('⚠️ [FCM] Call offer found but offer is empty');
+                }
+              } else {
+                print('⚠️ [FCM] Call offer not found in Firestore - may have expired or database not configured');
+                // Show error to user
+                if (navigatorKey.currentContext != null) {
+                  ScaffoldMessenger.of(navigatorKey.currentContext!).showSnackBar(
+                    SnackBar(
+                      content: Text('Call offer expired or unavailable. Please ask the caller to try again.'),
+                      duration: Duration(seconds: 3),
+                    ),
+                  );
+                }
+              }
+            } catch (e) {
+              print('❌ [FCM] Error fetching call offer from Firestore: $e');
+              // Show error to user
+              if (navigatorKey.currentContext != null) {
+                ScaffoldMessenger.of(navigatorKey.currentContext!).showSnackBar(
+                  SnackBar(
+                    content: Text('Unable to retrieve call. Please ask the caller to try again.'),
+                    duration: Duration(seconds: 3),
+                  ),
+                );
+              }
+            }
+          } else {
+            print('⚠️ [FCM] Call notification missing callId or fromUserId');
+          }
           break;
         default:
           print('❌ [FCM] Unknown notification type: $type');
@@ -696,9 +745,6 @@ class FirebaseMessagingService {
 
   /// Auto-register FCM token when app opens ( apparently not initialized yet
   Future<void> autoRegisterTokenOnAppOpen() async {
-    if (kDebugMode) {
-      print('🔄 [FCM] Starting auto-registration of FCM token...');
-    }
     
     try {
       // Check if FCM service is initialized
@@ -709,9 +755,6 @@ class FirebaseMessagingService {
 
       // Token was already retrieved during initialize(), just send it to server
       if (_fcmToken == null) {
-        if (kDebugMode) {
-          print('⚠️ [FCM] No token found in cache, attempting to retrieve...');
-        }
         // If for some reason we don't have a token, try to get it once more
         await _getFCMToken();
         
@@ -721,28 +764,15 @@ class FirebaseMessagingService {
         }
       }
 
-      if (kDebugMode) {
-        print('✅ [FCM] FCM token is available: ${_fcmToken!.substring(0, 20)}...${_fcmToken!.substring(_fcmToken!.length - 10)}');
-      }
-
       final user = await _authService.getStoredUserProfile();
       if (user == null) {
         print('❌ [FCM] Cannot auto-register token - user not logged in');
         return;
       }
 
-      if (kDebugMode) {
-        print('✅ [FCM] User is logged in: ${user.id}');
-      }
-
       // Get device info for token registration
       final deviceService = DeviceService();
       final deviceInfo = await deviceService.getDeviceInfo();
-      
-      if (kDebugMode) {
-        print('📤 [FCM] Attempting to register token to API endpoint: ${ApiConstants.token}');
-        print('📤 [FCM] Registration payload: userID=${user.id}, deviceId=${deviceInfo['id'] ?? deviceInfo['deviceId'] ?? 'N/A'}, platform=${deviceInfo['platform'] ?? 'Unknown'}');
-      }
       
       // Send the token to the token API endpoint
       final response = await http.post(
@@ -756,45 +786,26 @@ class FirebaseMessagingService {
         },
       );
 
-      if (kDebugMode) {
-        print('📥 [FCM] API response status: ${response.statusCode}');
-        print('📥 [FCM] API response body: ${response.body}');
-      }
-
       if (response.statusCode == 200) {
         try {
           final data = json.decode(response.body);
           if (data['responseCode'] == '1') {
             print('✅ [FCM] Token auto-registered successfully via token API');
-            if (kDebugMode) {
-              print('✅ [FCM] Registration confirmed by server');
-            }
           } else {
             print('❌ [FCM] Auto-registration failed: ${data['message'] ?? 'Unknown error'}');
-            if (kDebugMode) {
-              print('❌ [FCM] Server response code: ${data['responseCode']}');
-            }
           }
         } catch (e) {
           print('❌ [FCM] Failed to parse API response: $e');
-          if (kDebugMode) {
-            print('❌ [FCM] Raw response: ${response.body}');
-          }
         }
       } else {
         print('❌ [FCM] Auto-registration failed - HTTP Status: ${response.statusCode}');
-        if (kDebugMode) {
-          print('❌ [FCM] Response body: ${response.body}');
-          if (response.statusCode == 404) {
-            print('⚠️ [FCM] Endpoint not found. Check if ${ApiConstants.token} exists on the server.');
-          }
+        if (response.statusCode == 404) {
+          print('⚠️ [FCM] Endpoint not found. Check if ${ApiConstants.token} exists on the server.');
         }
       }
     } catch (e, stackTrace) {
       print('❌ [FCM] Error auto-registering FCM token: $e');
-      if (kDebugMode) {
-        print('❌ [FCM] Stack trace: $stackTrace');
-      }
+      print('❌ [FCM] Stack trace: $stackTrace');
     }
   }
 }

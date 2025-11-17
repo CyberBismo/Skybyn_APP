@@ -188,8 +188,14 @@ class ChatService {
       // Encrypt the message
       final encryptedContent = await _encryptMessage(content);
 
+      // Validate that all required parameters are present
+      if (userId.isEmpty || toUserId.isEmpty || encryptedContent.isEmpty) {
+        throw Exception('Missing required parameters: userId=${userId.isEmpty ? "empty" : "ok"}, toUserId=${toUserId.isEmpty ? "empty" : "ok"}, message=${encryptedContent.isEmpty ? "empty" : "ok"}');
+      }
+
       final url = ApiConstants.chatSend;
       debugPrint('🔧 [ChatService] Sending message to: $url');
+      debugPrint('🔧 [ChatService] Parameters: userID=$userId, from=$userId, to=$toUserId, messageLength=${encryptedContent.length}');
       
       // Build headers with optional protection cookie and API key
       final headers = <String, String>{
@@ -205,18 +211,36 @@ class ChatService {
         debugPrint('🍪 [ChatService] Sending request with protection cookie');
       }
       
+      // Build body map to ensure all parameters are strings
+      final bodyMap = <String, String>{
+        'userID': userId.toString(),
+        'from': userId.toString(),
+        'to': toUserId.toString(),
+        'message': encryptedContent,
+        'api_key': ApiConstants.apiKey, // Also send in POST body for compatibility
+      };
+      
+      debugPrint('🔧 [ChatService] Body map: ${bodyMap.keys.join(", ")}');
+      debugPrint('🔧 [ChatService] Body values: userID=${bodyMap['userID']}, from=${bodyMap['from']}, to=${bodyMap['to']}, messageLength=${bodyMap['message']?.length ?? 0}');
+      debugPrint('🔧 [ChatService] Headers: ${headers.keys.join(", ")}');
+      debugPrint('🔧 [ChatService] Content-Type: ${headers['Content-Type']}');
+      
+      // Use Map format - http package will automatically encode it as form-urlencoded
+      // when Content-Type is set to application/x-www-form-urlencoded
       final response = await _retryHttpRequest(
-        () => _client.post(
-          Uri.parse(url),
-          body: {
-            'userID': userId,
-            'from': userId,
-            'to': toUserId,
-            'message': encryptedContent,
-            'api_key': ApiConstants.apiKey, // Also send in POST body for compatibility
-          },
-          headers: headers,
-        ).timeout(const Duration(seconds: 10)),
+        () async {
+          debugPrint('📤 [ChatService] Making POST request to: $url');
+          debugPrint('📤 [ChatService] Request body type: ${bodyMap.runtimeType}');
+          debugPrint('📤 [ChatService] Request body size: ${bodyMap.length} parameters');
+          final resp = await _client.post(
+            Uri.parse(url),
+            body: bodyMap,
+            headers: headers,
+            encoding: utf8, // Explicitly set encoding
+          );
+          debugPrint('📥 [ChatService] Received response: ${resp.statusCode}');
+          return resp;
+        },
         maxRetries: 2,
       );
 
@@ -248,35 +272,52 @@ class ChatService {
           
           // Retry the request with the cookie and API key
           debugPrint('🔄 [ChatService] Retrying request with protection cookie and API key...');
+          debugPrint('🔄 [ChatService] Retry parameters: userID=$userId, from=$userId, to=$toUserId, messageLength=${encryptedContent.length}');
+          
+          // Validate parameters before retry
+          if (userId.isEmpty || toUserId.isEmpty || encryptedContent.isEmpty) {
+            debugPrint('❌ [ChatService] Retry failed: Missing parameters - userId=${userId.isEmpty ? "empty" : "ok"}, toUserId=${toUserId.isEmpty ? "empty" : "ok"}, message=${encryptedContent.isEmpty ? "empty" : "ok"}');
+            throw Exception('Missing required parameters for retry');
+          }
+          
           try {
-            final retryResponse = await _retryHttpRequest(
-              () => _client.post(
-                Uri.parse(url),
-                body: {
-                  'userID': userId,
-                  'from': userId,
-                  'to': toUserId,
-                  'message': encryptedContent,
-                  'api_key': ApiConstants.apiKey, // Also send in POST body for compatibility
-                },
-                headers: {
-                  'Content-Type': 'application/x-www-form-urlencoded',
-                  'Accept': 'application/json',
-                  'X-Requested-With': 'XMLHttpRequest',
-                  'X-API-Key': ApiConstants.apiKey, // API key for unrestricted access
-                  'Cookie': _protectionCookie!,
-                },
-              ).timeout(const Duration(seconds: 15)),
-              maxRetries: 1,
-            );
+            // Build the body map to ensure all parameters are present and are strings
+            final retryBody = <String, String>{
+              'userID': userId.toString(),
+              'from': userId.toString(),
+              'to': toUserId.toString(),
+              'message': encryptedContent,
+              'api_key': ApiConstants.apiKey, // Also send in POST body for compatibility
+            };
+            
+            debugPrint('🔄 [ChatService] Retry body keys: ${retryBody.keys.join(", ")}');
+            debugPrint('🔄 [ChatService] Retry body values: userID=${retryBody['userID']}, from=${retryBody['from']}, to=${retryBody['to']}, messageLength=${retryBody['message']?.length ?? 0}');
+            
+            // Make a direct request without retry wrapper to avoid nested retries
+            // Use Map format - http package will automatically encode it correctly
+            final retryResponse = await _client.post(
+              Uri.parse(url),
+              body: retryBody,
+              headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'Accept': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-API-Key': ApiConstants.apiKey, // API key for unrestricted access
+                'Cookie': _protectionCookie!,
+              },
+              encoding: utf8, // Explicitly set encoding
+            ).timeout(const Duration(seconds: 15));
+            
+            debugPrint('📥 [ChatService] Retry response status: ${retryResponse.statusCode}');
+            debugPrint('📥 [ChatService] Retry response body: ${retryResponse.body}');
             
             // Check if retry also got HTML
-            final retryBody = retryResponse.body.trim();
-            final retryIsHtml = retryBody.startsWith('<') || 
-                               retryBody.contains('<script>') ||
-                               retryBody.contains('<!DOCTYPE') ||
-                               retryBody.contains('<html') ||
-                               retryBody.startsWith('<br');
+            final retryResponseBody = retryResponse.body.trim();
+            final retryIsHtml = retryResponseBody.startsWith('<') || 
+                               retryResponseBody.contains('<script>') ||
+                               retryResponseBody.contains('<!DOCTYPE') ||
+                               retryResponseBody.contains('<html') ||
+                               retryResponseBody.startsWith('<br');
             
             if (retryIsHtml) {
               debugPrint('⚠️ [ChatService] Retry also returned HTML - bot protection still active');
@@ -302,9 +343,7 @@ class ChatService {
       return await _processSendMessageResponse(response, userId, toUserId, content);
     } catch (e, stackTrace) {
       debugPrint('❌ [ChatService] Error sending message: $e');
-      if (kDebugMode) {
-        debugPrint('❌ [ChatService] Stack trace: $stackTrace');
-      }
+      debugPrint('❌ [ChatService] Stack trace: $stackTrace');
       rethrow;
     }
   }
@@ -348,11 +387,9 @@ class ChatService {
       return reversedMessages;
     } catch (e, stackTrace) {
       debugPrint('❌ [ChatService] Error getting messages: $e');
-      if (kDebugMode) {
-        debugPrint('❌ [ChatService] Stack trace: $stackTrace');
-        debugPrint('❌ [ChatService] URL attempted: ${ApiConstants.chatGet}');
-        debugPrint('❌ [ChatService] API Base: ${ApiConstants.apiBase}');
-      }
+      debugPrint('❌ [ChatService] Stack trace: $stackTrace');
+      debugPrint('❌ [ChatService] URL attempted: ${ApiConstants.chatGet}');
+      debugPrint('❌ [ChatService] API Base: ${ApiConstants.apiBase}');
       // If API fails, try to return cached data as fallback (only for initial load)
       if (offset == null || offset == 0) {
         final userId = await _authService.getStoredUserId();
@@ -521,10 +558,8 @@ class ChatService {
       }
     } catch (e, stackTrace) {
       debugPrint('❌ [ChatService] Error in _fetchMessagesFromAPI: $e');
-      if (kDebugMode) {
-        debugPrint('❌ [ChatService] Stack trace: $stackTrace');
-        debugPrint('❌ [ChatService] URL: $url');
-      }
+      debugPrint('❌ [ChatService] Stack trace: $stackTrace');
+      debugPrint('❌ [ChatService] URL: $url');
       rethrow;
     }
   }

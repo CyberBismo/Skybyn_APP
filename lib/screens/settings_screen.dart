@@ -2026,26 +2026,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _checkForUpdates() async {
     print('🔍 [SettingsScreen] Check for updates button clicked');
     
-    // Skip app update checks in debug mode
-    if (kDebugMode) {
-      print('⚠️ [SettingsScreen] Debug mode detected');
-      if (mounted) {
-        setState(() {
-          _updateCheckStatus = 'Update check disabled in debug mode';
-          _isCheckingForUpdates = false;
-        });
-        // Reset status after 3 seconds
-        Future.delayed(const Duration(seconds: 3), () {
-          if (mounted) {
-            setState(() {
-              _updateCheckStatus = '';
-            });
-          }
-        });
-      }
-      return;
-    }
-
     print('✅ [SettingsScreen] Proceeding with update check');
     
     final translationService = TranslationService();
