@@ -504,27 +504,21 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
         isFromMe: true,
       );
 
-      // Store current focus state before state update
-      final hadFocus = _messageFocusNode.hasFocus;
-      
       setState(() {
         _messages.add(tempMessage);
       });
-      
-      // Clear text but maintain focus to keep keyboard open
       _messageController.clear();
+      _scrollToBottom();
       
-      // Maintain focus if it was already focused (prevents keyboard from closing)
-      if (hadFocus && mounted) {
-        // Use post-frame callback to ensure focus is maintained after state update
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted && _messageFocusNode.canRequestFocus && !_messageFocusNode.hasFocus) {
+      // Keep keyboard open by maintaining focus
+      if (mounted && _messageFocusNode.hasFocus) {
+        // Request focus again after a brief delay to ensure keyboard stays open
+        Future.microtask(() {
+          if (mounted && _messageFocusNode.canRequestFocus) {
             _messageFocusNode.requestFocus();
           }
         });
       }
-      
-      _scrollToBottom();
       
       // Send typing stop when message is sent
       if (_firebaseRealtimeService.isConnected) {
@@ -548,9 +542,6 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
       }
 
       if (sentMessage != null && mounted) {
-        // Store focus state before state update
-        final hadFocus = _messageFocusNode.hasFocus;
-        
         // Replace temp message with real one
         setState(() {
           _messages.removeWhere((m) => m.id == tempMessage.id);
@@ -558,15 +549,13 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
           // Sort messages by date to ensure correct order (oldest to newest)
           _messages.sort((a, b) => a.date.compareTo(b.date));
         });
-        
         // Scroll to bottom to show the sent message
         _scrollToBottom();
         
-        // Maintain focus after state update to keep keyboard open
-        if (hadFocus) {
-          // Use post-frame callback to ensure focus is maintained after state update
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (mounted && _messageFocusNode.canRequestFocus && !_messageFocusNode.hasFocus) {
+        // Keep keyboard open by maintaining focus
+        if (_messageFocusNode.hasFocus) {
+          Future.microtask(() {
+            if (mounted && _messageFocusNode.canRequestFocus) {
               _messageFocusNode.requestFocus();
             }
           });
