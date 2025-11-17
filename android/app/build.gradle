@@ -87,27 +87,50 @@ android {
             if (keystorePropertiesFile.exists()) {
                 keyAlias keystoreProperties['keyAlias']
                 keyPassword keystoreProperties['keyPassword']
-                // Resolve keystore path relative to android/app/ directory: "../upload-keystore.jks" (in android/ folder)
+                // Resolve keystore path relative to android/app/ directory: "upload-keystore.jks" (in android/app/ folder)
                 def keystorePath = keystoreProperties['storeFile']
-                storeFile keystorePath ? file(keystorePath) : null
-                storePassword keystoreProperties['storePassword']
-                // Enable both v1 and v2 signing for maximum compatibility
-                v1SigningEnabled true
-                v2SigningEnabled true
+                def keystoreFile = keystorePath ? file(keystorePath) : null
+                if (keystoreFile != null && keystoreFile.exists()) {
+                    storeFile keystoreFile
+                    storePassword keystoreProperties['storePassword']
+                    // Enable both v1 and v2 signing for maximum compatibility
+                    v1SigningEnabled true
+                    v2SigningEnabled true
+                }
             }
         }
     }
 
     buildTypes {
         release {
-            // Use release signing config if available
-            if (keystorePropertiesFile.exists() && 
+            // Always use a signing config - prefer release, fallback to debug
+            // This ensures APK is always signed (even if with debug key)
+            def hasValidKeystore = keystorePropertiesFile.exists() && 
                 keystoreProperties.containsKey('keyAlias') &&
-                keystoreProperties.containsKey('storeFile')) {
-                signingConfig signingConfigs.release
+                keystoreProperties.containsKey('storeFile') &&
+                keystoreProperties.containsKey('storePassword') &&
+                keystoreProperties.containsKey('keyPassword')
+            
+            if (hasValidKeystore) {
+                def keystorePath = keystoreProperties['storeFile']
+                def keystoreFile = keystorePath ? file(keystorePath) : null
+                if (keystoreFile != null && keystoreFile.exists()) {
+                    signingConfig signingConfigs.release
+                } else {
+                    // Keystore file doesn't exist, fallback to debug signing
+                    signingConfig signingConfigs.debug
+                }
+            } else {
+                // Keystore properties not configured, fallback to debug signing
+                signingConfig signingConfigs.debug
             }
             minifyEnabled false
             shrinkResources false
+            debuggable false
+        }
+        debug {
+            // Explicitly set debug signing
+            signingConfig signingConfigs.debug
         }
     }
 
