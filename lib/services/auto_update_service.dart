@@ -40,7 +40,6 @@ class AutoUpdateService {
 
       return false;
     } catch (e) {
-      print('⚠️ [AutoUpdate] Error checking shown update: $e');
       return false;
     }
   }
@@ -52,7 +51,6 @@ class AutoUpdateService {
       await prefs.setString(_lastShownUpdateVersionKey, version);
       await prefs.setInt(_lastShownUpdateTimestampKey, DateTime.now().millisecondsSinceEpoch);
     } catch (e) {
-      print('⚠️ [AutoUpdate] Error marking update shown: $e');
     }
   }
 
@@ -82,28 +80,22 @@ class AutoUpdateService {
       final response = await http.get(uri);
 
       // Log response for debugging
-      print('📡 [AutoUpdate] Response status: ${response.statusCode}');
-      print('📡 [AutoUpdate] Response headers: ${response.headers}');
-      print('📡 [AutoUpdate] Response body (first 200 chars): ${response.body.length > 200 ? response.body.substring(0, 200) : response.body}');
 
       if (response.statusCode == 200) {
         // Check if response is JSON
         final contentType = response.headers['content-type'] ?? '';
         if (!contentType.contains('application/json') && !contentType.contains('text/json')) {
-          print('⚠️ [AutoUpdate] Unexpected content type: $contentType');
           // Try to parse anyway, but log warning
         }
 
         // Validate response body is not empty and looks like JSON
         final trimmedBody = response.body.trim();
         if (trimmedBody.isEmpty) {
-          print('❌ [AutoUpdate] Empty response body');
           throw const FormatException('Server returned an empty response. The update check endpoint may not be properly configured.');
         }
 
         // Check if response starts with HTML tags (common error indicator)
         if (trimmedBody.startsWith('<')) {
-          print('❌ [AutoUpdate] Server returned HTML instead of JSON. Response: $trimmedBody');
           throw FormatException(
             'Server returned HTML instead of JSON. The update check endpoint may not be properly configured.',
             trimmedBody,
@@ -137,7 +129,6 @@ class AutoUpdateService {
               isAvailable: false,
             );
           } else {
-            print('⚠️ [AutoUpdate] Unknown responseCode: $responseCode');
             return UpdateInfo(
               version: installedVersionCode,
               buildNumber: int.tryParse(installedVersionCode) ?? 1,
@@ -147,17 +138,12 @@ class AutoUpdateService {
             );
           }
         } catch (jsonError) {
-          print('❌ [AutoUpdate] JSON decode error: $jsonError');
-          print('❌ [AutoUpdate] Response body: ${response.body}');
           rethrow;
         }
       } else {
-        print('❌ [AutoUpdate] HTTP error: ${response.statusCode}');
-        print('❌ [AutoUpdate] Response body: ${response.body}');
       }
     } catch (e) {
       // Update check failed
-      print('❌ [AutoUpdate] Update check failed: $e');
     }
     return null;
   }
@@ -166,8 +152,6 @@ class AutoUpdateService {
     final notificationService = NotificationService();
 
     try {
-      print('📥 [AutoUpdate] Starting download from: $downloadUrl');
-
       // Show initial progress notification
       await notificationService.showUpdateProgressNotification(
         title: 'Updating Skybyn',
@@ -178,7 +162,6 @@ class AutoUpdateService {
 
       // Validate URL
       if (downloadUrl.isEmpty) {
-        print('❌ [AutoUpdate] Download URL is empty');
         await notificationService.showUpdateProgressNotification(
           title: 'Update Failed',
           status: 'Download URL is empty',
@@ -195,7 +178,6 @@ class AutoUpdateService {
       // Delete old APK if exists
       if (await file.exists()) {
         await file.delete();
-        print('🗑️ [AutoUpdate] Deleted old APK file');
       }
 
       // Update notification
@@ -245,9 +227,7 @@ class AutoUpdateService {
         
         // Log the detected file size for debugging
         if (contentLength != null && contentLength > 0) {
-          print('📊 [AutoUpdate] Downloading APK (size: ${_formatBytes(contentLength)} / $contentLength bytes)');
         } else {
-          print('⚠️ [AutoUpdate] File size unknown - will show indeterminate progress');
         }
 
         // Update notification with initial progress
@@ -344,12 +324,8 @@ class AutoUpdateService {
         // Write to file
         await file.writeAsBytes(bytes);
         final fileSize = await file.length();
-        print('✅ [AutoUpdate] APK downloaded successfully to: ${file.path}');
-        print('📊 [AutoUpdate] APK size: $fileSize bytes');
-
         // Verify file was written correctly
         if (fileSize == 0) {
-          print('❌ [AutoUpdate] Downloaded file is empty');
           await file.delete();
           await notificationService.showUpdateProgressNotification(
             title: 'Update Failed',
@@ -371,7 +347,6 @@ class AutoUpdateService {
 
         return true;
       } else {
-        print('❌ [AutoUpdate] Download failed with status code: ${streamedResponse.statusCode}');
         await notificationService.showUpdateProgressNotification(
           title: 'Update Failed',
           status: 'Download failed (HTTP ${streamedResponse.statusCode})',
@@ -386,8 +361,6 @@ class AutoUpdateService {
       }
     } catch (e, stackTrace) {
       // Download failed
-      print('❌ [AutoUpdate] Download failed: $e');
-      print('❌ [AutoUpdate] Stack trace: $stackTrace');
       await notificationService.showUpdateProgressNotification(
         title: 'Update Failed',
         status: 'Error: ${e.toString()}',
@@ -410,8 +383,6 @@ class AutoUpdateService {
     try {
       if (Platform.isAndroid) {
         // Request install permission first
-        print('🔐 [AutoUpdate] Checking install permission...');
-
         await notificationService.showUpdateProgressNotification(
           title: 'Updating Skybyn',
           status: 'Requesting installation permission...',
@@ -421,7 +392,6 @@ class AutoUpdateService {
         final PermissionStatus status = await Permission.requestInstallPackages.request();
 
         if (!status.isGranted) {
-          print('❌ [AutoUpdate] Install permission not granted. Status: $status');
           await notificationService.showUpdateProgressNotification(
             title: 'Update Failed',
             status: 'Installation permission denied',
@@ -429,21 +399,14 @@ class AutoUpdateService {
           );
           return false;
         }
-
-        print('✅ [AutoUpdate] Install permission granted');
-
         // Use application documents directory (where we downloaded the file)
         final Directory directory = await getApplicationDocumentsDirectory();
         final File file = File('${directory.path}/app-update.apk');
 
         if (await file.exists()) {
           final fileSize = await file.length();
-          print('✅ [AutoUpdate] APK file found at: ${file.path}');
-          print('📊 [AutoUpdate] APK file size: $fileSize bytes');
-
           // Verify file is not empty
           if (fileSize == 0) {
-            print('❌ [AutoUpdate] APK file is empty');
             await notificationService.showUpdateProgressNotification(
               title: 'Update Failed',
               status: 'APK file is empty',
@@ -479,15 +442,11 @@ class AutoUpdateService {
 
           return result;
         } else {
-          print('❌ [AutoUpdate] APK file not found at: ${file.path}');
-
           // Try alternate location as fallback (for backwards compatibility)
           final altDirectory = await getExternalStorageDirectory();
           if (altDirectory != null) {
             final altFile = File('${altDirectory.path}/app-update.apk');
             if (await altFile.exists()) {
-              print('✅ [AutoUpdate] APK file found at alternate location: ${altFile.path}');
-
               await notificationService.showUpdateProgressNotification(
                 title: 'Updating Skybyn',
                 status: 'Opening installer...',
@@ -497,8 +456,6 @@ class AutoUpdateService {
               return await _installApk(altFile.path);
             }
           }
-
-          print('❌ [AutoUpdate] APK file not found in any expected location');
           await notificationService.showUpdateProgressNotification(
             title: 'Update Failed',
             status: 'APK file not found',
@@ -507,7 +464,6 @@ class AutoUpdateService {
           return false;
         }
       } else {
-        print('⚠️ [AutoUpdate] Installation not supported on this platform');
         await notificationService.showUpdateProgressNotification(
           title: 'Update Failed',
           status: 'Installation not supported on this platform',
@@ -517,8 +473,6 @@ class AutoUpdateService {
       }
     } catch (e, stackTrace) {
       // Installation failed
-      print('❌ [AutoUpdate] Installation failed: $e');
-      print('❌ [AutoUpdate] Stack trace: $stackTrace');
       await notificationService.showUpdateProgressNotification(
         title: 'Update Failed',
         status: 'Error: ${e.toString()}',
@@ -542,7 +496,6 @@ class AutoUpdateService {
       }
       return false;
     } catch (e) {
-      print('❌ [AutoUpdate] Request install permission failed: $e');
       return false;
     }
   }
@@ -555,7 +508,6 @@ class AutoUpdateService {
       }
       return false;
     } catch (e) {
-      print('❌ [AutoUpdate] Has install permission failed: $e');
       return false;
     }
   }
@@ -564,12 +516,9 @@ class AutoUpdateService {
     final notificationService = NotificationService();
     
     try {
-      print('📦 [AutoUpdate] Opening APK for installation: $apkPath');
-
       // Verify file exists and is readable
       final file = File(apkPath);
       if (!await file.exists()) {
-        print('❌ [AutoUpdate] APK file does not exist: $apkPath');
         await notificationService.showUpdateProgressNotification(
           title: 'Update Failed',
           status: 'APK file not found',
@@ -580,7 +529,6 @@ class AutoUpdateService {
 
       final fileSize = await file.length();
       if (fileSize == 0) {
-        print('❌ [AutoUpdate] APK file is empty: $apkPath');
         await notificationService.showUpdateProgressNotification(
           title: 'Update Failed',
           status: 'APK file is empty',
@@ -589,7 +537,6 @@ class AutoUpdateService {
         return false;
       }
 
-      print('📊 [AutoUpdate] APK file verified (size: $fileSize bytes)');
 
       // Try using platform channel first for better error handling
       if (Platform.isAndroid) {
@@ -597,7 +544,6 @@ class AutoUpdateService {
           const platform = MethodChannel('no.skybyn.app/installer');
           final result = await platform.invokeMethod('installApk', {'apkPath': apkPath});
           if (result == true) {
-            print('✅ [AutoUpdate] Installation intent launched successfully');
             await notificationService.showUpdateProgressNotification(
               title: 'Update Ready',
               status: 'Tap "Install" in the system dialog. If you see a package conflict error, the APK must be signed with the same key as the installed app.',
@@ -606,8 +552,6 @@ class AutoUpdateService {
             return true;
           }
         } on PlatformException catch (e) {
-          print('❌ [AutoUpdate] Platform channel error: ${e.code} - ${e.message}');
-          
           String errorMessage = 'Installation failed';
           if (e.code == 'SECURITY_ERROR' || e.code == 'INSTALL_ERROR') {
             errorMessage = e.message ?? 'Installation failed';
@@ -629,21 +573,13 @@ class AutoUpdateService {
           await Future.delayed(const Duration(seconds: 5));
           return false;
         } catch (e) {
-          print('⚠️ [AutoUpdate] Platform channel failed, falling back to OpenFile: $e');
           // Fall through to OpenFile method
         }
       }
 
       // Fallback to OpenFile package
-      print('🚀 [AutoUpdate] Attempting to open APK file using OpenFile...');
       final result = await OpenFile.open(apkPath);
-
-      print('📋 [AutoUpdate] OpenFile result type: ${result.type}');
-      print('📋 [AutoUpdate] OpenFile result message: ${result.message}');
-
       if (result.type == ResultType.done) {
-        print('✅ [AutoUpdate] APK opened successfully, installation dialog should appear');
-        print('ℹ️ [AutoUpdate] User will need to tap "Install" in the system dialog');
         await notificationService.showUpdateProgressNotification(
           title: 'Update Ready',
           status: 'Tap "Install" in the system dialog. If you see a package conflict error, the APK must be signed with the same key as the installed app.',
@@ -651,7 +587,6 @@ class AutoUpdateService {
         );
         return true;
       } else if (result.type == ResultType.noAppToOpen) {
-        print('❌ [AutoUpdate] No app available to open APK file');
         await notificationService.showUpdateProgressNotification(
           title: 'Update Failed',
           status: 'No app available to install APK',
@@ -659,7 +594,6 @@ class AutoUpdateService {
         );
         return false;
       } else if (result.type == ResultType.fileNotFound) {
-        print('❌ [AutoUpdate] APK file not found: $apkPath');
         await notificationService.showUpdateProgressNotification(
           title: 'Update Failed',
           status: 'APK file not found',
@@ -667,7 +601,6 @@ class AutoUpdateService {
         );
         return false;
       } else if (result.type == ResultType.permissionDenied) {
-        print('❌ [AutoUpdate] Permission denied to open APK file');
         await notificationService.showUpdateProgressNotification(
           title: 'Update Failed',
           status: 'Installation permission denied',
@@ -675,7 +608,6 @@ class AutoUpdateService {
         );
         return false;
       } else {
-        print('❌ [AutoUpdate] Failed to open APK: ${result.message}');
         await notificationService.showUpdateProgressNotification(
           title: 'Update Failed',
           status: 'Failed to open installer: ${result.message}',
@@ -684,8 +616,6 @@ class AutoUpdateService {
         return false;
       }
     } catch (e, stackTrace) {
-      print('❌ [AutoUpdate] Install APK failed: $e');
-      print('❌ [AutoUpdate] Stack trace: $stackTrace');
       await notificationService.showUpdateProgressNotification(
         title: 'Update Failed',
         status: 'Installation error: ${e.toString()}',

@@ -9,6 +9,7 @@ import '../models/user.dart';
 import 'device_service.dart';
 import 'firebase_messaging_service.dart';
 import 'translation_service.dart';
+import 'websocket_service.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../config/constants.dart';
 
@@ -29,7 +30,6 @@ class AuthService {
   }
   
   static http.Client _createHttpClient() {
-    print('🔧 [AuthService] Creating HTTP client...');
     HttpClient httpClient;
     
     // Use default HttpClient with standard SSL validation
@@ -46,11 +46,7 @@ class AuthService {
     
     // Set auto-uncompress to handle compressed responses
     httpClient.autoUncompress = true;
-    
-    print('✅ [AuthService] HTTP client created with standard SSL validation');
-    
     final ioClient = IOClient(httpClient);
-    print('✅ [AuthService] IOClient wrapper created');
     return ioClient;
   }
   // final fb_auth.FirebaseAuth _auth = fb_auth.FirebaseAuth.instance;
@@ -63,7 +59,6 @@ class AuthService {
       try {
         _prefs = await SharedPreferences.getInstance();
       } catch (e) {
-        print('❌ Error initializing SharedPreferences: $e');
         rethrow;
       }
     }
@@ -84,12 +79,9 @@ class AuthService {
         final firebaseService = FirebaseMessagingService();
         if (firebaseService.isInitialized && firebaseService.fcmToken != null) {
           deviceInfo['fcmToken'] = firebaseService.fcmToken!;
-          print('✅ [Login] FCM token included in deviceInfo');
         } else {
-          print('⚠️ [Login] FCM token not available yet (service not initialized or token not ready)');
         }
       } catch (e) {
-        print('⚠️ [Login] Could not get FCM token: $e');
       }
 
       // Get the client (should already be initialized above)
@@ -133,7 +125,6 @@ class AuthService {
           try {
             await fetchUserProfile(username);
           } catch (e) {
-            print('❌ [Login] Failed to fetch user profile during login: $e');
           }
 
           // Subscribe to user-specific topics after successful login
@@ -141,7 +132,6 @@ class AuthService {
             final firebaseService = FirebaseMessagingService();
             await firebaseService.subscribeToUserTopics();
           } catch (e) {
-            print('❌ [Login] Failed to subscribe to user topics: $e');
           }
 
           // Register/update FCM token with user ID after successful login
@@ -151,7 +141,6 @@ class AuthService {
               await firebaseService.sendFCMTokenToServer();
             }
           } catch (e) {
-            print('⚠️ [Login] Failed to register FCM token: $e');
           }
 
           // Update online status to true after successful login
@@ -159,22 +148,14 @@ class AuthService {
 
           return data;
         }
-
-        print('❌ Login failed with response: $data');
         return data;
       } else {
-        print('❌ Server error with status: ${response.statusCode}, response: $data');
         // Return the actual API response even for error status codes
         return data;
       }
     } catch (e) {
-      print('❌ [Login] Exception occurred: ${e.runtimeType}');
-      print('❌ [Login] Error details: $e');
-      
       // Return error response
       String errorMessage = 'Connection error: ${e.toString()}';
-      
-      print('❌ [Login] Returning error response');
       return {
         'responseCode': '0', 
         'message': errorMessage
@@ -199,7 +180,6 @@ class AuthService {
           requestBody['deviceId'] = deviceInfo['id'] ?? '';
         }
       } catch (e) {
-        print('❌ [Profile] Could not get FCM token: $e');
       }
 
       final response = await _retryHttpRequest(
@@ -225,26 +205,19 @@ class AuthService {
           return user;
         } else {
           final message = data['message'] ?? 'Unknown error';
-          print('❌ Profile API did not return responseCode 1: $message');
-          
           // If user not found or account not active, automatically log out
           if (message.contains('not found') || message.contains('not active') || 
               message.contains('banned') || message.contains('deactivated')) {
-            print('⚠️ [Profile] User account no longer valid, logging out...');
             await logout();
           }
         }
       } else {
-        print('❌ Profile API returned non-200 status: ${response.statusCode}');
-        print('❌ Profile API response body: ${response.body}');
-        
         // If 400 or 404, user might not exist - log out
         if (response.statusCode == 400 || response.statusCode == 404) {
           try {
             final data = _safeJsonDecode(response.body);
             final message = data['message'] ?? '';
             if (message.contains('not found') || message.contains('not active')) {
-              print('⚠️ [Profile] User account no longer valid, logging out...');
               await logout();
             }
           } catch (e) {
@@ -254,7 +227,6 @@ class AuthService {
       }
       return null;
     } catch (e) {
-      print('❌ Error fetching user profile: ${e.toString()}');
       return null;
     }
   }
@@ -279,7 +251,6 @@ class AuthService {
         final user = User.fromJson(json.decode(profileJson));
         return user;
       } catch (e) {
-        print('❌ [Auth] getStoredUserProfile() failed to parse user: $e');
         return null;
       }
     }
@@ -291,6 +262,16 @@ class AuthService {
       _lastKnownOnlineStatus = null;
       
       // Online status is now calculated from last_active, no need to update
+
+    // Disconnect WebSocket connection on logout
+    try {
+      final webSocketService = WebSocketService();
+      if (webSocketService.isConnected) {
+        webSocketService.disconnect();
+      }
+    } catch (e) {
+      // Ignore errors during WebSocket disconnection
+    }
 
     await initPrefs();
     await _prefs?.remove(userIdKey);
@@ -313,7 +294,6 @@ class AuthService {
         await firebaseService.unsubscribeFromTopic(topic);
       }
     } catch (e) {
-      print('❌ [Logout] Failed to unsubscribe from user topics: $e');
     }
   }
 
@@ -324,7 +304,6 @@ class AuthService {
       await initPrefs();
       await _prefs?.setString(userProfileKey, jsonEncode(updatedUser.toJson()));
     } catch (e) {
-      print('Error updating user profile: $e');
       throw Exception('Failed to update profile');
     }
   }
@@ -365,7 +344,6 @@ class AuthService {
       }
       return null;
     } catch (e) {
-      print('❌ Error fetching any user profile: ${e.toString()}');
       return null;
     }
   }
@@ -375,20 +353,11 @@ class AuthService {
   /// In production, this should not return the code
   Future<Map<String, dynamic>> sendEmailVerification(String email) async {
     try {
-      print('Sending verification code to email: $email');
-
       final response = await _client.post(Uri.parse(ApiConstants.sendEmailVerification), body: {'email': email, 'action': 'register'}, headers: {'Content-Type': 'application/x-www-form-urlencoded'});
-      print('Send verification POST URL: ${ApiConstants.sendEmailVerification}');
-      print('Send verification POST Body: {email: $email, action: register}');
-
-      print('Send verification response status: ${response.statusCode}');
-      print('Send verification response body: ${response.body}');
-
       if (response.statusCode == 200) {
         final data = _safeJsonDecode(response.body);
 
         if (data['responseCode'] == '1') {
-          print('Verification code sent successfully');
           // Check if email is already verified (same logic as web version)
           final status = data['status']?.toString().toLowerCase();
           final alreadyVerified = (status == 'verified');
@@ -401,15 +370,12 @@ class AuthService {
             'alreadyVerified': alreadyVerified,
           };
         } else {
-          print('Failed to send verification code: ${data['message']}');
           return {'success': false, 'message': data['message'] ?? 'Failed to send verification code'};
         }
       } else {
-        print('Server error with status: ${response.statusCode}');
         return {'success': false, 'message': 'Server error occurred (Status: ${response.statusCode})'};
       }
     } catch (e) {
-      print('Send verification exception: $e');
       return {'success': false, 'message': 'Connection error occurred: ${e.toString()}'};
     }
   }
@@ -417,33 +383,21 @@ class AuthService {
   /// Verifies the email verification code
   Future<Map<String, dynamic>> verifyEmailCode(String email, String code) async {
     try {
-      print('Verifying code for email: $email');
-
-      print('Verify email POST URL: ${ApiConstants.verifyEmail}');
-      print('Verify email POST Body: {email: $email, code: [REDACTED], action: register}');
       http.Response response = await _client.post(Uri.parse(ApiConstants.verifyEmail), body: {'email': email, 'code': code}, headers: {'Content-Type': 'application/x-www-form-urlencoded'});
 
       // No fallback; verify_email.php is the only endpoint
-
-      print('Verify email response status: ${response.statusCode}');
-      print('Verify email response body: ${response.body}');
-
       if (response.statusCode == 200) {
         final data = _safeJsonDecode(response.body);
 
         if (data['responseCode'] == '1') {
-          print('Email verification successful');
           return {'success': true, 'message': data['message'] ?? 'Email verified successfully'};
         } else {
-          print('Email verification failed: ${data['message']}');
           return {'success': false, 'message': data['message'] ?? 'Email verification failed'};
         }
       } else {
-        print('Server error with status: ${response.statusCode}');
         return {'success': false, 'message': 'Server error occurred (Status: ${response.statusCode})'};
       }
     } catch (e) {
-      print('Verify email exception: $e');
       return {'success': false, 'message': 'Connection error occurred: ${e.toString()}'};
     }
   }
@@ -468,7 +422,6 @@ class AuthService {
         try {
           return json.decode(trimmed);
         } catch (e) {
-          print('Failed to decode trimmed JSON: $e');
         }
       }
       // As a last resort, return a map with raw message so UI can show something meaningful
@@ -573,7 +526,6 @@ class AuthService {
     try {
       final userId = await getStoredUserId();
       if (userId == null) {
-        print('⚠️ [Auth] Cannot update online status - no user logged in');
         return;
       }
 
@@ -612,15 +564,11 @@ class AuthService {
         final data = json.decode(response.body);
         if (data['responseCode'] == '1') {
           _lastKnownOnlineStatus = isOnline; // Update cached status
-          print('✅ [Auth] Online status updated to: ${isOnline ? "online" : "offline"}');
         } else {
-          print('⚠️ [Auth] Failed to update online status: ${data['message'] ?? 'Unknown error'}');
         }
       } else {
-        print('⚠️ [Auth] Failed to update online status - server returned status: ${response.statusCode}');
       }
     } catch (e) {
-      print('⚠️ [Auth] Error updating online status: $e');
       // Silently fail - online status update is not critical
     }
   }
@@ -639,7 +587,6 @@ class AuthService {
     String? language,
   }) async {
     try {
-      print('Registering new user: $username ($email)');
 
       // Format date of birth as YYYY-MM-DD for the API
       final dobString = '${dateOfBirth.year}-${dateOfBirth.month.toString().padLeft(2, '0')}-${dateOfBirth.day.toString().padLeft(2, '0')}';
@@ -664,7 +611,6 @@ class AuthService {
             deviceLanguage = countryToLanguageMap[countryCode] ?? 'en';
           }
         } catch (e) {
-          print('⚠️ Could not detect device language: $e');
           deviceLanguage = 'en'; // Fallback to English
         }
       }
@@ -685,15 +631,10 @@ class AuthService {
         },
         headers: {'Content-Type': 'application/x-www-form-urlencoded'}
       );
-
-      print('Registration response status: ${response.statusCode}');
-      print('Registration response body: ${response.body}');
-
       if (response.statusCode == 200) {
         final data = _safeJsonDecode(response.body);
 
         if (data['responseCode'] == '1' || data['success'] == true) {
-          print('User registration successful');
           final userId = data['userID']?.toString() ?? data['data']?['userID']?.toString();
           final token = data['token']?.toString() ?? data['data']?['token']?.toString();
           
@@ -712,7 +653,6 @@ class AuthService {
             'token': token
           };
         } else {
-          print('Registration failed: ${data['message']}');
           return {'success': false, 'message': data['message'] ?? 'Registration failed'};
         }
       } else {
@@ -721,12 +661,10 @@ class AuthService {
           final errorData = _safeJsonDecode(response.body);
           return {'success': false, 'message': errorData['message'] ?? 'Server error occurred'};
         } catch (e) {
-          print('Server error with status: ${response.statusCode}');
           return {'success': false, 'message': 'Server error occurred (Status: ${response.statusCode})'};
         }
       }
     } catch (e) {
-      print('Registration exception: $e');
       return {'success': false, 'message': 'Connection error occurred: ${e.toString()}'};
     }
   }
@@ -751,13 +689,10 @@ class AuthService {
           try {
             final translationService = TranslationService();
             await translationService.setLanguage(user.language!);
-            print('✅ [Registration] Language set to: ${user.language}');
           } catch (e) {
-            print('⚠️ [Registration] Failed to set language: $e');
           }
         }
       } catch (e) {
-        print('❌ [Registration] Failed to fetch user profile after registration: $e');
         // If profile fetch fails, we can still proceed - the user is logged in with userID and username
         // The profile can be fetched later when needed
       }
@@ -767,14 +702,10 @@ class AuthService {
         final firebaseService = FirebaseMessagingService();
         await firebaseService.subscribeToUserTopics();
       } catch (e) {
-        print('❌ [Registration] Failed to subscribe to user topics: $e');
       }
 
       // Online status is now calculated from last_active, no need to update
-
-      print('✅ [Registration] User automatically logged in after registration');
     } catch (e) {
-      print('❌ [Registration] Error during post-registration login: $e');
       // Don't throw - registration was successful, login setup is optional
     }
   }

@@ -112,7 +112,6 @@ class _HomeScreenState extends State<HomeScreen> {
     // Safety timeout: ensure loading always completes after max 20 seconds
     Timer(const Duration(seconds: 20), () {
       if (mounted && _isLoading) {
-        print('⚠️ [HomeScreen] Loading timeout reached, forcing completion');
         setState(() {
           _isLoading = false;
         });
@@ -232,7 +231,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
   /// Connect to WebSocket service with callbacks
   void _connectWebSocket() {
-    print('🔄 [HomeScreen] Attempting to connect WebSocket...');
     _webSocketService.connect(
       onAppUpdate: _checkForUpdates,
       onNewPost: (Post newPost) {
@@ -289,16 +287,13 @@ class _HomeScreenState extends State<HomeScreen> {
         }
       },
     ).catchError((error) {
-      print('❌ [HomeScreen] Error connecting WebSocket: $error');
     });
-    print('✅ [HomeScreen] WebSocket connect() called');
   }
 
   /// Reconnect WebSocket if needed when app resumes
   /// Note: WebSocket connection is managed globally by main.dart
   /// This just ensures our callbacks are registered
   void _reconnectWebSocketIfNeeded() {
-    print('🔄 [HomeScreen] App resumed - ensuring WebSocket callbacks are registered...');
     // Just register our callbacks - the connection is managed globally
     // If not connected, main.dart will handle reconnection
     _connectWebSocket();
@@ -390,7 +385,6 @@ class _HomeScreenState extends State<HomeScreen> {
         }
       }
     } catch (e) {
-      print('⚠️ [HomeScreen] Error refreshing posts in background: $e');
       // Silently fail - background refresh shouldn't disrupt user
     }
   }
@@ -399,7 +393,6 @@ class _HomeScreenState extends State<HomeScreen> {
     try {
       final userId = await _authService.getStoredUserId();
       if (userId == null) {
-        print('❌ Cannot update post $postId: No user ID found');
         return;
       }
 
@@ -414,14 +407,11 @@ class _HomeScreenState extends State<HomeScreen> {
         });
       }
     } catch (e) {
-      print('❌ Error updating post $postId: $e');
-
       // If the error is due to HTML warnings mixed with JSON, try a different approach
       if (e.toString().contains('HTML without JSON') || e.toString().contains('invalid response format')) {
         try {
           await _loadData();
         } catch (refreshError) {
-          print('❌ Feed refresh also failed: $refreshError');
         }
       }
       // Don't show error to user for real-time updates, just log it
@@ -442,7 +432,6 @@ class _HomeScreenState extends State<HomeScreen> {
         });
       }
     } catch (e) {
-      print('Error fetching new post $postId: $e');
       // If fetching fails, show a message to the user
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -516,7 +505,6 @@ class _HomeScreenState extends State<HomeScreen> {
         }
       }
     } catch (timelineError) {
-      print('⚠️ [HomeScreen] Error loading fresh posts: $timelineError');
       // Always set loading to false, even if we have cached data
       if (mounted) {
         setState(() {
@@ -591,7 +579,6 @@ class _HomeScreenState extends State<HomeScreen> {
         }
       }
     } catch (e) {
-      print('❌ [HomeScreen] Error refreshing data: $e');
       if (mounted) {
         setState(() {
           _isLoading = false;
@@ -681,7 +668,6 @@ class _HomeScreenState extends State<HomeScreen> {
       final notificationType = await _notificationChannel.invokeMethod<String>('getNotificationType');
       
       if (notificationType == 'app_update') {
-        print('📱 [HomeScreen] App opened from app_update notification - showing update dialog');
         // Wait for next frame to ensure UI is ready
         WidgetsBinding.instance.addPostFrameCallback((_) async {
           if (mounted) {
@@ -694,7 +680,6 @@ class _HomeScreenState extends State<HomeScreen> {
       }
     } catch (e) {
       // Method channel might not be available, ignore silently
-      print('⚠️ [HomeScreen] Could not check notification intent: $e');
     }
   }
 
@@ -712,7 +697,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
     // Prevent multiple dialogs from showing at once
     if (AutoUpdateService.isDialogShowing) {
-      print('⚠️ [HomeScreen] Update dialog already showing, skipping...');
       return;
     }
 
@@ -769,7 +753,6 @@ class _HomeScreenState extends State<HomeScreen> {
     try {
       final userId = await _authService.getStoredUserId();
       if (userId == null) {
-        print('❌ Cannot add comment to post $postId: No user ID found');
         return;
       }
 
@@ -811,24 +794,19 @@ class _HomeScreenState extends State<HomeScreen> {
             }
             return; // Success, no need to fallback
           } else {
-            print('❌ API returned error for comment $commentId: ${data.first['message'] ?? 'Unknown error'}');
           }
         } else {
-          print('❌ HTTP error ${response.statusCode} when fetching comment $commentId');
         }
       } catch (e) {
-        print('❌ Error fetching comment $commentId: $e');
       }
 
       // Fallback: Update the entire post to get the latest comments
       await _updatePost(postId);
     } catch (e) {
-      print('❌ Error adding comment $commentId to post $postId: $e');
       // Final fallback: try to update the post
       try {
         await _updatePost(postId);
       } catch (updateError) {
-        print('❌ Final fallback also failed: $updateError');
       }
     }
   }
@@ -853,10 +831,8 @@ class _HomeScreenState extends State<HomeScreen> {
         setState(() {
           _friendsCount = friends.length;
         });
-        print('✅ [HomeScreen] Friends count loaded: $_friendsCount');
       }
     } catch (e) {
-      print('⚠️ [HomeScreen] Error loading friends count: $e');
       if (mounted) {
         setState(() {
           _friendsCount = 0;

@@ -215,8 +215,6 @@ class _PostCardState extends State<PostCard> {
     setState(() {
       _currentUsername = username;
     });
-    print(
-        'DEBUG: Loaded user ID: $_currentUserId, username: $_currentUsername');
   }
 
   /// Clean post content by replacing HTML <br /> tags with newlines and decoding HTML entities
@@ -371,7 +369,6 @@ class _PostCardState extends State<PostCard> {
           _currentPost = updatedPost;
         });
       } catch (e) {
-        print('Failed to fetch post details: $e');
         // Optionally, hide comments section on error
         setState(() {
           _showComments = false;
@@ -402,9 +399,6 @@ class _PostCardState extends State<PostCard> {
       if (userId == null) {
         throw Exception('User not logged in');
       }
-
-      print('🔄 Posting comment: "$commentText" to post ${_currentPost.id}');
-
       await _commentService.postComment(
         postId: _currentPost.id,
         userId: userId,
@@ -425,14 +419,10 @@ class _PostCardState extends State<PostCard> {
           if (commentId.isNotEmpty) {
             // Try to fetch the new comment and add it to the UI immediately
             try {
-              print('🔄 Fetching comment $commentId for immediate display...');
               final newComment = await _commentService.getComment(
                 commentId: commentId,
                 userId: userId,
               );
-
-              print('✅ Successfully fetched comment: ${newComment.content}');
-
               if (mounted) {
                 setState(() {
                   // Add the new comment to the end of the list (oldest position) since we reversed the order
@@ -442,16 +432,12 @@ class _PostCardState extends State<PostCard> {
                   );
                   // Don't change the comment display state - keep it as it was
                 });
-                print(
-                    '✅ Comment added to UI immediately: ${newComment.content}');
               }
             } catch (e) {
-              print('❌ Failed to fetch new comment for immediate display: $e');
               // Fallback: refresh the entire post
               _refreshPostAsFallback(userId);
             }
           } else {
-            print('⚠️ No comment ID provided, refreshing entire post');
             // No comment ID available, refresh the entire post
             _refreshPostAsFallback(userId);
           }
@@ -460,9 +446,6 @@ class _PostCardState extends State<PostCard> {
     } catch (e) {
       // Hide loading indicator
       Navigator.pop(context);
-
-      print('❌ Failed to post comment: $e');
-
       // Show error message
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -478,7 +461,6 @@ class _PostCardState extends State<PostCard> {
 
   Future<void> _refreshPostAsFallback(String userId) async {
     try {
-      print('🔄 Falling back to refresh entire post...');
       final updatedPost =
           await _postService.fetchPost(postId: _currentPost.id, userId: userId);
       if (mounted) {
@@ -486,10 +468,8 @@ class _PostCardState extends State<PostCard> {
           _currentPost = updatedPost;
           // Don't change the comment display state - keep it as it was
         });
-        print('✅ Post refreshed successfully as fallback');
       }
     } catch (refreshError) {
-      print('❌ Failed to refresh post as fallback: $refreshError');
       // Show error to user
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -772,7 +752,6 @@ class _PostCardState extends State<PostCard> {
           isLiked: !_currentPost.isLiked,
         );
       });
-      print('Failed to toggle like: $e');
     }
   }
 
@@ -1313,10 +1292,6 @@ class _PostCardState extends State<PostCard> {
         final bottomPosition = _isKeyboardVisible
             ? keyboardHeight + 20.0 // 20px above keyboard
             : -100.0; // Move off-screen when keyboard is hidden
-
-        print(
-            'DEBUG: Floating input positioning - _isKeyboardVisible: $_isKeyboardVisible, keyboardHeight: $keyboardHeight, bottomPosition: $bottomPosition');
-
         return AnimatedPositioned(
           duration: const Duration(milliseconds: 300),
           curve: Curves.easeInOut,

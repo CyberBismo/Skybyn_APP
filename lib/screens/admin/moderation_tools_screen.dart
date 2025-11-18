@@ -110,7 +110,6 @@ class _ModerationToolsScreenState extends State<ModerationToolsScreen> {
         throw Exception('Server error: ${response.statusCode}');
       }
     } catch (e) {
-      print('❌ [ModerationTools] Error loading reports: $e');
       setState(() => _isLoading = false);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -151,7 +150,6 @@ class _ModerationToolsScreenState extends State<ModerationToolsScreen> {
         throw Exception('Server error: ${response.statusCode}');
       }
     } catch (e) {
-      print('❌ [ModerationTools] Error resolving report: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error: $e')),

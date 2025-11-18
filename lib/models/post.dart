@@ -114,8 +114,6 @@ class Post {
           // Reverse the order so newest comments appear first
           return comments.reversed.toList();
         } catch (e) {
-          print('⚠️ [Post] Error parsing comments list: $e');
-          print('⚠️ [Post] Comments data: $value');
           return [];
         }
       }
@@ -135,7 +133,6 @@ class Post {
             return parseComments(value['list']);
           }
         } catch (e) {
-          print('⚠️ [Post] Error parsing comment map: $e');
         }
       }
       
@@ -153,7 +150,6 @@ class Post {
     
     // Debug: Log user parsing
     if (userMap == null && userJson != null) {
-      print('⚠️ [Post] User field is not in expected format. Type: ${userJson.runtimeType}, Value: $userJson');
     }
     
     // Try alternative field names for username
@@ -189,13 +185,10 @@ class Post {
     
     // Debug: Log comments parsing
     if (commentsData != null) {
-      print('🔍 [Post] Comments field type: ${commentsData.runtimeType}');
       if (commentsList.isEmpty && commentsCount > 0) {
-        print('⚠️ [Post] Comments is a count ($commentsCount) but not a list. Checking for comments_list field...');
         // Try alternative field name for comments list
         final commentsListAlt = json['comments_list'] ?? json['commentsList'];
         if (commentsListAlt != null) {
-          print('✅ [Post] Found comments_list field');
         }
       }
     }

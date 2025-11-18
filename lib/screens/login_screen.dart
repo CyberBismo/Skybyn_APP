@@ -51,8 +51,6 @@ class _LoginScreenState extends State<LoginScreen> {
 
     try {
       // Debug platform info
-      print('Platform: ${Platform.isAndroid ? 'Android' : 'iOS'}');
-
       final response = await _authService.login(
         _usernameController.text,
         _passwordController.text,
@@ -63,15 +61,12 @@ class _LoginScreenState extends State<LoginScreen> {
       if (response['responseCode'] == '1') {
         if (mounted) {
           // Show login success notification
-          print('🔔 Attempting to show login success notification...');
           try {
             final notificationService = NotificationService();
             await notificationService.requestPermissions();
 
             // Check if notifications are enabled
             final isEnabled = await notificationService.areNotificationsEnabled();
-            print('📱 Notifications enabled: $isEnabled');
-
             // For iOS, check notification status
             if (Platform.isIOS) {
               await notificationService.checkIOSNotificationStatus();
@@ -84,18 +79,14 @@ class _LoginScreenState extends State<LoginScreen> {
                 body: TranslationKeys.welcomeToSkybyn.tr,
                 payload: 'login_success',
               );
-              print('✅ Login success notification sent successfully');
-              
               // Auto-hide the notification after 3 seconds (only if notification was shown)
               if (notificationId >= 0) {
                 Timer(const Duration(seconds: 3), () {
                   notificationService.cancelNotification(notificationId);
-                  print('✅ Login success notification auto-hidden');
                 });
               }
             }
           } catch (e) {
-            print('❌ Error showing login notification: $e');
           }
 
           Navigator.of(context).pushReplacement(
@@ -108,7 +99,6 @@ class _LoginScreenState extends State<LoginScreen> {
         });
       }
     } catch (e) {
-      print('Login error: $e');
       if (!mounted) return;
       setState(() {
         _errorMessage = TranslationKeys.connectionError.tr;

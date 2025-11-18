@@ -110,7 +110,6 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
         throw Exception('Server error: ${response.statusCode}');
       }
     } catch (e) {
-      print('❌ [UserManagement] Error loading users: $e');
       setState(() => _isLoading = false);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -152,7 +151,6 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
         throw Exception('Server error: ${response.statusCode}');
       }
     } catch (e) {
-      print('❌ [UserManagement] Error updating rank: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error: $e')),
@@ -194,7 +192,6 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
         throw Exception('Server error: ${response.statusCode}');
       }
     } catch (e) {
-      print('❌ [UserManagement] Error updating ban status: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error: $e')),

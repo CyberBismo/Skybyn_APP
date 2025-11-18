@@ -130,12 +130,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _loadUserProfile() async {
     final cachedUser = await AuthService().getStoredUserProfile();
-    print('Loaded cached user:');
-    print(cachedUser);
     if (cachedUser != null) {
-      print('Cached user email: \'${cachedUser.email}\'');
-      print('Cached user username: \'${cachedUser.username}\'');
-      print('Cached user nickname: \'${cachedUser.nickname}\'');
       _emailController.text = cachedUser.email;
       _usernameController.text = cachedUser.username;
       _nicknameController.text = cachedUser.nickname;
@@ -160,7 +155,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
       // Load IP history
       _loadIpHistory();
     } else {
-      print('No cached user found.');
     }
   }
 
@@ -262,7 +256,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
         }
       }
     } catch (e) {
-      print('Error showing image source dialog: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -334,7 +327,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
           }
         }
       } catch (e) {
-        print('Error parsing avatar upload response: $e');
         if (mounted) {
           setState(() => _isUploadingAvatar = false);
           ScaffoldMessenger.of(context).showSnackBar(
@@ -346,7 +338,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
         }
       }
     } catch (e) {
-      print('Error uploading avatar: $e');
       if (mounted) {
         setState(() => _isUploadingAvatar = false);
         ScaffoldMessenger.of(context).showSnackBar(
@@ -410,7 +401,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
           }
         }
       } catch (e) {
-        print('Error parsing wallpaper upload response: $e');
         if (mounted) {
           setState(() => _isUploadingWallpaper = false);
           ScaffoldMessenger.of(context).showSnackBar(
@@ -422,7 +412,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
         }
       }
     } catch (e) {
-      print('Error uploading wallpaper: $e');
       if (mounted) {
         setState(() => _isUploadingWallpaper = false);
         ScaffoldMessenger.of(context).showSnackBar(
@@ -453,7 +442,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
             imageFile = File(picked.path);
           }
         } catch (e) {
-          print('Error picking image: $e');
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
@@ -468,7 +456,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
         try {
           imageFile = await _getFileFromUrl(profileImage);
         } catch (e) {
-          print('Error loading image from URL: $e');
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
@@ -510,7 +497,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
             });
           }
         } catch (e) {
-          print('Error cropping image: $e');
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
@@ -522,7 +508,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
         }
       }
     } catch (e) {
-      print('Error in _pickAndCropAvatar: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -552,7 +537,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
             imageFile = File(picked.path);
           }
         } catch (e) {
-          print('Error picking image: $e');
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
@@ -567,7 +551,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
         try {
           imageFile = await _getFileFromUrl(backgroundImage);
         } catch (e) {
-          print('Error loading image from URL: $e');
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
@@ -609,7 +592,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
             });
           }
         } catch (e) {
-          print('Error cropping image: $e');
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
@@ -621,7 +603,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
         }
       }
     } catch (e) {
-      print('Error in _pickAndCropBackground: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -1982,7 +1963,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
               width: double.infinity,
               child: ElevatedButton(
                 onPressed: _isCheckingForUpdates ? null : () {
-                  print('🔘 [SettingsScreen] Button onPressed called');
                   _checkForUpdates();
                 },
                 style: ElevatedButton.styleFrom(
@@ -2024,14 +2004,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _checkForUpdates() async {
-    print('🔍 [SettingsScreen] Check for updates button clicked');
-    
-    print('✅ [SettingsScreen] Proceeding with update check');
-    
     final translationService = TranslationService();
 
     if (!Platform.isAndroid) {
-      print('⚠️ [SettingsScreen] Not Android platform');
       if (mounted) {
         setState(() {
           _updateCheckStatus = translationService.translate('auto_updates_only_android');
@@ -2051,7 +2026,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
     // Prevent multiple dialogs from showing at once
     if (AutoUpdateService.isDialogShowing) {
-      print('⚠️ [SettingsScreen] Update dialog already showing, skipping...');
       if (mounted) {
         setState(() {
           _updateCheckStatus = 'Update check already in progress';
@@ -2078,10 +2052,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
 
     try {
-      print('📡 [SettingsScreen] Calling AutoUpdateService.checkForUpdates()');
       final updateInfo = await AutoUpdateService.checkForUpdates();
-      print('📡 [SettingsScreen] Update check completed. Update available: ${updateInfo?.isAvailable ?? false}');
-
       if (mounted) {
         if (updateInfo != null && updateInfo.isAvailable) {
           // Update available
@@ -2140,9 +2111,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
         }
       }
     } catch (e, stackTrace) {
-      print('❌ [SettingsScreen] Error checking for updates: $e');
-      print('❌ [SettingsScreen] Stack trace: $stackTrace');
-      
       // Update button status with error
       if (mounted) {
         setState(() {
@@ -2196,7 +2164,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
         });
       }
     } catch (e) {
-      print('Error loading IP history: $e');
       setState(() {
         _isLoadingIpHistory = false;
       });
@@ -2310,7 +2277,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
         }
       }
     } catch (e) {
-      print('Error saving basic info: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -2367,7 +2333,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
         }
       }
     } catch (e) {
-      print('Error saving password: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -2450,7 +2415,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
         }
       }
     } catch (e) {
-      print('Error saving PIN: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -2519,7 +2483,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
         }
       }
     } catch (e) {
-      print('Error saving security questions: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -2553,7 +2516,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
         }
       }
     } catch (e) {
-      print('Error saving visibility settings: $e');
     }
   }
 

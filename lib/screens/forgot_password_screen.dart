@@ -47,7 +47,6 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
         _isLoading = false;
       });
     } catch (e) {
-      print('Forgot password error: $e');
       if (!mounted) return;
       setState(() {
         _errorMessage = TranslationKeys.connectionError.tr;

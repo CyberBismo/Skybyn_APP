@@ -16,15 +16,14 @@ import 'friend_service.dart';
 import '../screens/call_screen.dart';
 import '../models/friend.dart';
 import '../main.dart' show navigatorKey;
-import 'package:cloud_firestore/cloud_firestore.dart';
+// Firestore disabled - using WebSocket for real-time features instead
+// import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:async';
 
 // Handle background messages
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   try {
-    print('📱 [FCM] Background message received: ${message.data}');
-    
     // Process all messages, including in debug mode (for testing)
     // Debug mode check removed to ensure notifications work during development
 
@@ -38,40 +37,45 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
     try {
       final authService = AuthService();
       await authService.updateActivity();
-      print('✅ [FCM] Activity updated from background notification');
     } catch (e) {
-      print('⚠️ [FCM] Failed to update activity from background: $e');
     }
 
     // Show local notification for background messages
     final notificationService = NotificationService();
     final type = message.data['type']?.toString();
-    print('📱 [FCM] Background message type: $type');
     
+    // For call notifications, show with proper call notification format
     if (type == 'call') {
-      print('📞 [FCM] Call notification received in background - showing notification with actions');
+      final callId = message.data['callId']?.toString() ?? '';
+      final fromUserId = message.data['fromUserId']?.toString() ?? message.data['sender']?.toString() ?? '';
+      final callType = message.data['callType']?.toString() ?? 'video';
+      final callTypeText = callType == 'video' ? 'video call' : 'voice call';
+      
+      final payload = jsonEncode({
+        'type': 'call',
+        'callId': callId,
+        'sender': fromUserId,
+        'fromUserId': fromUserId,
+        'callType': callType,
+        'incomingCall': 'true',
+      });
+      
+      // Show call notification with action buttons (Answer/Decline)
+      await notificationService.showNotification(
+        title: message.notification?.title ?? 'Incoming Call',
+        body: message.notification?.body ?? 'Incoming $callTypeText',
+        payload: payload,
+      );
+    } else {
+      // For other message types, show normal notification
+      final payload = jsonEncode(message.data);
+      await notificationService.showNotification(
+        title: message.notification?.title ?? 'New Message', 
+        body: message.notification?.body ?? '', 
+        payload: payload
+      );
     }
-    
-    // For call notifications, include all call data in payload
-    final payload = type == 'call' 
-        ? jsonEncode({
-            'type': 'call',
-            'callId': message.data['callId']?.toString() ?? '',
-            'sender': message.data['sender']?.toString(),
-            'fromUserId': message.data['fromUserId']?.toString() ?? message.data['sender']?.toString() ?? '',
-            'callType': message.data['callType']?.toString() ?? 'video',
-            'incomingCall': message.data['incomingCall']?.toString() ?? 'true',
-          })
-        : jsonEncode(message.data);
-    
-    await notificationService.showNotification(
-      title: message.notification?.title ?? 'New Message', 
-      body: message.notification?.body ?? '', 
-      payload: payload
-    );
-    print('✅ [FCM] Background notification shown');
   } catch (e) {
-    print('❌ [FCM] Error in background handler: $e');
   }
 }
 
@@ -88,6 +92,8 @@ class FirebaseMessagingService {
 
   // Callback for update check trigger
   static VoidCallback? _onUpdateCheckRequested;
+  // Callback for incoming call from notification
+  static Function(String, String, String)? _onIncomingCallFromNotification; // callId, fromUserId, callType
   bool _isInitialized = false;
 
   // Topic subscriptions
@@ -102,24 +108,16 @@ class FirebaseMessagingService {
 
   Future<void> initialize() async {
     try {
-
-      print('🔄 [FCM] Initializing Firebase Messaging service...');
-      
       // Ensure Firebase Core is initialized first
       if (Firebase.apps.isEmpty) {
-        print('❌ [FCM] Firebase Core is not initialized - cannot proceed');
         throw Exception('Firebase Core must be initialized before Firebase Messaging');
       }
-      print('✅ [FCM] Firebase Core is initialized');
-      
       // On iOS, check if APN is configured before proceeding
       if (Platform.isIOS) {
         try {
           // Attempt to get FirebaseMessaging instance - this will fail if APN not configured
           _messaging = FirebaseMessaging.instance;
-          print('✅ [FCM] FirebaseMessaging instance obtained for iOS');
         } catch (e) {
-          print('⚠️ [FCM] Cannot get FirebaseMessaging instance on iOS (APN not configured): $e');
           // Reset messaging instance and fail gracefully
           _messaging = null;
           _isInitialized = false;
@@ -128,7 +126,6 @@ class FirebaseMessagingService {
       } else {
         // Android - initialize normally
         _messaging = FirebaseMessaging.instance;
-        print('✅ [FCM] FirebaseMessaging instance obtained for Android');
       }
 
       // Set background message handler
@@ -145,7 +142,6 @@ class FirebaseMessagingService {
           );
         } catch (e) {
           // APN might not be configured - skip iOS notification setup
-          print('⚠️ [FCM] iOS notification setup failed (APN not configured): $e');
           rethrow; // Re-throw to skip rest of initialization
         }
       }
@@ -169,11 +165,7 @@ class FirebaseMessagingService {
       _isInitialized = true;
     } catch (e) {
       if (Platform.isIOS) {
-        print('⚠️ [FCM] iOS Firebase Messaging failed: $e');
-        print('⚠️ [FCM] This is expected if APN is not configured in Firebase Console');
-        print('⚠️ [FCM] App will continue using WebSocket for notifications');
       } else {
-        print('❌ [FCM] Error initializing Firebase Messaging: $e');
       }
       // Reset messaging instance on failure
       _messaging = null;
@@ -184,7 +176,6 @@ class FirebaseMessagingService {
   Future<void> _requestPermissions() async {
     try {
       if (_messaging == null) {
-        print('❌ [FCM] Cannot request permissions - Firebase Messaging not initialized');
         return;
       }
       
@@ -199,38 +190,29 @@ class FirebaseMessagingService {
       );
       
       if (settings.authorizationStatus == AuthorizationStatus.authorized) {
-        print('✅ [FCM] Permission granted');
       } else if (settings.authorizationStatus == AuthorizationStatus.denied) {
-        print('❌ [FCM] Permission denied by user');
       } else if (settings.authorizationStatus == AuthorizationStatus.notDetermined) {
-        print('⚠️ [FCM] Permission not yet determined');
       } else if (settings.authorizationStatus == AuthorizationStatus.provisional) {
-        print('⚠️ [FCM] Provisional permission granted');
       }
     } catch (e) {
-      print('❌ [FCM] Error requesting permissions: $e');
     }
   }
 
   Future<void> _getFCMToken() async {
     try {
       if (_messaging == null) {
-        print('❌ [FCM] Cannot get FCM token - Firebase Messaging not initialized');
         return;
       }
       
       _fcmToken = await _messaging!.getToken();
       
       if (_fcmToken != null) {
-        print('✅ [FCM] Token retrieved successfully: ${_fcmToken!.substring(0, 20)}...');
       } else {
-        print('❌ [FCM] Token retrieval returned null');
       }
 
       // Store token locally (not in Firestore)
       await _storeFCMTokenLocally();
     } catch (e) {
-      print('❌ [FCM] Error getting FCM token: $e');
       _fcmToken = null;
     }
   }
@@ -239,11 +221,9 @@ class FirebaseMessagingService {
   Future<void> _registerTokenOnAppStart() async {
     try {
       if (_fcmToken == null) {
-        print('⚠️ [FCM] Cannot register token on app start - no FCM token available');
         return;
       }
 
-      print('📤 [FCM] Registering FCM token on app start (without user ID)');
 
       // Use device service to get device info
       final deviceService = DeviceService();
@@ -264,19 +244,14 @@ class FirebaseMessagingService {
         if (response.statusCode == 200) {
           final data = json.decode(response.body);
           if (data['responseCode'] == '1') {
-            print('✅ [FCM] Token registered on app start successfully');
           } else {
-            print('⚠️ [FCM] Token registration on app start: ${data['message'] ?? 'Unknown error'}');
           }
         } else {
-          print('⚠️ [FCM] Token registration on app start failed - server returned status: ${response.statusCode}');
         }
       } catch (e) {
-        print('⚠️ [FCM] Failed to register token on app start: $e');
         // Silently fail - device will be updated on login
       }
     } catch (e) {
-      print('❌ [FCM] Error in _registerTokenOnAppStart: $e');
     }
   }
 
@@ -284,18 +259,13 @@ class FirebaseMessagingService {
   Future<void> sendFCMTokenToServer() async {
     try {
       if (_fcmToken == null) {
-        print('❌ [FCM] Cannot send token - no FCM token available');
         return;
       }
 
       final user = await _authService.getStoredUserProfile();
       if (user == null) {
-        print('❌ [FCM] Cannot send token - no user logged in');
         return;
       }
-
-      print('📤 [FCM] Sending FCM token to server for user: ${user.id}');
-
       // Use device service to get device info
       final deviceService = DeviceService();
       final deviceInfo = await deviceService.getDeviceInfo();
@@ -316,19 +286,14 @@ class FirebaseMessagingService {
         if (response.statusCode == 200) {
           final data = json.decode(response.body);
           if (data['responseCode'] == '1') {
-            print('✅ [FCM] Token sent to server successfully');
           } else {
-            print('❌ [FCM] Failed to send token: ${data['message'] ?? 'Unknown error'}');
           }
         } else {
-          print('❌ [FCM] Failed to send token - server returned status: ${response.statusCode}');
         }
       } catch (e) {
-        print('❌ [FCM] Failed to send token to server: $e');
         // Silently fail - device will be updated on next login
       }
     } catch (e) {
-      print('❌ [FCM] Error in sendFCMTokenToServer: $e');
     }
   }
 
@@ -342,8 +307,6 @@ class FirebaseMessagingService {
     // Firebase is only used for background notifications
     FirebaseMessaging.onMessage.listen((RemoteMessage message) async {
       final type = message.data['type']?.toString();
-      print('📱 [FCM] Received foreground message: type=$type');
-      
       // Update activity when receiving notification (user is active)
       // This helps maintain online status even when app is in background
       final authService = AuthService();
@@ -352,9 +315,6 @@ class FirebaseMessagingService {
       // For app_update notifications in foreground, ignore Firebase notification
       // WebSocket will handle real-time delivery when app is in focus
       if (type == 'app_update') {
-        
-        print('📱 [FCM] App update notification received in foreground - WebSocket will handle notification display');
-        
         // Don't show notification here - WebSocket will handle it to avoid duplicates
         // Just trigger the update check callback
         _triggerUpdateCheck();
@@ -364,9 +324,6 @@ class FirebaseMessagingService {
       // For call notifications, show notification with action buttons
       // IMPORTANT: Always show notification even when app is open, so user sees it
       if (type == 'call') {
-        print('📞 [FCM] Call notification received in foreground - showing notification with actions');
-        print('📞 [FCM] Call data: callId=${message.data['callId']}, fromUserId=${message.data['fromUserId']}, callType=${message.data['callType']}');
-        
         final notificationService = NotificationService();
         try {
           await notificationService.showNotification(
@@ -381,9 +338,7 @@ class FirebaseMessagingService {
               'incomingCall': message.data['incomingCall']?.toString() ?? 'true',
             }),
           );
-          print('✅ [FCM] Call notification shown successfully in foreground');
         } catch (e) {
-          print('❌ [FCM] Error showing call notification in foreground: $e');
         }
         // Don't return - also trigger the in-app handler if WebSocket hasn't handled it yet
         // The notification will show as a heads-up, and the in-app dialog will also appear
@@ -434,7 +389,7 @@ class FirebaseMessagingService {
         case 'call_offer':
         case 'call_initiate':
         case 'call':
-          // Handle call notification - fetch call offer from Firestore
+          // Handle call notification when app opens from notification
           final callId = data['callId']?.toString();
           final fromUserId = data['fromUserId']?.toString() ?? data['sender']?.toString();
           final callTypeRaw = data['callType'];
@@ -447,127 +402,27 @@ class FirebaseMessagingService {
           } else {
             callType = 'audio'; // Default to audio if missing
           }
-          
-          print('📞 [FCM] Call notification tapped - callId: $callId, fromUserId: $fromUserId, type: $callType');
-          
           if (callId != null && fromUserId != null) {
-            // Fetch call offer from Firestore (stored by WebSocket server)
-            try {
-              final firestore = FirebaseFirestore.instance;
-              final callDoc = await firestore.collection('call_signals').doc(callId).get().timeout(
-                const Duration(seconds: 5),
-                onTimeout: () {
-                  print('⚠️ [FCM] Firestore timeout - database may not be configured');
-                  throw TimeoutException('Firestore query timeout');
-                },
-              );
-              
-              if (callDoc.exists) {
-                final callData = callDoc.data();
-                final offer = callData?['offer']?.toString() ?? '';
-                final callTypeFromFirestore = callData?['callType']?.toString() ?? callType;
-                String offerCallType = callTypeFromFirestore.toLowerCase().trim();
-                if (offerCallType != 'video' && offerCallType != 'audio') {
-                  offerCallType = callType;
-                }
-                
-                print('📞 [FCM] Call offer found in Firestore - callType: $offerCallType');
-                
-                if (offer.isNotEmpty) {
-                  // Wait for app to fully initialize, then handle the call
-                  Future.delayed(const Duration(milliseconds: 500), () async {
-                    try {
-                      final callService = CallService();
-                      await callService.handleIncomingOffer(
-                        callId: callId,
-                        fromUserId: fromUserId,
-                        offer: offer,
-                        callType: offerCallType,
-                      );
-                      
-                      // Navigate to call screen
-                      if (navigatorKey.currentContext != null) {
-                        final authService = AuthService();
-                        final currentUserId = await authService.getStoredUserId();
-                        if (currentUserId != null) {
-                          final friendService = FriendService();
-                          final friends = await friendService.fetchFriendsForUser(userId: currentUserId);
-                          final friend = friends.firstWhere(
-                            (f) => f.id == fromUserId,
-                            orElse: () => Friend(
-                              id: fromUserId,
-                              username: fromUserId,
-                              nickname: '',
-                              avatar: '',
-                              online: false,
-                            ),
-                          );
-                          
-                          Navigator.of(navigatorKey.currentContext!).push(
-                            MaterialPageRoute(
-                              builder: (context) => CallScreen(
-                                friend: friend,
-                                callType: offerCallType == 'video' ? CallType.video : CallType.audio,
-                                isIncoming: true,
-                              ),
-                            ),
-                          );
-                          print('✅ [FCM] Navigated to call screen for incoming call');
-                        }
-                      }
-                    } catch (e) {
-                      print('❌ [FCM] Error handling call offer from Firestore: $e');
-                    }
-                  });
-                } else {
-                  print('⚠️ [FCM] Call offer found but offer is empty');
-                }
-              } else {
-                print('⚠️ [FCM] Call offer not found in Firestore - may have expired or database not configured');
-                // Show error to user
-                if (navigatorKey.currentContext != null) {
-                  ScaffoldMessenger.of(navigatorKey.currentContext!).showSnackBar(
-                    SnackBar(
-                      content: Text('Call offer expired or unavailable. Please ask the caller to try again.'),
-                      duration: Duration(seconds: 3),
-                    ),
-                  );
-                }
-              }
-            } catch (e) {
-              print('❌ [FCM] Error fetching call offer from Firestore: $e');
-              // Show error to user
-              if (navigatorKey.currentContext != null) {
-                ScaffoldMessenger.of(navigatorKey.currentContext!).showSnackBar(
-                  SnackBar(
-                    content: Text('Unable to retrieve call. Please ask the caller to try again.'),
-                    duration: Duration(seconds: 3),
-                  ),
-                );
-              }
-            }
-          } else {
-            print('⚠️ [FCM] Call notification missing callId or fromUserId');
+            // Store pending call info and trigger call handling
+            // The WebSocket service will connect and receive the call offer
+            // We'll handle it in main.dart when WebSocket connects
+            _handleIncomingCallFromNotification(callId, fromUserId, callType);
           }
           break;
         default:
-          print('❌ [FCM] Unknown notification type: $type');
       }
     } catch (e) {
-      print('❌ [FCM] Error handling notification tap: $e');
     }
   }
 
   Future<void> _storeFCMTokenLocally() async {
     try {
       if (_fcmToken == null) {
-        print('⚠️ [FCM] Cannot store token - token is null');
         return;
       }
 
       final user = await _authService.getStoredUserProfile();
       if (user == null) {
-        print('⚠️ [FCM] Cannot store token - no user logged in yet');
         return;
       }
 
@@ -580,10 +435,8 @@ class FirebaseMessagingService {
       
       // Only log if it's a new token or first time storing
       if (isNewToken || existingToken == null) {
-        print('✅ [FCM] Token stored locally for user: ${user.id}');
       }
     } catch (e) {
-      print('❌ [FCM] Error storing FCM token locally: $e');
     }
   }
 
@@ -592,13 +445,10 @@ class FirebaseMessagingService {
       await _initPrefs();
       final token = _prefs?.getString('fcm_token');
       if (token != null) {
-        print('✅ [FCM] Retrieved stored token');
       } else {
-        print('⚠️ [FCM] No stored token found');
       }
       return token;
     } catch (e) {
-      print('❌ [FCM] Error getting stored FCM token: $e');
       return null;
     }
   }
@@ -608,15 +458,24 @@ class FirebaseMessagingService {
       await _initPrefs();
       await _prefs?.remove('fcm_token');
       _fcmToken = null;
-      print('✅ [FCM] Token deleted from local storage');
     } catch (e) {
-      print('❌ [FCM] Error deleting FCM token: $e');
     }
   }
 
   /// Set callback for update check requests
   static void setUpdateCheckCallback(VoidCallback? callback) {
     _onUpdateCheckRequested = callback;
+  }
+
+  /// Set callback for incoming call from notification
+  static void setIncomingCallCallback(Function(String, String, String)? callback) {
+    _onIncomingCallFromNotification = callback;
+  }
+
+  /// Handle incoming call from notification
+  void _handleIncomingCallFromNotification(String callId, String fromUserId, String callType) {
+    // Trigger callback if set (will be handled in main.dart)
+    _onIncomingCallFromNotification?.call(callId, fromUserId, callType);
   }
 
   /// Trigger update check from notification
@@ -638,7 +497,6 @@ class FirebaseMessagingService {
   Future<bool> subscribeToTopic(String topic) async {
     try {
       if (_messaging == null) {
-        print('❌ [FCM] Cannot subscribe to topic - Firebase Messaging not initialized');
         return false;
       }
       
@@ -646,10 +504,8 @@ class FirebaseMessagingService {
       if (!_subscribedTopics.contains(topic)) {
         _subscribedTopics.add(topic);
       }
-      print('✅ [FCM] Subscribed to topic: $topic');
       return true;
     } catch (e) {
-      print('❌ [FCM] Error subscribing to topic $topic: $e');
       return false;
     }
   }
@@ -658,16 +514,13 @@ class FirebaseMessagingService {
   Future<bool> unsubscribeFromTopic(String topic) async {
     try {
       if (_messaging == null) {
-        print('❌ [FCM] Cannot unsubscribe from topic - Firebase Messaging not initialized');
         return false;
       }
       
       await _messaging!.unsubscribeFromTopic(topic);
       _subscribedTopics.remove(topic);
-      print('✅ [FCM] Unsubscribed from topic: $topic');
       return true;
     } catch (e) {
-      print('❌ [FCM] Error unsubscribing from topic $topic: $e');
       return false;
     }
   }
@@ -681,21 +534,14 @@ class FirebaseMessagingService {
         'app_updates', // App update notifications
         'general', // General announcements
       ];
-
-      print('📋 [FCM] Auto-subscribing to ${defaultTopics.length} default topics');
-
       for (final topic in defaultTopics) {
         final success = await subscribeToTopic(topic);
         if (!success) {
-          print('❌ [FCM] Failed to subscribe to topic: $topic');
         }
         // Small delay to avoid overwhelming the service
         await Future.delayed(const Duration(milliseconds: 100));
       }
-
-      print('✅ [FCM] Auto-subscription to default topics completed');
     } catch (e) {
-      print('❌ [FCM] Error in auto-subscription: $e');
     }
   }
 
@@ -710,7 +556,6 @@ class FirebaseMessagingService {
     try {
       final user = await _authService.getStoredUserProfile();
       if (user == null) {
-        print('❌ [FCM] Cannot subscribe to user topics - no user logged in');
         return;
       }
 
@@ -720,20 +565,13 @@ class FirebaseMessagingService {
         'rank_${user.rank}', // Rank-based notifications
         'status_${user.online}', // Online status notifications
       ];
-
-      print('📋 [FCM] Subscribing to ${userTopics.length} user-specific topics for user: ${user.id}');
-
       for (final topic in userTopics) {
         final success = await subscribeToTopic(topic);
         if (!success) {
-          print('❌ [FCM] Failed to subscribe to user topic: $topic');
         }
         await Future.delayed(const Duration(milliseconds: 100));
       }
-
-      print('✅ [FCM] User-specific topic subscription completed');
     } catch (e) {
-      print('❌ [FCM] Error subscribing to user topics: $e');
     }
   }
 
@@ -749,7 +587,6 @@ class FirebaseMessagingService {
     try {
       // Check if FCM service is initialized
       if (!_isInitialized) {
-        print('❌ [FCM] Cannot auto-register - Firebase Messaging not initialized');
         return;
       }
 
@@ -759,14 +596,12 @@ class FirebaseMessagingService {
         await _getFCMToken();
         
         if (_fcmToken == null) {
-          print('❌ [FCM] Cannot auto-register - FCM token unavailable after retrieval attempt');
           return;
         }
       }
 
       final user = await _authService.getStoredUserProfile();
       if (user == null) {
-        print('❌ [FCM] Cannot auto-register token - user not logged in');
         return;
       }
 
@@ -790,22 +625,15 @@ class FirebaseMessagingService {
         try {
           final data = json.decode(response.body);
           if (data['responseCode'] == '1') {
-            print('✅ [FCM] Token auto-registered successfully via token API');
           } else {
-            print('❌ [FCM] Auto-registration failed: ${data['message'] ?? 'Unknown error'}');
           }
         } catch (e) {
-          print('❌ [FCM] Failed to parse API response: $e');
         }
       } else {
-        print('❌ [FCM] Auto-registration failed - HTTP Status: ${response.statusCode}');
         if (response.statusCode == 404) {
-          print('⚠️ [FCM] Endpoint not found. Check if ${ApiConstants.token} exists on the server.');
         }
       }
     } catch (e, stackTrace) {
-      print('❌ [FCM] Error auto-registering FCM token: $e');
-      print('❌ [FCM] Stack trace: $stackTrace');
     }
   }
 }

@@ -11,6 +11,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 import '../utils/translation_keys.dart';
 import '../widgets/translated_text.dart';
 import '../services/translation_service.dart';
+import '../screens/login_screen.dart';
 
 /// Centralized app bar configuration and styling
 class AppBarConfig {
@@ -99,40 +100,31 @@ class _CustomAppBarState extends State<CustomAppBar> {
   Future<void> _handleLogout() async {
     await _authService.logout();
     if (mounted) {
-      Navigator.of(context).pushNamedAndRemoveUntil(
-        '/login',
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (context) => const LoginScreen()),
         (route) => false,
       );
     }
   }
 
   void _handleSearchPressed() {
-    print('🔍 Search icon clicked at ${DateTime.now()}');
-    print('   - Search form visible: ${widget.isSearchFormVisible}');
-    
     // Close user menu if it's open
     if (UnifiedMenu.isMenuOpen) {
-      print('   - Closing user menu...');
       UnifiedMenu.closeCurrentMenu();
     }
     
     // Close notification overlay if it's open
     if (UnifiedNotificationOverlay.isOverlayOpen) {
-      print('   - Closing notification overlay...');
       UnifiedNotificationOverlay.closeCurrentOverlay();
     }
     
     // Toggle search form (close if open, open if closed)
-    print('   - Toggling search form');
     widget.onSearchFormToggle?.call();
-    print('   - Search form toggle called');
-    print('🔍 Search icon action completed');
   }
 
   void _checkForUpdates() async {
     // Prevent multiple dialogs from showing at once
     if (AutoUpdateService.isDialogShowing) {
-      print('⚠️ [CustomAppBar] Update dialog already showing, skipping...');
       UnifiedMenu.closeCurrentMenu();
       return;
     }
@@ -178,7 +170,6 @@ class _CustomAppBarState extends State<CustomAppBar> {
       if (mounted && updateInfo != null && updateInfo.isAvailable) {
         // Only show if dialog is not already showing (don't check version history)
         if (AutoUpdateService.isDialogShowing) {
-          print('⚠️ [CustomAppBar] Update dialog already showing, skipping...');
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(content: TranslatedText(TranslationKeys.updateDialogAlreadyOpen)),

@@ -16,7 +16,6 @@ class ApiConstants {
     const url = _prodAppBase;
     assert(() {
       if (!_hasLoggedAppBase) {
-        print('🔧 [ApiConstants] Using PROD appBase: $url');
         _hasLoggedAppBase = true;
       }
       return true;
@@ -28,7 +27,6 @@ class ApiConstants {
     const url = _prodApiBase;
     // Log in both debug and release (using debugPrint which works in release)
     if (!_hasLoggedApiBase) {
-      debugPrint('🔧 [ApiConstants] Using PROD apiBase: $url');
       _hasLoggedApiBase = true;
     }
     return url;
@@ -38,7 +36,6 @@ class ApiConstants {
     const url = _prodWebBase;
     assert(() {
       if (!_hasLoggedWebBase) {
-        print('🔧 [ApiConstants] Using PROD webBase: $url');
         _hasLoggedWebBase = true;
       }
       return true;

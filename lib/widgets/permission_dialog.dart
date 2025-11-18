@@ -27,7 +27,6 @@ class _PermissionDialogState extends State<PermissionDialog> {
       final status = await Permission.requestInstallPackages.request();
       return status.isGranted;
     } catch (e) {
-      print('❌ [PermissionDialog] Error requesting install permission: $e');
       return false;
     }
   }

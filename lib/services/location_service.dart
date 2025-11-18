@@ -10,7 +10,6 @@ class LocationService {
     // Check if location services are enabled
     bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) {
-      print('⚠️ [LocationService] Location services are disabled');
       return false;
     }
 
@@ -21,17 +20,13 @@ class LocationService {
       // Request permission
       permission = await Geolocator.requestPermission();
       if (permission == LocationPermission.denied) {
-        print('❌ [LocationService] Location permissions are denied');
         return false;
       }
     }
 
     if (permission == LocationPermission.deniedForever) {
-      print('❌ [LocationService] Location permissions are permanently denied');
       return false;
     }
-
-    print('✅ [LocationService] Location permissions granted');
     return true;
   }
 
@@ -49,11 +44,8 @@ class LocationService {
         desiredAccuracy: LocationAccuracy.high,
         timeLimit: const Duration(seconds: 10),
       );
-
-      print('✅ [LocationService] Location obtained: ${position.latitude}, ${position.longitude}');
       return position;
     } catch (e) {
-      print('❌ [LocationService] Error getting location: $e');
       return null;
     }
   }
@@ -78,18 +70,14 @@ class LocationService {
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         if (data['responseCode'] == '1' || data['success'] == true) {
-          print('✅ [LocationService] Location updated successfully');
           return true;
         } else {
-          print('⚠️ [LocationService] Location update failed: ${data['message']}');
           return false;
         }
       } else {
-        print('❌ [LocationService] Location update failed with status: ${response.statusCode}');
         return false;
       }
     } catch (e) {
-      print('❌ [LocationService] Error updating location: $e');
       return false;
     }
   }
@@ -122,19 +110,15 @@ class LocationService {
           } else if (data['data'] != null && data['data']['users'] is List) {
             return List<Map<String, dynamic>>.from(data['data']['users']);
           } else {
-            print('⚠️ [LocationService] No nearby users found');
             return [];
           }
         } else {
-          print('⚠️ [LocationService] Invalid response format');
           return [];
         }
       } else {
-        print('❌ [LocationService] Find nearby users failed with status: ${response.statusCode}');
         return [];
       }
     } catch (e) {
-      print('❌ [LocationService] Error finding nearby users: $e');
       return [];
     }
   }

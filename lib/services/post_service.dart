@@ -33,7 +33,6 @@ class PostService {
       
       return posts;
     } catch (e) {
-      print('❌ [PostService] Error: $e');
       // If API fails, try to return cached data as fallback
       final cachedPosts = await loadTimelineFromCache();
       return cachedPosts;
@@ -121,16 +120,10 @@ class PostService {
       // Debug: Log first post structure to understand API response
       if (data.isNotEmpty) {
         final firstPost = data.first;
-        print('🔍 [PostService] First post structure: ${firstPost.runtimeType}');
         if (firstPost is Map) {
-          print('🔍 [PostService] Post keys: ${firstPost.keys.toList()}');
           if (firstPost.containsKey('user')) {
-            print('🔍 [PostService] User field type: ${firstPost['user'].runtimeType}');
-            print('🔍 [PostService] User field value: ${firstPost['user']}');
           }
           if (firstPost.containsKey('comments')) {
-            print('🔍 [PostService] Comments field type: ${firstPost['comments'].runtimeType}');
-            print('🔍 [PostService] Comments field value: ${firstPost['comments']}');
           }
         }
       }
@@ -144,17 +137,12 @@ class PostService {
               ? userData['username']?.toString() 
               : (item['username']?.toString());
           final content = item['content']?.toString() ?? '';
-          
-          print('🔍 [PostService] Post data: id=${item['id']}, username=$username, content_length=${content.length}');
-          
           // Filter out posts with empty username or empty content
           if (username == null || username.isEmpty || username.trim().isEmpty) {
-            print('⚠️ [PostService] Skipping post ${item['id']}: empty username');
             continue;
           }
           
           if (content.isEmpty || content.trim().isEmpty) {
-            print('⚠️ [PostService] Skipping post ${item['id']}: empty content');
             continue;
           }
           
@@ -162,17 +150,13 @@ class PostService {
             final post = Post.fromJson(item);
             // Double-check after parsing
             if (post.author == 'Unknown User' || post.author.isEmpty) {
-              print('⚠️ [PostService] Skipping post ${post.id}: parsed as Unknown User');
               continue;
             }
             if (post.content.isEmpty || post.content.trim().isEmpty) {
-              print('⚠️ [PostService] Skipping post ${post.id}: parsed content is empty');
               continue;
             }
             posts.add(post);
           } catch (e) {
-            print('❌ [PostService] Error parsing post: $e');
-            print('❌ [PostService] Post data: $item');
           }
         }
       }
@@ -193,7 +177,6 @@ class PostService {
         }
       } catch (e) {
         // Silently fail - we already have cached data
-        print('⚠️ [PostService] Background refresh failed: $e');
       }
     });
   }
@@ -206,7 +189,6 @@ class PostService {
       await prefs.setInt(_cacheTimestampKey, DateTime.now().millisecondsSinceEpoch);
     } catch (e) {
       // Silently fail if caching fails
-      print('⚠️ [PostService] Failed to save cache: $e');
     }
   }
 
@@ -234,16 +216,13 @@ class PostService {
             final post = Post.fromJson(item);
             // Skip posts with "Unknown User" or empty content
             if (post.author == 'Unknown User' || post.author.isEmpty) {
-              print('⚠️ [PostService] Filtered cached post ${post.id}: Unknown User');
               continue;
             }
             if (post.content.isEmpty || post.content.trim().isEmpty) {
-              print('⚠️ [PostService] Filtered cached post ${post.id}: empty content');
               continue;
             }
             posts.add(post);
           } catch (e) {
-            print('❌ [PostService] Error parsing cached post: $e');
           }
         }
       }
@@ -266,7 +245,6 @@ class PostService {
 
   Future<List<Post>> fetchUserTimeline({required String userId, String? currentUserId}) async {
     try {
-      print('📡 [PostService] Fetching user timeline for userId: $userId');
       final response = await http.post(
         Uri.parse(ApiConstants.userTimeline),
         body: {
@@ -274,14 +252,9 @@ class PostService {
           if (currentUserId != null) 'currentUserID': currentUserId,
         },
       ).timeout(const Duration(seconds: 10));
-    
-      print('📡 [PostService] User timeline response status: ${response.statusCode}');
-      print('📡 [PostService] User timeline response body length: ${response.body.length}');
-      
       if (response.statusCode == 200) {
         // Handle empty response
         if (response.body.isEmpty || response.body.trim().isEmpty) {
-          print('⚠️ [PostService] Empty response body, returning empty list');
           return [];
         }
         
@@ -304,36 +277,25 @@ class PostService {
           } else {
             // Error response
             final message = decoded['message'] ?? 'Failed to load user timeline';
-            print('❌ [PostService] API error: $message');
             throw Exception(message);
           }
         }
-        
-        print('📡 [PostService] Parsed ${data.length} posts from response');
-        
         final List<Post> posts = [];
         for (final item in data) {
           if (item is Map<String, dynamic>) {
             try {
               final post = Post.fromJson(item);
               // Log post details for debugging
-              print('📡 [PostService] Post: id=${post.id}, userId=${post.userId}, author=${post.author}');
               posts.add(post);
             } catch (e) {
-              print('❌ [PostService] Error parsing post: $e');
-              print('❌ [PostService] Post data: $item');
             }
           }
         }
-        
-        print('📡 [PostService] Successfully parsed ${posts.length} posts');
         return posts;
       } else {
         throw Exception('Failed to load user timeline: ${response.statusCode}');
       }
     } catch (e, stackTrace) {
-      print('❌ [PostService] Error fetching user timeline: $e');
-      print('❌ [PostService] Stack trace: $stackTrace');
       return [];
     }
   }
@@ -347,26 +309,17 @@ class PostService {
         Uri.parse(ApiConstants.getPost),
         body: {'postID': postId, 'userID': userID},
       ).timeout(const Duration(seconds: 10));
-    
-    print('📡 Fetching post $postId for user $userID');
-    print('📡 API Response status: ${response.statusCode}');
-    print('📡 API Response body: ${response.body}');
-    
     if (response.statusCode == 200) {
       // Check if response contains HTML warnings mixed with JSON
       String responseBody = response.body;
       
       // If response starts with HTML, try to extract JSON from the end
       if (responseBody.trim().startsWith('<')) {
-        print('⚠️ API returned HTML warnings mixed with JSON, attempting to extract JSON...');
-        
         // Look for JSON array at the end of the response
         final jsonMatch = RegExp(r'\[.*\]$', dotAll: true).firstMatch(responseBody);
         if (jsonMatch != null) {
           responseBody = jsonMatch.group(0)!;
-          print('✅ Extracted JSON from mixed response: ${responseBody.length > 100 ? '${responseBody.substring(0, 100)}...' : responseBody}');
         } else {
-          print('❌ Could not extract JSON from mixed response');
           throw Exception('API returned invalid response format (HTML without JSON)');
         }
       }
@@ -378,20 +331,15 @@ class PostService {
           return Post.fromJson(postMap);
         } else {
           final message = data.isNotEmpty ? data.first['message'] : 'Post not found';
-          print('❌ API returned error: $message');
           throw Exception('Failed to load post: $message');
         }
       } catch (e) {
-        print('❌ Error parsing JSON response: $e');
-        print('❌ Response body: ${response.body}');
         throw Exception('Failed to parse API response: $e');
       }
     } else {
-      print('❌ API request failed with status: ${response.statusCode}');
       throw Exception('Failed to load post with status ${response.statusCode}');
     }
     } catch (e) {
-      print('❌ Network error or timeout while fetching post: $e');
       // Return a default post instead of throwing to prevent app from hanging
       return Post(
         id: postId,
@@ -411,32 +359,20 @@ class PostService {
     required String postId,
     required String userId,
   }) async {
-    print('🗑️ Attempting to delete post: postID=$postId, userID=$userId');
-    
     final response = await http.post(
       Uri.parse(ApiConstants.deletePost),
       body: {'postID': postId, 'userID': userId},
     );
-
-    print('📡 Delete API Response status: ${response.statusCode}');
-    print('📡 Delete API Response body: ${response.body}');
-
     if (response.statusCode != 200) {
-      print('❌ Delete failed with HTTP status: ${response.statusCode}');
       throw Exception('Failed to delete post');
     }
     
     // Parse response to check for success
     final data = json.decode(response.body);
-    print('📋 Parsed response data: $data');
-    
     if (data['responseCode'] != '1') {
       final message = data['message'] ?? 'Failed to delete post';
-      print('❌ Delete failed with response code: ${data['responseCode']}, message: $message');
       throw Exception(message);
     }
-    
-    print('✅ Post deleted successfully: postID=$postId, userID=$userId');
   }
 
   Future<Map<String, dynamic>> createPost({
@@ -444,7 +380,6 @@ class PostService {
     required String content,
   }) async {
     // Send plain text content to server (server will handle encryption)
-    print('📤 Sending plain text post content to server: "${content.length > 50 ? '${content.substring(0, 50)}...' : content}"');
 
     final response = await http.post(
       Uri.parse(ApiConstants.addPost),
@@ -463,8 +398,6 @@ class PostService {
       final message = data['message'] ?? 'Failed to create post';
       throw Exception(message);
     }
-    
-    print('Post created successfully: userID=$userId');
     return data;
   }
 
@@ -474,7 +407,6 @@ class PostService {
     required String content,
   }) async {
     // Send plain text content to server (server will handle encryption)
-    print('📤 Sending plain text post update to server: "${content.length > 50 ? '${content.substring(0, 50)}...' : content}"');
 
     final response = await http.post(
       Uri.parse(ApiConstants.updatePost),
@@ -494,8 +426,6 @@ class PostService {
       final message = data['message'] ?? 'Failed to update post';
       throw Exception(message);
     }
-    
-    print('Post updated successfully: postID=$postId, userID=$userId');
   }
 
 } 

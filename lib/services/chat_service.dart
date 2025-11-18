@@ -63,7 +63,6 @@ class ChatService {
     try {
       responseData = json.decode(response.body) as Map<String, dynamic>?;
     } catch (e) {
-      debugPrint('⚠️ [ChatService] Failed to parse response body as JSON: $e');
       // If we can't parse JSON and it's not HTML, it might be an error
       if (response.statusCode != 200) {
         throw Exception('Invalid response from server. Please try again.');
@@ -94,17 +93,12 @@ class ChatService {
     // Check if response body contains error message
     if (responseData != null && responseData.containsKey('message')) {
       final errorMessage = responseData['message'] as String?;
-      debugPrint('❌ [ChatService] Server error (${response.statusCode}): $errorMessage');
-      debugPrint('❌ [ChatService] Full response data: $responseData');
-      
       // Handle 409 Conflict specifically (duplicate message)
       if (response.statusCode == 409) {
-        debugPrint('⚠️ [ChatService] 409 Conflict detected - checking if message was sent...');
         // For 409, the message might have been sent already (duplicate)
         // Check if response contains messageId (message was sent)
         if (responseData.containsKey('messageId') && responseData['messageId'] != null) {
           // Message was sent, return it as success
-          debugPrint('✅ [ChatService] 409 Conflict but messageId found (${responseData['messageId']}) - message was sent');
           return Message(
             id: responseData['messageId'].toString(),
             from: userId,
@@ -116,7 +110,6 @@ class ChatService {
           );
         }
         // No messageId - message may have been sent but we can't confirm
-        debugPrint('⚠️ [ChatService] 409 Conflict but no messageId in response');
         throw Exception(errorMessage ?? 'Message may have been sent already');
       }
       
@@ -124,13 +117,9 @@ class ChatService {
     }
     
     // No error message in response body, use status code
-    debugPrint('⚠️ [ChatService] No error message in response body for status ${response.statusCode}');
-    debugPrint('⚠️ [ChatService] Response body was: ${response.body}');
-    
     String statusMessage = 'Failed to send message';
     if (response.statusCode == 409) {
       statusMessage = 'Message may have been sent already (conflict)';
-      debugPrint('⚠️ [ChatService] 409 Conflict - response body did not contain error message');
     } else if (response.statusCode == 429) {
       statusMessage = 'Too many requests. Please wait a moment.';
     } else if (response.statusCode >= 500) {
@@ -155,7 +144,6 @@ class ChatService {
         }
       }
     } catch (e) {
-      print('❌ [ChatService] Error getting encryption key: $e');
     }
     // Fallback key (should not happen in production)
     return 'defaultkey123456789012345678901234';
@@ -194,9 +182,6 @@ class ChatService {
       }
 
       final url = ApiConstants.chatSend;
-      debugPrint('🔧 [ChatService] Sending message to: $url');
-      debugPrint('🔧 [ChatService] Parameters: userID=$userId, from=$userId, to=$toUserId, messageLength=${encryptedContent.length}');
-      
       // Build headers with optional protection cookie and API key
       final headers = <String, String>{
         'Content-Type': 'application/x-www-form-urlencoded',
@@ -208,7 +193,6 @@ class ChatService {
       // Add protection cookie if we have one
       if (_protectionCookie != null) {
         headers['Cookie'] = _protectionCookie!;
-        debugPrint('🍪 [ChatService] Sending request with protection cookie');
       }
       
       // Build body map to ensure all parameters are strings
@@ -220,34 +204,22 @@ class ChatService {
         'api_key': ApiConstants.apiKey, // Also send in POST body for compatibility
       };
       
-      debugPrint('🔧 [ChatService] Body map: ${bodyMap.keys.join(", ")}');
-      debugPrint('🔧 [ChatService] Body values: userID=${bodyMap['userID']}, from=${bodyMap['from']}, to=${bodyMap['to']}, messageLength=${bodyMap['message']?.length ?? 0}');
-      debugPrint('🔧 [ChatService] Headers: ${headers.keys.join(", ")}');
-      debugPrint('🔧 [ChatService] Content-Type: ${headers['Content-Type']}');
-      
       // Use Map format - http package will automatically encode it as form-urlencoded
       // when Content-Type is set to application/x-www-form-urlencoded
       final response = await _retryHttpRequest(
         () async {
-          debugPrint('📤 [ChatService] Making POST request to: $url');
-          debugPrint('📤 [ChatService] Request body type: ${bodyMap.runtimeType}');
-          debugPrint('📤 [ChatService] Request body size: ${bodyMap.length} parameters');
           final resp = await _client.post(
             Uri.parse(url),
             body: bodyMap,
             headers: headers,
             encoding: utf8, // Explicitly set encoding
           );
-          debugPrint('📥 [ChatService] Received response: ${resp.statusCode}');
           return resp;
         },
         maxRetries: 2,
       );
 
       // Log response in both debug and release (using debugPrint)
-      debugPrint('📥 [ChatService] Response status: ${response.statusCode}');
-      debugPrint('📥 [ChatService] Response body: ${response.body}');
-
       // Check if response is HTML/JavaScript (bot protection, Cloudflare, etc.)
       final responseBody = response.body.trim();
       final isHtmlResponse = responseBody.startsWith('<') || 
@@ -258,25 +230,17 @@ class ChatService {
                              (responseBody.length < 50 && responseBody.contains('<'));
       
       if (isHtmlResponse) {
-        debugPrint('⚠️ [ChatService] Received HTML/JavaScript response (likely bot protection)');
-        debugPrint('⚠️ [ChatService] Response body preview: ${responseBody.length > 200 ? responseBody.substring(0, 200) : responseBody}');
         
         // Try to extract protection cookie from response
         final cookieMatch = RegExp(r'humans_\d+=\d+').firstMatch(responseBody);
         if (cookieMatch != null) {
           _protectionCookie = cookieMatch.group(0);
-          debugPrint('🍪 [ChatService] Extracted protection cookie: $_protectionCookie');
-          
           // Wait a moment before retrying (bot protection may need time to process)
           await Future.delayed(const Duration(milliseconds: 500));
           
           // Retry the request with the cookie and API key
-          debugPrint('🔄 [ChatService] Retrying request with protection cookie and API key...');
-          debugPrint('🔄 [ChatService] Retry parameters: userID=$userId, from=$userId, to=$toUserId, messageLength=${encryptedContent.length}');
-          
           // Validate parameters before retry
           if (userId.isEmpty || toUserId.isEmpty || encryptedContent.isEmpty) {
-            debugPrint('❌ [ChatService] Retry failed: Missing parameters - userId=${userId.isEmpty ? "empty" : "ok"}, toUserId=${toUserId.isEmpty ? "empty" : "ok"}, message=${encryptedContent.isEmpty ? "empty" : "ok"}');
             throw Exception('Missing required parameters for retry');
           }
           
@@ -289,9 +253,6 @@ class ChatService {
               'message': encryptedContent,
               'api_key': ApiConstants.apiKey, // Also send in POST body for compatibility
             };
-            
-            debugPrint('🔄 [ChatService] Retry body keys: ${retryBody.keys.join(", ")}');
-            debugPrint('🔄 [ChatService] Retry body values: userID=${retryBody['userID']}, from=${retryBody['from']}, to=${retryBody['to']}, messageLength=${retryBody['message']?.length ?? 0}');
             
             // Make a direct request without retry wrapper to avoid nested retries
             // Use Map format - http package will automatically encode it correctly
@@ -307,10 +268,6 @@ class ChatService {
               },
               encoding: utf8, // Explicitly set encoding
             ).timeout(const Duration(seconds: 15));
-            
-            debugPrint('📥 [ChatService] Retry response status: ${retryResponse.statusCode}');
-            debugPrint('📥 [ChatService] Retry response body: ${retryResponse.body}');
-            
             // Check if retry also got HTML
             final retryResponseBody = retryResponse.body.trim();
             final retryIsHtml = retryResponseBody.startsWith('<') || 
@@ -320,14 +277,12 @@ class ChatService {
                                retryResponseBody.startsWith('<br');
             
             if (retryIsHtml) {
-              debugPrint('⚠️ [ChatService] Retry also returned HTML - bot protection still active');
               throw Exception('Server protection is still active. The API key may need to be configured on the server.');
             }
             
             // Process the retry response
             return await _processSendMessageResponse(retryResponse, userId, toUserId, content);
           } catch (retryError) {
-            debugPrint('❌ [ChatService] Retry with cookie also failed: $retryError');
             // Fall through to throw error
           }
         }
@@ -342,8 +297,6 @@ class ChatService {
       // Process normal response
       return await _processSendMessageResponse(response, userId, toUserId, content);
     } catch (e, stackTrace) {
-      debugPrint('❌ [ChatService] Error sending message: $e');
-      debugPrint('❌ [ChatService] Stack trace: $stackTrace');
       rethrow;
     }
   }
@@ -386,17 +339,12 @@ class ChatService {
 
       return reversedMessages;
     } catch (e, stackTrace) {
-      debugPrint('❌ [ChatService] Error getting messages: $e');
-      debugPrint('❌ [ChatService] Stack trace: $stackTrace');
-      debugPrint('❌ [ChatService] URL attempted: ${ApiConstants.chatGet}');
-      debugPrint('❌ [ChatService] API Base: ${ApiConstants.apiBase}');
       // If API fails, try to return cached data as fallback (only for initial load)
       if (offset == null || offset == 0) {
         final userId = await _authService.getStoredUserId();
         if (userId != null) {
           final cachedMessages = await _loadMessagesFromCache(friendId, userId);
           if (cachedMessages.isNotEmpty) {
-            debugPrint('✅ [ChatService] Using cached messages as fallback');
           }
           return cachedMessages;
         }
@@ -430,7 +378,6 @@ class ChatService {
       reversedMessages.sort((a, b) => a.date.compareTo(b.date));
       return reversedMessages;
     } catch (e) {
-      print('❌ [ChatService] Error loading older messages: $e');
       return [];
     }
   }
@@ -467,19 +414,16 @@ class ChatService {
       try {
         final response = await request();
         // Log response details for debugging
-        debugPrint('📥 [ChatService] Retry attempt ${attempt + 1}: Status ${response.statusCode}');
         if (response.statusCode < 500) {
           return response;
         }
         // For 500 errors, log the response body before throwing
         if (response.statusCode >= 500) {
-          debugPrint('❌ [ChatService] Server error ${response.statusCode}, response body: ${response.body}');
           // Try to extract error message from response
           try {
             final errorData = json.decode(response.body) as Map<String, dynamic>?;
             if (errorData != null && errorData.containsKey('message')) {
               final errorMsg = errorData['message'] as String?;
-              debugPrint('❌ [ChatService] Server error message: $errorMsg');
               throw HttpException('Server error: ${response.statusCode} - ${errorMsg ?? "Unknown error"}');
             }
           } catch (e) {
@@ -557,9 +501,6 @@ class ChatService {
         throw Exception('Failed to load messages: ${response.statusCode}');
       }
     } catch (e, stackTrace) {
-      debugPrint('❌ [ChatService] Error in _fetchMessagesFromAPI: $e');
-      debugPrint('❌ [ChatService] Stack trace: $stackTrace');
-      debugPrint('❌ [ChatService] URL: $url');
       rethrow;
     }
   }
@@ -573,7 +514,6 @@ class ChatService {
           await _saveMessagesToCache(friendId, messages);
         }
       } catch (e) {
-        print('⚠️ [ChatService] Background refresh failed: $e');
       }
     });
   }
@@ -592,7 +532,6 @@ class ChatService {
         DateTime.now().millisecondsSinceEpoch,
       );
     } catch (e) {
-      print('❌ [ChatService] Error saving to cache: $e');
     }
   }
 
@@ -621,7 +560,6 @@ class ChatService {
       }
       return [];
     } catch (e) {
-      print('❌ [ChatService] Error loading from cache: $e');
       return [];
     }
   }
@@ -633,7 +571,6 @@ class ChatService {
       await prefs.remove('$_cacheKeyPrefix$friendId');
       await prefs.remove('$_cacheTimestampPrefix$friendId');
     } catch (e) {
-      print('❌ [ChatService] Error clearing cache: $e');
     }
   }
 }

@@ -66,7 +66,6 @@ class _ChatListModalState extends State<ChatListModal> {
           setState(() {
             final index = _friends.indexWhere((f) => f.id == userId);
             if (index != -1) {
-              print('🔥 [ChatListModal] Firebase online status update: userId=$userId, isOnline=$isOnline');
               _friends[index] = _friends[index].copyWith(online: isOnline);
             }
           });

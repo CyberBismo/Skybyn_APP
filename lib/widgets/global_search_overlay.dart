@@ -69,14 +69,11 @@ class _GlobalSearchOverlayState extends State<GlobalSearchOverlay> {
     try {
       final userId = await _authService.getStoredUserId();
       if (userId == null) {
-        print('⚠️ [GlobalSearchOverlay] No user ID available');
         setState(() {
           _isSearching = false;
         });
         return;
       }
-
-      print('🔍 [GlobalSearchOverlay] Searching for: $query');
       final response = await http.post(
         Uri.parse('${ApiConstants.apiBase}/search.php'),
         body: {
@@ -88,35 +85,23 @@ class _GlobalSearchOverlayState extends State<GlobalSearchOverlay> {
         },
       ).timeout(const Duration(seconds: 10));
 
-      print('🔍 [GlobalSearchOverlay] Search response status: ${response.statusCode}');
-      print('🔍 [GlobalSearchOverlay] Search response body: ${response.body.substring(0, response.body.length > 200 ? 200 : response.body.length)}');
-
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        
-        print('🔍 [GlobalSearchOverlay] Response data type: ${data.runtimeType}');
-        print('🔍 [GlobalSearchOverlay] Response data: $data');
-        
         if (data is List && data.isNotEmpty) {
           // Filter out current user from results - check both id and userID fields
           final userIdStr = userId.toString();
-          print('🔍 [GlobalSearchOverlay] Current user ID: "$userIdStr" (type: ${userId.runtimeType})');
           
           final filteredResults = <Map<String, dynamic>>[];
           for (final user in data) {
             final userMap = Map<String, dynamic>.from(user);
             final userIdFromData = userMap['id']?.toString() ?? userMap['userID']?.toString();
             
-            print('🔍 [GlobalSearchOverlay] Checking user: id="$userIdFromData" (type: ${userMap['id'].runtimeType}), username="${userMap['username']}"');
             
             if (userIdFromData != null && userIdFromData != userIdStr) {
               filteredResults.add(userMap);
             } else {
-              print('🔍 [GlobalSearchOverlay] Filtered out own profile: "$userIdFromData" == "$userIdStr"');
             }
           }
-          
-          print('🔍 [GlobalSearchOverlay] Found ${data.length} total results, ${filteredResults.length} after filtering current user');
           if (mounted) {
             setState(() {
               _searchResults = filteredResults;
@@ -125,7 +110,6 @@ class _GlobalSearchOverlayState extends State<GlobalSearchOverlay> {
           }
         } else if (data is Map) {
           if (data['responseCode'] == '0' || data['responseCode'] == 0) {
-            print('🔍 [GlobalSearchOverlay] No results found (API returned responseCode 0)');
             if (mounted) {
               setState(() {
                 _searchResults = [];
@@ -134,7 +118,6 @@ class _GlobalSearchOverlayState extends State<GlobalSearchOverlay> {
             }
           } else {
             // Sometimes API might return a single user object
-            print('🔍 [GlobalSearchOverlay] Single result object: $data');
             final userIdStr = userId.toString();
             final userDataId = data['id']?.toString() ?? data['userID']?.toString();
             if (userDataId != null && userDataId != userIdStr) {
@@ -145,7 +128,6 @@ class _GlobalSearchOverlayState extends State<GlobalSearchOverlay> {
                 });
               }
             } else {
-              print('🔍 [GlobalSearchOverlay] Filtered out own profile (ID: $userDataId matches current user: $userIdStr)');
               if (mounted) {
                 setState(() {
                   _searchResults = [];
@@ -155,7 +137,6 @@ class _GlobalSearchOverlayState extends State<GlobalSearchOverlay> {
             }
           }
         } else {
-          print('⚠️ [GlobalSearchOverlay] Unexpected response format: ${data.runtimeType}');
           if (mounted) {
             setState(() {
               _searchResults = [];
@@ -164,8 +145,6 @@ class _GlobalSearchOverlayState extends State<GlobalSearchOverlay> {
           }
         }
       } else {
-        print('⚠️ [GlobalSearchOverlay] Search failed with status: ${response.statusCode}');
-        print('⚠️ [GlobalSearchOverlay] Response body: ${response.body}');
         if (mounted) {
           setState(() {
             _searchResults = [];
@@ -174,8 +153,6 @@ class _GlobalSearchOverlayState extends State<GlobalSearchOverlay> {
         }
       }
     } catch (e, stackTrace) {
-      print('❌ [GlobalSearchOverlay] Search error: $e');
-      print('❌ [GlobalSearchOverlay] Stack trace: $stackTrace');
       if (mounted) {
         setState(() {
           _searchResults = [];
@@ -399,7 +376,6 @@ class _GlobalSearchOverlayState extends State<GlobalSearchOverlay> {
             child: SearchForm(
               onClose: _handleClose,
               onSearch: (query) {
-                print('🔍 [GlobalSearchOverlay] onSearch called with: "$query"');
                 final trimmedQuery = query.trim();
                 // Only search if query has 3 or more characters
                 if (trimmedQuery.length >= 3) {

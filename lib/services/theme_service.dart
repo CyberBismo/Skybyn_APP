@@ -49,7 +49,6 @@ class ThemeService extends ChangeNotifier {
       _isInitialized = true;
       notifyListeners();
     } catch (e) {
-      print('Error initializing theme service: $e');
       // Default to system theme on error
       _themeMode = ThemeMode.system;
       _isInitialized = true;
@@ -82,7 +81,6 @@ class ThemeService extends ChangeNotifier {
       await prefs.setString(_themeModeKey, themeModeString);
       notifyListeners();
     } catch (e) {
-      print('Error saving theme mode: $e');
       // Still update the UI even if saving fails
       notifyListeners();
     }

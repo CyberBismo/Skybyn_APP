@@ -30,7 +30,6 @@ class BackgroundActivityService {
       final userId = await authService.getStoredUserId();
       
       if (userId == null || userId.isEmpty) {
-        print('ℹ️ [BackgroundActivity] No user logged in, skipping background activity setup');
         return;
       }
 
@@ -41,16 +40,12 @@ class BackgroundActivityService {
       // WorkManager is temporarily disabled due to compatibility issues
       // We rely on push notifications to update activity when app is closed
       // Push notifications already update activity in firebase_messaging_service.dart
-      print('ℹ️ [BackgroundActivity] Using push notifications for activity updates');
-      print('ℹ️ [BackgroundActivity] Activity will be updated when notifications are received');
-      
       // Note: Push notifications already update activity in:
       // - firebase_messaging_service.dart (foreground and background handlers)
       // - api/firebase.php (when sending notifications)
       // This effectively maintains online status similar to Facebook/Messenger
       
     } catch (e) {
-      print('❌ [BackgroundActivity] Error initializing background activity: $e');
       // Don't throw - allow app to continue without background tasks
     }
   }
@@ -59,9 +54,7 @@ class BackgroundActivityService {
   static Future<void> cancel() async {
     try {
       // WorkManager is disabled, so nothing to cancel
-      print('ℹ️ [BackgroundActivity] Background activity updates cancelled (using push notifications)');
     } catch (e) {
-      print('❌ [BackgroundActivity] Error cancelling background activity: $e');
     }
   }
 }
@@ -96,15 +89,11 @@ Future<void> _updateActivity(String userId) async {
     if (response.statusCode == 200) {
       final data = response.body;
       if (data.contains('"responseCode":"1"')) {
-        print('✅ [BackgroundActivity] Activity updated successfully for user $userId');
       } else {
-        print('⚠️ [BackgroundActivity] Activity update returned non-success: $data');
       }
     } else {
-      print('⚠️ [BackgroundActivity] Activity update failed with status ${response.statusCode}');
     }
   } catch (e) {
-    print('❌ [BackgroundActivity] Error updating activity: $e');
     rethrow;
   }
 }

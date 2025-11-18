@@ -49,7 +49,6 @@ class NotificationService {
         await requestAndroidPermissions();
       }
     } catch (e) {
-      print('Error initializing notification service: $e');
     }
   }
 
@@ -82,9 +81,7 @@ class NotificationService {
     if (initialized == true) {
       await _createNotificationChannels();
       await _createIOSNotificationCategories();
-      print('✅ [NotificationService] Local notifications initialized successfully');
     } else {
-      print('❌ [NotificationService] Failed to initialize local notifications');
     }
   }
 
@@ -102,18 +99,14 @@ class NotificationService {
           // Note: iOS action buttons are configured through UNNotificationCategory
           // This needs to be done in native iOS code or through a plugin
           // For now, the categoryIdentifier will be set, but actions need native setup
-          print('✅ [NotificationService] iOS notification categories setup');
         }
       } catch (e) {
-        print('⚠️ [NotificationService] Error setting up iOS categories: $e');
       }
     }
   }
 
   void _onNotificationTapped(NotificationResponse response) {
     // Handle notification tap and action buttons
-    print('📱 [NotificationService] Notification tapped: actionId=${response.actionId}, payload=${response.payload}');
-
     final payload = response.payload;
     final action = response.actionId;
     
@@ -129,7 +122,6 @@ class NotificationService {
 
     // Handle app_update payload
     if (payload == 'app_update' || payload == 'update_check') {
-      print('🔄 [NotificationService] App update notification tapped - triggering update check');
       // Trigger background update scheduler
       BackgroundUpdateScheduler().triggerUpdateCheck();
     } else if (payload.startsWith('{')) {
@@ -138,14 +130,12 @@ class NotificationService {
         final Map<String, dynamic> data = json.decode(payload);
         final type = data['type']?.toString();
         if (type == 'app_update') {
-          print('🔄 [NotificationService] App update notification tapped (from JSON) - triggering update check');
           _triggerUpdateCheck();
         } else if (type == 'call') {
           // Handle call notification tap (when user taps notification body, not action button)
           _handleCallNotificationTap(data);
         }
       } catch (e) {
-        print('⚠️ [NotificationService] Failed to parse notification payload: $e');
       }
     }
   }
@@ -154,8 +144,6 @@ class NotificationService {
   @pragma('vm:entry-point')
   static void _onBackgroundNotificationTapped(NotificationResponse response) {
     // This is a static method that can be called from background
-    print('📱 [NotificationService] Background notification tapped: actionId=${response.actionId}, payload=${response.payload}');
-    
     final payload = response.payload;
     final action = response.actionId;
     
@@ -167,7 +155,6 @@ class NotificationService {
           final Map<String, dynamic> data = json.decode(payload);
           _handleCallNotificationActionStatic(action, data);
         } catch (e) {
-          print('⚠️ [NotificationService] Failed to parse call payload in background: $e');
         }
       }
     }
@@ -182,7 +169,6 @@ class NotificationService {
       final Map<String, dynamic> data = json.decode(payload);
       _handleCallNotificationActionStatic(action, data);
     } catch (e) {
-      print('⚠️ [NotificationService] Failed to parse call payload: $e');
     }
   }
 
@@ -191,17 +177,14 @@ class NotificationService {
     final callType = data['callType']?.toString() ?? 'video';
     
     if (sender == null) {
-      print('⚠️ [NotificationService] Call notification missing sender ID');
       return;
     }
     
     if (action == 'answer') {
-      print('📞 [NotificationService] Call answered from notification - sender: $sender, type: $callType');
       // When user answers, the app should open and WebSocket will handle the call
       // The call offer should still be available when app opens
       // Navigation will be handled by the app's main navigation/routing
     } else if (action == 'decline') {
-      print('📞 [NotificationService] Call declined from notification - sender: $sender');
       // Send call_end message via WebSocket
       // Import WebSocketService to send decline message
       _sendCallDecline(sender);
@@ -222,14 +205,11 @@ class NotificationService {
           callId: callId,
           targetUserId: targetUserId,
         );
-        print('✅ [NotificationService] Call decline sent via WebSocket');
       } else {
-        print('⚠️ [NotificationService] WebSocket not connected - cannot send call decline');
         // Store the decline action to send when WebSocket reconnects
         // This could be done via a queue or SharedPreferences
       }
     } catch (e) {
-      print('❌ [NotificationService] Error sending call decline: $e');
     }
   }
 
@@ -240,8 +220,6 @@ class NotificationService {
     if (sender == null) {
       return;
     }
-    
-    print('📞 [NotificationService] Call notification tapped - opening call screen for sender: $sender');
     // TODO: Navigate to call screen
     // This will need to be handled by the app's navigation system
   }
@@ -256,20 +234,16 @@ class NotificationService {
 
     // Prevent multiple dialogs from showing at once
     if (AutoUpdateService.isDialogShowing) {
-      print('⚠️ [NotificationService] Update dialog already showing, skipping...');
       return;
     }
 
     try {
-      print('🔄 [NotificationService] Checking for updates after notification tap...');
-
       // Check for updates
       final updateInfo = await AutoUpdateService.checkForUpdates();
 
       if (updateInfo != null && updateInfo.isAvailable) {
         // Only show if dialog is not already showing (don't check version history)
         if (AutoUpdateService.isDialogShowing) {
-          print('ℹ️ [NotificationService] Update dialog already showing, skipping...');
           return;
         }
 
@@ -285,8 +259,6 @@ class NotificationService {
         if (navigator != null && !AutoUpdateService.isDialogShowing) {
           // Mark dialog as showing immediately to prevent duplicates
           AutoUpdateService.setDialogShowing(true);
-
-          print('✅ [NotificationService] Showing update dialog...');
           await showDialog(
             context: navigator.context,
             barrierDismissible: false,
@@ -301,19 +273,16 @@ class NotificationService {
             AutoUpdateService.setDialogShowing(false);
           });
         } else {
-          print('⚠️ [NotificationService] Navigator not available or dialog already showing, falling back to callback');
           // Fallback to callback if navigator not available
           FirebaseMessagingService.triggerUpdateCheck();
         }
       } else {
-        print('ℹ️ [NotificationService] No updates available');
         // Also trigger callback in case HomeScreen wants to show a message
         FirebaseMessagingService.triggerUpdateCheck();
       }
     } catch (e) {
       // Mark dialog as not showing on error
       AutoUpdateService.setDialogShowing(false);
-      print('❌ [NotificationService] Error checking for updates: $e');
       // Fallback to callback
       FirebaseMessagingService.triggerUpdateCheck();
     }
@@ -427,15 +396,11 @@ class NotificationService {
 
           // Check if permissions were actually granted
           if (result == true) {
-            print('✅ [NotificationService] iOS notification permissions successfully granted');
           } else {
-            print('⚠️ [NotificationService] iOS notification permissions not granted');
           }
         } else {
-          print('❌ [NotificationService] iOS implementation not available');
         }
       } catch (e) {
-        print('❌ [NotificationService] Error requesting iOS permissions: $e');
       }
     }
   }
@@ -447,14 +412,9 @@ class NotificationService {
       if (androidImplementation != null) {
         // Request notification permissions for Android 13+ (API level 33+)
         final bool? result = await androidImplementation.requestNotificationsPermission();
-        print('Android notification permissions requested: $result');
-
         // Check if notifications are enabled
         final bool? areNotificationsEnabled = await androidImplementation.areNotificationsEnabled();
-        print('Android notifications are enabled: $areNotificationsEnabled');
-
         if (areNotificationsEnabled != true) {
-          print('Android notifications are disabled. User needs to enable them in system settings.');
         }
       }
     }
@@ -495,7 +455,6 @@ class NotificationService {
       if (isAppUpdate) {
         channelId = _appUpdatesChannelId;
         if (AutoUpdateService.isDialogShowing) {
-          print('ℹ️ [NotificationService] Update dialog already showing, skipping notification...');
           return -1; // Return -1 to indicate notification was not shown
         }
       } else if (isChat) {
@@ -503,15 +462,6 @@ class NotificationService {
       } else if (isCall) {
         channelId = _callsChannelId;
       }
-
-      print('🔔 [NotificationService] Showing notification: $title - $body');
-      print('🔔 [NotificationService] Platform: ${Platform.operatingSystem}');
-      print('🔔 [NotificationService] Channel ID: $channelId');
-      print('🔔 [NotificationService] Is App Update: $isAppUpdate');
-      print('🔔 [NotificationService] Is Chat: $isChat');
-      print('🔔 [NotificationService] Is Call: $isCall');
-      print('🔔 [NotificationService] Payload: $payload');
-
       // Android notification details - use appropriate channel
       String channelName;
       String channelDescription;
@@ -599,9 +549,6 @@ class NotificationService {
       );
 
       final int notificationId = DateTime.now().millisecondsSinceEpoch ~/ 1000;
-      print('🔔 [NotificationService] Notification ID: $notificationId');
-      print('🔔 [NotificationService] Notification details: $platformChannelSpecifics');
-
       // Show the notification
       await _localNotifications.show(
         notificationId,
@@ -610,23 +557,14 @@ class NotificationService {
         platformChannelSpecifics,
         payload: payload,
       );
-
-      print('✅ [NotificationService] Notification sent successfully');
-
       // For iOS, add additional debugging
       if (Platform.isIOS) {
-        print('📱 [NotificationService] iOS notification should appear in Notification Center');
-        print('📱 [NotificationService] Swipe down from top of screen to check Notification Center');
-
         // Check if we can get pending notifications to verify it was created
         final pendingNotifications = await _localNotifications.pendingNotificationRequests();
-        print('📱 [NotificationService] Pending notifications count: ${pendingNotifications.length}');
       }
       
       return notificationId;
     } catch (e, stackTrace) {
-      print('❌ [NotificationService] Error showing notification: $e');
-      print('❌ [NotificationService] Stack trace: $stackTrace');
       rethrow;
     }
   }
@@ -689,7 +627,6 @@ class NotificationService {
     final String? settingsJson = prefs.getString(_notificationSettingsKey);
     if (settingsJson != null) {
       final Map<String, dynamic> settings = json.decode(settingsJson);
-      print('Notification settings: $settings');
     }
   }
 
@@ -727,7 +664,6 @@ class NotificationService {
           // if the plugin is available and we can request permissions
           return true;
         } catch (e) {
-          print('❌ [NotificationService] Error checking iOS notification permissions: $e');
           return false;
         }
       }
@@ -742,8 +678,6 @@ class NotificationService {
         final IOSFlutterLocalNotificationsPlugin? iOSImplementation = _localNotifications.resolvePlatformSpecificImplementation<IOSFlutterLocalNotificationsPlugin>();
 
         if (iOSImplementation != null) {
-          print('📱 [NotificationService] iOS notification plugin available');
-
           // Try to request permissions to see if they're granted
           final bool? result = await iOSImplementation.requestPermissions(
             alert: true,
@@ -751,19 +685,12 @@ class NotificationService {
             sound: true,
             provisional: false,
           );
-
-          print('📱 [NotificationService] iOS permission request result: $result');
-
           if (result == true) {
-            print('✅ [NotificationService] iOS notifications are enabled');
           } else {
-            print('⚠️ [NotificationService] iOS notifications may be disabled');
           }
         } else {
-          print('❌ [NotificationService] iOS notification plugin not available');
         }
       } catch (e) {
-        print('❌ [NotificationService] Error checking iOS notification status: $e');
       }
     }
   }
@@ -779,7 +706,6 @@ class NotificationService {
       }
       return false;
     } catch (e) {
-      print('Error requesting notification permissions: $e');
       return false;
     }
   }
@@ -843,7 +769,6 @@ class NotificationService {
         );
       }
     } catch (e) {
-      print('❌ [NotificationService] Error showing progress notification: $e');
     }
   }
 
@@ -851,9 +776,7 @@ class NotificationService {
   Future<void> cancelUpdateProgressNotification() async {
     try {
       await _localNotifications.cancel(_updateProgressNotificationId);
-      print('✅ [NotificationService] Update progress notification cancelled');
     } catch (e) {
-      print('❌ [NotificationService] Error cancelling progress notification: $e');
     }
   }
 }

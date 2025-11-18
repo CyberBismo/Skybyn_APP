@@ -74,7 +74,6 @@ class _RightPanelState extends State<RightPanel> {
           final index = _friends.indexWhere((f) => f.id == userId);
           if (index != -1) {
             final oldStatus = _friends[index].online;
-            print('📡 [RightPanel] WebSocket online status update: userId=$userId, oldStatus=$oldStatus -> newStatus=$isOnline');
             _friends[index] = _friends[index].copyWith(online: isOnline);
           }
         });
@@ -100,7 +99,6 @@ class _RightPanelState extends State<RightPanel> {
             final index = _friends.indexWhere((f) => f.id == userId);
             if (index != -1) {
               final oldStatus = _friends[index].online;
-              print('🔥 [RightPanel] Firebase online status update: userId=$userId, oldStatus=$oldStatus -> newStatus=$isOnline');
               _friends[index] = _friends[index].copyWith(online: isOnline);
             }
           });

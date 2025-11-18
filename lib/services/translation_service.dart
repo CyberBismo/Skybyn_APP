@@ -113,7 +113,6 @@ class TranslationService extends ChangeNotifier {
         }
       }
     } catch (e) {
-      print('❌ Error loading saved language: $e');
       _currentLanguage = 'en'; // Fallback to English
     }
   }
@@ -186,7 +185,6 @@ class TranslationService extends ChangeNotifier {
         if (data['responseCode'] == '1' && data['language'] != null) {
           final language = data['language'].toString();
           if (supportedLanguages.contains(language)) {
-            print('✅ Loaded language from API: $language');
             return language;
           }
         }
@@ -195,7 +193,6 @@ class TranslationService extends ChangeNotifier {
       if (e is HandshakeException) {
         // Silently fail for SSL issues
       } else {
-        print('⚠️ Could not fetch language from API: $e');
       }
     }
     return null;
@@ -212,7 +209,6 @@ class TranslationService extends ChangeNotifier {
           _currentLanguage = apiLanguage;
           await _saveLanguage(_currentLanguage);
           notifyListeners();
-          print('✅ Language synced from API: $apiLanguage');
         }
       } catch (e) {
         // Silently fail - we already have a language
@@ -243,7 +239,6 @@ class TranslationService extends ChangeNotifier {
       // Save detected language
       await _saveLanguage(_currentLanguage);
     } catch (e) {
-      print('❌ Error auto-detecting language: $e');
       _currentLanguage = 'en';
     }
   }
@@ -252,18 +247,14 @@ class TranslationService extends ChangeNotifier {
   Future<void> _verifyAndSetLanguage() async {
     // Check if current language exists in loaded translations
     if (!_translations.containsKey(_currentLanguage)) {
-      print('⚠️ Language $_currentLanguage not available, falling back to English');
       _currentLanguage = 'en';
       await _saveLanguage(_currentLanguage);
     }
 
     // Double check English exists (it should always be there)
     if (!_translations.containsKey('en')) {
-      print('❌ English translations not available, using fallback');
       await _loadFallbackTranslations();
     }
-
-    print('✅ Using language: $_currentLanguage');
   }
 
   // Load translations from API or cache
@@ -272,7 +263,6 @@ class TranslationService extends ChangeNotifier {
     final cachedTranslations = await _loadTranslationsFromCache();
     if (cachedTranslations.isNotEmpty) {
       _translations = cachedTranslations;
-      print('✅ Loaded translations from cache for ${_translations.keys.length} languages');
       notifyListeners(); // Notify listeners that cached translations are loaded
       
       // Refresh translations in background
@@ -313,42 +303,34 @@ class TranslationService extends ChangeNotifier {
               } else {
                 // If value is not a Map, it might be an error message
                 if (entry.key == 'error' || entry.key == 'message') {
-                  print('⚠️ Translation API returned: ${entry.key} = ${entry.value}');
                 }
               }
             }
 
             // If no translations were loaded, use fallback
             if (_translations.isEmpty) {
-              print('⚠️ No translations loaded from API, using fallback');
               await _loadFallbackTranslations();
             } else {
-              print('✅ Loaded translations for ${_translations.keys.length} languages');
               // Save to cache
               await _saveTranslationsToCache(_translations);
             }
             notifyListeners(); // Notify listeners that translations have been loaded
           } else {
-            print('❌ Translation API returned non-Map response: ${responseData.runtimeType}');
             await _loadFallbackTranslations();
             notifyListeners(); // Notify listeners that fallback translations are loaded
           }
         } catch (e) {
-          print('❌ Error parsing translations JSON: $e');
           await _loadFallbackTranslations();
           notifyListeners(); // Notify listeners that fallback translations are loaded
         }
       } else {
-        print('❌ Failed to load translations: ${response.statusCode}');
         await _loadFallbackTranslations();
         notifyListeners(); // Notify listeners that fallback translations are loaded
       }
     } catch (e) {
       // Silently fall back to cached/fallback translations
       if (e is HandshakeException) {
-        print('ℹ️ [TranslationService] SSL handshake failed, using cached/fallback translations');
       } else {
-        print('⚠️ [TranslationService] Error loading translations: $e');
       }
       await _loadFallbackTranslations();
       notifyListeners(); // Notify listeners that fallback translations are loaded
@@ -363,7 +345,6 @@ class TranslationService extends ChangeNotifier {
         notifyListeners(); // Notify listeners that translations have been updated
       } catch (e) {
         // Silently fail - we already have cached data
-        print('⚠️ [TranslationService] Background refresh failed: $e');
       }
     });
   }
@@ -382,7 +363,6 @@ class TranslationService extends ChangeNotifier {
       await prefs.setString(_cacheKey, jsonEncode(translationsJson));
       await prefs.setInt(_cacheTimestampKey, DateTime.now().millisecondsSinceEpoch);
     } catch (e) {
-      print('⚠️ [TranslationService] Failed to save cache: $e');
     }
   }
 
@@ -422,9 +402,7 @@ class TranslationService extends ChangeNotifier {
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove(_cacheKey);
       await prefs.remove(_cacheTimestampKey);
-      print('✅ [TranslationService] Cache cleared');
     } catch (e) {
-      print('⚠️ [TranslationService] Error clearing cache: $e');
     }
   }
 
@@ -790,7 +768,6 @@ class TranslationService extends ChangeNotifier {
       final userId = await authService.getStoredUserId();
       
       if (userId == null) {
-        print('⚠️ Cannot save language to API: User not logged in');
         return;
       }
 
@@ -806,15 +783,11 @@ class TranslationService extends ChangeNotifier {
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         if (data['responseCode'] == '1') {
-          print('✅ Language saved to API: $languageCode');
         } else {
-          print('⚠️ API did not confirm language save: ${data['message']}');
         }
       } else {
-        print('⚠️ Failed to save language to API: ${response.statusCode}');
       }
     } catch (e) {
-      print('⚠️ Error saving language to API: $e');
       // Don't throw - language is already saved locally
     }
   }
@@ -825,7 +798,6 @@ class TranslationService extends ChangeNotifier {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('language', languageCode);
     } catch (e) {
-      print('❌ Error saving language: $e');
     }
   }
 

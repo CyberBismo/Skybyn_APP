@@ -12,7 +12,8 @@ import '../services/call_service.dart';
 import '../services/chat_service.dart';
 import '../services/firebase_realtime_service.dart';
 import '../services/websocket_service.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+// Firestore disabled - using WebSocket for real-time features instead
+// import 'package:cloud_firestore/cloud_firestore.dart';
 import '../utils/translation_keys.dart';
 import '../widgets/translated_text.dart';
 import '../services/translation_service.dart';
@@ -65,8 +66,8 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
   Timer? _typingStopTimer;
   late AnimationController _typingAnimationController;
   late Animation<double> _typingAnimation;
-  // Store subscription for cleanup
-  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _onlineStatusSubscription;
+  // Store subscription for cleanup (Firestore disabled - using WebSocket instead)
+  StreamSubscription<dynamic>? _onlineStatusSubscription;
   // Store WebSocket online status callback for cleanup
   void Function(String, bool)? _webSocketOnlineStatusCallback;
   // Menu overlay
@@ -291,7 +292,6 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
     } catch (e) {
       // Silently fail - don't spam errors for online status checks
       if (mounted) {
-        print('⚠️ [ChatScreen] Error checking friend online status: $e');
       }
     }
   }
@@ -317,7 +317,6 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
         _scrollToBottom();
       }
     } catch (e) {
-      print('❌ [ChatScreen] Error loading messages: $e');
       if (mounted) {
         setState(() {
           _isLoading = false;
@@ -334,7 +333,6 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
       (userId, isOnline) {
         if (userId == widget.friend.id && mounted) {
           final oldStatus = _friendOnline;
-          print('🔥 [ChatScreen] Firebase online status update: userId=$userId, oldStatus=$oldStatus -> newStatus=$isOnline');
           setState(() {
             _friendOnline = isOnline;
           });
@@ -346,7 +344,6 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
     _webSocketOnlineStatusCallback = (userId, isOnline) {
       if (userId == widget.friend.id && mounted) {
         final oldStatus = _friendOnline;
-        print('📡 [ChatScreen] WebSocket online status update: userId=$userId, oldStatus=$oldStatus -> newStatus=$isOnline');
         setState(() {
           _friendOnline = isOnline;
         });
@@ -357,7 +354,6 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
     _webSocketService.connect(
       onOnlineStatus: _webSocketOnlineStatusCallback,
       onChatMessage: (messageId, fromUserId, toUserId, message) {
-        debugPrint('💬 [ChatScreen] Received WebSocket chat message: messageId=$messageId, from=$fromUserId, to=$toUserId');
         // Only handle messages for this chat
         if ((fromUserId == widget.friend.id && toUserId == _currentUserId) ||
             (fromUserId == _currentUserId && toUserId == widget.friend.id)) {
@@ -383,8 +379,6 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
               });
               // Always scroll to bottom for new messages
               _scrollToBottom();
-              debugPrint('✅ [ChatScreen] Added new message via WebSocket: messageId=$messageId');
-              
               // If message is from friend and we're not viewing this chat, increment badge
               if (fromUserId == widget.friend.id && toUserId == _currentUserId) {
                 // We're viewing this chat, so don't increment badge
@@ -392,10 +386,8 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
               }
             }
           } else {
-            debugPrint('ℹ️ [ChatScreen] Message already exists, skipping: messageId=$messageId');
           }
         } else {
-          debugPrint('⚠️ [ChatScreen] Message not for this chat: from=$fromUserId, to=$toUserId, currentUserId=$_currentUserId, friendId=${widget.friend.id}');
         }
       },
     );
@@ -483,11 +475,8 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
   Future<void> _sendMessage() async {
     final message = _messageController.text.trim();
     if (message.isEmpty || _isSending) {
-      debugPrint('⚠️ [ChatScreen] Cannot send: isEmpty=${message.isEmpty}, _isSending=$_isSending');
       return;
     }
-
-    debugPrint('📤 [ChatScreen] Starting to send message, setting _isSending=true');
     setState(() {
       _isSending = true;
     });
@@ -534,7 +523,6 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
 
       // Reset _isSending IMMEDIATELY after API call succeeds (before WebSocket/Firebase)
       // This ensures the button is enabled even if WebSocket/Firebase calls hang
-      debugPrint('✅ [ChatScreen] API call completed, resetting _isSending=false immediately');
       if (mounted) {
         setState(() {
           _isSending = false;
@@ -582,16 +570,13 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
               targetUserId: widget.friend.id,
               content: message,
             ).catchError((e) {
-              debugPrint('⚠️ [ChatScreen] Error sending Firebase notification: $e');
             });
           }
         } catch (e) {
-          debugPrint('⚠️ [ChatScreen] Error sending real-time notifications: $e');
           // Don't fail the send - message was already saved via HTTP API
         }
       } else {
         // sentMessage is null or not mounted - remove temp message and reset
-        debugPrint('⚠️ [ChatScreen] sentMessage is null or not mounted (sentMessage=${sentMessage != null}, mounted=$mounted)');
         if (mounted) {
           setState(() {
             _messages.removeWhere((m) => m.id == tempMessage.id);
@@ -599,38 +584,25 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
           });
         } else {
           // Not mounted, but still need to reset _isSending (finally will handle it, but reset here too for safety)
-          debugPrint('⚠️ [ChatScreen] Widget not mounted, _isSending will be reset in finally block');
         }
       }
     } catch (e) {
-      debugPrint('❌ [ChatScreen] Error sending message: $e');
-      
       // Extract error message (remove "Exception: " prefix if present)
       String errorMessage = e.toString();
-      debugPrint('🔍 [ChatScreen] Raw error: $errorMessage');
       if (errorMessage.startsWith('Exception: ')) {
         errorMessage = errorMessage.substring(11);
       }
-      debugPrint('🔍 [ChatScreen] Cleaned error message: $errorMessage');
-      
       // Handle 409 Conflict - message may have been sent already
       // Check for various forms of conflict/duplicate messages
       final lowerError = errorMessage.toLowerCase();
-      debugPrint('🔍 [ChatScreen] Lowercase error: $lowerError');
-      
       final isConflict = lowerError.contains('409') || 
           lowerError.contains('conflict') || 
           lowerError.contains('already been sent') || 
           lowerError.contains('may have been sent') ||
           lowerError.contains('duplicate') ||
           lowerError.contains('already sent');
-      
-      debugPrint('🔍 [ChatScreen] Is conflict detected: $isConflict');
-      
       if (isConflict) {
         // Message might have been sent - try to refresh messages
-        debugPrint('⚠️ [ChatScreen] 409 Conflict detected - message may have been sent already, refreshing...');
-        
         // Remove temp message since it might have been sent
         setState(() {
           _messages.removeWhere((m) => m.id.startsWith('temp_'));
@@ -683,14 +655,11 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
         );
       }
     } finally {
-      debugPrint('🔄 [ChatScreen] Finally block executing, resetting _isSending=false');
       if (mounted) {
         setState(() {
           _isSending = false;
         });
-        debugPrint('✅ [ChatScreen] _isSending reset to false in finally block');
       } else {
-        debugPrint('⚠️ [ChatScreen] Widget not mounted, cannot reset _isSending in finally');
       }
     }
   }
@@ -727,7 +696,6 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
       }
     } catch (e) {
       // Silently fail - don't spam errors
-      print('⚠️ [ChatScreen] Error refreshing messages: $e');
     }
   }
 
@@ -781,7 +749,6 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
         });
       }
     } catch (e) {
-      print('❌ [ChatScreen] Error loading older messages: $e');
     } finally {
       if (mounted) {
         setState(() {
@@ -824,7 +791,6 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
 
       return true;
     } catch (e) {
-      print('❌ [ChatScreen] Error checking permissions: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -1032,13 +998,15 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
                                   // Check permissions before starting call
                                   final hasPermission = await _checkCallPermissions(CallType.audio);
                                   if (hasPermission && mounted) {
-                                    Navigator.of(context).push(
+                                    Navigator.of(context, rootNavigator: false).push(
                                       MaterialPageRoute(
-                                        builder: (context) => CallScreen(
+                                        builder: (newContext) => CallScreen(
                                           friend: widget.friend,
                                           callType: CallType.audio,
                                           isIncoming: false,
                                         ),
+                                        // Don't use maintainState: false - it can cause navigation issues
+                                        // The chat screen should remain in the stack
                                       ),
                                     );
                                   }
@@ -1069,13 +1037,15 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
                                   // Check permissions before starting call
                                   final hasPermission = await _checkCallPermissions(CallType.video);
                                   if (hasPermission && mounted) {
-                                    Navigator.of(context).push(
+                                    Navigator.of(context, rootNavigator: false).push(
                                       MaterialPageRoute(
-                                        builder: (context) => CallScreen(
+                                        builder: (newContext) => CallScreen(
                                           friend: widget.friend,
                                           callType: CallType.video,
                                           isIncoming: false,
                                         ),
+                                        // Don't use maintainState: false - it can cause navigation issues
+                                        // The chat screen should remain in the stack
                                       ),
                                     );
                                   }
@@ -2056,7 +2026,6 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
         );
       }
     } catch (e) {
-      debugPrint('❌ [ChatScreen] Error clearing chat: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -2104,8 +2073,6 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
     try {
       // TODO: Implement API call to block user
       // This should call an API endpoint to block the user
-      debugPrint('🛑 [ChatScreen] Blocking user: ${widget.friend.id}');
-      
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -2117,7 +2084,6 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
         Navigator.of(context).pop();
       }
     } catch (e) {
-      debugPrint('❌ [ChatScreen] Error blocking user: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -2165,8 +2131,6 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
     try {
       // TODO: Implement API call to unfriend user
       // This should call an API endpoint to remove the friendship
-      debugPrint('👋 [ChatScreen] Unfriending user: ${widget.friend.id}');
-      
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -2178,7 +2142,6 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
         Navigator.of(context).pop();
       }
     } catch (e) {
-      debugPrint('❌ [ChatScreen] Error unfriending user: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(

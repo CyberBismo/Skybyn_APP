@@ -94,8 +94,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
         }
       }
     } catch (e, stackTrace) {
-      print('❌ [ProfileScreen] Error loading profile: $e');
-      print('❌ [ProfileScreen] Stack trace: $stackTrace');
       setState(() {
         isLoading = false;
         userData = null;
@@ -111,14 +109,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final targetUserId = userData!['id']?.toString() ?? 
                         userData!['userID']?.toString() ?? 
                         profileUserId?.toString();
-    print('🔍 [ProfileScreen] Loading posts for user: $targetUserId');
-    print('🔍 [ProfileScreen] userData keys: ${userData!.keys.toList()}');
-    print('🔍 [ProfileScreen] userData[id]: ${userData!['id']}');
-    print('🔍 [ProfileScreen] userData[userID]: ${userData!['userID']}');
-    print('🔍 [ProfileScreen] profileUserId: $profileUserId');
-    
     if (targetUserId == null || targetUserId.isEmpty) {
-      print('❌ [ProfileScreen] No valid user ID found in userData or profileUserId');
       setState(() {
         userPosts = [];
         isLoadingPosts = false;
@@ -134,14 +125,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
         userId: targetUserId ?? '',
         currentUserId: currentUserId,
       );
-      
-      print('🔍 [ProfileScreen] Received ${posts.length} posts from API');
-      
       // The API endpoint (user-timeline.php) should already filter by user
       // Trust the API response, but log for debugging
       for (final post in posts) {
         if (post.userId != null && post.userId != targetUserId) {
-          print('⚠️ [ProfileScreen] Post ${post.id} userId mismatch: ${post.userId} != $targetUserId (including anyway - API should filter)');
         }
       }
       
@@ -150,11 +137,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         userPosts = posts;
         isLoadingPosts = false;
       });
-      
-      print('🔍 [ProfileScreen] Set ${userPosts.length} posts to display');
     } catch (e, stackTrace) {
-      print('❌ [ProfileScreen] Error loading user posts: $e');
-      print('❌ [ProfileScreen] Stack trace: $stackTrace');
       setState(() {
         userPosts = [];
         isLoadingPosts = false;
@@ -192,11 +175,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Future<void> _checkFriendshipStatus() async {
     if (currentUserId == null || profileUserId == null) {
-      print('❌ [ProfileScreen] Cannot check friendship status: currentUserId or profileUserId is null');
       return;
     }
-    
-    print('🔍 [ProfileScreen] Checking friendship status between $currentUserId and $profileUserId');
     try {
       final response = await http.post(
         Uri.parse(ApiConstants.friend),
@@ -206,25 +186,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
           'action': 'status',
         },
       );
-      
-      print('📥 [ProfileScreen] Status check response: ${response.statusCode}');
-      print('📥 [ProfileScreen] Status check body: ${response.body}');
-      
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         final status = data['status']?.toString().toLowerCase() ?? 'none';
-        print('✅ [ProfileScreen] Friendship status detected: $status');
         setState(() {
           _friendshipStatus = status;
         });
       } else {
-        print('❌ [ProfileScreen] Status check failed with status code: ${response.statusCode}');
         setState(() {
           _friendshipStatus = 'none';
         });
       }
     } catch (e) {
-      print('❌ [ProfileScreen] Error checking friendship status: $e');
       // Default to 'none' if check fails
       setState(() {
         _friendshipStatus = 'none';
@@ -233,19 +206,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _sendFriendRequest() async {
-    print('🔘 [ProfileScreen] _sendFriendRequest called');
     if (currentUserId == null || userData == null || _isSendingRequest) {
-      print('❌ [ProfileScreen] Cannot send request - missing data or already sending');
       return;
     }
     
     final friendId = userData!['id']?.toString() ?? userData!['userID']?.toString();
     if (friendId == null || friendId.isEmpty) {
-      print('❌ [ProfileScreen] Missing friendId');
       return;
     }
-    
-    print('📤 [ProfileScreen] Sending friend request to friendId: $friendId');
     setState(() {
       _isSendingRequest = true;
     });
@@ -259,8 +227,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
           'action': 'add',
         },
       );
-      print('📥 [ProfileScreen] Response status: ${response.statusCode}');
-      
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         if (data['responseCode'] == '1' || data['responseCode'] == 1) {
@@ -299,7 +265,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
         });
       }
     } catch (e) {
-      print('❌ [ProfileScreen] Error sending friend request: $e');
       setState(() {
         _isSendingRequest = false;
       });
@@ -315,7 +280,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
           icon: Icons.chat,
           label: TranslationService().translate(TranslationKeys.chat),
           onTap: () {
-            print('🔘 [ProfileScreen] Chat button tapped');
             if (profileUserId != null && userData != null) {
               final friend = Friend(
                 id: profileUserId!,
@@ -331,7 +295,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
               );
             } else {
-              print('❌ [ProfileScreen] Cannot open chat: profileUserId or userData is null');
             }
           },
         ),
@@ -341,7 +304,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
           icon: Icons.people,
           label: TranslationService().translate(TranslationKeys.friends),
           onTap: () {
-            print('🔘 [ProfileScreen] Friends button tapped');
             _showFriendActionsMenu();
           },
         ),
@@ -352,7 +314,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
           label: TranslationService().translate(TranslationKeys.report),
           color: Colors.red,
           onTap: () {
-            print('🔘 [ProfileScreen] Report button tapped');
             _reportUser();
           },
         ),
@@ -362,7 +323,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
           icon: Icons.share,
           label: TranslationService().translate(TranslationKeys.share),
           onTap: () {
-            print('🔘 [ProfileScreen] Share button tapped');
             _shareProfile();
           },
         ),
@@ -379,14 +339,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: () {
-        print('🔘 [ProfileScreen] Button tapped: $label');
         onTap();
       },
       child: Material(
         color: Colors.transparent,
         child: InkWell(
           onTap: () {
-            print('🔘 [ProfileScreen] InkWell tapped: $label');
             onTap();
           },
           borderRadius: BorderRadius.circular(12),
@@ -428,7 +386,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   void _showFriendActionsMenu() {
-    print('🔘 [ProfileScreen] _showFriendActionsMenu called');
     // Refresh status before showing menu
     _checkFriendshipStatus().then((_) {
       _showFriendActionsMenuInternal();
@@ -437,8 +394,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   void _showFriendActionsMenuInternal() {
     final status = _friendshipStatus ?? 'none';
-    print('🔘 [ProfileScreen] Current friendship status: $status');
-    
     // Build menu items based on status
     List<PopupMenuEntry<String>> menuItems = [];
     
@@ -640,13 +595,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Future<void> _reportUser() async {
     if (currentUserId == null || userData == null) {
-      print('❌ [ProfileScreen] Cannot report user: currentUserId or userData is null');
       return;
     }
     
     final userReported = userData!['id']?.toString() ?? userData!['userID']?.toString();
     if (userReported == null || userReported.isEmpty) {
-      print('❌ [ProfileScreen] Missing userReported ID');
       return;
     }
     
@@ -719,9 +672,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
       return;
     }
     
-    print('📤 [ProfileScreen] Reporting user: $userReported');
-    print('📤 [ProfileScreen] Report content: ${reportContent.isEmpty ? "(no content)" : reportContent}');
-    
     try {
       final response = await http.post(
         Uri.parse(ApiConstants.report),
@@ -731,10 +681,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
           'content': reportContent.isEmpty ? 'User reported from profile screen' : reportContent,
         },
       );
-      
-      print('📥 [ProfileScreen] Report response: ${response.statusCode}');
-      print('📥 [ProfileScreen] Report body: ${response.body}');
-      
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         if (data['responseCode'] == '1' || data['responseCode'] == 1) {
@@ -770,7 +716,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
         }
       }
     } catch (e) {
-      print('❌ [ProfileScreen] Error reporting user: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -793,7 +738,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     try {
       await Share.share(shareText);
     } catch (e) {
-      print('❌ [ProfileScreen] Error sharing profile: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -807,10 +751,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _buildFriendActionDropdown() {
-    print('🔘 [ProfileScreen] _buildFriendActionDropdown called');
     final status = _friendshipStatus ?? 'none';
-    print('🔘 [ProfileScreen] Friendship status: $status');
-    
     // If user has blocked you, show blocked icon only
     if (status == 'blocked') {
       return IconButton(
@@ -936,7 +877,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     // Return PopupMenuButton with 3-dot vertical icon
     return Builder(
       builder: (context) {
-        print('🔘 [ProfileScreen] Building PopupMenuButton');
         return PopupMenuButton<String>(
           icon: Icon(
             Icons.more_vert,
@@ -953,7 +893,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
           splashRadius: 24,
           elevation: 20,
           itemBuilder: (BuildContext context) {
-            print('🔘 [ProfileScreen] PopupMenuButton itemBuilder called');
             // Show toast when menu opens
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
@@ -965,7 +904,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
             return menuItems;
           },
           onSelected: (String value) {
-            print('🔘 [ProfileScreen] Dropdown menu item selected: $value');
             if (value == 'send') {
               _sendFriendRequest();
             } else {
@@ -978,18 +916,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _sendFriendAction(String action) async {
-    print('🔘 [ProfileScreen] _sendFriendAction called with action: $action');
     if (currentUserId == null || userData == null) {
-      print('❌ [ProfileScreen] Missing currentUserId or userData');
       return;
     }
     final friendId = userData!['id']?.toString() ?? userData!['userID']?.toString();
     if (friendId == null || friendId.isEmpty) {
-      print('❌ [ProfileScreen] Missing friendId');
       return;
     }
-    
-    print('📤 [ProfileScreen] Sending friend action: $action to friendId: $friendId');
     try {
       final response = await http.post(
         Uri.parse(ApiConstants.friend),
@@ -999,8 +932,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
           'action': action,
         },
       );
-      print('📥 [ProfileScreen] Response status: ${response.statusCode}');
-      
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         if (data['responseCode'] == '1' || data['responseCode'] == 1) {
@@ -1030,7 +961,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
         }
       }
     } catch (e) {
-      print('❌ [ProfileScreen] Error sending friend action: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(

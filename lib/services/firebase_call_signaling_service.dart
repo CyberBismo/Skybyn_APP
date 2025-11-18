@@ -1,4 +1,5 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+// Firestore disabled - using WebSocket for real-time features instead
+// import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'dart:async';
 import 'dart:convert';
@@ -12,14 +13,15 @@ class FirebaseCallSignalingService {
   factory FirebaseCallSignalingService() => _instance;
   FirebaseCallSignalingService._internal();
 
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  // Firestore disabled - using WebSocket for real-time features instead
+  // final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   String? _userId;
   
-  // Stream subscriptions
-  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _callOfferSubscription;
-  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _callAnswerSubscription;
-  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _iceCandidatesSubscription;
-  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _callEndSubscription;
+  // Stream subscriptions (Firestore disabled - these are not used)
+  StreamSubscription<dynamic>? _callOfferSubscription;
+  StreamSubscription<dynamic>? _callAnswerSubscription;
+  StreamSubscription<dynamic>? _iceCandidatesSubscription;
+  StreamSubscription<dynamic>? _callEndSubscription;
 
   // Callbacks for WebRTC signaling
   Function(String, String, String, String)? _onCallOffer; // callId, fromUserId, offer, callType
@@ -37,21 +39,16 @@ class FirebaseCallSignalingService {
     if (_isInitialized) return;
 
     try {
-      print('🔄 [FirebaseCallSignaling] Initializing...');
-      
       final authService = AuthService();
       final user = await authService.getStoredUserProfile();
       _userId = user?.id;
       
       if (_userId == null) {
-        print('⚠️ [FirebaseCallSignaling] No user logged in');
         return;
       }
 
       _isInitialized = true;
-      print('✅ [FirebaseCallSignaling] Initialized');
     } catch (e) {
-      print('❌ [FirebaseCallSignaling] Error initializing: $e');
       rethrow;
     }
   }
@@ -77,7 +74,12 @@ class FirebaseCallSignalingService {
   }
 
   /// Set up Firestore listeners for call signaling
+  /// DISABLED: Firestore is not used - WebSocket handles call signaling
   void _setupCallListeners() {
+    // Firestore disabled - using WebSocket for real-time features instead
+    return;
+    
+    /* DISABLED - Firestore not used
     if (_userId == null) return;
 
     // Listen to incoming call offers
@@ -103,15 +105,12 @@ class FirebaseCallSignalingService {
                 : callTypeRaw.toString().toLowerCase().trim();
             // Normalize to 'video' or 'audio'
             if (callType != 'video' && callType != 'audio') {
-              print('⚠️ [FirebaseCallSignaling] Invalid callType: $callType, defaulting to audio');
               callType = 'audio';
             }
           } else {
-            print('⚠️ [FirebaseCallSignaling] callType missing in call_offer, defaulting to audio');
             callType = 'audio';
           }
           
-          print('📞 [FirebaseCallSignaling] Received call_offer: callId=$callId, fromUserId=$fromUserId, callType=$callType (raw: $callTypeRaw)');
           _onCallOffer?.call(callId, fromUserId, offer, callType);
           
           // Mark as received
@@ -133,8 +132,6 @@ class FirebaseCallSignalingService {
           final data = doc.doc.data() as Map<String, dynamic>;
           final callId = doc.doc.id;
           final answer = data['answer'] as String? ?? '';
-          
-          print('📞 [FirebaseCallSignaling] Received call_answer: callId=$callId');
           _onCallAnswer?.call(callId, answer);
           
           // Mark as received
@@ -181,8 +178,6 @@ class FirebaseCallSignalingService {
           final callId = doc.doc.id;
           final fromUserId = data['fromUserId'] as String? ?? '';
           final targetUserId = data['targetUserId'] as String? ?? '';
-          
-          print('📞 [FirebaseCallSignaling] Received call_end: callId=$callId, fromUserId=$fromUserId, targetUserId=$targetUserId');
           _onCallEnd?.call(callId, fromUserId, targetUserId);
           
           // Mark as received
@@ -190,17 +185,22 @@ class FirebaseCallSignalingService {
         }
       }
     });
+    */ // End of disabled Firestore code
   }
 
   /// Send call offer
+  /// DISABLED: Firestore is not used - WebSocket handles call signaling
   Future<void> sendCallOffer({
     required String callId,
     required String targetUserId,
     required String offer,
     required String callType,
   }) async {
+    // Firestore disabled - using WebSocket for real-time features instead
+    return;
+    
+    /* DISABLED - Firestore not used
     if (_userId == null) {
-      print('⚠️ [FirebaseCallSignaling] Cannot send call offer - no user logged in');
       return;
     }
 
@@ -212,7 +212,6 @@ class FirebaseCallSignalingService {
           : 'audio';
       
       if (finalCallType != normalizedCallType) {
-        print('⚠️ [FirebaseCallSignaling] Invalid callType "$callType" normalized to "$finalCallType"');
       }
       
       // Write call offer to Firestore for real-time signaling
@@ -227,22 +226,19 @@ class FirebaseCallSignalingService {
         'createdAt': FieldValue.serverTimestamp(),
       });
       
-      print('📞 [FirebaseCallSignaling] Sent call_offer: callId=$callId, targetUserId=$targetUserId, type=$finalCallType (original: $callType)');
       
       // Note: FCM notifications are handled by the backend WebSocket server
       // The backend will send notifications when it receives the call_offer via WebSocket
       // This service is only used for Firestore-based signaling (fallback/alternative path)
     } catch (e) {
-      print('❌ [FirebaseCallSignaling] Error sending call offer: $e');
       rethrow;
     }
+    */ // End of disabled Firestore code
   }
   
   /// Send FCM push notification for incoming call
   Future<void> _sendCallNotification(String targetUserId, String callId, String callType) async {
     try {
-      print('📞 [FirebaseCallSignaling] Sending FCM notification - targetUserId: $targetUserId, callId: $callId, callType: $callType');
-      
       // Get API base URL from constants
       final apiBase = ApiConstants.apiBase;
       
@@ -270,9 +266,6 @@ class FirebaseCallSignalingService {
           'incomingCall': 'true',
         }),
       };
-      
-      print('📞 [FirebaseCallSignaling] FCM request body: $requestBody');
-      
       // Send FCM notification via backend API
       final response = await http.post(
         Uri.parse('$apiBase/firebase.php'),
@@ -281,36 +274,30 @@ class FirebaseCallSignalingService {
           'Content-Type': 'application/x-www-form-urlencoded',
         },
       ).timeout(const Duration(seconds: 10));
-      
-      print('📞 [FirebaseCallSignaling] FCM response status: ${response.statusCode}');
-      print('📞 [FirebaseCallSignaling] FCM response body: ${response.body}');
-      
       if (response.statusCode == 200) {
         final result = jsonDecode(response.body);
         if (result['status'] == 'success') {
-          print('✅ [FirebaseCallSignaling] FCM call notification sent successfully');
         } else {
-          print('⚠️ [FirebaseCallSignaling] FCM notification failed: ${result['message']}');
         }
       } else {
-        print('⚠️ [FirebaseCallSignaling] FCM notification HTTP error: ${response.statusCode}');
-        print('⚠️ [FirebaseCallSignaling] FCM response: ${response.body}');
       }
     } catch (e, stackTrace) {
       // Don't fail the call if FCM notification fails - it's optional
-      print('❌ [FirebaseCallSignaling] Error sending FCM notification: $e');
-      print('❌ [FirebaseCallSignaling] Stack trace: $stackTrace');
     }
   }
 
   /// Send call answer
+  /// DISABLED: Firestore is not used - WebSocket handles call signaling
   Future<void> sendCallAnswer({
     required String callId,
     required String targetUserId,
     required String answer,
   }) async {
+    // Firestore disabled - using WebSocket for real-time features instead
+    return;
+    
+    /* DISABLED - Firestore not used
     if (_userId == null) {
-      print('⚠️ [FirebaseCallSignaling] Cannot send call answer - no user logged in');
       return;
     }
 
@@ -324,15 +311,14 @@ class FirebaseCallSignalingService {
         'status': 'pending',
         'createdAt': FieldValue.serverTimestamp(),
       });
-      
-      print('📞 [FirebaseCallSignaling] Sent call_answer: callId=$callId, targetUserId=$targetUserId');
     } catch (e) {
-      print('❌ [FirebaseCallSignaling] Error sending call answer: $e');
       rethrow;
     }
+    */ // End of disabled Firestore code
   }
 
   /// Send ICE candidate
+  /// DISABLED: Firestore is not used - WebSocket handles call signaling
   Future<void> sendIceCandidate({
     required String callId,
     required String targetUserId,
@@ -340,8 +326,11 @@ class FirebaseCallSignalingService {
     required String sdpMid,
     required int sdpMLineIndex,
   }) async {
+    // Firestore disabled - using WebSocket for real-time features instead
+    return;
+    
+    /* DISABLED - Firestore not used
     if (_userId == null) {
-      print('⚠️ [FirebaseCallSignaling] Cannot send ICE candidate - no user logged in');
       return;
     }
 
@@ -358,18 +347,22 @@ class FirebaseCallSignalingService {
         'createdAt': FieldValue.serverTimestamp(),
       });
     } catch (e) {
-      print('❌ [FirebaseCallSignaling] Error sending ICE candidate: $e');
       rethrow;
     }
+    */ // End of disabled Firestore code
   }
 
   /// Send call end
+  /// DISABLED: Firestore is not used - WebSocket handles call signaling
   Future<void> sendCallEnd({
     required String callId,
     required String targetUserId,
   }) async {
+    // Firestore disabled - using WebSocket for real-time features instead
+    return;
+    
+    /* DISABLED - Firestore not used
     if (_userId == null) {
-      print('⚠️ [FirebaseCallSignaling] Cannot send call end - no user logged in');
       return;
     }
 
@@ -382,12 +375,10 @@ class FirebaseCallSignalingService {
         'status': 'pending',
         'createdAt': FieldValue.serverTimestamp(),
       });
-      
-      print('📞 [FirebaseCallSignaling] Sent call_end: callId=$callId, targetUserId=$targetUserId');
     } catch (e) {
-      print('❌ [FirebaseCallSignaling] Error sending call end: $e');
       rethrow;
     }
+    */ // End of disabled Firestore code
   }
 
   /// Clean up and disconnect
@@ -401,8 +392,6 @@ class FirebaseCallSignalingService {
     _callAnswerSubscription = null;
     _iceCandidatesSubscription = null;
     _callEndSubscription = null;
-    
-    print('✅ [FirebaseCallSignaling] Disconnected');
   }
 }
 

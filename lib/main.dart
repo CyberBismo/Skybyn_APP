@@ -31,7 +31,7 @@ import 'models/friend.dart';
 Future<void> main() async {
   // Gate all print calls behind a debug flag using Zone
   // Logging enabled for debugging FCM token
-  const bool enableLogging = true;
+  const bool enableLogging = false;
 
   runZonedGuarded(
     () async {
@@ -55,10 +55,9 @@ Future<void> main() async {
       // This loads cached translations first (fast), then updates from API in background
       await translationService.initialize();
 
-      // Initialize Firebase BEFORE running the app (needed for Firestore)
+      // Initialize Firebase BEFORE running the app (needed for FCM push notifications)
       await _initializeFirebase().catchError((error) {
         if (enableLogging) {
-          print('⚠️ [Startup] Firebase initialization error: $error');
         }
       });
 
@@ -68,7 +67,6 @@ Future<void> main() async {
     (error, stack) {
       if (enableLogging) {
         // ignore: avoid_print
-        print('Uncaught zone error: $error');
       }
     },
     zoneSpecification: ZoneSpecification(
@@ -83,46 +81,33 @@ Future<void> main() async {
 
 Future<void> _initializeFirebase() async {
   try {
-    print('🔄 [Firebase] Starting Firebase initialization...');
-    
-    // Always initialize Firebase Core (needed for Firestore)
+    // Always initialize Firebase Core (needed for FCM push notifications)
     // Check if Firebase is already initialized
     if (Firebase.apps.isEmpty) {
-      print('🔄 [Firebase] Initializing Firebase Core...');
       try {
         await Firebase.initializeApp();
-        print('✅ [Firebase] Firebase Core initialized successfully');
       } catch (e) {
-        print('❌ [Firebase] Failed to initialize Firebase Core: $e');
         rethrow; // Re-throw to be caught by outer catch
       }
     } else {
-      print('✅ [Firebase] Firebase Core already initialized');
     }
 
     // Skip Firebase Messaging on iOS - it requires APN configuration which is not set up
     if (Platform.isIOS) {
-      print('ℹ️ [Firebase] Skipping Firebase Messaging initialization on iOS (APN not configured)');
-      print('ℹ️ [Firebase] Firestore is available for real-time communication');
       return;
     }
 
     // Initialize Firebase Messaging for push notifications (Android release only)
-    print('🔄 [Firebase] Starting Firebase Messaging initialization...');
     try {
       final firebaseMessagingService = FirebaseMessagingService();
       await firebaseMessagingService.initialize();
 
       // Token is already registered on app start in initialize() method
       // If user is logged in, it will be updated with user ID in auth_service.dart after login
-      print('✅ [Firebase] Firebase Messaging initialized successfully');
     } catch (e) {
-      print('❌ [Firebase] Firebase Messaging initialization failed: $e');
     }
   } catch (e, stackTrace) {
     // Print detailed error
-    print('❌ [Firebase] Firebase initialization failed: $e');
-    print('Stack trace: $stackTrace');
     // Continue without Firebase - app will still work
   }
 }
@@ -180,6 +165,9 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       // Set up call callbacks for incoming calls via WebSocket
       _setupCallHandlers();
       
+      // Set up callback for incoming calls from FCM notifications
+      _setupIncomingCallFromNotificationHandler();
+      
       // Set up WebSocket connection state listener
       _setupWebSocketConnectionListener();
       
@@ -201,7 +189,6 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         });
       }
     } catch (e) {
-      print('❌ [Services] Error initializing services: $e');
     }
   }
 
@@ -255,17 +242,13 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     switch (state) {
       case AppLifecycleState.resumed:
         // App is in foreground - ensure Firebase and WebSocket are connected
-        print('✅ [MyApp] App resumed - ensuring Firebase and WebSocket connections');
         // Reconnect Firebase if not connected (it may have been disconnected in background)
         if (!_firebaseRealtimeService.isConnected) {
-          print('🔄 [MyApp] Firebase not connected, reconnecting...');
           _firebaseRealtimeService.connect();
         }
         // Always force reconnect WebSocket when app resumes to ensure connection is alive
         // The connection might appear connected but actually be dead after backgrounding
-        print('🔄 [MyApp] Force reconnecting WebSocket to ensure active connection...');
         _webSocketService.forceReconnect().catchError((error) {
-          print('❌ [MyApp] Error force reconnecting WebSocket: $error');
         });
         // Activity updates continue while WebSocket is connected
         break;
@@ -278,12 +261,9 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         // Friends will see user as:
         // - Online: last_active <= 2 minutes
         // - Away: last_active > 2 minutes
-        print('ℹ️ [MyApp] App backgrounded - keeping WebSocket connected for ping/pong');
-        print('ℹ️ [MyApp] Activity updates continue while WebSocket is connected');
         break;
       case AppLifecycleState.detached:
         // App is being terminated - disconnect Firebase
-        print('ℹ️ [MyApp] App detached - disconnecting Firebase');
         _firebaseRealtimeService.disconnect();
         // Online status is now calculated from last_active, no need to update
         break;
@@ -323,9 +303,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   /// Connect WebSocket globally (works from any screen)
   /// This ensures WebSocket is always connected as long as the app is running
   void _connectWebSocketGlobally() {
-    print('🔄 [MyApp] Connecting WebSocket globally...');
     _webSocketService.connect().catchError((error) {
-      print('❌ [MyApp] Error connecting WebSocket globally: $error');
     });
   }
 
@@ -342,7 +320,6 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         if (currentUserId != null && toUserId == currentUserId && fromUserId != currentUserId) {
           // Increment unread count for this friend
           await _chatMessageCountService.incrementUnreadCount(fromUserId);
-          print('💬 [MyApp] Incremented unread count for friend: $fromUserId');
         }
       },
     );
@@ -359,10 +336,57 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         if (currentUserId != null && toUserId == currentUserId && fromUserId != currentUserId) {
           // Increment unread count for this friend
           await _chatMessageCountService.incrementUnreadCount(fromUserId);
-          print('💬 [MyApp] Incremented unread count (Firebase) for friend: $fromUserId');
         }
       },
     );
+  }
+
+  /// Set up handler for incoming calls from FCM notifications
+  void _setupIncomingCallFromNotificationHandler() {
+    FirebaseMessagingService.setIncomingCallCallback((callId, fromUserId, callType) async {
+      // App was opened from a call notification
+      // Ensure WebSocket is connected so we can receive the call offer
+      if (!_webSocketService.isConnected) {
+        try {
+          await _webSocketService.connect().timeout(
+            const Duration(seconds: 5),
+            onTimeout: () {
+              // Timeout - show error
+              final context = navigatorKey.currentContext;
+              if (context != null) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Failed to connect. Please try again.'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+              }
+            },
+          );
+        } catch (e) {
+          // Connection failed - show error
+          final context = navigatorKey.currentContext;
+          if (context != null) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Failed to connect: $e'),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
+          return;
+        }
+      }
+      
+      // Wait a moment for WebSocket to receive any pending call offers
+      // The server should resend the call offer when the user comes online
+      await Future.delayed(const Duration(milliseconds: 500));
+      
+      // Check if we already received the call offer via WebSocket
+      // If not, the caller should resend it when they see us come online
+      // For now, we'll wait for the WebSocket handler to receive it
+      // The call offer should arrive within a few seconds
+    });
   }
 
   /// Set up call handlers for incoming calls via WebSocket
@@ -371,8 +395,6 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     // These will be used when WebSocket receives call signals
     _webSocketService.setCallCallbacks(
       onCallOffer: (callId, fromUserId, offer, callType) async {
-        print('📞 [MyApp] Incoming call offer: callId=$callId, fromUserId=$fromUserId, type=$callType');
-        
         // Check if app is in foreground
         final isAppInForeground = WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed;
         
@@ -382,15 +404,12 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         } else {
           // App is in background - Firebase notification should be sent by server
           // But we can also handle it here if needed
-          print('ℹ️ [MyApp] App is in background - Firebase notification should handle this');
         }
       },
       onCallAnswer: (callId, answer) {
-        print('📞 [MyApp] Call answer received: callId=$callId');
         _callService.handleIncomingAnswer(answer);
       },
       onIceCandidate: (callId, candidate, sdpMid, sdpMLineIndex) {
-        print('📞 [MyApp] ICE candidate received: callId=$callId');
         _callService.handleIceCandidate(
           candidate: candidate,
           sdpMid: sdpMid,
@@ -398,8 +417,6 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         );
       },
       onCallEnd: (callId, fromUserId, targetUserId) async {
-        print('📞 [MyApp] Call ended: callId=$callId, fromUserId=$fromUserId, targetUserId=$targetUserId');
-        
         // Get current user ID to determine if this call_end is for us
         final authService = AuthService();
         final currentUserId = await authService.getStoredUserId();
@@ -434,8 +451,6 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         }
       },
       onCallError: (callId, targetUserId, errorMessage) async {
-        print('❌ [MyApp] Call error: callId=$callId, targetUserId=$targetUserId, message=$errorMessage');
-        
         // Get current user ID
         final authService = AuthService();
         final currentUserId = await authService.getStoredUserId();
@@ -487,7 +502,6 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       final authService = AuthService();
       final currentUserId = await authService.getStoredUserId();
       if (currentUserId == null) {
-        print('⚠️ [MyApp] Cannot handle incoming call - no user logged in');
         return;
       }
 
@@ -525,27 +539,59 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
             avatarUrl: friend.avatar,
             callType: callType == 'video' ? CallType.video : CallType.audio,
             onAccept: () async {
+              // Pop the dialog first
               Navigator.of(dialogContext).pop();
               
-              // Handle the incoming offer
-              await _callService.handleIncomingOffer(
-                callId: callId,
-                fromUserId: fromUserId,
-                offer: offer,
-                callType: callType,
-              );
-
-              // Navigate to call screen
-              if (context.mounted) {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (context) => CallScreen(
-                      friend: friend,
-                      callType: callType == 'video' ? CallType.video : CallType.audio,
-                      isIncoming: true,
-                    ),
-                  ),
+              try {
+                // Handle the incoming offer
+                await _callService.handleIncomingOffer(
+                  callId: callId,
+                  fromUserId: fromUserId,
+                  offer: offer,
+                  callType: callType,
                 );
+
+                // Navigate to call screen only if call setup succeeded
+                // Use the same context that showed the dialog to ensure proper navigation stack
+                if (context.mounted && _callService.callState != CallState.ended) {
+                  // Wait a moment for dialog to fully close
+                  await Future.delayed(const Duration(milliseconds: 100));
+                  
+                  if (context.mounted) {
+                    Navigator.of(context, rootNavigator: false).push(
+                      MaterialPageRoute(
+                        builder: (newContext) => CallScreen(
+                          friend: friend,
+                          callType: callType == 'video' ? CallType.video : CallType.audio,
+                          isIncoming: true,
+                        ),
+                        // Don't use maintainState: false - it can cause navigation issues
+                        // The previous screen should remain in the stack
+                      ),
+                    );
+                  }
+                }
+              } catch (e) {
+                // Error already handled by CallService.onCallError
+                // Just clear the active call tracking
+                if (mounted) {
+                  setState(() {
+                    _activeCallId = null;
+                    _activeCallFriend = null;
+                  });
+                  
+                  // Show error dialog if call screen wasn't opened
+                  final errorContext = navigatorKey.currentContext;
+                  if (errorContext != null) {
+                    ScaffoldMessenger.of(errorContext).showSnackBar(
+                      SnackBar(
+                        content: Text('Failed to accept call: $e'),
+                        duration: const Duration(seconds: 5),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                  }
+                }
               }
             },
             onReject: () async {
@@ -565,7 +611,6 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         );
       }
     } catch (e) {
-      print('❌ [MyApp] Error handling incoming call: $e');
     }
   }
 
@@ -717,7 +762,6 @@ class __InitialScreenState extends State<_InitialScreen> with TickerProviderStat
                 }
               }
             } catch (e) {
-              print('⚠️ [Auth] Error fetching profile: $e');
             }
           }
         }
@@ -727,7 +771,6 @@ class __InitialScreenState extends State<_InitialScreen> with TickerProviderStat
         }
       }
     } catch (e) {
-      print('❌ [Auth] Error during authentication check: $e');
       if (mounted) {
         Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (context) => const LoginScreen()));
       }

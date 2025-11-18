@@ -34,10 +34,7 @@ class BackgroundUpdateScheduler {
 
       // Check for cached update on startup
       await _checkCachedUpdate();
-
-      print('✅ [BackgroundUpdateScheduler] Initialized successfully');
     } catch (e) {
-      print('❌ [BackgroundUpdateScheduler] Error initializing: $e');
     }
   }
 
@@ -50,9 +47,6 @@ class BackgroundUpdateScheduler {
       // Calculate next noon
       final now = DateTime.now();
       final nextNoon = _getNextNoon(now);
-
-      print('📅 [BackgroundUpdateScheduler] Scheduling next update check at: $nextNoon');
-
       // Create notification channel for update checks (Android only)
       final androidImplementation = _localNotifications.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
       if (androidImplementation != null) {
@@ -107,11 +101,9 @@ class BackgroundUpdateScheduler {
           uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
           payload: 'update_check',
         );
-        print('✅ [BackgroundUpdateScheduler] Scheduled daily update check at noon');
       } on PlatformException catch (e) {
         // Handle exact alarms permission error gracefully
         if (e.code == 'exact_alarms_not_permitted') {
-          print('⚠️ [BackgroundUpdateScheduler] Exact alarms permission not granted, using approximate scheduling');
           // Try without androidAllowWhileIdle for approximate scheduling
           try {
             await _localNotifications.zonedSchedule(
@@ -124,9 +116,7 @@ class BackgroundUpdateScheduler {
               uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
               payload: 'update_check',
             );
-            print('✅ [BackgroundUpdateScheduler] Scheduled update check with approximate timing');
           } catch (e2) {
-            print('⚠️ [BackgroundUpdateScheduler] Could not schedule update check: $e2');
           }
         } else {
           rethrow;
@@ -137,7 +127,6 @@ class BackgroundUpdateScheduler {
       // This ensures we check even if scheduled notifications don't fire
       _setupPeriodicCheck();
     } catch (e) {
-      print('❌ [BackgroundUpdateScheduler] Error scheduling update check: $e');
     }
   }
 
@@ -196,16 +185,12 @@ class BackgroundUpdateScheduler {
       if (currentHour != 11 && currentHour != 12) {
         return; // Not around noon
       }
-
-      print('🔄 [BackgroundUpdateScheduler] Performing scheduled update check at noon...');
-
       // Perform the update check
       await _checkForUpdates();
 
       // Update last check timestamp
       await prefs.setInt(_lastUpdateCheckKey, now.millisecondsSinceEpoch);
     } catch (e) {
-      print('❌ [BackgroundUpdateScheduler] Error in periodic check: $e');
     }
   }
 
@@ -217,13 +202,11 @@ class BackgroundUpdateScheduler {
       if (updateInfo != null && updateInfo.isAvailable) {
         // Cache the update info
         await _cacheUpdate(updateInfo);
-        print('✅ [BackgroundUpdateScheduler] Update available and cached');
       } else {
         // Clear any cached update if no update is available
         await _clearCachedUpdate();
       }
     } catch (e) {
-      print('❌ [BackgroundUpdateScheduler] Error checking for updates: $e');
     }
   }
 
@@ -243,9 +226,7 @@ class BackgroundUpdateScheduler {
       };
 
       await prefs.setString(_cachedUpdateKey, json.encode(cacheData));
-      print('💾 [BackgroundUpdateScheduler] Update cached successfully');
     } catch (e) {
-      print('❌ [BackgroundUpdateScheduler] Error caching update: $e');
     }
   }
 
@@ -271,7 +252,6 @@ class BackgroundUpdateScheduler {
 
       return data;
     } catch (e) {
-      print('❌ [BackgroundUpdateScheduler] Error getting cached update: $e');
       return null;
     }
   }
@@ -282,7 +262,6 @@ class BackgroundUpdateScheduler {
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove(_cachedUpdateKey);
     } catch (e) {
-      print('❌ [BackgroundUpdateScheduler] Error clearing cached update: $e');
     }
   }
 
@@ -301,7 +280,6 @@ class BackgroundUpdateScheduler {
       final hasShown = await AutoUpdateService.hasShownUpdateForVersion(latestVersion);
 
       if (hasShown) {
-        print('ℹ️ [BackgroundUpdateScheduler] Cached update already shown for version: $latestVersion');
         return;
       }
 
@@ -312,9 +290,6 @@ class BackgroundUpdateScheduler {
       final navigator = navigatorKey.currentState;
       if (navigator != null && !AutoUpdateService.isDialogShowing) {
         AutoUpdateService.setDialogShowing(true);
-
-        print('📱 [BackgroundUpdateScheduler] Showing cached update dialog');
-
         await showDialog(
           context: navigator.context,
           barrierDismissible: false,
@@ -333,7 +308,6 @@ class BackgroundUpdateScheduler {
         await _clearCachedUpdate();
       }
     } catch (e) {
-      print('❌ [BackgroundUpdateScheduler] Error checking cached update: $e');
     }
   }
 

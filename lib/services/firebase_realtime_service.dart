@@ -1,4 +1,5 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+// Firestore disabled - using WebSocket for real-time features instead
+// import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:async';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
@@ -22,21 +23,22 @@ class FirebaseRealtimeService {
   factory FirebaseRealtimeService() => _instance;
   FirebaseRealtimeService._internal();
 
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  // Firestore disabled - using WebSocket for real-time features instead
+  // final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   bool _isInitialized = false;
   bool _isConnected = false;
   String? _userId;
   String? _sessionId;
   
-  // Stream subscriptions
-  StreamSubscription<DocumentSnapshot>? _userStatusSubscription;
-  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _postsSubscription;
-  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _notificationsSubscription;
-  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _broadcastsSubscription;
-  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _appUpdatesSubscription;
-  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _chatMessagesSubscription;
-  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _typingStatusSubscription;
-  StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _onlineStatusSubscription;
+  // Stream subscriptions (Firestore disabled - these are not used)
+  StreamSubscription<dynamic>? _userStatusSubscription;
+  StreamSubscription<dynamic>? _postsSubscription;
+  StreamSubscription<dynamic>? _notificationsSubscription;
+  StreamSubscription<dynamic>? _broadcastsSubscription;
+  StreamSubscription<dynamic>? _appUpdatesSubscription;
+  StreamSubscription<dynamic>? _chatMessagesSubscription;
+  StreamSubscription<dynamic>? _typingStatusSubscription;
+  StreamSubscription<dynamic>? _onlineStatusSubscription;
 
   // Callbacks for real-time updates
   Function(Post)? _onNewPost;
@@ -55,20 +57,15 @@ class FirebaseRealtimeService {
   /// Initialize the Firebase Realtime Service
   Future<void> initialize() async {
     if (_isInitialized) {
-      print('ℹ️ [FirebaseRealtime] Service already initialized');
       return;
     }
 
     try {
-      print('🔄 [FirebaseRealtime] Initializing Firebase Realtime service...');
-      
       // Generate session ID
       _sessionId = _generateSessionId();
       
       _isInitialized = true;
-      print('✅ [FirebaseRealtime] Service initialized');
     } catch (e) {
-      print('❌ [FirebaseRealtime] Error initializing service: $e');
       rethrow;
     }
   }
@@ -104,43 +101,32 @@ class FirebaseRealtimeService {
     }
 
     if (_isConnected) {
-      print('ℹ️ [FirebaseRealtime] Already connected, updating callbacks');
       return;
     }
 
     try {
-      print('🔄 [FirebaseRealtime] Connecting to Firebase...');
-      
       // Get current user
       final authService = AuthService();
       final user = await authService.getStoredUserProfile();
       _userId = user?.id;
       
       if (_userId == null) {
-        print('⚠️ [FirebaseRealtime] No user logged in, cannot connect');
         return;
       }
 
-      // Note: We don't store user data in Firestore - only use it for real-time signaling
-      // User data and online status are stored in your own database
-      
+      // Firestore disabled - using WebSocket for real-time features instead
       // Set up real-time listeners
-      await _setupListeners();
+      // await _setupListeners(); // Disabled - using WebSocket instead
       
-      _isConnected = true;
-      print('✅ [FirebaseRealtime] Connected to Firebase');
+      _isConnected = false; // Mark as not connected since Firestore is disabled
     } catch (e) {
       // Check if it's a Firestore database not found error
       if (e.toString().contains('does not exist') || 
           e.toString().contains('NOT_FOUND') ||
           e.toString().contains('database')) {
-        print('⚠️ [FirebaseRealtime] Firestore database not available: $e');
-        print('ℹ️ [FirebaseRealtime] App will continue without real-time notifications');
-        print('ℹ️ [FirebaseRealtime] To enable Firestore, create a database at: https://console.cloud.google.com/datastore/setup?project=skybyn');
         _isConnected = false;
         // Don't rethrow - allow app to continue without Firestore
       } else {
-        print('❌ [FirebaseRealtime] Error connecting: $e');
         _isConnected = false;
         // Don't rethrow - allow app to continue
       }
@@ -149,9 +135,13 @@ class FirebaseRealtimeService {
 
   /// Set up all Firestore listeners
   /// 
-  /// These listeners watch for NOTIFICATIONS only, not actual data.
-  /// When a notification is received, the app fetches the actual data from your REST API.
+  /// DISABLED: Firestore is not used - WebSocket is used for real-time features instead
+  /// This method is kept for compatibility but does nothing.
   Future<void> _setupListeners() async {
+    // Firestore disabled - using WebSocket for real-time features instead
+    return;
+    
+    /* DISABLED - Firestore not used
     if (_userId == null) return;
 
     try {
@@ -183,7 +173,6 @@ class FirebaseRealtimeService {
         }
       }
     }, onError: (error) {
-      print('⚠️ [FirebaseRealtime] Error in post notifications listener: $error');
       // Continue without this listener - app will still work
     });
 
@@ -204,7 +193,6 @@ class FirebaseRealtimeService {
         }
       }
     }, onError: (error) {
-      print('⚠️ [FirebaseRealtime] Error in notifications listener: $error');
     });
 
     // Listen to broadcast notifications
@@ -226,7 +214,6 @@ class FirebaseRealtimeService {
         }
       }
     }, onError: (error) {
-      print('⚠️ [FirebaseRealtime] Error in broadcast notifications listener: $error');
     });
 
     // Listen to app update notifications
@@ -244,16 +231,13 @@ class FirebaseRealtimeService {
         }
       }
     }, onError: (error) {
-      print('⚠️ [FirebaseRealtime] Error in app update notifications listener: $error');
     });
 
     // Chat messages, typing status, and online status are set up per chat/user in screens
     } catch (e) {
-      print('⚠️ [FirebaseRealtime] Firestore database not available: $e');
-      print('ℹ️ [FirebaseRealtime] App will continue without real-time notifications');
-      print('ℹ️ [FirebaseRealtime] To enable Firestore, create a database at: https://console.cloud.google.com/datastore/setup?project=skybyn');
       // Continue without Firestore - app will still work
     }
+    */ // End of disabled Firestore code
   }
 
   /// Handle notification from Firestore
@@ -297,9 +281,11 @@ class FirebaseRealtimeService {
 
     _chatMessagesSubscription?.cancel();
     
+    // Firestore disabled - using WebSocket for real-time features instead
     // Listen to chat message notifications (fallback only - WebSocket is primary)
     // Backend may write notifications here, but WebSocket should handle real-time delivery
     // Build query conditionally based on whether friendId is provided
+    /* DISABLED - Firestore not used
     CollectionReference<Map<String, dynamic>> collectionRef = 
         _firestore.collection('chat_message_notifications');
     
@@ -338,8 +324,9 @@ class FirebaseRealtimeService {
         }
       }
     }, onError: (error) {
-      print('⚠️ [FirebaseRealtime] Error in chat message notifications listener: $error');
     });
+    */ // End of disabled Firestore code
+    // Firestore disabled - WebSocket handles chat messages
   }
 
   /// Fetch post data from your API when notification is received
@@ -370,7 +357,6 @@ class FirebaseRealtimeService {
         }
       }
     } catch (e) {
-      print('❌ [FirebaseRealtime] Error fetching post from API: $e');
     }
   }
 
@@ -397,12 +383,16 @@ class FirebaseRealtimeService {
         }
       }
     } catch (e) {
-      print('❌ [FirebaseRealtime] Error fetching message from API: $e');
     }
   }
 
   /// Set up typing status listener for a specific chat
+  /// DISABLED: Firestore is not used - WebSocket handles typing status
   void setupTypingStatusListener(String friendId, Function(String, bool) onTyping) {
+    // Firestore disabled - using WebSocket for real-time features instead
+    return;
+    
+    /* DISABLED - Firestore not used
     if (_userId == null) return;
 
     _typingStatusSubscription?.cancel();
@@ -422,18 +412,22 @@ class FirebaseRealtimeService {
         }
       }
     }, onError: (error) {
-      print('⚠️ [FirebaseRealtime] Error in typing status listener: $error');
     });
+    */ // End of disabled Firestore code
   }
 
   /// Set up online status listener for a specific user
-  /// Note: This listens to a notification collection, not user data
-  /// Your backend should write online status notifications to Firestore when status changes
-  /// Returns a StreamSubscription that can be cancelled
-  StreamSubscription<QuerySnapshot<Map<String, dynamic>>> setupOnlineStatusListener(
+  /// DISABLED: Firestore is not used - WebSocket handles online status
+  /// Returns a StreamSubscription that can be cancelled (but returns a dummy subscription)
+  StreamSubscription<dynamic> setupOnlineStatusListener(
     String userId,
     Function(String, bool) onStatusChange,
   ) {
+    // Firestore disabled - using WebSocket for real-time features instead
+    // Return a dummy subscription that does nothing
+    return Stream<dynamic>.empty().listen((_) {});
+    
+    /* DISABLED - Firestore not used
     // Listen to online_status_notifications collection for this user
     // Your backend should write notifications here when a user's online status changes
     return _firestore
@@ -461,12 +455,17 @@ class FirebaseRealtimeService {
         }
       }
     }, onError: (error) {
-      print('⚠️ [FirebaseRealtime] Error in online status listener: $error');
     });
+    */ // End of disabled Firestore code
   }
 
   /// Send typing status
+  /// DISABLED: Firestore is not used - WebSocket handles typing status
   Future<void> sendTypingStart(String targetUserId) async {
+    // Firestore disabled - using WebSocket for real-time features instead
+    return;
+    
+    /* DISABLED - Firestore not used
     if (_userId == null) return;
     
     await _firestore.collection('typing_status').doc('${_userId}_$targetUserId').set({
@@ -475,10 +474,16 @@ class FirebaseRealtimeService {
       'isTyping': true,
       'timestamp': FieldValue.serverTimestamp(),
     });
+    */ // End of disabled Firestore code
   }
 
   /// Send typing stop
+  /// DISABLED: Firestore is not used - WebSocket handles typing status
   Future<void> sendTypingStop(String targetUserId) async {
+    // Firestore disabled - using WebSocket for real-time features instead
+    return;
+    
+    /* DISABLED - Firestore not used
     if (_userId == null) return;
     
     await _firestore.collection('typing_status').doc('${_userId}_$targetUserId').set({
@@ -487,9 +492,11 @@ class FirebaseRealtimeService {
       'isTyping': false,
       'timestamp': FieldValue.serverTimestamp(),
     });
+    */ // End of disabled Firestore code
   }
 
   /// Send chat message notification to Firebase
+  /// DISABLED: Firestore is not used - WebSocket handles chat messages
   /// This ensures the recipient gets notified even if the app is in background
   /// The server will also send push notifications, but this provides real-time delivery
   Future<void> sendChatMessageNotification({
@@ -497,6 +504,10 @@ class FirebaseRealtimeService {
     required String targetUserId,
     required String content,
   }) async {
+    // Firestore disabled - using WebSocket for real-time features instead
+    return;
+    
+    /* DISABLED - Firestore not used
     if (_userId == null) return;
     
     try {
@@ -513,11 +524,10 @@ class FirebaseRealtimeService {
         'status': 'pending',
         'timestamp': FieldValue.serverTimestamp(),
       });
-      print('💬 [FirebaseRealtime] Sent chat message notification: messageId=$messageId, targetUserId=$targetUserId');
     } catch (e) {
-      print('❌ [FirebaseRealtime] Error sending chat message notification: $e');
       // Don't throw - Firebase is a fallback, HTTP API is primary
     }
+    */ // End of disabled Firestore code
   }
 
   // Note: User data (online status, activity) is stored in your own database, not Firestore
@@ -526,9 +536,6 @@ class FirebaseRealtimeService {
   /// Disconnect and clean up
   Future<void> disconnect() async {
     if (!_isConnected) return;
-
-    print('🔄 [FirebaseRealtime] Disconnecting...');
-    
     // Note: User status is updated in your own database, not Firestore
     
     // Cancel all subscriptions
@@ -549,7 +556,6 @@ class FirebaseRealtimeService {
     _onlineStatusSubscription = null;
     
     _isConnected = false;
-    print('✅ [FirebaseRealtime] Disconnected');
   }
 
   /// Remove online status callback

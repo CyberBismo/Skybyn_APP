@@ -85,35 +85,26 @@ class _FindFriendsWidgetState extends State<FindFriendsWidget> {
       }
 
       if (!locationUpdated) {
-        print('⚠️ [FindFriendsWidget] Failed to update location, but continuing search...');
       }
 
       // Find nearby users
-      print('🔍 [FindFriendsWidget] Starting search for nearby users...');
       final nearbyUsers = await _locationService.findNearbyUsers(
         userId,
         position.latitude,
         position.longitude,
         radiusKm: 5.0, // 5km radius
       );
-
-      print('🔍 [FindFriendsWidget] Search API returned ${nearbyUsers?.length ?? 0} users');
-      print('🔍 [FindFriendsWidget] Before setState: mounted=$mounted, _hasSearched=$_hasSearched');
-
       // Update state immediately if mounted, otherwise use post-frame callback
       if (mounted) {
         setState(() {
           _isLoading = false;
           _hasSearched = true;
           _nearbyUsers = nearbyUsers ?? [];
-          print('🔍 [FindFriendsWidget] Inside setState: setting _hasSearched=true, _nearbyUsers.length=${_nearbyUsers.length}');
         });
-        print('🔍 [FindFriendsWidget] After setState: _hasSearched=$_hasSearched, _nearbyUsers.length=${_nearbyUsers.length}');
       } else {
         // If not mounted, wait for next frame
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (!mounted) {
-            print('⚠️ [FindFriendsWidget] Widget not mounted after frame, cannot update state');
             return;
           }
 
@@ -121,10 +112,8 @@ class _FindFriendsWidgetState extends State<FindFriendsWidget> {
             _isLoading = false;
             _hasSearched = true;
             _nearbyUsers = nearbyUsers ?? [];
-            print('🔍 [FindFriendsWidget] Inside setState (post-frame): setting _hasSearched=true, _nearbyUsers.length=${_nearbyUsers.length}');
           });
 
-          print('🔍 [FindFriendsWidget] After setState (post-frame): _hasSearched=$_hasSearched, _nearbyUsers.length=${_nearbyUsers.length}');
         });
       }
 
@@ -138,14 +127,12 @@ class _FindFriendsWidgetState extends State<FindFriendsWidget> {
         );
       }
     } catch (e) {
-      print('❌ [FindFriendsWidget] Error finding friends: $e');
       if (mounted) {
         setState(() {
           _isLoading = false;
           _hasSearched = true;
           _nearbyUsers = [];
         });
-        print('🔍 [FindFriendsWidget] Error state: _hasSearched=$_hasSearched, _nearbyUsers.length=${_nearbyUsers.length}');
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Error finding friends: ${e.toString()}'),
@@ -189,7 +176,6 @@ class _FindFriendsWidgetState extends State<FindFriendsWidget> {
       }
       return null;
     } catch (e) {
-      print('❌ [FindFriendsWidget] Error searching user: $e');
       return null;
     }
   }
@@ -217,7 +203,6 @@ class _FindFriendsWidgetState extends State<FindFriendsWidget> {
       }
       return false;
     } catch (e) {
-      print('❌ [FindFriendsWidget] Error sending friend request: $e');
       return false;
     }
   }
@@ -401,7 +386,6 @@ class _FindFriendsWidgetState extends State<FindFriendsWidget> {
                   // Debug output to verify this condition is being met
                   Builder(
                     builder: (context) {
-                      print('🔍 [FindFriendsWidget] Rendering input field - _hasSearched=$_hasSearched, _nearbyUsers.length=${_nearbyUsers.length}');
                       return const SizedBox.shrink();
                     },
                   ),

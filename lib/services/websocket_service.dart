@@ -99,11 +99,9 @@ class WebSocketService {
           _connectionMetrics['totalReconnects']++;
         }
         _reconnectAttempts = 0;
-        print('✅ [WebSocket] Connected to WebSocket server');
         break;
       case 'failed':
         _connectionMetrics['failedConnections']++;
-        print('❌ [WebSocket] Failed to connect to WebSocket server');
         break;
       case 'message_sent':
         _connectionMetrics['messagesSent']++;
@@ -113,7 +111,6 @@ class WebSocketService {
         break;
       case 'error':
         _connectionMetrics['errors']++;
-        print('❌ [WebSocket] Error');
         break;
     }
 
@@ -126,10 +123,6 @@ class WebSocketService {
   void _logConnectionQuality() {
     final successRate = _connectionMetrics['totalConnections'] > 0 ? (_connectionMetrics['successfulConnections'] / _connectionMetrics['totalConnections'] * 100) : 0.0;
 
-    print('📊 [WebSocket] Quality: ${successRate.toStringAsFixed(1)}% success, '
-        '${_connectionMetrics['messagesSent']} sent, '
-        '${_connectionMetrics['messagesReceived']} received, '
-        '${_connectionMetrics['errors']} errors');
   }
 
   // Message queuing and acknowledgment
@@ -148,7 +141,6 @@ class WebSocketService {
       'id': _generateMessageId(),
     });
 
-    print('📝 [WebSocket] Message queued (${_messageQueue.length} in queue)');
   }
 
   void _processMessageQueue() {
@@ -163,7 +155,6 @@ class WebSocketService {
       _sendMessageInternal(message);
     }
 
-    print('📤 [WebSocket] Processed ${messages.length} queued messages');
   }
 
   void _sendMessageInternal(Map<String, dynamic> message) {
@@ -186,7 +177,6 @@ class WebSocketService {
         };
       }
     } catch (e) {
-      print('❌ [WebSocket] Error sending message: $e');
       _updateConnectionMetrics('error');
     }
   }
@@ -199,20 +189,17 @@ class WebSocketService {
     _pendingMessages.removeWhere((messageId, pending) {
       if (now - pending['timestamp'] > retryTimeout && pending['retries'] < maxRetries) {
         pending['retries']++;
-        print('🔄 [WebSocket] Retrying message $messageId (attempt ${pending['retries']})');
 
         if (_isConnected && _channel != null) {
           try {
             _channel!.sink.add(jsonEncode(pending['message']));
             _updateConnectionMetrics('message_sent');
           } catch (e) {
-            print('❌ [WebSocket] Error retrying message: $e');
             _updateConnectionMetrics('error');
           }
         }
         return false; // Keep in pending
       } else if (pending['retries'] >= maxRetries) {
-        print('❌ [WebSocket] Message $messageId failed after $maxRetries retries');
         _updateConnectionMetrics('error');
         return true; // Remove from pending
       }
@@ -223,15 +210,11 @@ class WebSocketService {
   /// Initialize the WebSocket service
   Future<void> initialize() async {
     try {
-      print('🔄 [WebSocket] Initializing WebSocket service...');
-      
       // Generate session ID
       _sessionId = _generateSessionId();
 
       _isInitialized = true;
-      print('✅ [WebSocket] WebSocket service initialized');
     } catch (e) {
-      print('❌ [WebSocket] Error initializing WebSocket service: $e');
     }
   }
   
@@ -259,7 +242,6 @@ class WebSocketService {
         // For server.skybyn.no on port 4433, we trust the certificate
         // The certificate is valid and works, so we accept it
         if (host == 'server.skybyn.no' && port == 4433) {
-          print('✅ [WebSocket] Accepting certificate for $host:$port');
           return true;
         }
         // For other hosts, use standard validation
@@ -275,7 +257,6 @@ class WebSocketService {
       // Wrap the socket in an IOWebSocketChannel
       return IOWebSocketChannel(webSocket);
     } catch (e) {
-      print('❌ [WebSocket] Error creating WebSocket connection: $e');
       rethrow;
     }
   }
@@ -312,7 +293,6 @@ class WebSocketService {
 
     // Ensure service is initialized before connecting
     if (!_isInitialized) {
-      print('⚠️ [WebSocket] Service not initialized, initializing now...');
       await initialize();
     }
     
@@ -320,12 +300,10 @@ class WebSocketService {
     if (_isConnected) {
       // Verify the connection is actually alive
       if (_testConnection()) {
-        print('ℹ️ [WebSocket] Already connected and healthy, callbacks updated (no reconnection needed)');
         // Callbacks have already been updated above, so we can return
         // This allows screens to register their callbacks after connection is established
         return;
       } else {
-        print('⚠️ [WebSocket] Connection appears connected but is actually dead - reconnecting...');
         // Connection is dead, reset state and reconnect
         _isConnected = false;
         _channel = null;
@@ -333,7 +311,6 @@ class WebSocketService {
     }
     
     if (_isConnecting) {
-      print('ℹ️ [WebSocket] Already connecting, skipping duplicate connection attempt');
       return;
     }
 
@@ -349,38 +326,24 @@ class WebSocketService {
       }
 
       final wsUrl = _getWebSocketUrl();
-      print('🔄 [WebSocket] Connecting to WebSocket: $wsUrl');
-
       // Create WebSocket connection with SSL certificate handling
-      print('🔄 [WebSocket] Creating WebSocket channel...');
       _channel = await _createWebSocketChannel(wsUrl);
-      print('✅ [WebSocket] WebSocket channel created successfully');
-
       // Listen to messages
-      print('🔄 [WebSocket] Setting up message listeners...');
       _channel!.stream.listen(
         (message) {
           _handleMessage(message); // Fire and forget - async method
         },
         onError: (error) {
-          print('❌ [WebSocket] Stream error: $error');
           _onConnectionError(error);
         },
         onDone: () {
-          print('🔌 [WebSocket] Stream done (connection closed)');
           _onConnectionClosed();
         },
         cancelOnError: false,
       );
-      print('✅ [WebSocket] Message listeners set up');
-
       // Send connect message after a short delay to ensure connection is established
-      print('🔄 [WebSocket] Waiting 500ms before sending connect message...');
       await Future.delayed(const Duration(milliseconds: 500));
-      print('🔄 [WebSocket] Sending connect message...');
       await _sendConnectMessage();
-      print('✅ [WebSocket] Connect message sent');
-
       // Only update state and print if we're still the one connecting (prevent duplicate messages)
       if (_isConnecting) {
         _isConnected = true;
@@ -402,7 +365,6 @@ class WebSocketService {
       _isConnecting = false;
       _isConnected = false;
       _updateConnectionMetrics('failed');
-      print('❌ [WebSocket] Error connecting to WebSocket: $e');
       _onConnectionError(e);
     }
   }
@@ -411,7 +373,6 @@ class WebSocketService {
   Future<void> _sendConnectMessage() async {
     try {
       if (_channel == null) {
-        print('❌ [WebSocket] Cannot send connect message: channel is null');
         return;
       }
 
@@ -419,9 +380,6 @@ class WebSocketService {
       final user = await authService.getStoredUserProfile();
       _userId = user?.id;
       final userName = user?.username ?? ''; // Use username field as userName
-      
-      print('🔄 [WebSocket] Preparing connect message: userId=$_userId, userName=$userName, sessionId=$_sessionId');
-      
       final deviceService = DeviceService();
       final deviceInfo = await deviceService.getDeviceInfo();
 
@@ -440,12 +398,8 @@ class WebSocketService {
         },
       };
       final messageJson = jsonEncode(connectMessage);
-      print('📤 [WebSocket] Sending connect message: $messageJson');
       _channel!.sink.add(messageJson);
-      print('✅ [WebSocket] Connect message sent successfully');
     } catch (e, stackTrace) {
-      print('❌ [WebSocket] Error sending connect message: $e');
-      print('❌ [WebSocket] Stack trace: $stackTrace');
     }
   }
 
@@ -490,7 +444,6 @@ class WebSocketService {
             // and clients respond with PONGs. This is unexpected.
             return; // Early return to avoid processing in switch statement
           } else {
-            print('📨 [WebSocket] Received message: $message');
           }
 
           switch (messageType) {
@@ -549,8 +502,6 @@ class WebSocketService {
               final messageId = data['messageId']?.toString();
               
               if (notificationType == 'chat' && fromUserId != null && message != null) {
-                print('💬 [WebSocket] Received chat notification: from=$fromUserId, message=$message');
-                
                 // Show in-app notification for chat message when app is open
                 try {
                   await _notificationService.showNotification(
@@ -563,9 +514,7 @@ class WebSocketService {
                       'to': _userId,
                     }),
                   );
-                  print('✅ [WebSocket] Chat notification shown successfully');
                 } catch (e) {
-                  print('❌ [WebSocket] Error showing chat notification: $e');
                 }
                 
                 // Also trigger chat message callback if registered
@@ -602,16 +551,12 @@ class WebSocketService {
                 callType = callTypeRaw.toString().toLowerCase().trim();
                 // Normalize to 'video' or 'audio'
                 if (callType != 'video' && callType != 'audio') {
-                  print('⚠️ [WebSocket] Invalid callType: $callType, defaulting to audio');
                   callType = 'audio';
                 }
               } else {
-                print('⚠️ [WebSocket] callType missing in call_offer, defaulting to audio');
                 callType = 'audio';
               }
-              print('📞 [WebSocket] Received call_offer: callId=$callId, fromUserId=$fromUserId, type=$callType (raw: $callTypeRaw)');
               if (_onCallOffer == null) {
-                print('⚠️ [WebSocket] call_offer callback is null');
               } else {
                 _onCallOffer?.call(callId, fromUserId, offer, callType);
               }
@@ -619,9 +564,7 @@ class WebSocketService {
             case 'call_answer':
               final callId = data['callId']?.toString() ?? '';
               final answer = data['answer']?.toString() ?? '';
-              print('📞 [WebSocket] Received call_answer: callId=$callId, answerLength=${answer.length}');
               if (_onCallAnswer == null) {
-                print('⚠️ [WebSocket] call_answer callback is null');
               } else {
                 _onCallAnswer?.call(callId, answer);
               }
@@ -631,9 +574,7 @@ class WebSocketService {
               final candidate = data['candidate']?.toString() ?? '';
               final sdpMid = data['sdpMid']?.toString() ?? '';
               final sdpMLineIndex = (data['sdpMLineIndex'] as num?)?.toInt() ?? 0;
-              print('📞 [WebSocket] Received ice_candidate: callId=$callId, candidate=${candidate.substring(0, 50)}..., sdpMid=$sdpMid, index=$sdpMLineIndex');
               if (_onIceCandidate == null) {
-                print('⚠️ [WebSocket] ice_candidate callback is null');
               } else {
                 _onIceCandidate?.call(callId, candidate, sdpMid, sdpMLineIndex);
               }
@@ -642,9 +583,7 @@ class WebSocketService {
               final callId = data['callId']?.toString() ?? '';
               final fromUserId = data['fromUserId']?.toString() ?? '';
               final targetUserId = data['targetUserId']?.toString() ?? '';
-              print('📞 [WebSocket] Received call_end: callId=$callId, fromUserId=$fromUserId, targetUserId=$targetUserId');
               if (_onCallEnd == null) {
-                print('⚠️ [WebSocket] call_end callback is null');
               } else {
                 _onCallEnd?.call(callId, fromUserId, targetUserId);
               }
@@ -654,9 +593,7 @@ class WebSocketService {
               final targetUserId = data['targetUserId']?.toString() ?? '';
               final error = data['error']?.toString() ?? 'unknown';
               final errorMessage = data['message']?.toString() ?? 'Call failed';
-              print('❌ [WebSocket] Received call_error: callId=$callId, targetUserId=$targetUserId, error=$error, message=$errorMessage');
               if (_onCallError == null) {
-                print('⚠️ [WebSocket] call_error callback is null');
               } else {
                 _onCallError?.call(callId, targetUserId, errorMessage);
               }
@@ -701,7 +638,6 @@ class WebSocketService {
                   try {
                     callback(userId, isOnline);
                   } catch (e) {
-                    print('❌ [WebSocket] Error in online status callback: $e');
                   }
                 }
               }
@@ -710,13 +646,11 @@ class WebSocketService {
         }
       }
     } catch (e) {
-      print('❌ [WebSocket] Error handling message: $e');
     }
   }
 
   /// Handle new post
   void _handleNewPost(String postId) {
-    print('📝 [WebSocket] Processing new post: $postId');
     // Fetch the post details and call the callback
     // This would typically involve fetching the post from the API
     _onNewPost?.call(Post(
@@ -734,27 +668,21 @@ class WebSocketService {
 
   /// Handle delete post
   void _handleDeletePost(String postId) {
-    print('🗑️ [WebSocket] Processing delete post: $postId');
     _onDeletePost?.call(postId);
   }
 
   /// Handle new comment
   void _handleNewComment(String postId, String commentId) {
-    print('💬 [WebSocket] Processing new comment: $commentId on post: $postId');
     _onNewComment?.call(postId, commentId);
   }
 
   /// Handle delete comment
   void _handleDeleteComment(String postId, String commentId) {
-    print('🗑️ [WebSocket] Processing delete comment: $commentId on post: $postId');
     _onDeleteComment?.call(postId, commentId);
   }
 
   /// Handle app update notification
   void _handleAppUpdate() {
-
-    print('📱 [WebSocket] Processing app update notification');
-
     // Show notification for app update
     _notificationService.showNotification(
       title: 'App Update Available',
@@ -787,7 +715,6 @@ class WebSocketService {
           // Remove from pending
           _pendingMessages.remove(messageId);
 
-          print('✅ [WebSocket] Message $messageId acknowledged (${latency}ms)');
         }
       }
     }
@@ -861,8 +788,6 @@ class WebSocketService {
       return true;
     } catch (e, stackTrace) {
       // Log error in both debug and release (using debugPrint which works in release)
-      debugPrint('❌ [WebSocket] Error sending message: $e');
-      debugPrint('Stack trace: $stackTrace');
       _updateConnectionMetrics('error');
       
       // If channel error, mark as disconnected and reconnect
@@ -905,7 +830,6 @@ class WebSocketService {
       'callType': callType,
       'sessionId': _sessionId,
     };
-    print('📞 [WebSocket] Sending call_offer: callId=$callId, targetUserId=$targetUserId, type=$callType, connected=$_isConnected');
     _sendMessageInternal(message);
   }
 
@@ -956,7 +880,6 @@ class WebSocketService {
       'targetUserId': targetUserId,
       'sessionId': _sessionId,
     };
-    print('📞 [WebSocket] Sending call_end: callId=$callId, targetUserId=$targetUserId');
     _sendMessageInternal(message);
   }
 
@@ -988,7 +911,6 @@ class WebSocketService {
     required String content,
   }) {
     if (_userId == null) {
-      print('⚠️ [WebSocket] Cannot send chat message: userId is null');
       return;
     }
     
@@ -1000,20 +922,17 @@ class WebSocketService {
       'message': content,
       'sessionId': _sessionId,
     };
-    print('💬 [WebSocket] Sending chat message: messageId=$messageId, from=$_userId, to=$targetUserId');
     _sendMessageInternal(message);
   }
 
   /// Handle connection closed
   void _onConnectionClosed() {
-    print('🔌 [WebSocket] WebSocket connection closed');
     _isConnected = false;
     _scheduleReconnect();
   }
 
   /// Handle connection error
   void _onConnectionError(error) {
-    print('❌ [WebSocket] WebSocket error: $error');
     _isConnected = false;
     _scheduleReconnect();
   }
@@ -1024,7 +943,6 @@ class WebSocketService {
     _reconnectTimer?.cancel();
 
     if (_reconnectAttempts >= _maxReconnectAttempts) {
-      print('❌ [WebSocket] Max reconnection attempts reached. Resetting and retrying...');
       // Reset attempts after a delay to allow retry
       _reconnectAttempts = 0;
       _updateConnectionMetrics('failed');
@@ -1041,11 +959,9 @@ class WebSocketService {
     final delay = _getReconnectDelay();
     _reconnectAttempts++;
 
-    print('🔄 [WebSocket] Scheduling reconnection in ${delay}ms (attempt $_reconnectAttempts/$_maxReconnectAttempts)');
 
     _reconnectTimer = Timer(Duration(milliseconds: delay), () {
       if (!_isConnected && !_isConnecting) {
-        print('🔄 [WebSocket] Attempting to reconnect...');
         connect();
       }
     });
@@ -1063,8 +979,6 @@ class WebSocketService {
   /// Stop the WebSocket service
   Future<void> stop() async {
     try {
-      print('🛑 [WebSocket] Stopping WebSocket service...');
-
       // Close WebSocket connection
       disconnect();
 
@@ -1072,10 +986,7 @@ class WebSocketService {
 
       // Log final metrics
       _logConnectionQuality();
-
-      print('✅ [WebSocket] WebSocket service stopped');
     } catch (e) {
-      print('❌ [WebSocket] Error stopping WebSocket service: $e');
       _updateConnectionMetrics('error');
     }
   }
@@ -1097,13 +1008,11 @@ class WebSocketService {
         final timeSinceLastPing = now - _lastPingReceivedTime!;
         // If we haven't received a ping in 2 minutes, connection is likely dead
         if (timeSinceLastPing > 120000) {
-          print('⚠️ [WebSocket] Connection test failed: No ping received in ${timeSinceLastPing ~/ 1000} seconds');
           return false;
         }
       }
       return true;
     } catch (e) {
-      print('❌ [WebSocket] Connection test error: $e');
       return false;
     }
   }
@@ -1111,14 +1020,11 @@ class WebSocketService {
   /// Force reconnection even if connection appears to be active
   /// Useful when app resumes from background
   Future<void> forceReconnect() async {
-    print('🔄 [WebSocket] Force reconnecting...');
-    
     // Disconnect current connection if it exists
     if (_channel != null) {
       try {
         _channel!.sink.close();
       } catch (e) {
-        print('⚠️ [WebSocket] Error closing channel during force reconnect: $e');
       }
     }
     
@@ -1139,7 +1045,6 @@ class WebSocketService {
 
   /// Disconnect from WebSocket
   void disconnect() {
-    print('🔌 [WebSocket] Disconnecting from WebSocket...');
     _reconnectTimer?.cancel();
     _connectionHealthTimer?.cancel();
     
@@ -1147,7 +1052,6 @@ class WebSocketService {
     try {
       _channel?.sink.close();
     } catch (e) {
-      print('⚠️ [WebSocket] Error closing channel: $e');
     }
     
     _channel = null;
@@ -1158,8 +1062,6 @@ class WebSocketService {
     // Clear message queues
     _messageQueue.clear();
     _pendingMessages.clear();
-    print('✅ [WebSocket] Disconnected from WebSocket');
-    
     // Update online status to false when disconnected
     _updateOnlineStatusOnDisconnect();
   }
@@ -1179,7 +1081,6 @@ class WebSocketService {
       
       // Test connection health
       if (!_testConnection()) {
-        print('⚠️ [WebSocket] Connection health check failed - forcing reconnection');
         _onConnectionClosed();
         return;
       }
@@ -1190,7 +1091,6 @@ class WebSocketService {
         
         // If we haven't received a ping from server in 60 seconds, connection is likely dead
         if (timeSinceLastPing > 60000) {
-          print('⚠️ [WebSocket] No PING from server in ${timeSinceLastPing ~/ 1000} seconds - connection may be dead');
           // Connection appears dead, trigger reconnection
           _onConnectionClosed();
         }
@@ -1202,7 +1102,6 @@ class WebSocketService {
           final now = DateTime.now().millisecondsSinceEpoch;
           final timeSinceConnection = now - connectionStartTime;
           if (timeSinceConnection > 30000) {
-            print('⚠️ [WebSocket] No PING received since connection (${timeSinceConnection ~/ 1000} seconds ago) - connection may be dead');
             _onConnectionClosed();
           }
         }

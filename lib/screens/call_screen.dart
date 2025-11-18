@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import '../models/friend.dart';
@@ -28,6 +29,8 @@ class _CallScreenState extends State<CallScreen> {
   bool _isCameraOff = false;
   bool _isLocalVideoInitialized = false;
   bool _isRemoteVideoInitialized = false;
+  bool _isNavigatingBack = false; // Prevent multiple navigation attempts
+  MediaStream? _lastRemoteStream; // Store reference to remote stream
 
   @override
   void initState() {
@@ -38,6 +41,57 @@ class _CallScreenState extends State<CallScreen> {
     if (!widget.isIncoming) {
       // Start outgoing call
       _startOutgoingCall();
+    } else {
+      // For incoming calls, check if local stream is already available
+      // (handleIncomingOffer might have set it up before screen was shown)
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _checkAndSetExistingStreams();
+      });
+    }
+    
+    // Periodically check if renderer has a stream set by the plugin
+    // This handles cases where onTrack doesn't fire but the plugin sets the stream directly
+    Timer.periodic(const Duration(milliseconds: 500), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      if (_isRemoteVideoInitialized && 
+          _remoteRenderer.srcObject != null && 
+          _lastRemoteStream != _remoteRenderer.srcObject) {
+        // Renderer has a stream that we haven't stored yet
+        _lastRemoteStream = _remoteRenderer.srcObject;
+        setState(() {});
+      }
+      // Stop checking once we have a stream or call ends
+      if (_lastRemoteStream != null || 
+          _callService.callState == CallState.ended || 
+          _callService.callState == CallState.idle) {
+        timer.cancel();
+      }
+    });
+  }
+  
+  void _checkAndSetExistingStreams() {
+    if (!mounted) return;
+    
+    // Check for existing local stream from service
+    final localStream = _callService.localStream;
+    if (localStream != null && _isLocalVideoInitialized) {
+      if (_localRenderer.srcObject != localStream) {
+        _localRenderer.srcObject = localStream;
+        setState(() {});
+      }
+    }
+    
+    // Check for existing remote stream from service
+    final remoteStream = _callService.remoteStream;
+    if (remoteStream != null && _isRemoteVideoInitialized) {
+      _lastRemoteStream = remoteStream;
+      if (_remoteRenderer.srcObject != remoteStream) {
+        _remoteRenderer.srcObject = remoteStream;
+        setState(() {});
+      }
     }
   }
 
@@ -59,23 +113,168 @@ class _CallScreenState extends State<CallScreen> {
     };
 
     _callService.onRemoteStream = (stream) {
-      if (stream != null && _isRemoteVideoInitialized) {
-        _remoteRenderer.srcObject = stream;
-        setState(() {});
+      if (stream != null) {
+        // Store reference to remote stream
+        _lastRemoteStream = stream;
+        
+        // Check if stream has video tracks (for video calls)
+        final hasVideoTracks = stream.getVideoTracks().isNotEmpty;
+        
+        // If we have a remote stream, the call should be connected
+        // This is a fallback in case the state update didn't happen
+        if (_callService.callState != CallState.connected && 
+            _callService.callState != CallState.ended) {
+          // The state should have been updated by onTrack, but if not, 
+          // we'll rely on the state change callback to update it
+        }
+        
+        // Set the stream on the renderer - try multiple times if needed
+        void setRemoteStream() {
+          if (mounted && _isRemoteVideoInitialized) {
+            // Verify stream has video tracks and they're enabled
+            final videoTracks = stream.getVideoTracks();
+            if (videoTracks.isNotEmpty) {
+              // Ensure video tracks are enabled
+              for (final track in videoTracks) {
+                if (track.enabled == false) {
+                  track.enabled = true;
+                }
+              }
+            }
+            // Always set the stream, even if it's the same - this ensures it's properly attached
+            _remoteRenderer.srcObject = stream;
+            // Force UI update to show remote video and update call state display
+            setState(() {});
+          }
+        }
+        
+        // Try to set immediately if renderer is ready
+        setRemoteStream();
+        
+        // If renderer isn't ready yet, wait and retry multiple times
+        if (!_isRemoteVideoInitialized) {
+          Future.delayed(const Duration(milliseconds: 100), () {
+            setRemoteStream();
+            if (!_isRemoteVideoInitialized && mounted) {
+              Future.delayed(const Duration(milliseconds: 200), () {
+                setRemoteStream();
+                if (!_isRemoteVideoInitialized && mounted) {
+                  Future.delayed(const Duration(milliseconds: 300), () {
+                    setRemoteStream();
+                    // One more retry after a longer delay
+                    if (!_isRemoteVideoInitialized && mounted) {
+                      Future.delayed(const Duration(milliseconds: 500), () {
+                        setRemoteStream();
+                      });
+                    }
+                  });
+                }
+              });
+            }
+          });
+        } else {
+          // Renderer is ready, but ensure stream is set - retry once more after a short delay
+          Future.delayed(const Duration(milliseconds: 200), () {
+            if (mounted && _isRemoteVideoInitialized && _remoteRenderer.srcObject != stream) {
+              _remoteRenderer.srcObject = stream;
+              setState(() {});
+            }
+          });
+        }
+      } else {
+        // Stream is null - clear the renderer
+        _lastRemoteStream = null;
+        if (_isRemoteVideoInitialized) {
+          _remoteRenderer.srcObject = null;
+          setState(() {});
+        }
       }
     };
 
     _callService.onCallStateChanged = (state) {
-      setState(() {});
-      if (state == CallState.ended || state == CallState.idle) {
-        Navigator.of(context).pop();
+      if (mounted) {
+        // Always check for remote stream when state changes, not just on connected
+        // This ensures we catch the stream even if state updates are delayed
+        final serviceRemoteStream = _callService.remoteStream;
+        if (serviceRemoteStream != null) {
+          if (_lastRemoteStream != serviceRemoteStream) {
+            _lastRemoteStream = serviceRemoteStream;
+          }
+          if (_isRemoteVideoInitialized && _remoteRenderer.srcObject != serviceRemoteStream) {
+            _remoteRenderer.srcObject = serviceRemoteStream;
+            setState(() {});
+          }
+        } else if (_lastRemoteStream != null && _isRemoteVideoInitialized) {
+          // Ensure stored stream is set on renderer
+          if (_remoteRenderer.srcObject != _lastRemoteStream) {
+            _remoteRenderer.srcObject = _lastRemoteStream;
+            setState(() {});
+          }
+        }
+        setState(() {});
+        if ((state == CallState.ended || state == CallState.idle) && !_isNavigatingBack) {
+          _isNavigatingBack = true;
+          
+          // Use post-frame callback to ensure we have a fresh context
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) {
+              // Use a small delay to ensure state updates are complete
+              Future.delayed(const Duration(milliseconds: 200), () {
+                if (mounted) {
+                  // Get the current route to check navigation stack
+                  final currentRoute = ModalRoute.of(context);
+                  if (currentRoute != null && currentRoute.isCurrent) {
+                    // Try to get the navigator that pushed this screen
+                    // Use rootNavigator: false first to get the navigator that's managing this route
+                    final navigator = Navigator.of(context, rootNavigator: false);
+                    
+                    // Check if we can pop from the non-root navigator
+                    if (navigator.canPop()) {
+                      // Pop once - this should take us back to the screen that pushed CallScreen
+                      navigator.pop();
+                    } else {
+                      // Can't pop from non-root navigator
+                      // This could mean:
+                      // 1. We're at the root (e.g., home screen) - in this case, we should still pop
+                      // 2. The navigation stack is empty - shouldn't happen, but handle gracefully
+                      
+                      // Check if we can pop from root navigator
+                      // This handles the case where CallScreen was pushed from home screen
+                      final rootNavigator = Navigator.of(context, rootNavigator: true);
+                      if (rootNavigator.canPop()) {
+                        // Pop from root navigator - this will take us back to home screen
+                        // which is correct if we answered the call from home screen
+                        rootNavigator.pop();
+                      } else {
+                        // Can't pop from either navigator - shouldn't happen
+                        // Reset flag so user can manually navigate back
+                        _isNavigatingBack = false;
+                      }
+                    }
+                  } else {
+                    // Route is not current, reset flag
+                    _isNavigatingBack = false;
+                  }
+                }
+              });
+            }
+          });
+        }
       }
     };
 
     _callService.onCallError = (error) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error)),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(error),
+            duration: const Duration(seconds: 5),
+            backgroundColor: Colors.red,
+          ),
+        );
+        // Don't auto-close on error - let user see the error message
+        // The call state change handler will close when state becomes ended/idle
+      }
     };
   }
 
@@ -136,11 +335,25 @@ class _CallScreenState extends State<CallScreen> {
       case CallState.calling:
         return widget.isIncoming ? 'Connecting...' : 'Calling...';
       case CallState.ringing:
-        return 'Ringing...';
+        return widget.isIncoming ? 'Incoming call' : 'Ringing...';
       case CallState.connected:
         return 'Connected';
       case CallState.ended:
-        return 'Ended';
+        return 'Call ended';
+    }
+  }
+  
+  Color _getCallStateColor() {
+    switch (_callService.callState) {
+      case CallState.idle:
+        return Colors.grey;
+      case CallState.calling:
+      case CallState.ringing:
+        return Colors.orange;
+      case CallState.connected:
+        return Colors.green;
+      case CallState.ended:
+        return Colors.red;
     }
   }
 
@@ -155,15 +368,103 @@ class _CallScreenState extends State<CallScreen> {
   Widget build(BuildContext context) {
     final isVideoCall = widget.callType == CallType.video;
     final callState = _callService.callState;
-    final isConnected = callState == CallState.connected;
+    // Consider connected if state is connected OR if we have a remote stream
+    // This handles cases where the state update hasn't happened yet but media is flowing
+    final hasRemoteStream = _remoteRenderer.srcObject != null || _lastRemoteStream != null;
+    final isConnected = callState == CallState.connected || 
+                       (hasRemoteStream && callState != CallState.ended && callState != CallState.idle);
+    
+    // Ensure local stream is set on renderer - check service directly
+    if (isVideoCall && _isLocalVideoInitialized) {
+      final serviceLocalStream = _callService.localStream;
+      if (serviceLocalStream != null && _localRenderer.srcObject != serviceLocalStream) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted && serviceLocalStream != null) {
+            _localRenderer.srcObject = serviceLocalStream;
+            setState(() {});
+          }
+        });
+      }
+    }
+    
+    // Ensure remote stream is set on renderer - check multiple sources
+    // This runs on every build to catch streams that arrive at any time
+    if (isVideoCall && _isRemoteVideoInitialized) {
+      // First, try to get stream from service directly
+      final serviceRemoteStream = _callService.remoteStream;
+      if (serviceRemoteStream != null) {
+        // Update stored reference
+        if (_lastRemoteStream != serviceRemoteStream) {
+          _lastRemoteStream = serviceRemoteStream;
+        }
+        // Always ensure it's set on renderer - even if it seems to be set
+        if (_remoteRenderer.srcObject != serviceRemoteStream) {
+          // Set immediately if possible
+          _remoteRenderer.srcObject = serviceRemoteStream;
+          // Also set in post-frame callback as backup
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted && serviceRemoteStream != null) {
+              if (_remoteRenderer.srcObject != serviceRemoteStream) {
+                _remoteRenderer.srcObject = serviceRemoteStream;
+              }
+              setState(() {});
+            }
+          });
+        }
+      } else if (_lastRemoteStream != null) {
+        // Stream is stored - ensure it's set on renderer
+        if (_remoteRenderer.srcObject != _lastRemoteStream) {
+          _remoteRenderer.srcObject = _lastRemoteStream;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted && _lastRemoteStream != null) {
+              if (_remoteRenderer.srcObject != _lastRemoteStream) {
+                _remoteRenderer.srcObject = _lastRemoteStream;
+              }
+              setState(() {});
+            }
+          });
+        }
+      } else {
+        // No stream available - check if renderer already has a stream set by the plugin
+        // Sometimes the plugin sets the stream directly on the renderer before onTrack fires
+        if (_isRemoteVideoInitialized && _remoteRenderer.srcObject != null) {
+          // Renderer has a stream! This means the plugin set it directly
+          // Store it and notify the service
+          if (_lastRemoteStream != _remoteRenderer.srcObject) {
+            _lastRemoteStream = _remoteRenderer.srcObject;
+            // Update service's remote stream reference if possible
+            // Note: We can't directly set _callService._remoteStream, but we can
+            // at least use the stream from the renderer
+          }
+        } else if (callState == CallState.connected || callState == CallState.ringing) {
+          // Check if we can get tracks directly as a fallback
+          _callService.getRemoteVideoTrack().then((track) {
+            if (mounted && track != null && _remoteRenderer.srcObject == null) {
+              // We have a track but no stream - this means onTrack didn't provide a stream
+              // Unfortunately, Flutter WebRTC requires streams for renderers, not just tracks
+              // So we'll wait for the stream to arrive via onTrack
+              // But we can at least verify the track exists
+            }
+          });
+        }
+      }
+    }
 
     return WillPopScope(
       onWillPop: () async {
-        // Prevent back button from ending call accidentally
+        // If call is connected, end it first
         if (callState == CallState.connected) {
-          _endCall();
+          await _endCall();
+          // Don't pop immediately - let the state change handler do it
+          return false;
         }
-        return true;
+        // For other states (calling, ringing, ended), allow back button
+        // But prevent multiple navigation attempts
+        if (!_isNavigatingBack) {
+          _isNavigatingBack = true;
+          return true;
+        }
+        return false;
       },
       child: Scaffold(
         backgroundColor: Colors.black,
@@ -171,12 +472,80 @@ class _CallScreenState extends State<CallScreen> {
           child: Stack(
             children: [
               // Remote video (full screen for video calls)
-              if (isVideoCall && _isRemoteVideoInitialized)
+              // Show remote video if renderer is initialized and has a stream
+              // Also check if we have a stored stream reference
+              if (isVideoCall && 
+                  _isRemoteVideoInitialized && 
+                  (_remoteRenderer.srcObject != null || _lastRemoteStream != null))
                 Positioned.fill(
-                  child: RTCVideoView(
-                    _remoteRenderer,
-                    mirror: false,
-                    objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
+                  child: Builder(
+                    builder: (context) {
+                      // Ensure stream is set on renderer if we have it stored
+                      final streamToUse = _remoteRenderer.srcObject ?? _lastRemoteStream;
+                      if (streamToUse != null && _remoteRenderer.srcObject != streamToUse) {
+                        WidgetsBinding.instance.addPostFrameCallback((_) {
+                          if (mounted && streamToUse != null) {
+                            _remoteRenderer.srcObject = streamToUse;
+                            setState(() {});
+                          }
+                        });
+                      }
+                      
+                      // Verify stream has video tracks before displaying
+                      final currentStream = _remoteRenderer.srcObject ?? streamToUse;
+                      if (currentStream != null) {
+                        final videoTracks = currentStream.getVideoTracks();
+                        // If stream has no video tracks yet, still try to display
+                        // Tracks might be added asynchronously
+                        if (videoTracks.isEmpty && _remoteRenderer.srcObject == null) {
+                          return Container(
+                            color: Colors.black,
+                            child: Center(
+                              child: Text(
+                                'Waiting for video...',
+                                style: TextStyle(color: Colors.white70),
+                              ),
+                            ),
+                          );
+                        }
+                      } else if (streamToUse == null) {
+                        // No stream at all - show loading
+                        return Container(
+                          color: Colors.black,
+                          child: Center(
+                            child: CircularProgressIndicator(
+                              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                            ),
+                          ),
+                        );
+                      }
+                      
+                      // Ensure we have a stream on the renderer before displaying
+                      if (_remoteRenderer.srcObject == null && streamToUse != null) {
+                        // Stream is available but not set - set it in post-frame callback
+                        WidgetsBinding.instance.addPostFrameCallback((_) {
+                          if (mounted && streamToUse != null) {
+                            _remoteRenderer.srcObject = streamToUse;
+                            setState(() {});
+                          }
+                        });
+                        // Return placeholder while setting up
+                        return Container(
+                          color: Colors.black,
+                          child: Center(
+                            child: CircularProgressIndicator(
+                              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                            ),
+                          ),
+                        );
+                      }
+                      
+                      return RTCVideoView(
+                        _remoteRenderer,
+                        mirror: false,
+                        objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
+                      );
+                    },
                   ),
                 )
               else if (isVideoCall)
@@ -184,13 +553,30 @@ class _CallScreenState extends State<CallScreen> {
                   child: Container(
                     color: Colors.black,
                     child: Center(
-                      child: CircularProgressIndicator(),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          CircularProgressIndicator(
+                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                          ),
+                          SizedBox(height: 16),
+                          Text(
+                            _getCallStateText(),
+                            style: TextStyle(
+                              color: Colors.white70,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
 
               // Local video preview (small overlay for video calls)
-              if (isVideoCall && _isLocalVideoInitialized && isConnected)
+              // Show local video whenever we have a local stream, not just when connected
+              // This ensures local video shows during ringing state for incoming calls
+              if (isVideoCall && _isLocalVideoInitialized && _localRenderer.srcObject != null)
                 Positioned(
                   top: 20,
                   right: 20,
@@ -299,13 +685,27 @@ class _CallScreenState extends State<CallScreen> {
                           ),
                         ),
                         SizedBox(height: 8),
-                        // Call state
-                        Text(
-                          _getCallStateText(),
-                          style: TextStyle(
-                            color: Colors.white70,
-                            fontSize: 16,
-                          ),
+                        // Call state with color indicator
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Container(
+                              width: 8,
+                              height: 8,
+                              decoration: BoxDecoration(
+                                color: _getCallStateColor(),
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                            SizedBox(width: 8),
+                            Text(
+                              _getCallStateText(),
+                              style: TextStyle(
+                                color: Colors.white70,
+                                fontSize: 16,
+                              ),
+                            ),
+                          ],
                         ),
                         if (isVideoCall) ...[
                           SizedBox(height: 4),

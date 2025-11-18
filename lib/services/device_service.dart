@@ -57,7 +57,6 @@ class DeviceService {
       
       return deviceInfo;
     } catch (e) {
-      print('Error getting device info: $e');
       // Return basic device info if there's an error
       final deviceId = await getDeviceId();
       return {
@@ -82,7 +81,6 @@ class DeviceService {
       
       return deviceId;
     } catch (e) {
-      print('Error getting device ID: $e');
       return const Uuid().v4(); // Fallback to new UUID if there's an error
     }
   }

@@ -23,7 +23,6 @@ class ChatMessageCountService extends ChangeNotifier {
       _prefs = await SharedPreferences.getInstance();
       await _loadUnreadCounts();
     } catch (e) {
-      print('❌ [ChatMessageCount] Error initializing: $e');
     }
   }
 
@@ -50,7 +49,6 @@ class ChatMessageCountService extends ChangeNotifier {
 
       notifyListeners();
     } catch (e) {
-      print('❌ [ChatMessageCount] Error loading unread counts: $e');
     }
   }
 
@@ -67,7 +65,6 @@ class ChatMessageCountService extends ChangeNotifier {
         await _prefs?.remove(key);
       }
     } catch (e) {
-      print('❌ [ChatMessageCount] Error saving unread count: $e');
     }
   }
 
@@ -115,7 +112,6 @@ class ChatMessageCountService extends ChangeNotifier {
       _totalUnreadCount = 0;
       notifyListeners();
     } catch (e) {
-      print('❌ [ChatMessageCount] Error clearing all unread counts: $e');
     }
   }
 }

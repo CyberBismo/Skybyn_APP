@@ -33,7 +33,6 @@ class FriendService {
       // If no cache or force refresh, fetch from API
       return await _fetchAndUpdateFriends(userId);
     } catch (e) {
-      print('❌ [FriendService] Error fetching friends: $e');
       // If API fails, try to return cached data as fallback
       final cachedFriends = await _loadFromCache();
       return cachedFriends;
@@ -69,9 +68,7 @@ class FriendService {
           if (hasChanged) {
             // Only update cache if content has changed
             await _saveToCache(friends);
-            print('✅ [FriendService] Friends list updated - content changed');
           } else {
-            print('ℹ️ [FriendService] Friends list unchanged - keeping cache');
           }
           
           return friends;
@@ -85,7 +82,6 @@ class FriendService {
       }
       return [];
     } catch (e) {
-      print('❌ [FriendService] Error fetching friends: $e');
       // If API fails, try to return cached data as fallback
       final cachedFriends = await _loadFromCache();
       return cachedFriends;
@@ -173,19 +169,15 @@ class FriendService {
           if (hasChanged) {
             // Only update cache if content has changed
             await _saveToCache(friends);
-            print('✅ [FriendService] Friends list updated in background - content changed');
-            
             // Notify callback if provided (to update UI)
             if (onUpdated != null) {
               onUpdated(friends);
             }
           } else {
-            print('ℹ️ [FriendService] Friends list unchanged in background - keeping cache');
           }
         }
       }
     } catch (e) {
-      print('⚠️ [FriendService] Error updating friends in background: $e');
       // Silently fail - we already have cached data showing
     }
   }
@@ -208,7 +200,6 @@ class FriendService {
       return newHash != cachedHash;
     } catch (e) {
       // If hash comparison fails, assume content changed to be safe
-      print('⚠️ [FriendService] Error comparing content hash: $e');
       return true;
     }
   }
@@ -242,7 +233,6 @@ class FriendService {
       await prefs.setInt(_cacheTimestampKey, DateTime.now().millisecondsSinceEpoch);
       await prefs.setString(_cacheHashKey, hash);
     } catch (e) {
-      print('⚠️ [FriendService] Error saving cache: $e');
     }
   }
 
@@ -269,7 +259,6 @@ class FriendService {
       final List<dynamic> decoded = jsonDecode(friendsJson);
       return decoded.map((item) => Friend.fromJson(item as Map<String, dynamic>)).toList();
     } catch (e) {
-      print('⚠️ [FriendService] Error loading cache: $e');
       return [];
     }
   }
@@ -281,7 +270,6 @@ class FriendService {
       await prefs.remove(_cacheTimestampKey);
       await prefs.remove(_cacheHashKey);
     } catch (e) {
-      print('⚠️ [FriendService] Error clearing cache: $e');
     }
   }
 

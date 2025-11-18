@@ -35,7 +35,6 @@ class _LeftPanelState extends State<LeftPanel> {
   @override
   void initState() {
     super.initState();
-    print('🚀 [LeftPanel] initState called');
     _loadPanelData();
   }
 
@@ -63,9 +62,7 @@ class _LeftPanelState extends State<LeftPanel> {
             _shortcuts = cachedShortcuts;
             _isLoading = false;
           });
-          print('✅ [LeftPanel] Loaded ${_shortcuts.length} shortcuts from cache');
         } catch (e) {
-          print('⚠️ [LeftPanel] Failed to load cache: $e');
         }
       }
 
@@ -79,9 +76,6 @@ class _LeftPanelState extends State<LeftPanel> {
           'Content-Type': 'application/x-www-form-urlencoded',
         },
       ).timeout(const Duration(seconds: 10));
-
-      print('📡 [LeftPanel] API response status: ${response.statusCode}');
-
       if (response.statusCode == 200) {
         try {
           final trimmedBody = response.body.trim();
@@ -112,7 +106,6 @@ class _LeftPanelState extends State<LeftPanel> {
           }
           // Handle error response
           else if (data is Map && data.containsKey('error')) {
-            print('❌ [LeftPanel] API returned error: ${data['error']}');
             // Keep cached data if available
             if (_shortcuts.isEmpty && cachedData != null) {
               return; // Already loaded from cache
@@ -126,7 +119,6 @@ class _LeftPanelState extends State<LeftPanel> {
 
           // Check if data has changed
           if (newHash != null && newHash != cachedHash) {
-            print('🔄 [LeftPanel] Data changed, updating cache');
             // Update cache
             await prefs.setString('left_panel_shortcuts', json.encode(validShortcuts));
             await prefs.setString('left_panel_hash', newHash);
@@ -135,9 +127,7 @@ class _LeftPanelState extends State<LeftPanel> {
               _shortcuts = validShortcuts;
               _isLoading = false;
             });
-            print('✅ [LeftPanel] Updated ${_shortcuts.length} shortcuts');
           } else if (newHash == cachedHash) {
-            print('✅ [LeftPanel] Data unchanged, using cache');
             // Data is the same, no update needed
           } else {
             // No hash available, update anyway
@@ -149,11 +139,8 @@ class _LeftPanelState extends State<LeftPanel> {
               _shortcuts = validShortcuts;
               _isLoading = false;
             });
-            print('✅ [LeftPanel] Updated ${_shortcuts.length} shortcuts (no hash)');
           }
         } catch (e) {
-          print('❌ [LeftPanel] JSON decode error: $e');
-          print('❌ [LeftPanel] Response body: ${response.body}');
           // Keep cached data if available
           if (_shortcuts.isEmpty) {
             setState(() {
@@ -163,7 +150,6 @@ class _LeftPanelState extends State<LeftPanel> {
           }
         }
       } else {
-        print('⚠️ [LeftPanel] API returned status ${response.statusCode}');
         // Keep cached data if available
         if (_shortcuts.isEmpty) {
           setState(() {
@@ -176,7 +162,6 @@ class _LeftPanelState extends State<LeftPanel> {
       // Load Discord widget data
       _loadDiscordWidget();
     } catch (e) {
-      print('❌ [LeftPanel] Error loading panel data: $e');
       // Keep cached data if available
       if (_shortcuts.isEmpty) {
         setState(() {
@@ -205,7 +190,6 @@ class _LeftPanelState extends State<LeftPanel> {
       if (response.statusCode == 200) {
         // Check if response body is not empty
         if (response.body.isEmpty || response.body.trim().isEmpty) {
-          print('⚠️ [LeftPanel] Discord widget: Empty response body');
           return;
         }
 
@@ -214,8 +198,6 @@ class _LeftPanelState extends State<LeftPanel> {
         try {
           data = json.decode(response.body);
         } catch (e) {
-          print('⚠️ [LeftPanel] Discord widget: Invalid JSON - ${e.toString()}');
-          print('⚠️ [LeftPanel] Discord widget: Response body: ${response.body.substring(0, response.body.length > 200 ? 200 : response.body.length)}');
           return;
         }
 
@@ -237,14 +219,11 @@ class _LeftPanelState extends State<LeftPanel> {
           }
         } else if (data is Map && data['error'] != null) {
           // API returned an error message
-          print('⚠️ [LeftPanel] Discord widget error: ${data['error']}');
         }
       } else {
-        print('⚠️ [LeftPanel] Discord widget: HTTP ${response.statusCode}');
       }
     } catch (e) {
       // Silently fail - Discord widget is optional
-      print('⚠️ [LeftPanel] Failed to load Discord widget: $e');
     }
   }
 
@@ -258,14 +237,12 @@ class _LeftPanelState extends State<LeftPanel> {
         await launchUrl(inviteUrl, mode: LaunchMode.externalApplication);
         return;
       } catch (e) {
-        print('⚠️ [LeftPanel] Discord app invite failed: $e, trying web URL');
       }
       
       // Fallback to web URL in external browser
       final webUri = Uri.parse(discordWebUrl);
       await launchUrl(webUri, mode: LaunchMode.externalApplication);
     } catch (e) {
-      print('❌ [LeftPanel] Error opening Discord: $e');
       // Show error to user
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -373,7 +350,6 @@ class _LeftPanelState extends State<LeftPanel> {
         await launchUrl(url, mode: LaunchMode.externalApplication);
       }
     } catch (e) {
-      print('❌ [LeftPanel] Error opening URL: $e');
     }
   }
 
@@ -579,14 +555,10 @@ class _LeftPanelState extends State<LeftPanel> {
                                       final name = shortcut['name']?.toString().toLowerCase() ?? '';
                                       final shouldInclude = name != 'discord';
                                       if (!shouldInclude) {
-                                        print('🔍 [LeftPanel] Filtering out: $name');
                                       }
                                       return shouldInclude;
                                     })
                                     .toList();
-                                
-                                print('🔍 [LeftPanel] Build called - Displaying ${filteredShortcuts.length} shortcuts (total: ${_shortcuts.length})');
-                                print('🔍 [LeftPanel] _shortcuts content: $_shortcuts');
                                 
                                 final children = <Widget>[
                                   // Discord section (always shown, like on website)
@@ -596,12 +568,10 @@ class _LeftPanelState extends State<LeftPanel> {
                                 
                                 // Add shortcuts
                                 for (var shortcut in filteredShortcuts) {
-                                  print('✅ [LeftPanel] Adding shortcut to list: ${shortcut['name']}');
                                   children.add(_buildShortcutItem(shortcut));
                                 }
                                 
                                 if (filteredShortcuts.isEmpty && _shortcuts.isNotEmpty) {
-                                  print('⚠️ [LeftPanel] All shortcuts were filtered out!');
                                 }
                                 
                                 return ListView(

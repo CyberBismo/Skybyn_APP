@@ -172,7 +172,6 @@ class _QrScannerScreenState extends State<QrScannerScreen> with WidgetsBindingOb
     try {
       cameraController.dispose();
     } catch (e) {
-      print('Error disposing camera controller: $e');
     }
     if (_overlayEntry != null) {
       _overlayEntry!.remove();
@@ -219,10 +218,8 @@ class _QrScannerScreenState extends State<QrScannerScreen> with WidgetsBindingOb
                             final scannedCode = barcode.rawValue;
                             if (scannedCode != null) {
                               if (scannedCode.length == 10) {
-                                debugPrint('Valid QR code found: $scannedCode');
                                 await _sendQrCodeToServer(scannedCode);
                               } else {
-                                debugPrint('Invalid QR code length: $scannedCode');
                                 _showOverlayToast('QR code must be exactly 10 characters long.');
                               }
                             }
