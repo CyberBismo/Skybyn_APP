@@ -76,7 +76,8 @@ dependencies:
   # firebase_app_distribution: ^1.1.1  # Temporarily disabled due to build variant conflicts
   cloud_firestore: ^6.1.0
   # firebase_auth: ^4.16.0
-  workmanager: ^0.5.2  # Background task scheduler for periodic activity updates (no notification required)
+  # workmanager: ^0.5.2  # Disabled due to compatibility issues with Flutter embedding
+  # Using Firebase push notifications for activity updates when app is closed (already implemented)
 
 
 dev_dependencies:
