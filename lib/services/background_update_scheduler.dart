@@ -77,6 +77,7 @@ class BackgroundUpdateScheduler {
         playSound: false,
         enableVibration: false,
         silent: true,
+        icon: '@drawable/notification_icon', // Use logo.png
       );
 
       const DarwinNotificationDetails iOSDetails = DarwinNotificationDetails(
@@ -185,12 +186,55 @@ class BackgroundUpdateScheduler {
       if (currentHour != 11 && currentHour != 12) {
         return; // Not around noon
       }
-      // Perform the update check
+      
+      // Show notification while checking
+      await _showUpdateCheckNotification();
+      
+      // Perform the update check (notification will be cancelled in _checkForUpdates finally block)
       await _checkForUpdates();
 
       // Update last check timestamp
       await prefs.setInt(_lastUpdateCheckKey, now.millisecondsSinceEpoch);
     } catch (e) {
+    }
+  }
+
+  /// Show update check notification
+  Future<void> _showUpdateCheckNotification() async {
+    try {
+      const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
+        'update_check',
+        'Update Check',
+        channelDescription: 'Background update checks',
+        importance: Importance.low,
+        priority: Priority.low,
+        showWhen: false,
+        playSound: false,
+        enableVibration: false,
+        icon: '@drawable/notification_icon', // Use logo.png
+        autoCancel: true,
+      );
+
+      const DarwinNotificationDetails iOSDetails = DarwinNotificationDetails(
+        presentAlert: false,
+        presentBadge: false,
+        presentSound: false,
+      );
+
+      const NotificationDetails notificationDetails = NotificationDetails(
+        android: androidDetails,
+        iOS: iOSDetails,
+      );
+
+      await _localNotifications.show(
+        _updateCheckNotificationId,
+        'Update Check',
+        'Checking for updates...',
+        notificationDetails,
+        payload: 'update_check',
+      );
+    } catch (e) {
+      // Ignore notification errors
     }
   }
 
@@ -207,6 +251,9 @@ class BackgroundUpdateScheduler {
         await _clearCachedUpdate();
       }
     } catch (e) {
+    } finally {
+      // Always cancel the notification when check completes
+      await _localNotifications.cancel(_updateCheckNotificationId);
     }
   }
 
@@ -313,6 +360,9 @@ class BackgroundUpdateScheduler {
 
   /// Manually trigger an update check (can be called from notification tap)
   Future<void> triggerUpdateCheck() async {
+    // Show notification while checking
+    await _showUpdateCheckNotification();
+    
     await _checkForUpdates();
     // After checking, check if we should show the cached update
     await _checkCachedUpdate();
