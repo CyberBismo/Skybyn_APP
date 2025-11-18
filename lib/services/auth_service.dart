@@ -10,6 +10,7 @@ import 'device_service.dart';
 import 'firebase_messaging_service.dart';
 import 'translation_service.dart';
 import 'websocket_service.dart';
+import 'background_activity_service.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../config/constants.dart';
 
@@ -258,6 +259,13 @@ class AuthService {
   }
 
   Future<void> logout() async {
+    // Cancel background activity updates on logout
+    try {
+      await BackgroundActivityService.cancel();
+    } catch (e) {
+      // Silently fail
+    }
+    
     // Reset cached online status on logout
       _lastKnownOnlineStatus = null;
       

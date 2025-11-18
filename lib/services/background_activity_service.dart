@@ -1,28 +1,22 @@
-import 'dart:async';
-// import 'package:workmanager/workmanager.dart';  // Temporarily disabled due to compatibility issues
+import 'package:workmanager/workmanager.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'auth_service.dart';
-import '../config/constants.dart';
-import 'package:http/http.dart' as http;
-import 'dart:io';
-import 'package:http/io_client.dart';
+import 'workmanager_callback.dart';
 
 /// Background service to update user activity periodically
-/// This keeps users appearing as "online" even when the app is closed
+/// This keeps users appearing as "online" even when the app is fully closed
 /// Similar to how Facebook/Messenger maintain online status
 /// 
-/// NOTE: Currently relies on push notifications for activity updates when app is closed.
-/// WorkManager was disabled due to compatibility issues, but push notifications
-/// will update activity when received, maintaining online status effectively.
+/// NOTE: WorkManager does NOT require a persistent notification.
+/// It runs background tasks periodically without showing any notification.
 class BackgroundActivityService {
   static const String _taskName = 'updateActivityTask';
   static const String _userIdKey = 'background_user_id';
 
-  /// Initialize background activity updates
-  /// Currently, we rely on push notifications to update activity when app is closed.
-  /// When a push notification is received, it updates the user's last_active timestamp,
-  /// which keeps them appearing as "online" for up to 5 minutes.
+  /// Initialize background activity updates using WorkManager
+  /// WorkManager runs periodic tasks even when the app is fully closed
+  /// No notification is required - it's a background task scheduler
   static Future<void> initialize() async {
     try {
       // Check if user is logged in
@@ -30,71 +24,50 @@ class BackgroundActivityService {
       final userId = await authService.getStoredUserId();
       
       if (userId == null || userId.isEmpty) {
+        // User not logged in, cancel any existing tasks
+        await cancel();
         return;
       }
 
-      // Store user ID (may be used in future for other background tasks)
+      // Store user ID for background task
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(_userIdKey, userId);
 
-      // WorkManager is temporarily disabled due to compatibility issues
-      // We rely on push notifications to update activity when app is closed
-      // Push notifications already update activity in firebase_messaging_service.dart
-      // Note: Push notifications already update activity in:
-      // - firebase_messaging_service.dart (foreground and background handlers)
-      // - api/firebase.php (when sending notifications)
-      // This effectively maintains online status similar to Facebook/Messenger
+      // Initialize WorkManager with callback dispatcher
+      await Workmanager().initialize(
+        callbackDispatcher,
+        isInDebugMode: kDebugMode,
+      );
+
+      // Register periodic task to update activity every 15 minutes
+      // Constraints ensure it runs even when device is idle or battery is low
+      await Workmanager().registerPeriodicTask(
+        _taskName,
+        _taskName,
+        frequency: const Duration(minutes: 15), // Minimum 15 minutes on Android
+        constraints: Constraints(
+          networkType: NetworkType.connected, // Only when network is available
+          requiresBatteryNotLow: false, // Run even on low battery
+          requiresCharging: false, // Run even when not charging
+          requiresDeviceIdle: false, // Run even when device is in use
+          requiresStorageNotLow: false, // Run even when storage is low
+        ),
+        initialDelay: const Duration(minutes: 1), // Start after 1 minute
+      );
       
     } catch (e) {
       // Don't throw - allow app to continue without background tasks
+      // WorkManager may not be available on all devices or may have permission issues
     }
   }
 
   /// Cancel background activity updates
   static Future<void> cancel() async {
     try {
-      // WorkManager is disabled, so nothing to cancel
+      await Workmanager().cancelByUniqueName(_taskName);
     } catch (e) {
+      // Silently fail
     }
-  }
-}
-
-/// Update user activity via API
-Future<void> _updateActivity(String userId) async {
-  try {
-    // Create HTTP client with standard SSL validation
-    HttpClient httpClient;
-    if (HttpOverrides.current != null) {
-      httpClient = HttpOverrides.current!.createHttpClient(null);
-    } else {
-      httpClient = HttpClient();
-    }
-    
-    httpClient.userAgent = 'Skybyn-App/1.0';
-    httpClient.connectionTimeout = const Duration(seconds: 10);
-    final client = IOClient(httpClient);
-
-    // Call update activity API
-    final response = await client.post(
-      Uri.parse(ApiConstants.updateActivity),
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-        'X-API-Key': ApiConstants.apiKey,
-      },
-      body: {
-        'userID': userId,
-      },
-    ).timeout(const Duration(seconds: 10));
-
-    if (response.statusCode == 200) {
-      final data = response.body;
-      if (data.contains('"responseCode":"1"')) {
-      } else {
-      }
-    } else {
-    }
-  } catch (e) {
-    rethrow;
   }
 }
 
