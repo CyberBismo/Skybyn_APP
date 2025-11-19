@@ -357,7 +357,37 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
         // Only handle messages for this chat
         if ((fromUserId == widget.friend.id && toUserId == _currentUserId) ||
             (fromUserId == _currentUserId && toUserId == widget.friend.id)) {
-          // Check if message already exists
+          
+          // If we're the sender, the message was already displayed optimistically
+          // The server sends it back for confirmation, but we should update the temp ID if needed
+          if (fromUserId == _currentUserId) {
+            // Find temp message and update its ID
+            final tempMessageIndex = _messages.indexWhere((m) => 
+              m.id.startsWith('temp_') && 
+              m.from == fromUserId && 
+              m.to == toUserId &&
+              m.content == message
+            );
+            if (tempMessageIndex != -1) {
+              // Update temp message with real ID
+              if (mounted) {
+                setState(() {
+                  _messages[tempMessageIndex] = Message(
+                    id: messageId,
+                    from: _messages[tempMessageIndex].from,
+                    to: _messages[tempMessageIndex].to,
+                    content: _messages[tempMessageIndex].content,
+                    date: _messages[tempMessageIndex].date,
+                    viewed: _messages[tempMessageIndex].viewed,
+                    isFromMe: true,
+                  );
+                });
+              }
+            }
+            return; // Don't add duplicate - message already displayed
+          }
+          
+          // We're the recipient - check if message already exists
           final existingMessageIndex = _messages.indexWhere((m) => m.id == messageId);
           if (existingMessageIndex == -1) {
             // Message doesn't exist, add it
@@ -368,7 +398,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
               content: message,
               date: DateTime.now(),
               viewed: false,
-              isFromMe: fromUserId == _currentUserId,
+              isFromMe: false,
             );
             if (mounted) {
               setState(() {
@@ -379,15 +409,8 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
               });
               // Always scroll to bottom for new messages
               _scrollToBottom();
-              // If message is from friend and we're not viewing this chat, increment badge
-              if (fromUserId == widget.friend.id && toUserId == _currentUserId) {
-                // We're viewing this chat, so don't increment badge
-                // Badge is only for when we're NOT viewing the chat
-              }
             }
-          } else {
           }
-        } else {
         }
       },
     );
@@ -417,14 +440,44 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
       },
     );
 
-    // Set up chat message listener
+    // Set up chat message listener (Firebase fallback)
     _firebaseRealtimeService.setupChatListener(
       widget.friend.id,
       (messageId, fromUserId, toUserId, message) {
         // Only handle messages for this chat
         if ((fromUserId == widget.friend.id && toUserId == _currentUserId) ||
             (fromUserId == _currentUserId && toUserId == widget.friend.id)) {
-          // Check if message already exists
+          
+          // If we're the sender, the message was already displayed optimistically
+          // Firebase is fallback only - WebSocket should handle it first
+          if (fromUserId == _currentUserId) {
+            // Find temp message and update its ID
+            final tempMessageIndex = _messages.indexWhere((m) => 
+              m.id.startsWith('temp_') && 
+              m.from == fromUserId && 
+              m.to == toUserId &&
+              m.content == message
+            );
+            if (tempMessageIndex != -1) {
+              // Update temp message with real ID
+              if (mounted) {
+                setState(() {
+                  _messages[tempMessageIndex] = Message(
+                    id: messageId,
+                    from: _messages[tempMessageIndex].from,
+                    to: _messages[tempMessageIndex].to,
+                    content: _messages[tempMessageIndex].content,
+                    date: _messages[tempMessageIndex].date,
+                    viewed: _messages[tempMessageIndex].viewed,
+                    isFromMe: true,
+                  );
+                });
+              }
+            }
+            return; // Don't add duplicate - message already displayed
+          }
+          
+          // We're the recipient - check if message already exists
           if (!_messages.any((m) => m.id == messageId)) {
             final newMessage = Message(
               id: messageId,
@@ -433,7 +486,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
               content: message,
               date: DateTime.now(),
               viewed: false,
-              isFromMe: fromUserId == _currentUserId,
+              isFromMe: false,
             );
             if (mounted) {
               setState(() {
