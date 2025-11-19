@@ -133,6 +133,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   Timer? _serviceCheckTimer;
   Timer? _activityUpdateTimer;
   Timer? _webSocketConnectionCheckTimer;
+  Timer? _profileCheckTimer;
   
   // Track active incoming call
   String? _activeCallId;
@@ -181,6 +182,9 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       // Start periodic activity updates (every 5 seconds when WebSocket is connected)
       _startActivityUpdates();
 
+      // Start periodic profile checks (every 5 minutes to detect bans/deactivations)
+      _startProfileChecks();
+
       // Check for updates after a delay
       if (Platform.isAndroid) {
         Future.delayed(const Duration(seconds: 5), () {
@@ -226,12 +230,74 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     }
   }
 
+  /// Start periodic profile checks
+  /// Checks profile status every 5 minutes to detect bans/deactivations/rank changes
+  void _startProfileChecks() {
+    // Cancel any existing timer
+    _profileCheckTimer?.cancel();
+    
+    // Check profile immediately on startup
+    _checkProfileStatus();
+    
+    // Check every 5 minutes
+    _profileCheckTimer = Timer.periodic(const Duration(minutes: 5), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        _profileCheckTimer = null;
+        return;
+      }
+      _checkProfileStatus();
+    });
+  }
+
+  /// Check profile status and logout if banned/deactivated
+  Future<void> _checkProfileStatus() async {
+    try {
+      final authService = AuthService();
+      final username = await authService.getStoredUsername();
+      
+      if (username == null || username.isEmpty) {
+        return; // User not logged in
+      }
+
+      // Fetch profile to check for bans/deactivations
+      final user = await authService.fetchUserProfile(username);
+      
+      if (user == null) {
+        // Profile fetch failed or user not found - might be banned/deactivated
+        // The fetchUserProfile method already handles logout for banned/deactivated users
+        return;
+      }
+
+      // Check if user is banned or deactivated
+      final isBanned = user.banned.isNotEmpty && (user.banned == '1' || user.banned.toLowerCase() == 'true');
+      final isDeactivated = user.deactivated.isNotEmpty && (user.deactivated == '1' || user.deactivated.toLowerCase() == 'true');
+      
+      if (isBanned || isDeactivated) {
+        // User is banned or deactivated - log them out
+        await authService.logout();
+        
+        // Navigate to login screen if app is mounted
+        if (mounted && navigatorKey.currentState != null) {
+          navigatorKey.currentState!.pushAndRemoveUntil(
+            MaterialPageRoute(builder: (context) => const LoginScreen()),
+            (route) => false,
+          );
+        }
+      }
+    } catch (e) {
+      // Silently fail - profile checks are not critical
+      // If there's a network error, we don't want to log the user out
+    }
+  }
+
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _serviceCheckTimer?.cancel(); // This can be removed if _serviceCheckTimer is not used elsewhere
     _activityUpdateTimer?.cancel();
     _webSocketConnectionCheckTimer?.cancel();
+    _profileCheckTimer?.cancel();
     super.dispose();
   }
 
@@ -250,6 +316,8 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         // The connection might appear connected but actually be dead after backgrounding
         _webSocketService.forceReconnect().catchError((error) {
         });
+        // Check profile status when app resumes (detect bans/deactivations)
+        _checkProfileStatus();
         // Activity updates continue while WebSocket is connected
         break;
       case AppLifecycleState.paused:

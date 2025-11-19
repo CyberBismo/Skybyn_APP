@@ -6,42 +6,12 @@ class ApiConstants {
   static const String _prodApiBase = 'https://api.skybyn.no';
   static const String _prodWebBase = 'https://skybyn.no';
 
-  // Static flags to ensure logging only happens once
-  static bool _hasLoggedAppBase = false;
-  static bool _hasLoggedApiBase = false;
-  static bool _hasLoggedWebBase = false;
-
   /// Returns production URLs
-  static String get appBase {
-    const url = _prodAppBase;
-    assert(() {
-      if (!_hasLoggedAppBase) {
-        _hasLoggedAppBase = true;
-      }
-      return true;
-    }());
-    return url;
-  }
+  static String get appBase => _prodAppBase;
 
-  static String get apiBase {
-    const url = _prodApiBase;
-    // Log in both debug and release (using debugPrint which works in release)
-    if (!_hasLoggedApiBase) {
-      _hasLoggedApiBase = true;
-    }
-    return url;
-  }
+  static String get apiBase => _prodApiBase;
 
-  static String get webBase {
-    const url = _prodWebBase;
-    assert(() {
-      if (!_hasLoggedWebBase) {
-        _hasLoggedWebBase = true;
-      }
-      return true;
-    }());
-    return url;
-  }
+  static String get webBase => _prodWebBase;
 
   // Auth
   static String get login => '$apiBase/login.php';
