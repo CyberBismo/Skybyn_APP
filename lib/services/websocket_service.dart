@@ -58,6 +58,7 @@ class WebSocketService {
   Function(String)? _onBroadcast; // broadcast message
   Function()? _onAppUpdate; // app update notification
   Function(String, String, String, String)? _onChatMessage; // messageId, fromUserId, toUserId, message
+  final List<Function(String, String, String, String)> _onChatMessageCallbacks = []; // Multiple listeners for chat messages
   Function(String, bool)? _onTypingStatus; // userId, isTyping
   final List<Function(String, bool)> _onOnlineStatusCallbacks = []; // Multiple listeners for online status
 
@@ -282,7 +283,12 @@ class WebSocketService {
     if (onDeleteComment != null) _onDeleteComment = onDeleteComment;
     if (onBroadcast != null) _onBroadcast = onBroadcast;
     if (onAppUpdate != null) _onAppUpdate = onAppUpdate;
-    if (onChatMessage != null) _onChatMessage = onChatMessage;
+    if (onChatMessage != null) {
+      _onChatMessage = onChatMessage; // Keep for backward compatibility
+      // Also add to callbacks list (function equality doesn't work in Dart, so we allow duplicates)
+      // Widgets should manage their own callback lifecycle using removeChatMessageCallback
+      _onChatMessageCallbacks.add(onChatMessage);
+    }
     if (onTypingStatus != null) _onTypingStatus = onTypingStatus;
     if (onOnlineStatus != null) {
       // Add callback to list (allow multiple listeners for online status)
@@ -517,8 +523,17 @@ class WebSocketService {
                 } catch (e) {
                 }
                 
-                // Also trigger chat message callback if registered
+                // Also trigger chat message callbacks if registered
                 if (messageId != null && fromUserId != null) {
+                  // Call all registered chat message callbacks
+                  for (final callback in _onChatMessageCallbacks) {
+                    try {
+                      callback(messageId, fromUserId, _userId ?? '', message);
+                    } catch (e) {
+                      // Ignore errors from individual callbacks
+                    }
+                  }
+                  // Also call legacy single callback for backward compatibility
                   _onChatMessage?.call(messageId, fromUserId, _userId ?? '', message);
                 }
               } else {
@@ -603,6 +618,15 @@ class WebSocketService {
               final fromUserId = data['from']?.toString() ?? '';
               final toUserId = data['to']?.toString() ?? '';
               final message = data['message']?.toString() ?? '';
+              // Call all registered chat message callbacks
+              for (final callback in _onChatMessageCallbacks) {
+                try {
+                  callback(messageId, fromUserId, toUserId, message);
+                } catch (e) {
+                  // Ignore errors from individual callbacks
+                }
+              }
+              // Also call legacy single callback for backward compatibility
               _onChatMessage?.call(messageId, fromUserId, toUserId, message);
               break;
             case 'typing_start':
@@ -1119,6 +1143,12 @@ class WebSocketService {
   /// Remove an online status callback (for cleanup when widgets are disposed)
   void removeOnlineStatusCallback(void Function(String, bool) callback) {
     _onOnlineStatusCallbacks.remove(callback);
+  }
+
+  /// Remove a chat message callback
+  /// Note: Function equality doesn't work in Dart, so this removes by reference
+  void removeChatMessageCallback(void Function(String, String, String, String) callback) {
+    _onChatMessageCallbacks.remove(callback);
   }
 }
 
