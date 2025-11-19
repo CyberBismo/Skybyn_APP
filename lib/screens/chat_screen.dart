@@ -64,12 +64,15 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
   bool _isFriendTyping = false;
   Timer? _typingTimer;
   Timer? _typingStopTimer;
+  Timer? _messageCheckTimer; // Periodic check for new messages
   late AnimationController _typingAnimationController;
   late Animation<double> _typingAnimation;
   // Store subscription for cleanup (Firestore disabled - using WebSocket instead)
   StreamSubscription<dynamic>? _onlineStatusSubscription;
   // Store WebSocket online status callback for cleanup
   void Function(String, bool)? _webSocketOnlineStatusCallback;
+  // Store WebSocket chat message callback for cleanup
+  void Function(String, String, String, String)? _webSocketChatMessageCallback;
   // Menu overlay
   OverlayEntry? _menuOverlayEntry;
   final GlobalKey _menuButtonKey = GlobalKey();
@@ -91,6 +94,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
     _setupTypingListener();
     _setupTypingAnimation();
     _checkFriendOnlineStatus(); // Check immediately
+    _startPeriodicMessageCheck(); // Start periodic message checking
     // Clear unread count when opening chat
     _chatMessageCountService.clearUnreadCount(widget.friend.id);
     // Messages are loaded once when opening chat, then WebSocket handles all updates
@@ -143,6 +147,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
     _onlineStatusTimer?.cancel();
     _typingTimer?.cancel();
     _typingStopTimer?.cancel();
+    _messageCheckTimer?.cancel();
     _typingAnimationController.dispose();
     // Send typing stop when leaving screen
       if (_firebaseRealtimeService.isConnected && _currentUserId != null) {
@@ -154,6 +159,11 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
       if (_webSocketOnlineStatusCallback != null) {
         _webSocketService.removeOnlineStatusCallback(_webSocketOnlineStatusCallback!);
         _webSocketOnlineStatusCallback = null;
+      }
+      // Remove WebSocket chat message callback when widget is disposed
+      if (_webSocketChatMessageCallback != null) {
+        _webSocketService.removeChatMessageCallback(_webSocketChatMessageCallback!);
+        _webSocketChatMessageCallback = null;
       }
       // Close menu if open
       _closeMenu();
@@ -245,6 +255,70 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
       if (mounted) {
         setState(() {}); // Update UI to show/hide call buttons based on rank
       }
+    }
+  }
+
+  /// Start periodic message checking (fallback for when WebSocket fails)
+  void _startPeriodicMessageCheck() {
+    // Cancel any existing timer
+    _messageCheckTimer?.cancel();
+    
+    // Check for new messages every 5 seconds
+    _messageCheckTimer = Timer.periodic(const Duration(seconds: 5), (_) {
+      if (mounted && _currentUserId != null) {
+        _checkForNewMessages();
+      }
+    });
+  }
+
+  /// Check for new messages (only fetches messages newer than the latest one we have)
+  Future<void> _checkForNewMessages() async {
+    if (_messages.isEmpty || _currentUserId == null) {
+      return; // Can't check if we don't have messages or user ID
+    }
+    
+    try {
+      // Get the latest message timestamp
+      final latestMessage = _messages.last;
+      final latestTimestamp = latestMessage.date.millisecondsSinceEpoch ~/ 1000; // Convert to seconds
+      
+      // Fetch messages from API (will get all messages, but we'll filter)
+      final allMessages = await _chatService.getMessages(
+        friendId: widget.friend.id,
+      );
+      
+      if (mounted) {
+        // Find messages that are newer than our latest message
+        final newMessages = allMessages.where((msg) {
+          final msgTimestamp = msg.date.millisecondsSinceEpoch ~/ 1000;
+          return msgTimestamp > latestTimestamp;
+        }).toList();
+        
+        if (newMessages.isNotEmpty) {
+          // Filter out messages that already exist (by ID) to prevent duplicates
+          final existingIds = _messages.map((m) => m.id).toSet();
+          final trulyNewMessages = newMessages.where((msg) => !existingIds.contains(msg.id)).toList();
+          
+          if (trulyNewMessages.isNotEmpty) {
+            // Add new messages to the list
+            setState(() {
+              _messages.addAll(trulyNewMessages);
+              _messages.sort((a, b) => a.date.compareTo(b.date));
+            });
+            // Scroll to bottom if user is at the bottom
+            if (_scrollController.hasClients) {
+              final isAtBottom = _scrollController.position.pixels >= 
+                  _scrollController.position.maxScrollExtent - 100;
+              if (isAtBottom) {
+                _scrollToBottom();
+              }
+            }
+          }
+        }
+      }
+    } catch (e) {
+      // Silently fail - don't spam errors for periodic checks
+      // WebSocket should handle real-time updates, this is just a fallback
     }
   }
 
@@ -351,68 +425,33 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
     };
     
     // Register callbacks with WebSocket service
+    _webSocketChatMessageCallback = (messageId, fromUserId, toUserId, message) {
+      // Only handle messages for this chat
+      // Check if message is for this friend (either as sender or recipient)
+      final isForThisChat = fromUserId == widget.friend.id || toUserId == widget.friend.id;
+      if (!isForThisChat) {
+        return; // Not for this chat
+      }
+      
+      // Ensure _currentUserId is loaded
+      if (_currentUserId == null) {
+        // Load user ID asynchronously and retry
+        _loadUserId().then((_) {
+          if (mounted) {
+            // Retry handling the message after user ID is loaded
+            _handleIncomingChatMessage(messageId, fromUserId, toUserId, message);
+          }
+        });
+        return;
+      }
+      
+      // Handle the message
+      _handleIncomingChatMessage(messageId, fromUserId, toUserId, message);
+    };
+    
     _webSocketService.connect(
       onOnlineStatus: _webSocketOnlineStatusCallback,
-      onChatMessage: (messageId, fromUserId, toUserId, message) {
-        // Only handle messages for this chat
-        if ((fromUserId == widget.friend.id && toUserId == _currentUserId) ||
-            (fromUserId == _currentUserId && toUserId == widget.friend.id)) {
-          
-          // If we're the sender, the message was already displayed optimistically
-          // The server sends it back for confirmation, but we should update the temp ID if needed
-          if (fromUserId == _currentUserId) {
-            // Find temp message and update its ID
-            final tempMessageIndex = _messages.indexWhere((m) => 
-              m.id.startsWith('temp_') && 
-              m.from == fromUserId && 
-              m.to == toUserId &&
-              m.content == message
-            );
-            if (tempMessageIndex != -1) {
-              // Update temp message with real ID
-              if (mounted) {
-                setState(() {
-                  _messages[tempMessageIndex] = Message(
-                    id: messageId,
-                    from: _messages[tempMessageIndex].from,
-                    to: _messages[tempMessageIndex].to,
-                    content: _messages[tempMessageIndex].content,
-                    date: _messages[tempMessageIndex].date,
-                    viewed: _messages[tempMessageIndex].viewed,
-                    isFromMe: true,
-                  );
-                });
-              }
-            }
-            return; // Don't add duplicate - message already displayed
-          }
-          
-          // We're the recipient - check if message already exists
-          final existingMessageIndex = _messages.indexWhere((m) => m.id == messageId);
-          if (existingMessageIndex == -1) {
-            // Message doesn't exist, add it
-            final newMessage = Message(
-              id: messageId,
-              from: fromUserId,
-              to: toUserId,
-              content: message,
-              date: DateTime.now(),
-              viewed: false,
-              isFromMe: false,
-            );
-            if (mounted) {
-              setState(() {
-                // Add new message to the end (bottom) of the list
-                _messages.add(newMessage);
-                // Sort messages by date to ensure correct order (oldest to newest)
-                _messages.sort((a, b) => a.date.compareTo(b.date));
-              });
-              // Always scroll to bottom for new messages
-              _scrollToBottom();
-            }
-          }
-        }
-      },
+      onChatMessage: _webSocketChatMessageCallback,
     );
 
     // Set up typing status listener
@@ -445,63 +484,93 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
       widget.friend.id,
       (messageId, fromUserId, toUserId, message) {
         // Only handle messages for this chat
-        if ((fromUserId == widget.friend.id && toUserId == _currentUserId) ||
-            (fromUserId == _currentUserId && toUserId == widget.friend.id)) {
-          
-          // If we're the sender, the message was already displayed optimistically
-          // Firebase is fallback only - WebSocket should handle it first
-          if (fromUserId == _currentUserId) {
-            // Find temp message and update its ID
-            final tempMessageIndex = _messages.indexWhere((m) => 
-              m.id.startsWith('temp_') && 
-              m.from == fromUserId && 
-              m.to == toUserId &&
-              m.content == message
-            );
-            if (tempMessageIndex != -1) {
-              // Update temp message with real ID
-              if (mounted) {
-                setState(() {
-                  _messages[tempMessageIndex] = Message(
-                    id: messageId,
-                    from: _messages[tempMessageIndex].from,
-                    to: _messages[tempMessageIndex].to,
-                    content: _messages[tempMessageIndex].content,
-                    date: _messages[tempMessageIndex].date,
-                    viewed: _messages[tempMessageIndex].viewed,
-                    isFromMe: true,
-                  );
-                });
-              }
-            }
-            return; // Don't add duplicate - message already displayed
-          }
-          
-          // We're the recipient - check if message already exists
-          if (!_messages.any((m) => m.id == messageId)) {
-            final newMessage = Message(
-              id: messageId,
-              from: fromUserId,
-              to: toUserId,
-              content: message,
-              date: DateTime.now(),
-              viewed: false,
-              isFromMe: false,
-            );
-            if (mounted) {
-              setState(() {
-                // Add new message to the end (bottom) of the list
-                _messages.add(newMessage);
-                // Sort messages by date to ensure correct order (oldest to newest)
-                _messages.sort((a, b) => a.date.compareTo(b.date));
-              });
-              // Always scroll to bottom for new messages
-              _scrollToBottom();
-            }
-          }
+        final isForThisChat = fromUserId == widget.friend.id || toUserId == widget.friend.id;
+        if (!isForThisChat) {
+          return; // Not for this chat
         }
+        
+        // Ensure _currentUserId is loaded
+        if (_currentUserId == null) {
+          _loadUserId().then((_) {
+            if (mounted) {
+              _handleIncomingChatMessage(messageId, fromUserId, toUserId, message);
+            }
+          });
+          return;
+        }
+        
+        // Handle the message
+        _handleIncomingChatMessage(messageId, fromUserId, toUserId, message);
       },
     );
+  }
+
+  // Handle incoming chat message (extracted for reuse)
+  void _handleIncomingChatMessage(String messageId, String fromUserId, String toUserId, String message) {
+    // Verify this message is for this chat
+    if (_currentUserId == null) {
+      return; // Can't process without user ID
+    }
+    
+    final isForThisChat = (fromUserId == widget.friend.id && toUserId == _currentUserId) ||
+                          (fromUserId == _currentUserId && toUserId == widget.friend.id);
+    if (!isForThisChat) {
+      return; // Not for this chat
+    }
+    
+    // If we're the sender, the message was already displayed optimistically
+    // The server sends it back for confirmation, but we should update the temp ID if needed
+    if (fromUserId == _currentUserId) {
+      // Find temp message and update its ID
+      final tempMessageIndex = _messages.indexWhere((m) => 
+        m.id.startsWith('temp_') && 
+        m.from == fromUserId && 
+        m.to == toUserId &&
+        m.content == message
+      );
+      if (tempMessageIndex != -1) {
+        // Update temp message with real ID
+        if (mounted) {
+          setState(() {
+            _messages[tempMessageIndex] = Message(
+              id: messageId,
+              from: _messages[tempMessageIndex].from,
+              to: _messages[tempMessageIndex].to,
+              content: _messages[tempMessageIndex].content,
+              date: _messages[tempMessageIndex].date,
+              viewed: _messages[tempMessageIndex].viewed,
+              isFromMe: true,
+            );
+          });
+        }
+      }
+      return; // Don't add duplicate - message already displayed
+    }
+    
+    // We're the recipient - check if message already exists
+    final existingMessageIndex = _messages.indexWhere((m) => m.id == messageId);
+    if (existingMessageIndex == -1) {
+      // Message doesn't exist, add it
+      final newMessage = Message(
+        id: messageId,
+        from: fromUserId,
+        to: toUserId,
+        content: message,
+        date: DateTime.now(),
+        viewed: false,
+        isFromMe: false,
+      );
+      if (mounted) {
+        setState(() {
+          // Add new message to the end (bottom) of the list
+          _messages.add(newMessage);
+          // Sort messages by date to ensure correct order (oldest to newest)
+          _messages.sort((a, b) => a.date.compareTo(b.date));
+        });
+        // Always scroll to bottom for new messages
+        _scrollToBottom();
+      }
+    }
   }
 
   void _scrollToBottom() {
