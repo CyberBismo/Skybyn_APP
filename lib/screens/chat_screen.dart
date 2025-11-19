@@ -426,18 +426,26 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
     
     // Register callbacks with WebSocket service
     _webSocketChatMessageCallback = (messageId, fromUserId, toUserId, message) {
+      // Debug: Log received message
+      debugPrint('🔵 [ChatScreen] WebSocket chat message received: id=$messageId, from=$fromUserId, to=$toUserId, msg=${message.substring(0, message.length > 20 ? 20 : message.length)}...');
+      
       // Only handle messages for this chat
       // Check if message is for this friend (either as sender or recipient)
       final isForThisChat = fromUserId == widget.friend.id || toUserId == widget.friend.id;
+      debugPrint('🔵 [ChatScreen] Message for this chat? $isForThisChat (friend.id=${widget.friend.id}, currentUserId=$_currentUserId)');
+      
       if (!isForThisChat) {
+        debugPrint('🔵 [ChatScreen] Message rejected - not for this chat');
         return; // Not for this chat
       }
       
       // Ensure _currentUserId is loaded
       if (_currentUserId == null) {
+        debugPrint('🔵 [ChatScreen] Current user ID is null, loading...');
         // Load user ID asynchronously and retry
         _loadUserId().then((_) {
           if (mounted) {
+            debugPrint('🔵 [ChatScreen] User ID loaded: $_currentUserId, retrying message handling');
             // Retry handling the message after user ID is loaded
             _handleIncomingChatMessage(messageId, fromUserId, toUserId, message);
           }
@@ -446,6 +454,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
       }
       
       // Handle the message
+      debugPrint('🔵 [ChatScreen] Handling incoming chat message');
       _handleIncomingChatMessage(messageId, fromUserId, toUserId, message);
     };
     
@@ -453,6 +462,9 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
       onOnlineStatus: _webSocketOnlineStatusCallback,
       onChatMessage: _webSocketChatMessageCallback,
     );
+    
+    debugPrint('🔵 [ChatScreen] WebSocket callbacks registered. Chat callback: ${_webSocketChatMessageCallback != null}, Online callback: ${_webSocketOnlineStatusCallback != null}');
+    debugPrint('🔵 [ChatScreen] Friend ID: ${widget.friend.id}, Current User ID: $_currentUserId');
 
     // Set up typing status listener
     _firebaseRealtimeService.setupTypingStatusListener(
@@ -507,14 +519,20 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
 
   // Handle incoming chat message (extracted for reuse)
   void _handleIncomingChatMessage(String messageId, String fromUserId, String toUserId, String message) {
+    debugPrint('🟢 [ChatScreen] _handleIncomingChatMessage: id=$messageId, from=$fromUserId, to=$toUserId');
+    
     // Verify this message is for this chat
     if (_currentUserId == null) {
+      debugPrint('🟢 [ChatScreen] Cannot process - currentUserId is null');
       return; // Can't process without user ID
     }
     
     final isForThisChat = (fromUserId == widget.friend.id && toUserId == _currentUserId) ||
                           (fromUserId == _currentUserId && toUserId == widget.friend.id);
+    debugPrint('🟢 [ChatScreen] Message is for this chat? $isForThisChat (friend.id=${widget.friend.id}, currentUserId=$_currentUserId)');
+    
     if (!isForThisChat) {
+      debugPrint('🟢 [ChatScreen] Message rejected - not for this chat');
       return; // Not for this chat
     }
     
@@ -549,8 +567,11 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
     
     // We're the recipient - check if message already exists
     final existingMessageIndex = _messages.indexWhere((m) => m.id == messageId);
+    debugPrint('🟢 [ChatScreen] Message already exists? ${existingMessageIndex != -1} (index: $existingMessageIndex)');
+    
     if (existingMessageIndex == -1) {
       // Message doesn't exist, add it
+      debugPrint('🟢 [ChatScreen] Adding new message to list');
       final newMessage = Message(
         id: messageId,
         from: fromUserId,
@@ -566,10 +587,15 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
           _messages.add(newMessage);
           // Sort messages by date to ensure correct order (oldest to newest)
           _messages.sort((a, b) => a.date.compareTo(b.date));
+          debugPrint('🟢 [ChatScreen] Message added. Total messages: ${_messages.length}');
         });
         // Always scroll to bottom for new messages
         _scrollToBottom();
+      } else {
+        debugPrint('🟢 [ChatScreen] Widget not mounted, cannot add message');
       }
+    } else {
+      debugPrint('🟢 [ChatScreen] Message already exists, skipping');
     }
   }
 

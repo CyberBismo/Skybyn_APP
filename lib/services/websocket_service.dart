@@ -525,16 +525,25 @@ class WebSocketService {
                 
                 // Also trigger chat message callbacks if registered
                 if (messageId != null && fromUserId != null) {
+                  debugPrint('🔵 [WebSocket] Notification chat message: id=$messageId, from=$fromUserId, to=${_userId ?? "null"}, callbacks=${_onChatMessageCallbacks.length}');
+                  
                   // Call all registered chat message callbacks
-                  for (final callback in _onChatMessageCallbacks) {
+                  for (int i = 0; i < _onChatMessageCallbacks.length; i++) {
                     try {
-                      callback(messageId, fromUserId, _userId ?? '', message);
-                    } catch (e) {
-                      // Ignore errors from individual callbacks
+                      debugPrint('🔵 [WebSocket] Calling notification callback $i');
+                      _onChatMessageCallbacks[i](messageId, fromUserId, _userId ?? '', message);
+                    } catch (e, stackTrace) {
+                      debugPrint('🔵 [WebSocket] Error in notification callback $i: $e');
+                      debugPrint('🔵 [WebSocket] Stack trace: $stackTrace');
                     }
                   }
                   // Also call legacy single callback for backward compatibility
-                  _onChatMessage?.call(messageId, fromUserId, _userId ?? '', message);
+                  if (_onChatMessage != null) {
+                    debugPrint('🔵 [WebSocket] Calling legacy notification callback');
+                    _onChatMessage?.call(messageId, fromUserId, _userId ?? '', message);
+                  } else {
+                    debugPrint('🔵 [WebSocket] No legacy callback for notification');
+                  }
                 }
               } else {
                 // Generic notification
@@ -618,16 +627,26 @@ class WebSocketService {
               final fromUserId = data['from']?.toString() ?? '';
               final toUserId = data['to']?.toString() ?? '';
               final message = data['message']?.toString() ?? '';
+              
+              debugPrint('🔵 [WebSocket] Chat message received: id=$messageId, from=$fromUserId, to=$toUserId, callbacks=${_onChatMessageCallbacks.length}');
+              
               // Call all registered chat message callbacks
-              for (final callback in _onChatMessageCallbacks) {
+              for (int i = 0; i < _onChatMessageCallbacks.length; i++) {
                 try {
-                  callback(messageId, fromUserId, toUserId, message);
-                } catch (e) {
-                  // Ignore errors from individual callbacks
+                  debugPrint('🔵 [WebSocket] Calling callback $i');
+                  _onChatMessageCallbacks[i](messageId, fromUserId, toUserId, message);
+                } catch (e, stackTrace) {
+                  debugPrint('🔵 [WebSocket] Error in callback $i: $e');
+                  debugPrint('🔵 [WebSocket] Stack trace: $stackTrace');
                 }
               }
               // Also call legacy single callback for backward compatibility
-              _onChatMessage?.call(messageId, fromUserId, toUserId, message);
+              if (_onChatMessage != null) {
+                debugPrint('🔵 [WebSocket] Calling legacy callback');
+                _onChatMessage?.call(messageId, fromUserId, toUserId, message);
+              } else {
+                debugPrint('🔵 [WebSocket] No legacy callback registered');
+              }
               break;
             case 'typing_start':
               final fromUserId = data['fromUserId']?.toString() ?? '';
