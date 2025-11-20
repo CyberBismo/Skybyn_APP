@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:package_info_plus/package_info_plus.dart';
 import 'notification_service.dart';
 import 'auth_service.dart';
 import 'device_service.dart';
@@ -116,6 +117,9 @@ class FirebaseMessagingService {
 
   // Topic subscriptions
   final List<String> _subscribedTopics = [];
+  
+  // Key for storing last registered app version
+  static const String _lastRegisteredVersionKey = 'fcm_last_registered_version';
 
   bool get isInitialized => _isInitialized;
   String? get fcmToken => _fcmToken;
@@ -171,11 +175,15 @@ class FirebaseMessagingService {
       // This will fail on iOS if APN is not configured
       await _getFCMToken();
 
-      // Register token on app start (with user = 0 if not logged in)
-      await _registerTokenOnAppStart();
+      // Note: FCM token registration requires a logged-in user
+      // Token registration will happen after login via sendFCMTokenToServer()
+      // Also check and update token if app version changed
 
       // Set up message handlers
       await _setupMessageHandlers();
+      
+      // Check if app version changed and update FCM token if needed
+      await _checkAndUpdateTokenAfterAppUpdate();
 
       // Auto-subscribe to default topics
       await autoSubscribeToTopics();
@@ -235,49 +243,11 @@ class FirebaseMessagingService {
     }
   }
 
-  /// Register FCM token on app start (with user = 0 if not logged in)
-  Future<void> _registerTokenOnAppStart() async {
-    try {
-      if (_fcmToken == null) {
-        return;
-      }
-
-      // Use device service to get device info
-      final deviceService = DeviceService();
-      final deviceInfo = await deviceService.getDeviceInfo();
-
-      // Send to token API endpoint without user ID (will be registered with user = 0)
-      try {
-        final response = await http.post(
-          Uri.parse(ApiConstants.token),
-          body: {
-            'fcmToken': _fcmToken!,
-            'deviceId': deviceInfo['id'] ?? deviceInfo['deviceId'] ?? '',
-            'platform': deviceInfo['platform'] ?? 'Unknown',
-            'model': deviceInfo['model'] ?? 'Unknown'
-            // Note: userID not provided, so device will be registered with user = 0
-          }
-        );
-
-        if (response.statusCode == 200) {
-          final data = json.decode(response.body);
-          if (data['responseCode'] == '1') {
-            // Device registered successfully with user = 0
-          } else {
-            // Registration failed, but will be updated on login
-          }
-        } else {
-          // HTTP error, but will be updated on login
-        }
-      } catch (e) {
-        // Silently fail - device will be updated on login with actual user ID
-      }
-    } catch (e) {
-      // Silently fail - device will be updated on login
-    }
-  }
+  // Removed _registerTokenOnAppStart() - FCM token registration now requires a logged-in user
+  // Devices are registered via sendFCMTokenToServer() after login
 
   /// Send FCM token to server to register in devices table (with user ID)
+  /// Also updates the stored app version after successful registration
   Future<void> sendFCMTokenToServer() async {
     try {
       if (_fcmToken == null) {
@@ -360,6 +330,17 @@ class FirebaseMessagingService {
           final data = json.decode(response.body);
           if (data['responseCode'] == '1' || data['responseCode'] == 1) {
             print('✅ [FCM] Token registered successfully for user $userId');
+            
+            // Update stored app version after successful registration
+            try {
+              await _initPrefs();
+              final PackageInfo packageInfo = await PackageInfo.fromPlatform();
+              final String currentVersion = packageInfo.buildNumber.isNotEmpty ? packageInfo.buildNumber : packageInfo.version;
+              await _prefs?.setString(_lastRegisteredVersionKey, currentVersion);
+              print('📱 [FCM] Updated stored app version to $currentVersion');
+            } catch (e) {
+              print('⚠️ [FCM] Failed to update stored app version: $e');
+            }
           } else {
             print('❌ [FCM] Token registration failed: ${data['message'] ?? 'Unknown error'}');
           }
@@ -661,6 +642,68 @@ class FirebaseMessagingService {
 
   /// Check if subscribed to a specific topic
   bool isSubscribedToTopic(String topic) => _subscribedTopics.contains(topic);
+
+  /// Check if app version changed and update FCM token if needed
+  /// This ensures FCM token is updated after each app update
+  Future<void> _checkAndUpdateTokenAfterAppUpdate() async {
+    try {
+      await _initPrefs();
+      
+      // Get current app version/build number
+      final PackageInfo packageInfo = await PackageInfo.fromPlatform();
+      final String currentVersion = packageInfo.buildNumber.isNotEmpty ? packageInfo.buildNumber : packageInfo.version;
+      
+      // Get last registered version
+      final String? lastRegisteredVersion = _prefs?.getString(_lastRegisteredVersionKey);
+      
+      // If version changed or never registered, update FCM token
+      if (lastRegisteredVersion != currentVersion) {
+        print('📱 [FCM] App version changed from ${lastRegisteredVersion ?? 'unknown'} to $currentVersion - updating FCM token');
+        
+        // Check if user is logged in before updating
+        String? userIdString = _prefs?.getString('userID') ?? _prefs?.getString(StorageKeys.userId);
+        int? userId;
+        
+        if (userIdString != null && userIdString.isNotEmpty) {
+          userId = int.tryParse(userIdString);
+          if (userId != null && userId > 0) {
+            // User is logged in - update FCM token
+            await sendFCMTokenToServer();
+            
+            // Update stored version
+            await _prefs?.setString(_lastRegisteredVersionKey, currentVersion);
+            print('✅ [FCM] FCM token updated after app update to version $currentVersion');
+          } else {
+            print('⚠️ [FCM] User not logged in - FCM token will be updated after login');
+          }
+        } else {
+          // Try to get from user profile
+          final user = await _authService.getStoredUserProfile();
+          if (user != null && user.id != null && user.id!.isNotEmpty) {
+            final parsedUserId = int.tryParse(user.id!);
+            if (parsedUserId != null && parsedUserId > 0) {
+              userId = parsedUserId;
+              // User is logged in - update FCM token
+              await sendFCMTokenToServer();
+              
+              // Update stored version
+              await _prefs?.setString(_lastRegisteredVersionKey, currentVersion);
+              print('✅ [FCM] FCM token updated after app update to version $currentVersion');
+            } else {
+              print('⚠️ [FCM] User not logged in - FCM token will be updated after login');
+            }
+          } else {
+            print('⚠️ [FCM] User not logged in - FCM token will be updated after login');
+          }
+        }
+      } else {
+        print('📱 [FCM] App version unchanged ($currentVersion) - FCM token up to date');
+      }
+    } catch (e) {
+      print('❌ [FCM] Error checking app version for FCM token update: $e');
+      // Don't throw - this is a background check
+    }
+  }
 
   /// Auto-register FCM token when app opens (with user ID)
   Future<void> autoRegisterTokenOnAppOpen() async {
