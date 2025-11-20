@@ -139,9 +139,15 @@ class AuthService {
           try {
             final firebaseService = FirebaseMessagingService();
             if (firebaseService.isInitialized) {
+              print('📱 [Auth] Registering FCM token after login...');
               await firebaseService.sendFCMTokenToServer();
+              print('📱 [Auth] FCM token registration completed');
+            } else {
+              print('⚠️ [Auth] FCM service not initialized, cannot register token');
             }
           } catch (e) {
+            print('❌ [Auth] Failed to register FCM token after login: $e');
+            // Don't fail login if FCM registration fails, but log the error
           }
 
           // Update online status to true after successful login

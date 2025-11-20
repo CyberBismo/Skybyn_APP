@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../services/auto_update_service.dart';
@@ -128,24 +129,11 @@ class _UpdateDialogState extends State<UpdateDialog> {
         throw Exception('Failed to install update');
       }
 
-      setState(() {
-        _updateStatus = 'Update installed! App will close...';
-        _updateProgress = 1.0;
-      });
-
       // Cancel progress notification on success
       await AutoUpdateService.cancelUpdateProgressNotification();
 
-      // Wait a moment to show the completion message
-      await Future.delayed(const Duration(seconds: 1));
-      
-      // Terminate the app after update is installed
-      if (mounted) {
-        Navigator.of(context).pop();
-        // Give a brief moment for the dialog to close, then terminate
-        await Future.delayed(const Duration(milliseconds: 300));
-        SystemNavigator.pop();
-      }
+      // Terminate the app immediately when installer is opened
+      exit(0);
     } catch (e) {
       // Cancel progress notification on error
       await AutoUpdateService.cancelUpdateProgressNotification();

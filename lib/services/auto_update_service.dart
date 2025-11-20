@@ -550,11 +550,8 @@ class AutoUpdateService {
               status: 'Tap "Install" in the system dialog. If you see a package conflict error, the APK must be signed with the same key as the installed app.',
               progress: 100,
             );
-            // Wait a moment for the system installer dialog to appear
-            await Future.delayed(const Duration(seconds: 2));
-            // Terminate the app after installation is initiated
-            SystemNavigator.pop();
-            return true;
+            // Terminate the app immediately when installer is opened
+            exit(0);
           }
         } on PlatformException catch (e) {
           String errorMessage = 'Installation failed';
@@ -590,11 +587,8 @@ class AutoUpdateService {
           status: 'Tap "Install" in the system dialog. If you see a package conflict error, the APK must be signed with the same key as the installed app.',
           progress: 100,
         );
-        // Wait a moment for the system installer dialog to appear
-        await Future.delayed(const Duration(seconds: 2));
-        // Terminate the app after installation is initiated
-        SystemNavigator.pop();
-        return true;
+        // Terminate the app immediately when installer is opened
+        exit(0);
       } else if (result.type == ResultType.noAppToOpen) {
         await notificationService.showUpdateProgressNotification(
           title: 'Update Failed',

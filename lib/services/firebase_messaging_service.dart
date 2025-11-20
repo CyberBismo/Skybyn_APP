@@ -15,6 +15,7 @@ import 'call_service.dart';
 import 'friend_service.dart';
 import '../screens/call_screen.dart';
 import '../models/friend.dart';
+import '../models/user.dart';
 import '../main.dart' show navigatorKey;
 // Firestore disabled - using WebSocket for real-time features instead
 // import 'package:cloud_firestore/cloud_firestore.dart';
@@ -276,41 +277,100 @@ class FirebaseMessagingService {
   Future<void> sendFCMTokenToServer() async {
     try {
       if (_fcmToken == null) {
+        print('⚠️ [FCM] Cannot register token: FCM token is null');
         return;
       }
 
-      final user = await _authService.getStoredUserProfile();
-      if (user == null) {
+      // Get user ID - try from SharedPreferences first (faster, available immediately after login)
+      // Then fall back to user profile if needed
+      await _initPrefs();
+      // Try both 'userID' (from login response) and 'user_id' (from StorageKeys)
+      String? userIdString = _prefs?.getString('userID') ?? _prefs?.getString(StorageKeys.userId);
+      int? userId;
+      
+      if (userIdString != null && userIdString.isNotEmpty) {
+        userId = int.tryParse(userIdString);
+        if (userId != null && userId > 0) {
+          print('📱 [FCM] Got user ID from SharedPreferences: $userId');
+        } else {
+          userId = null;
+        }
+      }
+      
+      // If not found in SharedPreferences, try to get from user profile (with retries)
+      if (userId == null || userId == 0) {
+        var user = await _authService.getStoredUserProfile();
+        int retries = 0;
+        const maxRetries = 5;
+        const retryDelay = Duration(milliseconds: 500);
+        
+        while ((user == null || user.id == null || user.id!.isEmpty || int.tryParse(user.id!) == null || int.parse(user.id!) == 0) && retries < maxRetries) {
+          user = await _authService.getStoredUserProfile();
+          if (user != null && user.id != null && user.id!.isNotEmpty) {
+            final parsedUserId = int.tryParse(user.id!);
+            if (parsedUserId != null && parsedUserId > 0) {
+              userId = parsedUserId;
+              print('📱 [FCM] Got user ID from user profile: $userId');
+              break;
+            }
+          }
+          print('⚠️ [FCM] User ID not available yet, retrying... (${retries + 1}/$maxRetries)');
+          await Future.delayed(retryDelay);
+          retries++;
+        }
+      }
+      
+      // Final check - user ID must be valid (not null, not 0)
+      if (userId == null || userId == 0) {
+        print('❌ [FCM] Cannot register token: User ID is invalid or not available (userId=$userId)');
+        print('❌ [FCM] Make sure user is logged in before registering FCM token');
         return;
       }
+      
+      print('📱 [FCM] Registering token for user ID: $userId');
+      
       // Use device service to get device info
       final deviceService = DeviceService();
       final deviceInfo = await deviceService.getDeviceInfo();
 
       // Send to token API endpoint with user ID
       try {
+        final requestBody = {
+          'userID': userId.toString(),
+          'fcmToken': _fcmToken!,
+          'deviceId': deviceInfo['id'] ?? deviceInfo['deviceId'] ?? '',
+          'platform': deviceInfo['platform'] ?? 'Unknown',
+          'model': deviceInfo['model'] ?? 'Unknown'
+        };
+        
+        print('📱 [FCM] Sending token registration request: userID=${requestBody['userID']}, deviceId=${requestBody['deviceId']}');
+        
         final response = await http.post(
           Uri.parse(ApiConstants.token),
-          body: {
-            'userID': user.id.toString(),
-            'fcmToken': _fcmToken!,
-            'deviceId': deviceInfo['id'] ?? deviceInfo['deviceId'] ?? '',
-            'platform': deviceInfo['platform'] ?? 'Unknown',
-            'model': deviceInfo['model'] ?? 'Unknown'
-          }
+          body: requestBody
         );
+
+        print('📱 [FCM] Token registration response: statusCode=${response.statusCode}, body=${response.body}');
 
         if (response.statusCode == 200) {
           final data = json.decode(response.body);
-          if (data['responseCode'] == '1') {
+          if (data['responseCode'] == '1' || data['responseCode'] == 1) {
+            print('✅ [FCM] Token registered successfully for user $userId');
           } else {
+            print('❌ [FCM] Token registration failed: ${data['message'] ?? 'Unknown error'}');
           }
         } else {
+          print('❌ [FCM] Token registration HTTP error: ${response.statusCode} - ${response.body}');
         }
       } catch (e) {
-        // Silently fail - device will be updated on next login
+        print('❌ [FCM] Token registration exception: $e');
+        // Don't silently fail - log the error so we can debug
+        rethrow;
       }
     } catch (e) {
+      print('❌ [FCM] sendFCMTokenToServer error: $e');
+      // Re-throw so caller can handle it
+      rethrow;
     }
   }
 
@@ -598,12 +658,12 @@ class FirebaseMessagingService {
   /// Check if subscribed to a specific topic
   bool isSubscribedToTopic(String topic) => _subscribedTopics.contains(topic);
 
-  /// Auto-register FCM token when app opens ( apparently not initialized yet
+  /// Auto-register FCM token when app opens (with user ID)
   Future<void> autoRegisterTokenOnAppOpen() async {
-    
     try {
       // Check if FCM service is initialized
       if (!_isInitialized) {
+        print('⚠️ [FCM] Cannot auto-register token: FCM service not initialized');
         return;
       }
 
@@ -613,12 +673,41 @@ class FirebaseMessagingService {
         await _getFCMToken();
         
         if (_fcmToken == null) {
+          print('⚠️ [FCM] Cannot auto-register token: FCM token is null');
           return;
         }
       }
 
-      final user = await _authService.getStoredUserProfile();
-      if (user == null) {
+      // Get user ID - try from SharedPreferences first (faster, available immediately after login)
+      await _initPrefs();
+      // Try both 'userID' (from login response) and 'user_id' (from StorageKeys)
+      String? userIdString = _prefs?.getString('userID') ?? _prefs?.getString(StorageKeys.userId);
+      int? userId;
+      
+      if (userIdString != null && userIdString.isNotEmpty) {
+        userId = int.tryParse(userIdString);
+        if (userId != null && userId > 0) {
+          print('📱 [FCM] Auto-registering token for user ID (from SharedPreferences): $userId');
+        } else {
+          userId = null;
+        }
+      }
+      
+      // If not found in SharedPreferences, try to get from user profile
+      if (userId == null || userId == 0) {
+        final user = await _authService.getStoredUserProfile();
+        if (user != null && user.id != null && user.id!.isNotEmpty) {
+          final parsedUserId = int.tryParse(user.id!);
+          if (parsedUserId != null && parsedUserId > 0) {
+            userId = parsedUserId;
+            print('📱 [FCM] Auto-registering token for user ID (from profile): $userId');
+          }
+        }
+      }
+
+      // Final check - user ID must be valid (not null, not 0)
+      if (userId == null || userId == 0) {
+        print('⚠️ [FCM] Cannot auto-register token: User ID is invalid or user not logged in (userId=$userId)');
         return;
       }
 
@@ -626,31 +715,45 @@ class FirebaseMessagingService {
       final deviceService = DeviceService();
       final deviceInfo = await deviceService.getDeviceInfo();
       
+      final requestBody = {
+        'userID': userId.toString(),
+        'fcmToken': _fcmToken!,
+        'deviceId': deviceInfo['id'] ?? deviceInfo['deviceId'] ?? '',
+        'platform': deviceInfo['platform'] ?? 'Unknown',
+        'model': deviceInfo['model'] ?? 'Unknown'
+      };
+      
+      print('📱 [FCM] Sending auto-registration request: userID=${requestBody['userID']}, deviceId=${requestBody['deviceId']}');
+      
       // Send the token to the token API endpoint
       final response = await http.post(
         Uri.parse(ApiConstants.token),
-        body: {
-          'userID': user.id.toString(),
-          'fcmToken': _fcmToken!,
-          'deviceId': deviceInfo['id'] ?? deviceInfo['deviceId'] ?? '',
-          'platform': deviceInfo['platform'] ?? 'Unknown',
-          'model': deviceInfo['model'] ?? 'Unknown'
-        },
+        body: requestBody,
       );
+
+      print('📱 [FCM] Auto-registration response: statusCode=${response.statusCode}, body=${response.body}');
 
       if (response.statusCode == 200) {
         try {
           final data = json.decode(response.body);
-          if (data['responseCode'] == '1') {
+          if (data['responseCode'] == '1' || data['responseCode'] == 1) {
+            print('✅ [FCM] Token auto-registered successfully for user $userId');
           } else {
+            print('❌ [FCM] Token auto-registration failed: ${data['message'] ?? 'Unknown error'}');
           }
         } catch (e) {
+          print('❌ [FCM] Failed to parse auto-registration response: $e');
         }
       } else {
         if (response.statusCode == 404) {
+          print('❌ [FCM] Token API endpoint not found (404)');
+        } else {
+          print('❌ [FCM] Token auto-registration HTTP error: ${response.statusCode} - ${response.body}');
         }
       }
     } catch (e, stackTrace) {
+      print('❌ [FCM] autoRegisterTokenOnAppOpen error: $e');
+      print('Stack trace: $stackTrace');
     }
   }
 }
