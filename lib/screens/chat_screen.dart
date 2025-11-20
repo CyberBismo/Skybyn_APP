@@ -518,6 +518,20 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
   }
 
   // Handle incoming chat message (extracted for reuse)
+  /// Helper method to safely add a message, preventing duplicates
+  void _addMessageIfNotExists(Message message) {
+    final existingIndex = _messages.indexWhere((m) => m.id == message.id);
+    if (existingIndex == -1) {
+      setState(() {
+        _messages.add(message);
+        _messages.sort((a, b) => a.date.compareTo(b.date));
+      });
+      debugPrint('🟢 [ChatScreen] Message ${message.id} added. Total: ${_messages.length}');
+    } else {
+      debugPrint('🟢 [ChatScreen] Message ${message.id} already exists, skipping duplicate');
+    }
+  }
+
   void _handleIncomingChatMessage(String messageId, String fromUserId, String toUserId, String message) {
     debugPrint('🟢 [ChatScreen] _handleIncomingChatMessage: id=$messageId, from=$fromUserId, to=$toUserId');
     
@@ -575,6 +589,13 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
       } else {
         // No temp message found - this was sent from another device (website/other app instance)
         // Add it to the list so it appears on this device
+        // Double-check it doesn't already exist (prevent duplicates)
+        final duplicateCheck = _messages.indexWhere((m) => m.id == messageId);
+        if (duplicateCheck != -1) {
+          debugPrint('🟢 [ChatScreen] Message from self already exists (duplicate check), skipping');
+          return;
+        }
+        
         debugPrint('🟢 [ChatScreen] Message from self (other device) - adding to list');
         final newMessage = Message(
           id: messageId,
@@ -586,10 +607,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
           isFromMe: true,
         );
         if (mounted) {
-          setState(() {
-            _messages.add(newMessage);
-            _messages.sort((a, b) => a.date.compareTo(b.date));
-          });
+          _addMessageIfNotExists(newMessage);
           // Scroll to bottom to show the new message
           _scrollToBottom();
         }
@@ -614,13 +632,8 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
         isFromMe: false,
       );
       if (mounted) {
-        setState(() {
-          // Add new message to the end (bottom) of the list
-          _messages.add(newMessage);
-          // Sort messages by date to ensure correct order (oldest to newest)
-          _messages.sort((a, b) => a.date.compareTo(b.date));
-          debugPrint('🟢 [ChatScreen] Message added. Total messages: ${_messages.length}');
-        });
+        // Use helper method to prevent duplicates
+        _addMessageIfNotExists(newMessage);
         // Always scroll to bottom for new messages
         _scrollToBottom();
       } else {
@@ -713,10 +726,9 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
         // Replace temp message with real one
         setState(() {
           _messages.removeWhere((m) => m.id == tempMessage.id);
-          _messages.add(sentMessage);
-          // Sort messages by date to ensure correct order (oldest to newest)
-          _messages.sort((a, b) => a.date.compareTo(b.date));
         });
+        // Use helper method to add message (prevents duplicates)
+        _addMessageIfNotExists(sentMessage);
         // Scroll to bottom to show the sent message
         _scrollToBottom();
         
@@ -850,21 +862,30 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
         friendId: widget.friend.id,
       );
       if (mounted) {
-        // Only update if we have new messages
+        // Only update if we have new messages - check for duplicates by ID
         final currentMessageIds = _messages.map((m) => m.id).toSet();
         final newMessages = messages.where((m) => !currentMessageIds.contains(m.id)).toList();
         
         if (newMessages.isNotEmpty) {
-          // Check if user is near bottom before updating
-          final wasNearBottom = _scrollController.hasClients 
-              ? _scrollController.position.pixels >= 
+          // Double-check for duplicates before adding (prevent race conditions)
+          final existingIds = _messages.map((m) => m.id).toSet();
+          final trulyNewMessages = newMessages.where((m) => !existingIds.contains(m.id)).toList();
+          
+          if (trulyNewMessages.isNotEmpty) {
+            // Check if user is near bottom before updating
+            final wasNearBottom = _scrollController.hasClients 
+                ? _scrollController.position.pixels >= 
                   _scrollController.position.maxScrollExtent - 200
               : true;
           
           setState(() {
-            // Update messages and sort to ensure correct order
-            _messages = messages;
-            _messages.sort((a, b) => a.date.compareTo(b.date));
+            // Merge new messages with existing ones, avoiding duplicates
+            final existingIds = _messages.map((m) => m.id).toSet();
+            final messagesToAdd = trulyNewMessages.where((m) => !existingIds.contains(m.id)).toList();
+            if (messagesToAdd.isNotEmpty) {
+              _messages.addAll(messagesToAdd);
+              _messages.sort((a, b) => a.date.compareTo(b.date));
+            }
           });
           
           // Only scroll to bottom if user was already near the bottom
@@ -899,9 +920,11 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
             : 0.0;
         final firstMessageId = _messages.isNotEmpty ? _messages.first.id : null;
 
-        // Prepend older messages to the list
+        // Prepend older messages to the list, avoiding duplicates
         setState(() {
-          _messages = [...olderMessages, ..._messages];
+          final existingIds = _messages.map((m) => m.id).toSet();
+          final uniqueOlderMessages = olderMessages.where((m) => !existingIds.contains(m.id)).toList();
+          _messages = [...uniqueOlderMessages, ..._messages];
           // Sort to ensure correct chronological order (oldest to newest)
           _messages.sort((a, b) => a.date.compareTo(b.date));
           _hasMoreMessages = olderMessages.length >= 50; // If we got less than 50, no more messages
