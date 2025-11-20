@@ -171,7 +171,7 @@ class FirebaseMessagingService {
       // This will fail on iOS if APN is not configured
       await _getFCMToken();
 
-      // Register token immediately on app start (even without user)
+      // Register token on app start (with user = 0 if not logged in)
       await _registerTokenOnAppStart();
 
       // Set up message handlers
@@ -235,19 +235,18 @@ class FirebaseMessagingService {
     }
   }
 
-  /// Register FCM token on app start (without user ID)
+  /// Register FCM token on app start (with user = 0 if not logged in)
   Future<void> _registerTokenOnAppStart() async {
     try {
       if (_fcmToken == null) {
         return;
       }
 
-
       // Use device service to get device info
       final deviceService = DeviceService();
       final deviceInfo = await deviceService.getDeviceInfo();
 
-      // Send to token API endpoint without user ID
+      // Send to token API endpoint without user ID (will be registered with user = 0)
       try {
         final response = await http.post(
           Uri.parse(ApiConstants.token),
@@ -256,20 +255,25 @@ class FirebaseMessagingService {
             'deviceId': deviceInfo['id'] ?? deviceInfo['deviceId'] ?? '',
             'platform': deviceInfo['platform'] ?? 'Unknown',
             'model': deviceInfo['model'] ?? 'Unknown'
+            // Note: userID not provided, so device will be registered with user = 0
           }
         );
 
         if (response.statusCode == 200) {
           final data = json.decode(response.body);
           if (data['responseCode'] == '1') {
+            // Device registered successfully with user = 0
           } else {
+            // Registration failed, but will be updated on login
           }
         } else {
+          // HTTP error, but will be updated on login
         }
       } catch (e) {
-        // Silently fail - device will be updated on login
+        // Silently fail - device will be updated on login with actual user ID
       }
     } catch (e) {
+      // Silently fail - device will be updated on login
     }
   }
 
