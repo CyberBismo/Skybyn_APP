@@ -536,18 +536,28 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
       return; // Not for this chat
     }
     
-    // If we're the sender, the message was already displayed optimistically
-    // The server sends it back for confirmation, but we should update the temp ID if needed
+    // If we're the sender, check if this is an optimistic message (temp ID) that needs updating
+    // OR if it's a message sent from another device that needs to be added
     if (fromUserId == _currentUserId) {
-      // Find temp message and update its ID
+      // First, check if message already exists with this ID (sent from another device)
+      final existingMessageIndex = _messages.indexWhere((m) => m.id == messageId);
+      if (existingMessageIndex != -1) {
+        // Message already exists, don't add duplicate
+        debugPrint('🟢 [ChatScreen] Message from self already exists, skipping');
+        return;
+      }
+      
+      // Check if there's a temp message (optimistic UI) that matches this message
       final tempMessageIndex = _messages.indexWhere((m) => 
         m.id.startsWith('temp_') && 
         m.from == fromUserId && 
         m.to == toUserId &&
         m.content == message
       );
+      
       if (tempMessageIndex != -1) {
-        // Update temp message with real ID
+        // Update temp message with real ID (message sent from this device)
+        debugPrint('🟢 [ChatScreen] Updating temp message with real ID');
         if (mounted) {
           setState(() {
             _messages[tempMessageIndex] = Message(
@@ -561,8 +571,30 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
             );
           });
         }
+        return; // Don't add duplicate - message already displayed
+      } else {
+        // No temp message found - this was sent from another device (website/other app instance)
+        // Add it to the list so it appears on this device
+        debugPrint('🟢 [ChatScreen] Message from self (other device) - adding to list');
+        final newMessage = Message(
+          id: messageId,
+          from: fromUserId,
+          to: toUserId,
+          content: message,
+          date: DateTime.now(),
+          viewed: false,
+          isFromMe: true,
+        );
+        if (mounted) {
+          setState(() {
+            _messages.add(newMessage);
+            _messages.sort((a, b) => a.date.compareTo(b.date));
+          });
+          // Scroll to bottom to show the new message
+          _scrollToBottom();
+        }
+        return; // Message added, don't process as recipient message
       }
-      return; // Don't add duplicate - message already displayed
     }
     
     // We're the recipient - check if message already exists
@@ -1277,12 +1309,16 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
                                   : Column(
                                       children: [
                                         Expanded(
-                                          child: ListView.builder(
-                                            controller: _scrollController,
-                                            reverse: false, // Normal order: oldest at top, newest at bottom
-                                            padding: const EdgeInsets.all(16),
-                                            itemCount: _messages.length + (_isLoadingOlder ? 1 : 0),
-                                            itemBuilder: (context, index) {
+                                          child: RefreshIndicator(
+                                            onRefresh: _refreshMessages,
+                                            color: Colors.white,
+                                            backgroundColor: Colors.black.withOpacity(0.3),
+                                            child: ListView.builder(
+                                              controller: _scrollController,
+                                              reverse: false, // Normal order: oldest at top, newest at bottom
+                                              padding: const EdgeInsets.all(16),
+                                              itemCount: _messages.length + (_isLoadingOlder ? 1 : 0),
+                                              itemBuilder: (context, index) {
                                         // Show loading indicator at top when loading older messages
                                         if (_isLoadingOlder && index == 0) {
                                           return const Padding(
@@ -1301,6 +1337,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
                                       },
                                             ),
                                           ),
+                                        ),
                                         // Typing indicator at the bottom
                                         if (_isFriendTyping)
                                           Padding(

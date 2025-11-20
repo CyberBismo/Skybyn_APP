@@ -67,11 +67,28 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
         payload: payload,
       );
     } else {
-      // For other message types, show normal notification
+      // For other message types (including chat), show normal notification
+      // When app is closed, FCM should show the notification automatically if it has notification payload
+      // But we also show a local notification as backup to ensure it's always displayed
+      final type = message.data['type']?.toString();
       final payload = jsonEncode(message.data);
+      
+      // For chat messages, ensure we have a proper title and body
+      String title = message.notification?.title ?? 'New Message';
+      String body = message.notification?.body ?? '';
+      
+      // If notification payload is missing (data-only message), extract from data
+      if (title == 'New Message' && body.isEmpty && type == 'chat') {
+        // Try to get sender name and message from data payload
+        final sender = message.data['sender']?.toString() ?? message.data['from']?.toString() ?? 'Someone';
+        final messageText = message.data['message']?.toString() ?? message.data['body']?.toString() ?? 'New message';
+        title = sender;
+        body = messageText;
+      }
+      
       await notificationService.showNotification(
-        title: message.notification?.title ?? 'New Message', 
-        body: message.notification?.body ?? '', 
+        title: title, 
+        body: body, 
         payload: payload
       );
     }

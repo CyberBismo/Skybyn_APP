@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:convert';
 import 'package:flutter/services.dart';
+import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../config/constants.dart';
 import 'package:http/http.dart' as http;
@@ -549,6 +550,10 @@ class AutoUpdateService {
               status: 'Tap "Install" in the system dialog. If you see a package conflict error, the APK must be signed with the same key as the installed app.',
               progress: 100,
             );
+            // Wait a moment for the system installer dialog to appear
+            await Future.delayed(const Duration(seconds: 2));
+            // Terminate the app after installation is initiated
+            SystemNavigator.pop();
             return true;
           }
         } on PlatformException catch (e) {
@@ -585,6 +590,10 @@ class AutoUpdateService {
           status: 'Tap "Install" in the system dialog. If you see a package conflict error, the APK must be signed with the same key as the installed app.',
           progress: 100,
         );
+        // Wait a moment for the system installer dialog to appear
+        await Future.delayed(const Duration(seconds: 2));
+        // Terminate the app after installation is initiated
+        SystemNavigator.pop();
         return true;
       } else if (result.type == ResultType.noAppToOpen) {
         await notificationService.showUpdateProgressNotification(

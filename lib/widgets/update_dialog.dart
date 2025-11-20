@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../services/auto_update_service.dart';
 import 'app_colors.dart';
 import '../utils/translation_keys.dart';
@@ -128,17 +129,22 @@ class _UpdateDialogState extends State<UpdateDialog> {
       }
 
       setState(() {
-        _updateStatus = 'Update completed successfully!';
+        _updateStatus = 'Update installed! App will close...';
         _updateProgress = 1.0;
       });
 
       // Cancel progress notification on success
       await AutoUpdateService.cancelUpdateProgressNotification();
 
-      // Close dialog after a delay
+      // Wait a moment to show the completion message
       await Future.delayed(const Duration(seconds: 1));
+      
+      // Terminate the app after update is installed
       if (mounted) {
         Navigator.of(context).pop();
+        // Give a brief moment for the dialog to close, then terminate
+        await Future.delayed(const Duration(milliseconds: 300));
+        SystemNavigator.pop();
       }
     } catch (e) {
       // Cancel progress notification on error

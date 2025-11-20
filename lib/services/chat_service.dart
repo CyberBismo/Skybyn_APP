@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/message.dart';
 import '../config/constants.dart';
 import 'auth_service.dart';
+import 'websocket_service.dart';
 import 'package:encrypt/encrypt.dart' as encrypt;
 import 'package:crypto/crypto.dart';
 
@@ -17,6 +18,7 @@ class ChatService {
   static const Duration _cacheExpiry = Duration(minutes: 2);
 
   final AuthService _authService = AuthService();
+  final WebSocketService _webSocketService = WebSocketService();
   
   // Store protection cookie to bypass bot challenges
   static String? _protectionCookie;
@@ -163,23 +165,50 @@ class ChatService {
   }
 
   /// Send a message
+  /// Step 1: Send via WebSocket for real-time delivery
+  /// Step 2: Store in database via API (runs in parallel)
   Future<Message?> sendMessage({
     required String toUserId,
     required String content,
   }) async {
+    // Track if WebSocket send succeeded (for error handling)
+    bool wsSent = false;
+    
     try {
       final userId = await _authService.getStoredUserId();
       if (userId == null) {
         throw Exception('User not logged in');
       }
 
-      // Encrypt the message
-      final encryptedContent = await _encryptMessage(content);
-
       // Validate that all required parameters are present
-      if (userId.isEmpty || toUserId.isEmpty || encryptedContent.isEmpty) {
-        throw Exception('Missing required parameters: userId=${userId.isEmpty ? "empty" : "ok"}, toUserId=${toUserId.isEmpty ? "empty" : "ok"}, message=${encryptedContent.isEmpty ? "empty" : "ok"}');
+      if (userId.isEmpty || toUserId.isEmpty || content.isEmpty) {
+        throw Exception('Missing required parameters: userId=${userId.isEmpty ? "empty" : "ok"}, toUserId=${toUserId.isEmpty ? "empty" : "ok"}, message=${content.isEmpty ? "empty" : "ok"}');
       }
+
+      // Step 1: Send message directly via WebSocket for real-time delivery
+      // Generate a temporary message ID (will be updated when API returns real ID)
+      final tempMessageId = 'temp_${DateTime.now().millisecondsSinceEpoch}';
+      
+      if (_webSocketService.isConnected) {
+        try {
+          _webSocketService.sendChatMessage(
+            messageId: tempMessageId,
+            targetUserId: toUserId,
+            content: content,
+          );
+          wsSent = true;
+        } catch (e) {
+          // WebSocket send failed, but continue with API call
+          // Message will be delivered via API's WebSocket notification as fallback
+          if (kDebugMode) {
+            print('WebSocket send failed: $e');
+          }
+        }
+      }
+
+      // Step 2: Store message in database via API (runs in parallel)
+      // Encrypt the message for API
+      final encryptedContent = await _encryptMessage(content);
 
       final url = ApiConstants.chatSend;
       // Build headers with optional protection cookie and API key
@@ -295,8 +324,15 @@ class ChatService {
       }
       
       // Process normal response
+      // Note: If API fails, message was still sent via WebSocket (if wsSent was true)
+      // The API call is primarily for database persistence
       return await _processSendMessageResponse(response, userId, toUserId, content);
     } catch (e, stackTrace) {
+      // If API fails but WebSocket succeeded, message was still delivered in real-time
+      // Re-throw the error so caller can handle it, but message delivery succeeded
+      if (wsSent && kDebugMode) {
+        print('API call failed but message was delivered via WebSocket: $e');
+      }
       rethrow;
     }
   }
