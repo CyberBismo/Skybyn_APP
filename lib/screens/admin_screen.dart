@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
-import 'dart:ui';
 import '../widgets/background_gradient.dart';
 import '../widgets/custom_app_bar.dart';
-import '../widgets/app_colors.dart';
 import '../utils/translation_keys.dart';
 import '../widgets/translated_text.dart';
 import '../services/translation_service.dart';

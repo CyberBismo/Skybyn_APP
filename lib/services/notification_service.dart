@@ -757,7 +757,7 @@ class NotificationService {
           presentSound: false,
         );
 
-        final NotificationDetails notificationDetails = NotificationDetails(
+        const NotificationDetails notificationDetails = NotificationDetails(
           iOS: iOSDetails,
         );
 

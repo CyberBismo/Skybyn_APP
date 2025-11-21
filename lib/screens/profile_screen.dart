@@ -9,7 +9,6 @@ import '../widgets/custom_app_bar.dart';
 import '../widgets/custom_bottom_navigation_bar.dart';
 import '../widgets/app_colors.dart';
 import '../widgets/global_search_overlay.dart';
-import 'home_screen.dart';
 import '../services/auth_service.dart';
 import '../services/post_service.dart';
 import 'create_post_screen.dart';

@@ -346,7 +346,7 @@ class CallService {
             List<MediaStreamTrack> audioTracks = [];
             
             for (final transceiver in transceivers) {
-              final receiver = transceiver.receiver!;
+              final receiver = transceiver.receiver;
               if (receiver.track != null) {
                 final track = receiver.track!;
                 if (track.kind == 'video') {
@@ -545,7 +545,8 @@ class CallService {
               }
             };
           }
-        } else        // Track exists but no stream in event.streams
+        } else {
+          // Track exists but no stream in event.streams
         // This can happen - onTrack might fire multiple times
         // Wait a bit and check if stream becomes available
         // Also check receivers periodically to see if we can get the stream
@@ -557,10 +558,10 @@ class CallService {
               bool hasVideoTrack = false;
               bool hasAudioTrack = false;
               for (final transceiver in transceivers) {
-                if (transceiver.receiver?.track != null) {
-                  if (transceiver.receiver!.track!.kind == 'video') {
+                if (transceiver.receiver.track != null) {
+                  if (transceiver.receiver.track!.kind == 'video') {
                     hasVideoTrack = true;
-                  } else if (transceiver.receiver!.track!.kind == 'audio') {
+                  } else if (transceiver.receiver.track!.kind == 'audio') {
                     hasAudioTrack = true;
                   }
                 }
@@ -575,6 +576,7 @@ class CallService {
             });
           }
         });
+        }
       
       };
 

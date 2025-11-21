@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import '../models/friend.dart';
 import '../services/call_service.dart';
-import '../services/websocket_service.dart';
+import '../config/constants.dart';
 
 class CallScreen extends StatefulWidget {
   final Friend friend;
@@ -626,7 +626,7 @@ class _CallScreenState extends State<CallScreen> {
                           child: widget.friend.avatar.isNotEmpty
                               ? ClipOval(
                                   child: Image.network(
-                                    widget.friend.avatar,
+                                    UrlHelper.convertUrl(widget.friend.avatar),
                                     width: 120,
                                     height: 120,
                                     fit: BoxFit.cover,

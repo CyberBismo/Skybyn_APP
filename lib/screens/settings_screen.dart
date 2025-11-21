@@ -8,7 +8,6 @@ import 'package:provider/provider.dart';
 import 'dart:io';
 import 'dart:ui';
 import 'dart:convert';
-import 'package:flutter/foundation.dart';
 import '../models/user.dart';
 import '../widgets/background_gradient.dart';
 import '../widgets/custom_app_bar.dart';

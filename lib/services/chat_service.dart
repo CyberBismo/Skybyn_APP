@@ -9,7 +9,6 @@ import '../models/message.dart';
 import '../config/constants.dart';
 import 'auth_service.dart';
 import 'websocket_service.dart';
-import 'package:encrypt/encrypt.dart' as encrypt;
 import 'package:crypto/crypto.dart';
 
 class ChatService {
