@@ -876,22 +876,23 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
             final wasNearBottom = _scrollController.hasClients 
                 ? _scrollController.position.pixels >= 
                   _scrollController.position.maxScrollExtent - 200
-              : true;
-          
-          setState(() {
-            // Merge new messages with existing ones, avoiding duplicates
-            final existingIds = _messages.map((m) => m.id).toSet();
-            final messagesToAdd = trulyNewMessages.where((m) => !existingIds.contains(m.id)).toList();
-            if (messagesToAdd.isNotEmpty) {
-              _messages.addAll(messagesToAdd);
-              _messages.sort((a, b) => a.date.compareTo(b.date));
+                : true;
+            
+            setState(() {
+              // Merge new messages with existing ones, avoiding duplicates
+              final existingIds = _messages.map((m) => m.id).toSet();
+              final messagesToAdd = trulyNewMessages.where((m) => !existingIds.contains(m.id)).toList();
+              if (messagesToAdd.isNotEmpty) {
+                _messages.addAll(messagesToAdd);
+                _messages.sort((a, b) => a.date.compareTo(b.date));
+              }
+            });
+            
+            // Only scroll to bottom if user was already near the bottom
+            // This prevents interrupting user if they're reading older messages
+            if (wasNearBottom) {
+              _scrollToBottom();
             }
-          });
-          
-          // Only scroll to bottom if user was already near the bottom
-          // This prevents interrupting user if they're reading older messages
-          if (wasNearBottom) {
-            _scrollToBottom();
           }
         }
       }
