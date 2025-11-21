@@ -93,7 +93,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           _checkFriendshipStatus();
         }
       }
-    } catch (e, stackTrace) {
+    } catch (e) {
       setState(() {
         isLoading = false;
         userData = null;
@@ -137,7 +137,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         userPosts = posts;
         isLoadingPosts = false;
       });
-    } catch (e, stackTrace) {
+    } catch (e) {
       setState(() {
         userPosts = [];
         isLoadingPosts = false;
@@ -401,13 +401,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (status == 'blocked') {
       // User has blocked you - show nothing or disabled state
       menuItems.add(
-        PopupMenuItem(
+        const PopupMenuItem(
           enabled: false,
           child: Row(
             children: [
-              const Icon(Icons.block, size: 18, color: Colors.grey),
-              const SizedBox(width: 12),
-              const Text('This user has blocked you', style: TextStyle(color: Colors.grey)),
+              Icon(Icons.block, size: 18, color: Colors.grey),
+              SizedBox(width: 12),
+              Text('This user has blocked you', style: TextStyle(color: Colors.grey)),
             ],
           ),
         ),
@@ -529,13 +529,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
       // No friendship exists - show send request and block options
       if (!_isSendingRequest) {
         menuItems.add(
-          PopupMenuItem(
+          const PopupMenuItem(
             value: 'send',
             child: Row(
               children: [
-                const Icon(Icons.person_add, size: 18, color: Colors.white),
-                const SizedBox(width: 12),
-                const Text('Send Friend Request', style: TextStyle(color: Colors.white)),
+                Icon(Icons.person_add, size: 18, color: Colors.white),
+                SizedBox(width: 12),
+                Text('Send Friend Request', style: TextStyle(color: Colors.white)),
               ],
             ),
           ),
@@ -754,7 +754,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final status = _friendshipStatus ?? 'none';
     // If user has blocked you, show blocked icon only
     if (status == 'blocked') {
-      return IconButton(
+      return const IconButton(
         icon: Icon(
           Icons.block,
           color: Colors.grey,
@@ -782,64 +782,64 @@ class _ProfileScreenState extends State<ProfileScreen> {
     
     if (status == 'friends') {
       menuItems.add(
-        PopupMenuItem(
+        const PopupMenuItem(
           value: 'unfriend',
           child: Row(
             children: [
-              const Icon(Icons.person_remove, size: 18, color: Colors.white),
-              const SizedBox(width: 12),
-              const Text('Unfriend', style: TextStyle(color: Colors.white)),
+              Icon(Icons.person_remove, size: 18, color: Colors.white),
+              SizedBox(width: 12),
+              Text('Unfriend', style: TextStyle(color: Colors.white)),
             ],
           ),
         ),
       );
     } else if (status == 'sent') {
       menuItems.add(
-        PopupMenuItem(
+        const PopupMenuItem(
           value: 'cancel',
           child: Row(
             children: [
-              const Icon(Icons.close, size: 18, color: Colors.white),
-              const SizedBox(width: 12),
-              const Text('Cancel Request', style: TextStyle(color: Colors.white)),
+              Icon(Icons.close, size: 18, color: Colors.white),
+              SizedBox(width: 12),
+              Text('Cancel Request', style: TextStyle(color: Colors.white)),
             ],
           ),
         ),
       );
     } else if (status == 'received') {
       menuItems.add(
-        PopupMenuItem(
+        const PopupMenuItem(
           value: 'accept',
           child: Row(
             children: [
-              const Icon(Icons.person_add, size: 18, color: Colors.green),
-              const SizedBox(width: 12),
-              const Text('Accept', style: TextStyle(color: Colors.green)),
+              Icon(Icons.person_add, size: 18, color: Colors.green),
+              SizedBox(width: 12),
+              Text('Accept', style: TextStyle(color: Colors.green)),
             ],
           ),
         ),
       );
       menuItems.add(
-        PopupMenuItem(
+        const PopupMenuItem(
           value: 'ignore',
           child: Row(
             children: [
-              const Icon(Icons.close, size: 18, color: Colors.white),
-              const SizedBox(width: 12),
-              const Text('Ignore', style: TextStyle(color: Colors.white)),
+              Icon(Icons.close, size: 18, color: Colors.white),
+              SizedBox(width: 12),
+              Text('Ignore', style: TextStyle(color: Colors.white)),
             ],
           ),
         ),
       );
     } else if (status == 'block' || status == 'unblock') {
       menuItems.add(
-        PopupMenuItem(
+        const PopupMenuItem(
           value: 'unblock',
           child: Row(
             children: [
-              const Icon(Icons.person_off, size: 18, color: Colors.orange),
-              const SizedBox(width: 12),
-              const Text('Unblock', style: TextStyle(color: Colors.orange)),
+              Icon(Icons.person_off, size: 18, color: Colors.orange),
+              SizedBox(width: 12),
+              Text('Unblock', style: TextStyle(color: Colors.orange)),
             ],
           ),
         ),
@@ -1048,10 +1048,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   child: Stack(
                     clipBehavior: Clip.none,
                     children: [
-                      SizedBox(
+                      const SizedBox(
                         width: double.infinity,
                         height: 200,
-                        child: const ProfileBackgroundSkeleton(),
+                        child: ProfileBackgroundSkeleton(),
                       ),
                       // Avatar and Username Skeleton (overlapping wallpaper by 30dp)
                       Positioned(
@@ -1090,7 +1090,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                 ),
                 // Spacer to account for the avatar height that extends below the wallpaper
-                SliverToBoxAdapter(
+                const SliverToBoxAdapter(
                   child: SizedBox(
                     height: 120 + 16 + 24 + 6 + 24, // avatar height + username padding + text heights + spacing
                   ),
@@ -1236,7 +1236,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   // Spacer to account for the avatar and username that extend below the wallpaper
                   // Avatar starts at 170, height 120, so extends to 290
                   // Username starts at 300, height ~50 (24 + 6 + 24), so extends to ~350
-                  SliverToBoxAdapter(
+                  const SliverToBoxAdapter(
                     child: SizedBox(
                       height: 350 - 200, // Total height (350) minus wallpaper height (200) = 150
                     ),
@@ -1263,13 +1263,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ),
                     )
                   else if (userPosts.isEmpty)
-                    SliverToBoxAdapter(
+                    const SliverToBoxAdapter(
                       child: Padding(
-                        padding: const EdgeInsets.all(32.0),
+                        padding: EdgeInsets.all(32.0),
                         child: Center(
                           child: TranslatedText(
                             TranslationKeys.noPostsYet,
-                            style: const TextStyle(color: Colors.white70, fontSize: 16),
+                            style: TextStyle(color: Colors.white70, fontSize: 16),
                           ),
                         ),
                       ),
@@ -1345,9 +1345,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           onPressed: () {
                             _loadProfile();
                           },
-                          child: TranslatedText(
+                          child: const TranslatedText(
                             TranslationKeys.tryAgain,
-                            style: const TextStyle(color: Colors.white),
+                            style: TextStyle(color: Colors.white),
                           ),
                         ),
                       ],

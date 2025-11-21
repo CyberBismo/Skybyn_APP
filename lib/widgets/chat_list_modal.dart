@@ -28,7 +28,7 @@ class _ChatListModalState extends State<ChatListModal> {
   bool _isLoading = true;
 
   // Store subscriptions for cleanup
-  Map<String, StreamSubscription> _onlineStatusSubscriptions = {};
+  final Map<String, StreamSubscription> _onlineStatusSubscriptions = {};
 
   @override
   void initState() {
@@ -168,12 +168,12 @@ class _ChatListModalState extends State<ChatListModal> {
               else
                 Flexible(
                   child: _friends.isEmpty
-                      ? Padding(
-                          padding: const EdgeInsets.all(16.0),
+                      ? const Padding(
+                          padding: EdgeInsets.all(16.0),
                           child: Center(
                             child: TranslatedText(
                               TranslationKeys.noFriendsFound,
-                              style: const TextStyle(color: Colors.white70),
+                              style: TextStyle(color: Colors.white70),
                             ),
                           ),
                         )

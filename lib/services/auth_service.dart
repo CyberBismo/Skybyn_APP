@@ -24,9 +24,7 @@ class AuthService {
   // HTTP client with standard SSL validation
   static http.Client? _httpClient;
   static http.Client get _client {
-    if (_httpClient == null) {
-      _httpClient = _createHttpClient();
-    }
+    _httpClient ??= _createHttpClient();
     return _httpClient!;
   }
   
@@ -68,9 +66,7 @@ class AuthService {
   Future<Map<String, dynamic>> login(String username, String password) async {
     try {
       // Ensure HTTP client is initialized
-      if (_httpClient == null) {
-        _httpClient = _createHttpClient();
-      }
+      _httpClient ??= _createHttpClient();
       
       final deviceService = DeviceService();
       final deviceInfo = await deviceService.getDeviceInfo();
@@ -105,10 +101,10 @@ class AuthService {
             throw TimeoutException('Login request timed out after 30 seconds');
           },
         );
-      } on HandshakeException catch (e) {
+      } on HandshakeException {
         // Re-throw to be caught by outer catch block with more context
         rethrow;
-      } on TimeoutException catch (e) {
+      } on TimeoutException {
         rethrow;
       }
 

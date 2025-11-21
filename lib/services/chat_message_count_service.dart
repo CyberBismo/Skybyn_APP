@@ -37,8 +37,8 @@ class ChatMessageCountService extends ChangeNotifier {
       _totalUnreadCount = 0;
 
       for (final key in keys) {
-        if (key.startsWith('chat_unread_$userId\_')) {
-          final friendId = key.replaceFirst('chat_unread_$userId\_', '');
+        if (key.startsWith('chat_unread_${userId}_')) {
+          final friendId = key.replaceFirst('chat_unread_${userId}_', '');
           final count = _prefs?.getInt(key) ?? 0;
           if (count > 0) {
             _unreadCounts[friendId] = count;
@@ -58,7 +58,7 @@ class ChatMessageCountService extends ChangeNotifier {
       final userId = await _authService.getStoredUserId();
       if (userId == null) return;
 
-      final key = 'chat_unread_$userId\_$friendId';
+      final key = 'chat_unread_${userId}_$friendId';
       if (count > 0) {
         await _prefs?.setInt(key, count);
       } else {
@@ -103,7 +103,7 @@ class ChatMessageCountService extends ChangeNotifier {
 
       final keys = _prefs?.getKeys() ?? {};
       for (final key in keys) {
-        if (key.startsWith('chat_unread_$userId\_')) {
+        if (key.startsWith('chat_unread_${userId}_')) {
           await _prefs?.remove(key);
         }
       }

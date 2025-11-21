@@ -156,7 +156,7 @@ class _CustomAppBarState extends State<CustomAppBar> {
         if (!permissionGranted) {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: TranslatedText(TranslationKeys.permissionDeniedCannotCheckUpdates)),
+              const SnackBar(content: TranslatedText(TranslationKeys.permissionDeniedCannotCheckUpdates)),
             );
           }
           UnifiedMenu.closeCurrentMenu();
@@ -172,7 +172,7 @@ class _CustomAppBarState extends State<CustomAppBar> {
         if (AutoUpdateService.isDialogShowing) {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: TranslatedText(TranslationKeys.updateDialogAlreadyOpen)),
+              const SnackBar(content: TranslatedText(TranslationKeys.updateDialogAlreadyOpen)),
             );
           }
           UnifiedMenu.closeCurrentMenu();
@@ -205,7 +205,7 @@ class _CustomAppBarState extends State<CustomAppBar> {
         });
       } else if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: TranslatedText(TranslationKeys.noUpdatesAvailable)),
+          const SnackBar(content: TranslatedText(TranslationKeys.noUpdatesAvailable)),
         );
       }
     } catch (e) {

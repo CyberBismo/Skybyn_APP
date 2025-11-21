@@ -11,13 +11,6 @@ import 'notification_service.dart';
 import 'auth_service.dart';
 import 'device_service.dart';
 import '../config/constants.dart';
-import 'background_activity_service.dart';
-import 'call_service.dart';
-import 'friend_service.dart';
-import '../screens/call_screen.dart';
-import '../models/friend.dart';
-import '../models/user.dart';
-import '../main.dart' show navigatorKey;
 // Firestore disabled - using WebSocket for real-time features instead
 // import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:async';
@@ -262,7 +255,7 @@ class FirebaseMessagingService {
       String? userIdString = _prefs?.getString('userID') ?? _prefs?.getString(StorageKeys.userId);
       int? userId;
       
-      if (userIdString != null && userIdString.isNotEmpty) {
+      if (userIdString.isNotEmpty) {
         userId = int.tryParse(userIdString);
         if (userId != null && userId > 0) {
           print('📱 [FCM] Got user ID from SharedPreferences: $userId');
@@ -278,10 +271,10 @@ class FirebaseMessagingService {
         const maxRetries = 5;
         const retryDelay = Duration(milliseconds: 500);
         
-        while ((user == null || user.id == null || user.id!.isEmpty || int.tryParse(user.id!) == null || int.parse(user.id!) == 0) && retries < maxRetries) {
+        while ((user == null || user.id.isEmpty || int.tryParse(user.id) == null || int.parse(user.id) == 0) && retries < maxRetries) {
           user = await _authService.getStoredUserProfile();
-          if (user != null && user.id != null && user.id!.isNotEmpty) {
-            final parsedUserId = int.tryParse(user.id!);
+          if (user != null && user.id.isNotEmpty) {
+            final parsedUserId = int.tryParse(user.id);
             if (parsedUserId != null && parsedUserId > 0) {
               userId = parsedUserId;
               print('📱 [FCM] Got user ID from user profile: $userId');
@@ -664,7 +657,7 @@ class FirebaseMessagingService {
         String? userIdString = _prefs?.getString('userID') ?? _prefs?.getString(StorageKeys.userId);
         int? userId;
         
-        if (userIdString != null && userIdString.isNotEmpty) {
+        if (userIdString.isNotEmpty) {
           userId = int.tryParse(userIdString);
           if (userId != null && userId > 0) {
             // User is logged in - update FCM token
@@ -679,8 +672,8 @@ class FirebaseMessagingService {
         } else {
           // Try to get from user profile
           final user = await _authService.getStoredUserProfile();
-          if (user != null && user.id != null && user.id!.isNotEmpty) {
-            final parsedUserId = int.tryParse(user.id!);
+          if (user != null && user.id.isNotEmpty) {
+            final parsedUserId = int.tryParse(user.id);
             if (parsedUserId != null && parsedUserId > 0) {
               userId = parsedUserId;
               // User is logged in - update FCM token
@@ -731,7 +724,7 @@ class FirebaseMessagingService {
       String? userIdString = _prefs?.getString('userID') ?? _prefs?.getString(StorageKeys.userId);
       int? userId;
       
-      if (userIdString != null && userIdString.isNotEmpty) {
+      if (userIdString.isNotEmpty) {
         userId = int.tryParse(userIdString);
         if (userId != null && userId > 0) {
           print('📱 [FCM] Auto-registering token for user ID (from SharedPreferences): $userId');
@@ -743,8 +736,8 @@ class FirebaseMessagingService {
       // If not found in SharedPreferences, try to get from user profile
       if (userId == null || userId == 0) {
         final user = await _authService.getStoredUserProfile();
-        if (user != null && user.id != null && user.id!.isNotEmpty) {
-          final parsedUserId = int.tryParse(user.id!);
+        if (user != null && user.id.isNotEmpty) {
+          final parsedUserId = int.tryParse(user.id);
           if (parsedUserId != null && parsedUserId > 0) {
             userId = parsedUserId;
             print('📱 [FCM] Auto-registering token for user ID (from profile): $userId');

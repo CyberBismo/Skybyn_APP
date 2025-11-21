@@ -1,6 +1,5 @@
 // Firestore disabled - using WebSocket for real-time features instead
 // import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/foundation.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
@@ -245,7 +244,7 @@ class FirebaseCallSignalingService {
       // Get sender's username/nickname for notification
       final authService = AuthService();
       final user = await authService.getStoredUserProfile();
-      final senderName = user?.nickname?.isNotEmpty == true 
+      final senderName = user?.nickname.isNotEmpty == true 
           ? user!.nickname 
           : user?.username ?? 'Someone';
       
@@ -281,7 +280,7 @@ class FirebaseCallSignalingService {
         }
       } else {
       }
-    } catch (e, stackTrace) {
+    } catch (e) {
       // Don't fail the call if FCM notification fails - it's optional
     }
   }

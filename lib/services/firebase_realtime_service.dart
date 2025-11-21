@@ -425,7 +425,7 @@ class FirebaseRealtimeService {
   ) {
     // Firestore disabled - using WebSocket for real-time features instead
     // Return a dummy subscription that does nothing
-    return Stream<dynamic>.empty().listen((_) {});
+    return const Stream<dynamic>.empty().listen((_) {});
     
     /* DISABLED - Firestore not used
     // Listen to online_status_notifications collection for this user

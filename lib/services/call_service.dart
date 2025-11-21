@@ -46,8 +46,8 @@ class CallService {
     try {
       final transceivers = await _peerConnection!.getTransceivers();
       for (final transceiver in transceivers) {
-        if (transceiver.receiver?.track?.kind == 'video') {
-          return transceiver.receiver!.track;
+        if (transceiver.receiver.track?.kind == 'video') {
+          return transceiver.receiver.track;
         }
       }
     } catch (e) {
@@ -121,9 +121,9 @@ class CallService {
       // Add local stream to peer connection
       if (_localStream != null) {
         final tracks = _localStream!.getTracks();
-        tracks.forEach((track) {
+        for (var track in tracks) {
           _peerConnection?.addTrack(track, _localStream!);
-        });
+        }
       } else {
         throw Exception('Local stream is null');
       }
@@ -346,18 +346,16 @@ class CallService {
             List<MediaStreamTrack> audioTracks = [];
             
             for (final transceiver in transceivers) {
-              if (transceiver.receiver != null) {
-                final receiver = transceiver.receiver!;
-                if (receiver.track != null) {
-                  final track = receiver.track!;
-                  if (track.kind == 'video') {
-                    videoTracks.add(track);
-                  } else if (track.kind == 'audio') {
-                    audioTracks.add(track);
-                  }
+              final receiver = transceiver.receiver!;
+              if (receiver.track != null) {
+                final track = receiver.track!;
+                if (track.kind == 'video') {
+                  videoTracks.add(track);
+                } else if (track.kind == 'audio') {
+                  audioTracks.add(track);
                 }
               }
-            }
+                        }
             
             // If we have tracks but no stream, try to get the stream
             // The issue is that onTrack might have fired with empty event.streams
@@ -547,38 +545,37 @@ class CallService {
               }
             };
           }
-        } else if (event.track != null) {
-          // Track exists but no stream in event.streams
-          // This can happen - onTrack might fire multiple times
-          // Wait a bit and check if stream becomes available
-          // Also check receivers periodically to see if we can get the stream
-          Future.delayed(const Duration(milliseconds: 100), () {
-            if (_remoteStream == null && _peerConnection != null) {
-              // Check if onTrack fired again with a stream
-              // If not, check receivers to see if tracks exist
-              _peerConnection!.getTransceivers().then((transceivers) {
-                bool hasVideoTrack = false;
-                bool hasAudioTrack = false;
-                for (final transceiver in transceivers) {
-                  if (transceiver.receiver?.track != null) {
-                    if (transceiver.receiver!.track!.kind == 'video') {
-                      hasVideoTrack = true;
-                    } else if (transceiver.receiver!.track!.kind == 'audio') {
-                      hasAudioTrack = true;
-                    }
+        } else        // Track exists but no stream in event.streams
+        // This can happen - onTrack might fire multiple times
+        // Wait a bit and check if stream becomes available
+        // Also check receivers periodically to see if we can get the stream
+        Future.delayed(const Duration(milliseconds: 100), () {
+          if (_remoteStream == null && _peerConnection != null) {
+            // Check if onTrack fired again with a stream
+            // If not, check receivers to see if tracks exist
+            _peerConnection!.getTransceivers().then((transceivers) {
+              bool hasVideoTrack = false;
+              bool hasAudioTrack = false;
+              for (final transceiver in transceivers) {
+                if (transceiver.receiver?.track != null) {
+                  if (transceiver.receiver!.track!.kind == 'video') {
+                    hasVideoTrack = true;
+                  } else if (transceiver.receiver!.track!.kind == 'audio') {
+                    hasAudioTrack = true;
                   }
                 }
-                // If we have tracks but no stream, update state to connected
-                // The connection check timer will continue to look for streams
-                if ((hasVideoTrack || hasAudioTrack) && _remoteStream == null && 
-                    _callState != CallState.connected && _callState != CallState.ended) {
-                  _updateCallState(CallState.connected);
-                  _cancelCallTimeout();
-                }
-              });
-            }
-          });
-        }
+              }
+              // If we have tracks but no stream, update state to connected
+              // The connection check timer will continue to look for streams
+              if ((hasVideoTrack || hasAudioTrack) && _remoteStream == null && 
+                  _callState != CallState.connected && _callState != CallState.ended) {
+                _updateCallState(CallState.connected);
+                _cancelCallTimeout();
+              }
+            });
+          }
+        });
+      
       };
 
       // Handle ICE connection state changes
@@ -749,7 +746,7 @@ class CallService {
     if (_localStream != null && _currentCallType == CallType.video) {
       final videoTrack = _localStream!.getVideoTracks().firstOrNull;
       if (videoTrack != null) {
-        videoTrack.enabled = !videoTrack.enabled!;
+        videoTrack.enabled = !videoTrack.enabled;
       }
     }
   }
@@ -759,7 +756,7 @@ class CallService {
     if (_localStream != null) {
       final audioTrack = _localStream!.getAudioTracks().firstOrNull;
       if (audioTrack != null) {
-        audioTrack.enabled = !audioTrack.enabled!;
+        audioTrack.enabled = !audioTrack.enabled;
       }
     }
   }
@@ -768,7 +765,7 @@ class CallService {
   Future<void> switchCamera() async {
     if (_localStream != null && _currentCallType == CallType.video) {
       final videoTrack = _localStream!.getVideoTracks().firstOrNull;
-      if (videoTrack != null && videoTrack is MediaStreamTrack) {
+      if (videoTrack != null) {
         await Helper.switchCamera(videoTrack);
       }
     }

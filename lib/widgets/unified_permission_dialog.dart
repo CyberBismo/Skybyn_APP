@@ -78,7 +78,7 @@ class _UnifiedPermissionDialogState extends State<UnifiedPermissionDialog> {
       context: context,
       builder: (context) => AlertDialog(
         title: Text('${widget.title} Required'),
-        content: Text(
+        content: const Text(
           'This permission has been permanently denied. Please enable it in your device settings to use this feature.',
         ),
         actions: [

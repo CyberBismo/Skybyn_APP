@@ -486,13 +486,13 @@ class NotificationService {
         autoCancel = false; // Don't auto-cancel call notifications
         // Add answer and decline action buttons
         actions = [
-          AndroidNotificationAction(
+          const AndroidNotificationAction(
             'answer',
             'Answer',
             titleColor: Color.fromRGBO(76, 175, 80, 1.0), // Green
             showsUserInterface: true,
           ),
-          AndroidNotificationAction(
+          const AndroidNotificationAction(
             'decline',
             'Decline',
             titleColor: Color.fromRGBO(244, 67, 54, 1.0), // Red
@@ -515,10 +515,10 @@ class NotificationService {
         enableVibration: true,
         playSound: true,
         icon: '@drawable/notification_icon', // Uses logo.png for notification icon
-        largeIcon: DrawableResourceAndroidBitmap('@drawable/notification_icon'), // Uses logo.png for large icon
-        color: isCall ? Color.fromRGBO(76, 175, 80, 1.0) : Color.fromRGBO(33, 150, 243, 1.0), // Green for calls, blue for others
+        largeIcon: const DrawableResourceAndroidBitmap('@drawable/notification_icon'), // Uses logo.png for large icon
+        color: isCall ? const Color.fromRGBO(76, 175, 80, 1.0) : const Color.fromRGBO(33, 150, 243, 1.0), // Green for calls, blue for others
         enableLights: true,
-        ledColor: isCall ? Color.fromRGBO(76, 175, 80, 1.0) : Color.fromRGBO(33, 150, 243, 1.0),
+        ledColor: isCall ? const Color.fromRGBO(76, 175, 80, 1.0) : const Color.fromRGBO(33, 150, 243, 1.0),
         ledOnMs: 1000,
         ledOffMs: 500,
         ongoing: ongoing,
@@ -564,7 +564,7 @@ class NotificationService {
       }
       
       return notificationId;
-    } catch (e, stackTrace) {
+    } catch (e) {
       rethrow;
     }
   }
@@ -751,7 +751,7 @@ class NotificationService {
         );
       } else if (Platform.isIOS) {
         // iOS doesn't support progress notifications well, show simple status notification
-        final DarwinNotificationDetails iOSDetails = DarwinNotificationDetails(
+        const DarwinNotificationDetails iOSDetails = DarwinNotificationDetails(
           presentAlert: false,
           presentBadge: false,
           presentSound: false,

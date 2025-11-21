@@ -1,16 +1,12 @@
 import 'package:flutter/material.dart';
-import 'dart:ui';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'dart:async';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../services/auth_service.dart';
 import '../config/constants.dart';
-import '../utils/translation_keys.dart';
-import '../widgets/translated_text.dart';
 import '../widgets/search_form.dart';
 import '../screens/profile_screen.dart';
-import 'app_colors.dart';
 
 class GlobalSearchOverlay extends StatefulWidget {
   final bool isVisible;
@@ -152,7 +148,7 @@ class _GlobalSearchOverlayState extends State<GlobalSearchOverlay> {
           });
         }
       }
-    } catch (e, stackTrace) {
+    } catch (e) {
       if (mounted) {
         setState(() {
           _searchResults = [];

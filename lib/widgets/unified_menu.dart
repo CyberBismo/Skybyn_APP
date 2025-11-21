@@ -10,7 +10,6 @@ import 'app_colors.dart';
 import '../utils/translation_keys.dart';
 import '../services/translation_service.dart';
 import '../services/auth_service.dart';
-import 'translated_text.dart';
 
 /// Menu item definition
 class MenuItem {

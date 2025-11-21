@@ -7,7 +7,6 @@ import '../utils/translation_keys.dart';
 import '../services/translation_service.dart';
 import '../services/auth_service.dart';
 import '../screens/profile_screen.dart';
-import '../widgets/translated_text.dart';
 import '../config/constants.dart';
 
 /// Centralized styling for the SearchForm widget

@@ -1,7 +1,6 @@
 import 'dart:io';
 import 'dart:convert';
 import 'package:flutter/services.dart';
-import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../config/constants.dart';
 import 'package:http/http.dart' as http;
@@ -198,7 +197,7 @@ class AutoUpdateService {
         int? contentLength = streamedResponse.contentLength;
         
         // Try to get from Content-Length header if contentLength is null or -1
-        if (contentLength == null || contentLength == -1) {
+        if (contentLength == -1) {
           final contentLengthHeader = streamedResponse.headers['content-length'];
           if (contentLengthHeader != null && contentLengthHeader.isNotEmpty) {
             contentLength = int.tryParse(contentLengthHeader.trim());
@@ -360,7 +359,7 @@ class AutoUpdateService {
           // Ignore errors
         }
       }
-    } catch (e, stackTrace) {
+    } catch (e) {
       // Download failed
       await notificationService.showUpdateProgressNotification(
         title: 'Update Failed',
@@ -472,7 +471,7 @@ class AutoUpdateService {
         );
         return false;
       }
-    } catch (e, stackTrace) {
+    } catch (e) {
       // Installation failed
       await notificationService.showUpdateProgressNotification(
         title: 'Update Failed',
@@ -618,7 +617,7 @@ class AutoUpdateService {
         );
         return false;
       }
-    } catch (e, stackTrace) {
+    } catch (e) {
       await notificationService.showUpdateProgressNotification(
         title: 'Update Failed',
         status: 'Installation error: ${e.toString()}',

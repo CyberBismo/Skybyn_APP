@@ -147,7 +147,7 @@ class _UpdateDialogState extends State<UpdateDialog> {
         showDialog(
           context: context,
           builder: (context) => AlertDialog(
-            title: TranslatedText(TranslationKeys.updateFailed),
+            title: const TranslatedText(TranslationKeys.updateFailed),
             content: ListenableBuilder(
               listenable: TranslationService(),
               builder: (context, _) =>
@@ -156,7 +156,7 @@ class _UpdateDialogState extends State<UpdateDialog> {
             actions: [
               TextButton(
                 onPressed: () => Navigator.of(context).pop(),
-                child: TranslatedText(TranslationKeys.ok),
+                child: const TranslatedText(TranslationKeys.ok),
               ),
             ],
           ),
@@ -208,9 +208,9 @@ class _UpdateDialogState extends State<UpdateDialog> {
                     size: 48,
                   ),
                   const SizedBox(height: 16),
-                  TranslatedText(
+                  const TranslatedText(
                     TranslationKeys.updateAvailable,
-                    style: const TextStyle(
+                    style: TextStyle(
                       color: Colors.white,
                       fontSize: 22,
                       fontWeight: FontWeight.w600,
@@ -218,9 +218,9 @@ class _UpdateDialogState extends State<UpdateDialog> {
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 6),
-                  TranslatedText(
+                  const TranslatedText(
                     TranslationKeys.newVersionAvailable,
-                    style: const TextStyle(
+                    style: TextStyle(
                       color: Colors.white,
                       fontSize: 14,
                     ),
@@ -252,9 +252,9 @@ class _UpdateDialogState extends State<UpdateDialog> {
                         Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
+                            const Text(
                               'Current',
-                              style: const TextStyle(
+                              style: TextStyle(
                                 color: Colors.white,
                                 fontSize: 12,
                                 fontWeight: FontWeight.w500,
@@ -279,9 +279,9 @@ class _UpdateDialogState extends State<UpdateDialog> {
                         Column(
                           crossAxisAlignment: CrossAxisAlignment.end,
                           children: [
-                            Text(
+                            const Text(
                               'Latest',
-                              style: const TextStyle(
+                              style: TextStyle(
                                 color: Colors.white,
                                 fontSize: 12,
                                 fontWeight: FontWeight.w500,
@@ -352,12 +352,12 @@ class _UpdateDialogState extends State<UpdateDialog> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        SizedBox(
+                        const SizedBox(
                           width: 16,
                           height: 16,
                           child: CircularProgressIndicator(
                             strokeWidth: 2,
-                            valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
+                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                           ),
                         ),
                         const SizedBox(width: 12),
@@ -464,17 +464,17 @@ class _UpdateDialogState extends State<UpdateDialog> {
                                 borderRadius: BorderRadius.circular(12),
                               ),
                             ),
-                            child: Row(
+                            child: const Row(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                const Icon(
+                                Icon(
                                   Icons.download_rounded,
                                   size: 20,
                                 ),
-                                const SizedBox(width: 8),
+                                SizedBox(width: 8),
                                 TranslatedText(
                                   TranslationKeys.install,
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                     fontSize: 15,
                                     fontWeight: FontWeight.w600,
                                   ),

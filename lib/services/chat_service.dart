@@ -26,9 +26,7 @@ class ChatService {
   // Use the same HTTP client pattern as AuthService to ensure consistent SSL handling
   static http.Client? _httpClient;
   static http.Client get _client {
-    if (_httpClient == null) {
-      _httpClient = _createHttpClient();
-    }
+    _httpClient ??= _createHttpClient();
     return _httpClient!;
   }
   
@@ -327,7 +325,7 @@ class ChatService {
       // Note: If API fails, message was still sent via WebSocket (if wsSent was true)
       // The API call is primarily for database persistence
       return await _processSendMessageResponse(response, userId, toUserId, content);
-    } catch (e, stackTrace) {
+    } catch (e) {
       // If API fails but WebSocket succeeded, message was still delivered in real-time
       // Re-throw the error so caller can handle it, but message delivery succeeded
       if (wsSent && kDebugMode) {
@@ -374,7 +372,7 @@ class ChatService {
       }
 
       return reversedMessages;
-    } catch (e, stackTrace) {
+    } catch (e) {
       // If API fails, try to return cached data as fallback (only for initial load)
       if (offset == null || offset == 0) {
         final userId = await _authService.getStoredUserId();
@@ -536,7 +534,7 @@ class ChatService {
       } else {
         throw Exception('Failed to load messages: ${response.statusCode}');
       }
-    } catch (e, stackTrace) {
+    } catch (e) {
       rethrow;
     }
   }

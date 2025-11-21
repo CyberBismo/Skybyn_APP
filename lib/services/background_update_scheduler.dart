@@ -250,7 +250,6 @@ class BackgroundUpdateScheduler {
         // Clear any cached update if no update is available
         await _clearCachedUpdate();
       }
-    } catch (e) {
     } finally {
       // Always cancel the notification when check completes
       await _localNotifications.cancel(_updateCheckNotificationId);

@@ -8,7 +8,6 @@ class DeviceService {
   factory DeviceService() => _instance;
   DeviceService._internal();
 
-  final DeviceInfoPlugin _deviceInfo = DeviceInfoPlugin();
   static const String _deviceIdKey = 'device_id';
 
   Future<Map<String, dynamic>> getDeviceInfo() async {
@@ -73,15 +72,13 @@ class DeviceService {
     try {
       final prefs = await SharedPreferences.getInstance();
       String? deviceId = prefs.getString(_deviceIdKey);
-      
       if (deviceId == null) {
         deviceId = const Uuid().v4();
         await prefs.setString(_deviceIdKey, deviceId);
       }
-      
       return deviceId;
     } catch (e) {
       return const Uuid().v4(); // Fallback to new UUID if there's an error
     }
   }
-} 
+}

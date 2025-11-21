@@ -21,7 +21,7 @@ class _AdminScreenState extends State<AdminScreen> {
   Widget build(BuildContext context) {
     final mediaQuery = MediaQuery.of(context);
     final statusBarHeight = mediaQuery.padding.top;
-    final appBarHeight = 60.0;
+    const appBarHeight = 60.0;
 
     return Scaffold(
       body: Stack(
@@ -56,9 +56,9 @@ class _AdminScreenState extends State<AdminScreen> {
                       const SizedBox(height: 20),
                       
                       // Title
-                      TranslatedText(
+                      const TranslatedText(
                         TranslationKeys.adminPanel,
-                        style: const TextStyle(
+                        style: TextStyle(
                           color: Colors.white,
                           fontSize: 28,
                           fontWeight: FontWeight.bold,

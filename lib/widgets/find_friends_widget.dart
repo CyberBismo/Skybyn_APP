@@ -118,7 +118,7 @@ class _FindFriendsWidgetState extends State<FindFriendsWidget> {
       }
 
       // Only show snackbar if users were found (input field will show if none found)
-      if (nearbyUsers != null && nearbyUsers.isNotEmpty) {
+      if (nearbyUsers.isNotEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Found ${nearbyUsers.length} user${nearbyUsers.length == 1 ? '' : 's'} nearby'),
@@ -301,17 +301,17 @@ class _FindFriendsWidgetState extends State<FindFriendsWidget> {
               children: [
                 Row(
                   children: [
-                    Icon(
+                    const Icon(
                       Icons.location_on,
                       color: Colors.white,
                       size: 28,
                     ),
                     const SizedBox(width: 12),
-                    Expanded(
+                    const Expanded(
                       child: TranslatedText(
                         TranslationKeys.findFriendsInArea,
                         fallback: 'Find friends in the area',
-                        style: const TextStyle(
+                        style: TextStyle(
                           color: Colors.white,
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
@@ -363,15 +363,15 @@ class _FindFriendsWidgetState extends State<FindFriendsWidget> {
                                 valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                               ),
                             )
-                          : Row(
+                          : const Row(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                const Icon(Icons.search, size: 20),
-                                const SizedBox(width: 8),
+                                Icon(Icons.search, size: 20),
+                                SizedBox(width: 8),
                                 TranslatedText(
                                   TranslationKeys.findFriendsButton,
                                   fallback: 'Find Friends',
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                     fontSize: 16,
                                     fontWeight: FontWeight.bold,
                                     decoration: TextDecoration.none,
@@ -381,7 +381,7 @@ class _FindFriendsWidgetState extends State<FindFriendsWidget> {
                             ),
                     ),
                   ),
-                ] else if (_hasSearched && (_nearbyUsers.isEmpty || _nearbyUsers.length == 0)) ...[
+                ] else if (_hasSearched && (_nearbyUsers.isEmpty || _nearbyUsers.isEmpty)) ...[
                   // Replace button with input when no results found
                   // Debug output to verify this condition is being met
                   Builder(
@@ -402,10 +402,10 @@ class _FindFriendsWidgetState extends State<FindFriendsWidget> {
                     ),
                   ),
                   const SizedBox(height: 20),
-                  TranslatedText(
+                  const TranslatedText(
                     TranslationKeys.addFriendByUsername,
                     fallback: 'Add Friend by Username',
-                    style: const TextStyle(
+                    style: TextStyle(
                       color: Colors.white,
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
@@ -489,10 +489,10 @@ class _FindFriendsWidgetState extends State<FindFriendsWidget> {
                   const SizedBox(height: 20),
                   const Divider(color: Colors.white30),
                   const SizedBox(height: 16),
-                  TranslatedText(
+                  const TranslatedText(
                     TranslationKeys.nearbyUsers,
                     fallback: 'Nearby Users',
-                    style: const TextStyle(
+                    style: TextStyle(
                       color: Colors.white,
                       fontSize: 16,
                       fontWeight: FontWeight.bold,

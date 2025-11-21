@@ -63,7 +63,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
     final content = _contentController.text.trim();
     if (content.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
+        const SnackBar(
           content: TranslatedText(TranslationKeys.fieldRequired),
           backgroundColor: Colors.red,
         ),
@@ -266,9 +266,9 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                             children: [
                               TextButton(
                                 onPressed: _isPosting ? null : () => Navigator.of(context).pop(),
-                                child: TranslatedText(
+                                child: const TranslatedText(
                                   TranslationKeys.cancel,
-                                  style: const TextStyle(color: Colors.white70, fontSize: 16),
+                                  style: TextStyle(color: Colors.white70, fontSize: 16),
                                 ),
                               ),
                               Container(

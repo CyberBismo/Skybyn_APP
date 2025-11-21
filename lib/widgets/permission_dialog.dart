@@ -71,15 +71,15 @@ class _PermissionDialogState extends State<PermissionDialog> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: TranslatedText(TranslationKeys.installPermissionRequired),
-        content: TranslatedText(TranslationKeys.installPermissionDeniedMessage),
+        title: const TranslatedText(TranslationKeys.installPermissionRequired),
+        content: const TranslatedText(TranslationKeys.installPermissionDeniedMessage),
         actions: [
           TextButton(
             onPressed: () {
               Navigator.of(context).pop();
               widget.onDenied?.call();
             },
-            child: TranslatedText(TranslationKeys.cancel),
+            child: const TranslatedText(TranslationKeys.cancel),
           ),
           ElevatedButton(
             onPressed: () async {
@@ -87,7 +87,7 @@ class _PermissionDialogState extends State<PermissionDialog> {
               await openAppSettings();
               widget.onDenied?.call();
             },
-            child: TranslatedText(TranslationKeys.openSettings),
+            child: const TranslatedText(TranslationKeys.openSettings),
           ),
         ],
       ),

@@ -15,9 +15,9 @@ class ShareScreen extends StatelessWidget {
         backgroundColor: Colors.transparent,
         elevation: 0,
         iconTheme: const IconThemeData(color: Colors.white),
-        title: TranslatedText(
+        title: const TranslatedText(
           TranslationKeys.shareApp,
-          style: const TextStyle(
+          style: TextStyle(
             color: Colors.white,
             fontWeight: FontWeight.bold,
           ),
@@ -45,9 +45,9 @@ class ShareScreen extends StatelessWidget {
                       Share.share('https://app.skybyn.no');
                     },
                     icon: const Icon(Icons.share),
-                    label: TranslatedText(
+                    label: const TranslatedText(
                       TranslationKeys.shareApp,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
                       ),

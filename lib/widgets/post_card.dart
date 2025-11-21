@@ -473,7 +473,7 @@ class _PostCardState extends State<PostCard> {
       // Show error to user
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
+          const SnackBar(
             content: TranslatedText(TranslationKeys.commentPostedButCouldNotLoadDetails),
             backgroundColor: Colors.orange,
           ),
@@ -526,20 +526,20 @@ class _PostCardState extends State<PostCard> {
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: Colors.grey[900],
-        title: TranslatedText(
+        title: const TranslatedText(
           TranslationKeys.deletePost,
-          style: const TextStyle(color: Colors.white),
+          style: TextStyle(color: Colors.white),
         ),
-        content: TranslatedText(
+        content: const TranslatedText(
           TranslationKeys.confirmDeletePostMessage,
-          style: const TextStyle(color: Colors.white70),
+          style: TextStyle(color: Colors.white70),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: TranslatedText(
+            child: const TranslatedText(
               TranslationKeys.cancel,
-              style: const TextStyle(color: Colors.white),
+              style: TextStyle(color: Colors.white),
             ),
           ),
           TextButton(
@@ -547,9 +547,9 @@ class _PostCardState extends State<PostCard> {
               Navigator.of(context).pop();
               await _deletePost();
             },
-            child: TranslatedText(
+            child: const TranslatedText(
               TranslationKeys.delete,
-              style: const TextStyle(color: Colors.red),
+              style: TextStyle(color: Colors.red),
             ),
           ),
         ],
@@ -602,7 +602,7 @@ class _PostCardState extends State<PostCard> {
         final postUrl = '${ApiConstants.webBase}/post/${_currentPost.id}';
         await Clipboard.setData(ClipboardData(text: postUrl));
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: TranslatedText(TranslationKeys.postLinkCopiedToClipboard)),
+          const SnackBar(content: TranslatedText(TranslationKeys.postLinkCopiedToClipboard)),
         );
         break;
       case 'view_comments':
@@ -623,7 +623,7 @@ class _PostCardState extends State<PostCard> {
     await Clipboard.setData(ClipboardData(text: postUrl));
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: TranslatedText(TranslationKeys.postLinkCopiedToClipboard)),
+        const SnackBar(content: TranslatedText(TranslationKeys.postLinkCopiedToClipboard)),
       );
     }
   }
@@ -634,20 +634,20 @@ class _PostCardState extends State<PostCard> {
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: Colors.grey[900],
-        title: TranslatedText(
+        title: const TranslatedText(
           TranslationKeys.reportPost,
-          style: const TextStyle(color: Colors.white),
+          style: TextStyle(color: Colors.white),
         ),
-        content: TranslatedText(
+        content: const TranslatedText(
           TranslationKeys.confirmReportPostMessage,
-          style: const TextStyle(color: Colors.white70),
+          style: TextStyle(color: Colors.white70),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: TranslatedText(
+            child: const TranslatedText(
               TranslationKeys.cancel,
-              style: const TextStyle(color: Colors.white),
+              style: TextStyle(color: Colors.white),
             ),
           ),
           TextButton(
@@ -655,12 +655,12 @@ class _PostCardState extends State<PostCard> {
               Navigator.of(context).pop();
               // TODO: Implement actual report functionality
               ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: TranslatedText(TranslationKeys.postReportedSuccessfully)),
+                const SnackBar(content: TranslatedText(TranslationKeys.postReportedSuccessfully)),
               );
             },
-            child: TranslatedText(
+            child: const TranslatedText(
               TranslationKeys.report,
-              style: const TextStyle(color: Colors.orange),
+              style: TextStyle(color: Colors.orange),
             ),
           ),
         ],
@@ -1152,9 +1152,9 @@ class _PostCardState extends State<PostCard> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    TranslatedText(
+                    const TranslatedText(
                       TranslationKeys.allComments,
-                      style: const TextStyle(
+                      style: TextStyle(
                           color: Colors.white,
                           fontSize: 18,
                           fontWeight: FontWeight.bold),

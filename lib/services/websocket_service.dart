@@ -327,9 +327,7 @@ class WebSocketService {
       _updateConnectionMetrics('connecting');
       
       // Generate session ID if not exists
-      if (_sessionId == null) {
-        _sessionId = _generateSessionId();
-      }
+      _sessionId ??= _generateSessionId();
 
       final wsUrl = _getWebSocketUrl();
       // Create WebSocket connection with SSL certificate handling
@@ -405,7 +403,7 @@ class WebSocketService {
       };
       final messageJson = jsonEncode(connectMessage);
       _channel!.sink.add(messageJson);
-    } catch (e, stackTrace) {
+    } catch (e) {
     }
   }
 
@@ -524,7 +522,7 @@ class WebSocketService {
                 }
                 
                 // Also trigger chat message callbacks if registered
-                if (messageId != null && fromUserId != null) {
+                if (messageId != null) {
                   debugPrint('🔵 [WebSocket] Notification chat message: id=$messageId, from=$fromUserId, to=${_userId ?? "null"}, callbacks=${_onChatMessageCallbacks.length}');
                   
                   // Call all registered chat message callbacks
@@ -829,7 +827,7 @@ class WebSocketService {
       _updateConnectionMetrics('message_sent');
       
       return true;
-    } catch (e, stackTrace) {
+    } catch (e) {
       // Log error in both debug and release (using debugPrint which works in release)
       _updateConnectionMetrics('error');
       

@@ -952,7 +952,6 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
           _hasMoreMessages = false;
         });
       }
-    } catch (e) {
     } finally {
       if (mounted) {
         setState(() {
@@ -1019,14 +1018,14 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: TranslatedText(TranslationKeys.cancel),
+            child: const TranslatedText(TranslationKeys.cancel),
           ),
           ElevatedButton(
             onPressed: () async {
               Navigator.of(context).pop();
               await openAppSettings();
             },
-            child: TranslatedText(TranslationKeys.openSettings),
+            child: const TranslatedText(TranslationKeys.openSettings),
           ),
         ],
       ),
@@ -1321,10 +1320,10 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
                                   ),
                                 )
                               : _messages.isEmpty
-                                  ? Center(
+                                  ? const Center(
                                       child: TranslatedText(
                                         TranslationKeys.noMessages,
-                                        style: const TextStyle(
+                                        style: TextStyle(
                                           color: Colors.white70,
                                           fontSize: 16,
                                         ),
@@ -1418,7 +1417,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
                 // Input at the bottom - positioned same as CustomBottomNavigationBar
                 // Add keyboard padding to keep input above keyboard
                 Padding(
-                  padding: EdgeInsets.only(
+                  padding: const EdgeInsets.only(
                     left: 16,
                     right: 16,
                     bottom: 16,
@@ -2194,21 +2193,21 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: TranslatedText(TranslationKeys.clearChatHistoryTitle),
-          content: TranslatedText(TranslationKeys.clearChatHistoryMessage),
+          title: const TranslatedText(TranslationKeys.clearChatHistoryTitle),
+          content: const TranslatedText(TranslationKeys.clearChatHistoryMessage),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
-              child: TranslatedText(TranslationKeys.cancel),
+              child: const TranslatedText(TranslationKeys.cancel),
             ),
             TextButton(
               onPressed: () {
                 Navigator.of(context).pop();
                 _clearChatHistory();
               },
-              child: TranslatedText(
+              child: const TranslatedText(
                 TranslationKeys.clearChatHistoryButton,
-                style: const TextStyle(color: Colors.red),
+                style: TextStyle(color: Colors.red),
               ),
             ),
           ],
@@ -2228,18 +2227,18 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
       
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
+          const SnackBar(
             content: TranslatedText(TranslationKeys.chatHistoryCleared),
-            duration: const Duration(seconds: 2),
+            duration: Duration(seconds: 2),
           ),
         );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
+          const SnackBar(
             content: TranslatedText(TranslationKeys.errorClearingChat),
-            duration: const Duration(seconds: 3),
+            duration: Duration(seconds: 3),
           ),
         );
       }
@@ -2252,23 +2251,23 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: TranslatedText(TranslationKeys.blockUser),
+          title: const TranslatedText(TranslationKeys.blockUser),
           content: Text(
             TranslationKeys.blockUserConfirmation.tr.replaceAll('{name}', widget.friend.username),
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
-              child: TranslatedText(TranslationKeys.cancel),
+              child: const TranslatedText(TranslationKeys.cancel),
             ),
             TextButton(
               onPressed: () {
                 Navigator.of(context).pop();
                 _blockUser();
               },
-              child: TranslatedText(
+              child: const TranslatedText(
                 TranslationKeys.blockUserButton,
-                style: const TextStyle(color: Colors.red),
+                style: TextStyle(color: Colors.red),
               ),
             ),
           ],
@@ -2284,9 +2283,9 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
       // This should call an API endpoint to block the user
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
+          const SnackBar(
             content: TranslatedText(TranslationKeys.userBlocked),
-            duration: const Duration(seconds: 2),
+            duration: Duration(seconds: 2),
           ),
         );
         // Navigate back after blocking
@@ -2295,9 +2294,9 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
+          const SnackBar(
             content: TranslatedText(TranslationKeys.errorBlockingUser),
-            duration: const Duration(seconds: 3),
+            duration: Duration(seconds: 3),
           ),
         );
       }
@@ -2310,23 +2309,23 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: TranslatedText(TranslationKeys.unfriendTitle),
+          title: const TranslatedText(TranslationKeys.unfriendTitle),
           content: Text(
             TranslationKeys.unfriendConfirmation.tr.replaceAll('{name}', widget.friend.username),
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
-              child: TranslatedText(TranslationKeys.cancel),
+              child: const TranslatedText(TranslationKeys.cancel),
             ),
             TextButton(
               onPressed: () {
                 Navigator.of(context).pop();
                 _unfriendUser();
               },
-              child: TranslatedText(
+              child: const TranslatedText(
                 TranslationKeys.unfriendButton,
-                style: const TextStyle(color: Colors.orange),
+                style: TextStyle(color: Colors.orange),
               ),
             ),
           ],
@@ -2342,9 +2341,9 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
       // This should call an API endpoint to remove the friendship
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
+          const SnackBar(
             content: TranslatedText(TranslationKeys.userUnfriended),
-            duration: const Duration(seconds: 2),
+            duration: Duration(seconds: 2),
           ),
         );
         // Navigate back after unfriending
@@ -2353,9 +2352,9 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
+          const SnackBar(
             content: TranslatedText(TranslationKeys.errorUnfriendingUser),
-            duration: const Duration(seconds: 3),
+            duration: Duration(seconds: 3),
           ),
         );
       }

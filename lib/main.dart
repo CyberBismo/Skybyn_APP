@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:firebase_core/firebase_core.dart';
 // import 'dart:io' show Platform;
@@ -14,7 +13,6 @@ import 'services/focus_service.dart';
 import 'services/auth_service.dart';
 import 'services/notification_service.dart';
 import 'services/firebase_realtime_service.dart';
-import 'services/firebase_call_signaling_service.dart';
 import 'services/firebase_messaging_service.dart';
 import 'services/websocket_service.dart';
 import 'services/translation_service.dart';
@@ -23,7 +21,6 @@ import 'services/background_activity_service.dart';
 import 'services/call_service.dart';
 import 'services/friend_service.dart';
 import 'services/chat_message_count_service.dart';
-import 'widgets/background_gradient.dart';
 import 'widgets/incoming_call_notification.dart';
 import 'screens/call_screen.dart';
 import 'models/friend.dart';
@@ -106,7 +103,7 @@ Future<void> _initializeFirebase() async {
       // If user is logged in, it will be updated with user ID in auth_service.dart after login
     } catch (e) {
     }
-  } catch (e, stackTrace) {
+  } catch (e) {
     // Print detailed error
     // Continue without Firebase - app will still work
   }

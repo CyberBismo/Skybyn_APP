@@ -688,7 +688,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 Stack(
                   clipBehavior: Clip.none,
                   children: [
-                    Container(
+                    SizedBox(
                       width: double.infinity,
                       height: 200,
                       child: _newBackgroundFile != null
@@ -1174,7 +1174,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             borderRadius: BorderRadius.circular(8),
                           ),
                         ),
-                        child: TranslatedText(TranslationKeys.saveChanges),
+                        child: const TranslatedText(TranslationKeys.saveChanges),
                       ),
                     ),
                   ],
@@ -1256,7 +1256,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             borderRadius: BorderRadius.circular(8),
                           ),
                         ),
-                        child: TranslatedText(TranslationKeys.changePassword),
+                        child: const TranslatedText(TranslationKeys.changePassword),
                       ),
                     ),
                   ],
@@ -1367,7 +1367,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               borderRadius: BorderRadius.circular(8),
                             ),
                           ),
-                          child: TranslatedText(TranslationKeys.savePinCode),
+                          child: const TranslatedText(TranslationKeys.savePinCode),
                         ),
                       ),
                     ],
@@ -1466,7 +1466,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             borderRadius: BorderRadius.circular(8),
                           ),
                         ),
-                        child: TranslatedText(TranslationKeys.saveSecurityQuestions),
+                        child: const TranslatedText(TranslationKeys.saveSecurityQuestions),
                       ),
                     ),
                   ],
@@ -1994,7 +1994,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           ),
                         ],
                       )
-                    : TranslatedText(TranslationKeys.checkForUpdates),
+                    : const TranslatedText(TranslationKeys.checkForUpdates),
               ),
             ),
           ],
@@ -2110,7 +2110,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           });
         }
       }
-    } catch (e, stackTrace) {
+    } catch (e) {
       // Update button status with error
       if (mounted) {
         setState(() {
@@ -2433,7 +2433,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (_secQOneController.text.trim().isEmpty || _secAOneController.text.trim().isEmpty) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
+          const SnackBar(
             content: Text('Security question 1 and answer are required'),
             backgroundColor: Colors.red,
           ),
@@ -2445,7 +2445,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (_secQTwoController.text.trim().isEmpty || _secATwoController.text.trim().isEmpty) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
+          const SnackBar(
             content: Text('Security question 2 and answer are required'),
             backgroundColor: Colors.red,
           ),
@@ -2575,7 +2575,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           child: ElevatedButton.icon(
             onPressed: () => _clearAllCache(context),
             icon: const Icon(Icons.delete_sweep, size: 20),
-            label: TranslatedText(TranslationKeys.clearAllCache),
+            label: const TranslatedText(TranslationKeys.clearAllCache),
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.red,
               foregroundColor: Colors.white,
@@ -2595,16 +2595,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: TranslatedText(TranslationKeys.clearCache),
-        content: TranslatedText(TranslationKeys.confirmClearCache),
+        title: const TranslatedText(TranslationKeys.clearCache),
+        content: const TranslatedText(TranslationKeys.confirmClearCache),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: TranslatedText(TranslationKeys.cancel),
+            child: const TranslatedText(TranslationKeys.cancel),
           ),
           TextButton(
             onPressed: () => Navigator.of(context).pop(true),
-            child: TranslatedText(TranslationKeys.ok, style: const TextStyle(color: Colors.red)),
+            child: const TranslatedText(TranslationKeys.ok, style: TextStyle(color: Colors.red)),
           ),
         ],
       ),
@@ -2615,7 +2615,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         await TranslationService().clearCache();
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
+            const SnackBar(
               content: TranslatedText(TranslationKeys.cacheClearedSuccessfully),
               backgroundColor: Colors.green,
             ),
@@ -2639,16 +2639,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: TranslatedText(TranslationKeys.clearCache),
-        content: TranslatedText(TranslationKeys.confirmClearCache),
+        title: const TranslatedText(TranslationKeys.clearCache),
+        content: const TranslatedText(TranslationKeys.confirmClearCache),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: TranslatedText(TranslationKeys.cancel),
+            child: const TranslatedText(TranslationKeys.cancel),
           ),
           TextButton(
             onPressed: () => Navigator.of(context).pop(true),
-            child: TranslatedText(TranslationKeys.ok, style: const TextStyle(color: Colors.red)),
+            child: const TranslatedText(TranslationKeys.ok, style: TextStyle(color: Colors.red)),
           ),
         ],
       ),
@@ -2660,7 +2660,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         await postService.clearTimelineCache();
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
+            const SnackBar(
               content: TranslatedText(TranslationKeys.cacheClearedSuccessfully),
               backgroundColor: Colors.green,
             ),
@@ -2684,16 +2684,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: TranslatedText(TranslationKeys.clearCache),
-        content: TranslatedText(TranslationKeys.confirmClearCache),
+        title: const TranslatedText(TranslationKeys.clearCache),
+        content: const TranslatedText(TranslationKeys.confirmClearCache),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: TranslatedText(TranslationKeys.cancel),
+            child: const TranslatedText(TranslationKeys.cancel),
           ),
           TextButton(
             onPressed: () => Navigator.of(context).pop(true),
-            child: TranslatedText(TranslationKeys.ok, style: const TextStyle(color: Colors.red)),
+            child: const TranslatedText(TranslationKeys.ok, style: TextStyle(color: Colors.red)),
           ),
         ],
       ),
@@ -2705,7 +2705,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         await friendService.clearCache();
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
+            const SnackBar(
               content: TranslatedText(TranslationKeys.cacheClearedSuccessfully),
               backgroundColor: Colors.green,
             ),
@@ -2729,16 +2729,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: TranslatedText(TranslationKeys.clearAllCache),
-        content: TranslatedText(TranslationKeys.confirmClearAllCache),
+        title: const TranslatedText(TranslationKeys.clearAllCache),
+        content: const TranslatedText(TranslationKeys.confirmClearAllCache),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: TranslatedText(TranslationKeys.cancel),
+            child: const TranslatedText(TranslationKeys.cancel),
           ),
           TextButton(
             onPressed: () => Navigator.of(context).pop(true),
-            child: TranslatedText(TranslationKeys.ok, style: const TextStyle(color: Colors.red)),
+            child: const TranslatedText(TranslationKeys.ok, style: TextStyle(color: Colors.red)),
           ),
         ],
       ),
@@ -2760,10 +2760,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
         
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
+            const SnackBar(
               content: TranslatedText(TranslationKeys.cacheClearedSuccessfully),
               backgroundColor: Colors.green,
-              duration: const Duration(seconds: 2),
+              duration: Duration(seconds: 2),
             ),
           );
         }

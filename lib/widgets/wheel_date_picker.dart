@@ -291,7 +291,7 @@ Future<DateTime?> showWheelDatePicker(
                     TextButton(
                       onPressed: () => Navigator.of(context).pop(),
                       style: TextButton.styleFrom(foregroundColor: Colors.white),
-                      child: TranslatedText(TranslationKeys.cancel),
+                      child: const TranslatedText(TranslationKeys.cancel),
                     ),
                     const Spacer(),
                     TranslatedText(
@@ -302,7 +302,7 @@ Future<DateTime?> showWheelDatePicker(
                     TextButton(
                       onPressed: () => Navigator.of(context).pop(temp),
                       style: TextButton.styleFrom(foregroundColor: Colors.white),
-                      child: TranslatedText(TranslationKeys.done),
+                      child: const TranslatedText(TranslationKeys.done),
                     ),
                   ],
                 ),

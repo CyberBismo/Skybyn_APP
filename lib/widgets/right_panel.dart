@@ -34,7 +34,7 @@ class _RightPanelState extends State<RightPanel> {
   int _findFriendsBoxResetCounter = 0;
 
   // Store subscriptions for cleanup
-  Map<String, StreamSubscription> _onlineStatusSubscriptions = {};
+  final Map<String, StreamSubscription> _onlineStatusSubscriptions = {};
   // Store WebSocket online status callback for cleanup
   void Function(String, bool)? _webSocketOnlineStatusCallback;
 
@@ -148,9 +148,9 @@ class _RightPanelState extends State<RightPanel> {
     final mediaQuery = MediaQuery.of(context);
     final screenWidth = mediaQuery.size.width;
     final screenHeight = mediaQuery.size.height;
-    final appBarHeight = 60.0;
+    const appBarHeight = 60.0;
     final statusBarHeight = mediaQuery.padding.top;
-    final bottomNavHeight = 80.0;
+    const bottomNavHeight = 80.0;
     final bottomPadding = Theme.of(context).platform == TargetPlatform.iOS 
         ? 8.0 
         : 8.0 + mediaQuery.padding.bottom;

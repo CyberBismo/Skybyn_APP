@@ -11,11 +11,11 @@ class CallScreen extends StatefulWidget {
   final bool isIncoming;
 
   const CallScreen({
-    Key? key,
+    super.key,
     required this.friend,
     required this.callType,
     this.isIncoming = false,
-  }) : super(key: key);
+  });
 
   @override
   State<CallScreen> createState() => _CallScreenState();
@@ -379,7 +379,7 @@ class _CallScreenState extends State<CallScreen> {
       final serviceLocalStream = _callService.localStream;
       if (serviceLocalStream != null && _localRenderer.srcObject != serviceLocalStream) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted && serviceLocalStream != null) {
+          if (mounted) {
             _localRenderer.srcObject = serviceLocalStream;
             setState(() {});
           }
@@ -403,7 +403,7 @@ class _CallScreenState extends State<CallScreen> {
           _remoteRenderer.srcObject = serviceRemoteStream;
           // Also set in post-frame callback as backup
           WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (mounted && serviceRemoteStream != null) {
+            if (mounted) {
               if (_remoteRenderer.srcObject != serviceRemoteStream) {
                 _remoteRenderer.srcObject = serviceRemoteStream;
               }
@@ -484,7 +484,7 @@ class _CallScreenState extends State<CallScreen> {
                       final streamToUse = _remoteRenderer.srcObject ?? _lastRemoteStream;
                       if (streamToUse != null && _remoteRenderer.srcObject != streamToUse) {
                         WidgetsBinding.instance.addPostFrameCallback((_) {
-                          if (mounted && streamToUse != null) {
+                          if (mounted) {
                             _remoteRenderer.srcObject = streamToUse;
                             setState(() {});
                           }
@@ -500,7 +500,7 @@ class _CallScreenState extends State<CallScreen> {
                         if (videoTracks.isEmpty && _remoteRenderer.srcObject == null) {
                           return Container(
                             color: Colors.black,
-                            child: Center(
+                            child: const Center(
                               child: Text(
                                 'Waiting for video...',
                                 style: TextStyle(color: Colors.white70),
@@ -512,7 +512,7 @@ class _CallScreenState extends State<CallScreen> {
                         // No stream at all - show loading
                         return Container(
                           color: Colors.black,
-                          child: Center(
+                          child: const Center(
                             child: CircularProgressIndicator(
                               valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                             ),
@@ -524,7 +524,7 @@ class _CallScreenState extends State<CallScreen> {
                       if (_remoteRenderer.srcObject == null && streamToUse != null) {
                         // Stream is available but not set - set it in post-frame callback
                         WidgetsBinding.instance.addPostFrameCallback((_) {
-                          if (mounted && streamToUse != null) {
+                          if (mounted) {
                             _remoteRenderer.srcObject = streamToUse;
                             setState(() {});
                           }
@@ -532,7 +532,7 @@ class _CallScreenState extends State<CallScreen> {
                         // Return placeholder while setting up
                         return Container(
                           color: Colors.black,
-                          child: Center(
+                          child: const Center(
                             child: CircularProgressIndicator(
                               valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                             ),
@@ -556,13 +556,13 @@ class _CallScreenState extends State<CallScreen> {
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          CircularProgressIndicator(
+                          const CircularProgressIndicator(
                             valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                           ),
-                          SizedBox(height: 16),
+                          const SizedBox(height: 16),
                           Text(
                             _getCallStateText(),
-                            style: TextStyle(
+                            style: const TextStyle(
                               color: Colors.white70,
                               fontSize: 14,
                             ),
@@ -635,7 +635,7 @@ class _CallScreenState extends State<CallScreen> {
                                         width: 120,
                                         height: 120,
                                         color: Colors.grey[800],
-                                        child: Icon(
+                                        child: const Icon(
                                           Icons.person,
                                           size: 60,
                                           color: Colors.white,
@@ -665,26 +665,26 @@ class _CallScreenState extends State<CallScreen> {
                                   width: 120,
                                   height: 120,
                                   color: Colors.grey[800],
-                                  child: Icon(
+                                  child: const Icon(
                                     Icons.person,
                                     size: 60,
                                     color: Colors.white,
                                   ),
                                 ),
                         ),
-                        SizedBox(height: 24),
+                        const SizedBox(height: 24),
                         // Name
                         Text(
                           widget.friend.nickname.isNotEmpty
                               ? widget.friend.nickname
                               : widget.friend.username,
-                          style: TextStyle(
+                          style: const TextStyle(
                             color: Colors.white,
                             fontSize: 28,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
-                        SizedBox(height: 8),
+                        const SizedBox(height: 8),
                         // Call state with color indicator
                         Row(
                           mainAxisAlignment: MainAxisAlignment.center,
@@ -697,10 +697,10 @@ class _CallScreenState extends State<CallScreen> {
                                 shape: BoxShape.circle,
                               ),
                             ),
-                            SizedBox(width: 8),
+                            const SizedBox(width: 8),
                             Text(
                               _getCallStateText(),
-                              style: TextStyle(
+                              style: const TextStyle(
                                 color: Colors.white70,
                                 fontSize: 16,
                               ),
@@ -708,8 +708,8 @@ class _CallScreenState extends State<CallScreen> {
                           ],
                         ),
                         if (isVideoCall) ...[
-                          SizedBox(height: 4),
-                          Row(
+                          const SizedBox(height: 4),
+                          const Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
                               Icon(Icons.videocam, color: Colors.white70, size: 16),
@@ -735,7 +735,7 @@ class _CallScreenState extends State<CallScreen> {
                 left: 0,
                 right: 0,
                 child: Container(
-                  padding: EdgeInsets.symmetric(vertical: 40, horizontal: 20),
+                  padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 20),
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
                       begin: Alignment.topCenter,
@@ -831,10 +831,10 @@ class _CallScreenState extends State<CallScreen> {
             onPressed: onPressed,
           ),
         ),
-        SizedBox(height: 8),
+        const SizedBox(height: 8),
         Text(
           label,
-          style: TextStyle(
+          style: const TextStyle(
             color: Colors.white,
             fontSize: 12,
           ),

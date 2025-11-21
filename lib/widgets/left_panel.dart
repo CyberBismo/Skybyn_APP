@@ -228,7 +228,7 @@ class _LeftPanelState extends State<LeftPanel> {
   }
 
   Future<void> _openDiscord() async {
-    final discordWebUrl = 'https://discord.gg/wBhPvEvn87';
+    const discordWebUrl = 'https://discord.gg/wBhPvEvn87';
     
     try {
       // Try to open Discord app first with invite deep link
@@ -295,10 +295,10 @@ class _LeftPanelState extends State<LeftPanel> {
                       ),
                     ),
                     const SizedBox(width: 12),
-                    Expanded(
+                    const Expanded(
                       child: TranslatedText(
                         TranslationKeys.discord,
-                        style: const TextStyle(
+                        style: TextStyle(
                           color: Colors.white,
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
@@ -387,7 +387,7 @@ class _LeftPanelState extends State<LeftPanel> {
         return;
     }
 
-    if (targetScreen != null && mounted) {
+    if (mounted) {
       Navigator.of(context).push(
         MaterialPageRoute(builder: (context) => targetScreen!),
       );
@@ -486,9 +486,9 @@ class _LeftPanelState extends State<LeftPanel> {
     final mediaQuery = MediaQuery.of(context);
     final screenWidth = mediaQuery.size.width;
     final screenHeight = mediaQuery.size.height;
-    final appBarHeight = 60.0;
+    const appBarHeight = 60.0;
     final statusBarHeight = mediaQuery.padding.top;
-    final bottomNavHeight = 80.0;
+    const bottomNavHeight = 80.0;
     final bottomPadding = Theme.of(context).platform == TargetPlatform.iOS 
         ? 8.0 
         : 8.0 + mediaQuery.padding.bottom;
@@ -524,9 +524,9 @@ class _LeftPanelState extends State<LeftPanel> {
                       child: Stack(
                         alignment: Alignment.center,
                         children: [
-                          TranslatedText(
+                          const TranslatedText(
                             TranslationKeys.shortcuts,
-                            style: const TextStyle(
+                            style: TextStyle(
                               color: Colors.white,
                               fontSize: 24,
                               fontWeight: FontWeight.bold,

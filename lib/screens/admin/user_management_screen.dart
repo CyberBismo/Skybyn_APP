@@ -33,9 +33,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
   // HTTP client
   static http.Client? _httpClient;
   static http.Client get _client {
-    if (_httpClient == null) {
-      _httpClient = _createHttpClient();
-    }
+    _httpClient ??= _createHttpClient();
     return _httpClient!;
   }
 
@@ -323,7 +321,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
   Widget build(BuildContext context) {
     final mediaQuery = MediaQuery.of(context);
     final statusBarHeight = mediaQuery.padding.top;
-    final appBarHeight = 60.0;
+    const appBarHeight = 60.0;
 
     return Scaffold(
       body: Stack(
@@ -347,9 +345,9 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                   child: Column(
                     children: [
                       const SizedBox(height: 20),
-                      TranslatedText(
+                      const TranslatedText(
                         TranslationKeys.userManagement,
-                        style: const TextStyle(
+                        style: TextStyle(
                           color: Colors.white,
                           fontSize: 28,
                           fontWeight: FontWeight.bold,

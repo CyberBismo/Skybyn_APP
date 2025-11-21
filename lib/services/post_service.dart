@@ -295,7 +295,7 @@ class PostService {
       } else {
         throw Exception('Failed to load user timeline: ${response.statusCode}');
       }
-    } catch (e, stackTrace) {
+    } catch (e) {
       return [];
     }
   }
