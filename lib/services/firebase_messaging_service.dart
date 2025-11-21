@@ -255,7 +255,7 @@ class FirebaseMessagingService {
       String? userIdString = _prefs?.getString('userID') ?? _prefs?.getString(StorageKeys.userId);
       int? userId;
       
-      if (userIdString.isNotEmpty) {
+      if (userIdString!.isNotEmpty) {
         userId = int.tryParse(userIdString);
         if (userId != null && userId > 0) {
           print('📱 [FCM] Got user ID from SharedPreferences: $userId');
@@ -657,7 +657,7 @@ class FirebaseMessagingService {
         String? userIdString = _prefs?.getString('userID') ?? _prefs?.getString(StorageKeys.userId);
         int? userId;
         
-        if (userIdString.isNotEmpty) {
+        if (userIdString!.isNotEmpty) {
           userId = int.tryParse(userIdString);
           if (userId != null && userId > 0) {
             // User is logged in - update FCM token
@@ -724,7 +724,7 @@ class FirebaseMessagingService {
       String? userIdString = _prefs?.getString('userID') ?? _prefs?.getString(StorageKeys.userId);
       int? userId;
       
-      if (userIdString.isNotEmpty) {
+      if (userIdString!.isNotEmpty) {
         userId = int.tryParse(userIdString);
         if (userId != null && userId > 0) {
           print('📱 [FCM] Auto-registering token for user ID (from SharedPreferences): $userId');
