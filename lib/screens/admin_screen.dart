@@ -6,6 +6,7 @@ import '../widgets/translated_text.dart';
 import '../services/translation_service.dart';
 import 'admin/user_management_screen.dart';
 import 'admin/moderation_tools_screen.dart';
+import 'admin/notification_test_screen.dart';
 
 class AdminScreen extends StatefulWidget {
   const AdminScreen({super.key});
@@ -91,6 +92,19 @@ class _AdminScreenState extends State<AdminScreen> {
                               Navigator.of(context).push(
                                 MaterialPageRoute(
                                   builder: (context) => const ModerationToolsScreen(),
+                                ),
+                              );
+                            },
+                          ),
+                           const SizedBox(height: 12),
+                          _buildFeatureCard(
+                            icon: Icons.notifications,
+                            title: 'Notification Testing',
+                            description: 'Test all types of notifications, including Firebase notifications',
+                            onTap: () {
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (context) => const NotificationTestScreen(),
                                 ),
                               );
                             },
@@ -231,4 +245,3 @@ class _AdminScreenState extends State<AdminScreen> {
     );
   }
 }
-
