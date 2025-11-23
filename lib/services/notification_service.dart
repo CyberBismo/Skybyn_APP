@@ -64,8 +64,8 @@ class NotificationService {
       defaultPresentAlert: true,
       defaultPresentBadge: true,
       defaultPresentSound: true,
-      defaultPresentBanner: true,
-      defaultPresentList: true,
+      // defaultPresentBanner: true, // Removed, managed by defaultPresentAlert
+      // defaultPresentList: true, // Removed, managed by defaultPresentAlert
     );
 
     const InitializationSettings initializationSettings = InitializationSettings(
@@ -391,7 +391,6 @@ class NotificationService {
             alert: true,
             badge: true,
             sound: true,
-            provisional: false, // Don't request provisional permissions
           );
 
           // Check if permissions were actually granted
@@ -604,7 +603,7 @@ class NotificationService {
       body,
       tz.TZDateTime.from(scheduledDate, tz.local),
       platformChannelSpecifics,
-      androidAllowWhileIdle: true,
+      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
       uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
       payload: payload,
     );
@@ -683,7 +682,6 @@ class NotificationService {
             alert: true,
             badge: true,
             sound: true,
-            provisional: false,
           );
           if (result == true) {
           } else {

@@ -527,7 +527,8 @@ class AutoUpdateService {
             // Terminate the app immediately when installer is opened
             final prefs = await SharedPreferences.getInstance();
             await prefs.clear();
-            Phoenix.rebirth(context);
+            if (context.mounted) Phoenix.rebirth(context);
+            return true;
           }
         } on PlatformException catch (e) {
           String errorMessage = 'Installation failed';
@@ -566,7 +567,8 @@ class AutoUpdateService {
         // Terminate the app immediately when installer is opened
         final prefs = await SharedPreferences.getInstance();
         await prefs.clear();
-        Phoenix.rebirth(context);
+        if (context.mounted) Phoenix.rebirth(context);
+        return true;
       } else if (result.type == ResultType.noAppToOpen) {
         await notificationService.showUpdateProgressNotification(
           title: 'Update Failed',
@@ -596,6 +598,7 @@ class AutoUpdateService {
         );
         return false;
       }
+      return true;
     } catch (e) {
       await notificationService.showUpdateProgressNotification(
         title: 'Update Failed',
