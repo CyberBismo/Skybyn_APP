@@ -45,7 +45,6 @@ dependencies:
   connectivity_plus: ^6.0.3
   uni_links: ^0.5.1
   get_it: ^7.7.0
-  webrtc: ^1.2.1
   sdp_transform: ^0.3.2
   path: ^1.9.0
   logging: ^1.2.0
