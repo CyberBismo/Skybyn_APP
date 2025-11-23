@@ -14,7 +14,7 @@ import 'package:open_file/open_file.dart';
 import 'notification_service.dart';
 
 class AutoUpdateService {
-  static String get _updateCheckUrl => 'https://app.skybyn.no/dl.php';
+  static String get _updateCheckUrl => ApiConstants.appUpdate;
   static const String _lastShownUpdateVersionKey = 'last_shown_update_version';
   static const String _lastShownUpdateTimestampKey = 'last_shown_update_timestamp';
   static bool _isDialogShowing = false;
@@ -62,7 +62,18 @@ class AutoUpdateService {
     }
 
     try {
-      final uri = Uri.parse(_updateCheckUrl);
+      // Get current app version/build number first
+      final PackageInfo packageInfo = await PackageInfo.fromPlatform();
+      final String installedVersionCode = packageInfo.buildNumber.isNotEmpty ? packageInfo.buildNumber : '1';
+
+      // Build URL with query parameters: c=android&v={buildNumber}
+      final uri = Uri.parse(_updateCheckUrl).replace(
+        queryParameters: {
+          'c': 'android',
+          'v': installedVersionCode,
+        },
+      );
+
       final response = await http.get(uri);
 
       if (response.statusCode == 200) {
@@ -88,18 +99,24 @@ class AutoUpdateService {
 
         try {
           final Map<String, dynamic> data = jsonDecode(trimmedBody) as Map<String, dynamic>;
-          final downloadUrl = data['downloadUrl']?.toString() ?? '';
+          
+          // Parse response from app_update.php
+          // Response format: { responseCode: 1|0, message: string, url: string, currentVersion: string, yourVersion: string }
+          final responseCode = data['responseCode'];
+          final downloadUrl = data['url']?.toString() ?? '';
+          final latestVersion = data['currentVersion']?.toString() ?? installedVersionCode;
+          final message = data['message']?.toString() ?? '';
 
-          final PackageInfo packageInfo = await PackageInfo.fromPlatform();
-          final String installedVersionCode = packageInfo.buildNumber.isNotEmpty ? packageInfo.buildNumber : '1';
+          // Check if update is available (responseCode == 1 means update available)
+          final isUpdateAvailable = responseCode == 1 && downloadUrl.isNotEmpty;
 
-          if (downloadUrl.isNotEmpty) {
+          if (isUpdateAvailable) {
             // Update available
             return UpdateInfo(
-              version: installedVersionCode, // Use current version as placeholder
-              buildNumber: int.tryParse(installedVersionCode) ?? 1,
+              version: latestVersion,
+              buildNumber: int.tryParse(latestVersion) ?? int.tryParse(installedVersionCode) ?? 1,
               downloadUrl: downloadUrl,
-              releaseNotes: 'A new version is available.',
+              releaseNotes: message.isNotEmpty ? message : 'A new version is available.',
               isAvailable: true,
             );
           } else {
@@ -108,7 +125,7 @@ class AutoUpdateService {
               version: installedVersionCode,
               buildNumber: int.tryParse(installedVersionCode) ?? 1,
               downloadUrl: '',
-              releaseNotes: 'No new version available.',
+              releaseNotes: message.isNotEmpty ? message : 'No new version available.',
               isAvailable: false,
             );
           }
