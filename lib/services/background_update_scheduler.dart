@@ -90,38 +90,15 @@ class BackgroundUpdateScheduler {
         iOS: iOSDetails,
       );
 
-      try {
-        await _localNotifications.zonedSchedule(
-          _updateCheckNotificationId,
-          'Update Check', // Title (won't be shown for silent notification on Android)
-          'Checking for updates...', // Body (won't be shown for silent notification on Android)
-          tzDateTime,
-          notificationDetails,
-          androidAllowWhileIdle: true,
-          uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
-          payload: 'update_check',
-        );
-      } on PlatformException catch (e) {
-        // Handle exact alarms permission error gracefully
-        if (e.code == 'exact_alarms_not_permitted') {
-          // Try without androidAllowWhileIdle for approximate scheduling
-          try {
-            await _localNotifications.zonedSchedule(
-              _updateCheckNotificationId,
-              'Update Check',
-              'Checking for updates...',
-              tzDateTime,
-              notificationDetails,
-              androidAllowWhileIdle: false, // Use approximate scheduling
-              uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
-              payload: 'update_check',
-            );
-          } catch (e2) {
-          }
-        } else {
-          rethrow;
-        }
-      }
+      await _localNotifications.zonedSchedule(
+        _updateCheckNotificationId,
+        'Update Check', // Title (won't be shown for silent notification on Android)
+        'Checking for updates...', // Body (won't be shown for silent notification on Android)
+        tzDateTime,
+        notificationDetails,
+        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+        payload: 'update_check',
+      );
 
       // Also set up a periodic check using a timer when app is in foreground
       // This ensures we check even if scheduled notifications don't fire

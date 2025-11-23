@@ -22,12 +22,9 @@ class LocalAuthService {
       if (!canCheck) return false;
       return await auth.authenticate(
         localizedReason: 'Authenticate to enable biometric lock',
-        options: const AuthenticationOptions(biometricOnly: true, stickyAuth: true),
       );
     } on PlatformException {
       return false;
     }
   }
 }
-
-
