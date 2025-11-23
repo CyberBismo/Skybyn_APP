@@ -5,7 +5,6 @@ import '../screens/profile_screen.dart';
 import '../screens/settings_screen.dart';
 import '../screens/qr_scanner_screen.dart';
 import '../screens/share_screen.dart';
-import '../screens/admin_screen.dart';
 import 'app_colors.dart';
 import '../utils/translation_keys.dart';
 import '../services/translation_service.dart';
@@ -191,17 +190,6 @@ class UnifiedMenu {
                 );
               },
             ),
-            // Admin panel (only for rank > 5)
-            if (isAdmin)
-              MenuItem(
-                icon: Icons.admin_panel_settings,
-                translationKey: TranslationKeys.adminPanel,
-                onTap: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(builder: (context) => const AdminScreen()),
-                  );
-                },
-              ),
             MenuItem(
               icon: Icons.logout,
               translationKey: TranslationKeys.logout,
