@@ -1,0 +1,50 @@
+
+name: Android Release
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    name: Build and Release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: Decode Keystore
+        env:
+          KEY_JKS: ${{ secrets.KEY_JKS }}
+        run: echo $KEY_JKS | base64 --decode > android/app/key.jks
+
+      - name: Build Release App Bundle
+        run: >
+          flutter build appbundle --release 
+          --keystore-password "${{ secrets.KEY_PASSWORD }}" 
+          --alias "${{ secrets.ALIAS_USERNAME }}" 
+          --key-password "${{ secrets.ALIAS_PASSWORD }}"
+
+      - name: Create GitHub Release
+        uses: ncipollo/release-action@v1
+        with:
+          artifacts: "build/app/outputs/bundle/release/app-release.aab"
+          token: ${{ secrets.GITHUB_TOKEN }}
+          tag: "v${{ github.run_number }}"
+          name: "Release v${{ github.run_number }}"
+          body: "Automated release of the Android App Bundle."
