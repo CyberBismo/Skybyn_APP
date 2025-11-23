@@ -80,7 +80,7 @@ android {
         ndk {
             abiFilters "armeabi-v7a", "arm64-v8a", "x86", "x86_64"
         }
-        missingDimensionStrategy 'flavor', 'production'
+        missingDimensionStrategy 'default', 'production'
     }
 
     signingConfigs {
@@ -102,13 +102,13 @@ android {
         }
     }
 
-    flavorDimensions 'flavor'
+    flavorDimensions 'default'
     productFlavors {
         production {
-            dimension 'flavor'
+            dimension 'default'
         }
         staging {
-            dimension 'flavor'
+            dimension 'default'
         }
     }
 
