@@ -50,15 +50,15 @@
 		<key>UIViewControllerBasedStatusBarAppearance</key>
 		<false/>
 		<key>NSCameraUsageDescription</key>
-		<string>This app needs camera access to scan QR codes for authentication and make video calls.</string>
+		<string>Skybyn needs camera access to scan QR codes for authentication and to let you share photos and make video calls with your friends.</string>
 		<key>NSMicrophoneUsageDescription</key>
-		<string>This app needs microphone access to make voice and video calls.</string>
+		<string>Skybyn needs microphone access so you can make voice and video calls with your friends.</string>
 		<key>NSLocationWhenInUseUsageDescription</key>
-		<string>This app needs location access to find friends in your area.</string>
+		<string>Skybyn uses your location to help you discover and connect with friends and communities nearby.</string>
 		<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-		<string>This app needs location access to find friends in your area.</string>
-		<key>NSUserNotificationUsageDescription</key>
-		<string>This app needs notification permissions to show broadcast messages and updates.</string>
+		<string>Skybyn uses your location to help you discover and connect with friends and communities nearby.</string>
+		<key>NSUserNotificationsUsageDescription</key>
+		<string>Skybyn sends you notifications for new messages, friend requests, and important updates to keep you connected.</string>
 		<key>UIBackgroundModes</key>
 		<array>
 			<string>remote-notification</string>
@@ -67,8 +67,16 @@
 		</array>
 		<key>NSAppTransportSecurity</key>
 		<dict>
-			<key>NSAllowsArbitraryLoads</key>
-			<true/>
+			<key>NSExceptionDomains</key>
+			<dict>
+				<key>app.skybyn.no</key>
+				<dict>
+					<key>NSExceptionAllowsInsecureHTTPLoads</key>
+					<true/>
+					<key>NSIncludesSubdomains</key>
+					<true/>
+				</dict>
+			</dict>
 		</dict>
 	</dict>
 </plist>
