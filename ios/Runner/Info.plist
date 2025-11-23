@@ -19,7 +19,7 @@
 		<key>CFBundleShortVersionString</key>
 		<string>$(FLUTTER_BUILD_NAME)</string>
 		<key>CFBundleSignature</key>
-		<string>????</string>
+		<string>no.skybyn.app</string>
 		<key>CFBundleVersion</key>
 		<string>$(FLUTTER_BUILD_NUMBER)</string>
 		<key>LSRequiresIPhoneOS</key>
@@ -59,24 +59,13 @@
 		<string>Skybyn uses your location to help you discover and connect with friends and communities nearby.</string>
 		<key>NSUserNotificationsUsageDescription</key>
 		<string>Skybyn sends you notifications for new messages, friend requests, and important updates to keep you connected.</string>
+		<key>NSPhotoLibraryUsageDescription</key>
+		<string>Skybyn needs photo library access to let you share photos with your friends.</string>
 		<key>UIBackgroundModes</key>
 		<array>
 			<string>remote-notification</string>
 			<string>background-processing</string>
 			<string>background-fetch</string>
 		</array>
-		<key>NSAppTransportSecurity</key>
-		<dict>
-			<key>NSExceptionDomains</key>
-			<dict>
-				<key>app.skybyn.no</key>
-				<dict>
-					<key>NSExceptionAllowsInsecureHTTPLoads</key>
-					<true/>
-					<key>NSIncludesSubdomains</key>
-					<true/>
-				</dict>
-			</dict>
-		</dict>
 	</dict>
 </plist>
