@@ -22,7 +22,7 @@ class _NotificationTestScreenState extends State<NotificationTestScreen> {
   }
 
   Future<void> _loadFcmToken() async {
-    final token = await FirebaseMessagingService().getFcmToken();
+    final token = FirebaseMessagingService().fcmToken;
     setState(() {
       fcmToken = token;
     });
