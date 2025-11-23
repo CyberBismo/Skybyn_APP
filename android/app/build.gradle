@@ -102,6 +102,16 @@ android {
         }
     }
 
+    flavorDimensions 'flavor'
+    productFlavors {
+        production {
+            dimension 'flavor'
+        }
+        staging {
+            dimension 'flavor'
+        }
+    }
+
     // Use different application IDs for debug and release builds
     // This allows installing both versions simultaneously on the same device
     buildTypes {
