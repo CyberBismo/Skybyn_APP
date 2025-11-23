@@ -170,6 +170,7 @@ android {
         checkReleaseBuilds false
         abortOnError false
     }
+    
 }
 
 flutter {
@@ -182,6 +183,33 @@ tasks.whenTaskAdded { task ->
         task.name.contains('test') ||
         task.name.contains('Test')) {
         task.enabled = false
+    }
+}
+
+// Suppress Java compilation warnings for this module
+afterEvaluate {
+    tasks.withType(JavaCompile).configureEach {
+        options.compilerArgs += [
+            '-Xlint:-deprecation',
+            '-Xlint:-unchecked',
+            '-Xlint:-options',
+            '-Xmaxwarns', '0'  // Suppress all warnings
+        ]
+        options.encoding = 'UTF-8'
+        options.deprecation = false
+        options.warnings = false
+    }
+    
+    // Also suppress warnings from annotation processors
+    tasks.withType(JavaCompile).all {
+        options.compilerArgs += [
+            '-Xlint:-deprecation',
+            '-Xlint:-unchecked',
+            '-Xlint:-options',
+            '-Xmaxwarns', '0'
+        ]
+        options.deprecation = false
+        options.warnings = false
     }
 }
 

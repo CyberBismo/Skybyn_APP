@@ -23,9 +23,39 @@ allprojects {
 
 // Suppress deprecation warnings from third-party dependencies (flutter_webrtc uses deprecated APIs)
 allprojects {
-    tasks.withType(JavaCompile) {
+    tasks.withType(JavaCompile).configureEach {
         // Suppress deprecation and unchecked warnings (they come from dependencies, not our code)
-        options.compilerArgs << "-Xlint:-deprecation" << "-Xlint:-unchecked" << "-Xlint:-options"
+        options.compilerArgs += [
+            '-Xlint:-deprecation',
+            '-Xlint:-unchecked',
+            '-Xlint:-options',
+            '-Xmaxwarns', '0'  // Suppress all warnings
+        ]
+        options.encoding = 'UTF-8'
+        options.deprecation = false
+        options.warnings = false
+    }
+    
+    // Also suppress warnings for all subprojects
+    afterEvaluate { project ->
+        project.tasks.withType(JavaCompile).configureEach {
+            options.compilerArgs += [
+                '-Xlint:-deprecation',
+                '-Xlint:-unchecked',
+                '-Xlint:-options',
+                '-Xmaxwarns', '0'
+            ]
+            options.deprecation = false
+            options.warnings = false
+        }
+        
+        if (project.hasProperty('android')) {
+            project.android {
+                compileOptions {
+                    // Suppress warnings at the Android level
+                }
+            }
+        }
     }
 }
 
