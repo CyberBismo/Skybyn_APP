@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'dart:convert';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:flutter_phoenix/flutter_phoenix.dart';
@@ -351,7 +352,7 @@ class AutoUpdateService {
     return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
   }
 
-  static Future<bool> installUpdate({Function(int progress, String status)? onProgress}) async {
+  static Future<bool> installUpdate(BuildContext context, {Function(int progress, String status)? onProgress}) async {
     final notificationService = NotificationService();
 
     try {
@@ -397,7 +398,7 @@ class AutoUpdateService {
 
           onProgress?.call(100, 'Opening installer...');
 
-          final result = await _installApk(file.path);
+          final result = await _installApk(context, file.path);
 
           if (result) {
             // Keep notification showing until user installs
@@ -427,7 +428,7 @@ class AutoUpdateService {
                 progress: 100,
               );
 
-              return await _installApk(altFile.path);
+              return await _installApk(context, altFile.path);
             }
           }
           await notificationService.showUpdateProgressNotification(
@@ -486,7 +487,7 @@ class AutoUpdateService {
     }
   }
 
-  static Future<bool> _installApk(String apkPath) async {
+  static Future<bool> _installApk(BuildContext context, String apkPath) async {
     final notificationService = NotificationService();
     
     try {
@@ -526,7 +527,7 @@ class AutoUpdateService {
             // Terminate the app immediately when installer is opened
             final prefs = await SharedPreferences.getInstance();
             await prefs.clear();
-            Phoenix.rebirth(context as BuildContext);
+            Phoenix.rebirth(context);
           }
         } on PlatformException catch (e) {
           String errorMessage = 'Installation failed';
@@ -565,7 +566,7 @@ class AutoUpdateService {
         // Terminate the app immediately when installer is opened
         final prefs = await SharedPreferences.getInstance();
         await prefs.clear();
-        Phoenix.rebirth(context as BuildContext);
+        Phoenix.rebirth(context);
       } else if (result.type == ResultType.noAppToOpen) {
         await notificationService.showUpdateProgressNotification(
           title: 'Update Failed',
