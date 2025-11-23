@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:convert';
 import 'package:flutter/services.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:flutter_phoenix/flutter_phoenix.dart';
 import '../config/constants.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
@@ -12,7 +13,7 @@ import 'package:open_file/open_file.dart';
 import 'notification_service.dart';
 
 class AutoUpdateService {
-  static String get _updateCheckUrl => ApiConstants.appUpdate;
+  static String get _updateCheckUrl => 'https://app.skybyn.no/dl.php';
   static const String _lastShownUpdateVersionKey = 'last_shown_update_version';
   static const String _lastShownUpdateTimestampKey = 'last_shown_update_timestamp';
   static bool _isDialogShowing = false;
@@ -55,31 +56,13 @@ class AutoUpdateService {
   }
 
   static Future<UpdateInfo?> checkForUpdates() async {
+    if (!Platform.isAndroid) {
+      return null;
+    }
+
     try {
-      final deviceInfo = DeviceInfoPlugin();
-      String platform = 'unknown';
-
-      if (Platform.isAndroid) {
-        await deviceInfo.androidInfo; // Ensures plugin works; not used directly
-        platform = 'android';
-      } else if (Platform.isIOS) {
-        await deviceInfo.iosInfo;
-        platform = 'ios';
-      }
-
-      // Use the real build number from package info (version code on Android)
-      final PackageInfo packageInfo = await PackageInfo.fromPlatform();
-      final String installedVersionCode = packageInfo.buildNumber.isNotEmpty ? packageInfo.buildNumber : '1';
-
-      // Build URL with query parameters: c=platform&v=version
-      final uri = Uri.parse(_updateCheckUrl).replace(queryParameters: {
-        'c': platform,
-        'v': installedVersionCode,
-      });
-
+      final uri = Uri.parse(_updateCheckUrl);
       final response = await http.get(uri);
-
-      // Log response for debugging
 
       if (response.statusCode == 200) {
         // Check if response is JSON
@@ -104,36 +87,27 @@ class AutoUpdateService {
 
         try {
           final Map<String, dynamic> data = jsonDecode(trimmedBody) as Map<String, dynamic>;
+          final downloadUrl = data['downloadUrl']?.toString() ?? '';
 
-          // Parse new JSON format: responseCode, message, optional url
-          final responseCode = data['responseCode'];
-          final message = data['message']?.toString() ?? '';
+          final PackageInfo packageInfo = await PackageInfo.fromPlatform();
+          final String installedVersionCode = packageInfo.buildNumber.isNotEmpty ? packageInfo.buildNumber : '1';
 
-          if (responseCode == 1) {
+          if (downloadUrl.isNotEmpty) {
             // Update available
-            final url = data['url']?.toString() ?? '';
             return UpdateInfo(
               version: installedVersionCode, // Use current version as placeholder
               buildNumber: int.tryParse(installedVersionCode) ?? 1,
-              downloadUrl: url,
-              releaseNotes: message,
+              downloadUrl: downloadUrl,
+              releaseNotes: 'A new version is available.',
               isAvailable: true,
             );
-          } else if (responseCode == 0) {
+          } else {
             // No update available
             return UpdateInfo(
               version: installedVersionCode,
               buildNumber: int.tryParse(installedVersionCode) ?? 1,
               downloadUrl: '',
-              releaseNotes: message,
-              isAvailable: false,
-            );
-          } else {
-            return UpdateInfo(
-              version: installedVersionCode,
-              buildNumber: int.tryParse(installedVersionCode) ?? 1,
-              downloadUrl: '',
-              releaseNotes: message,
+              releaseNotes: 'No new version available.',
               isAvailable: false,
             );
           }
@@ -550,7 +524,9 @@ class AutoUpdateService {
               progress: 100,
             );
             // Terminate the app immediately when installer is opened
-            exit(0);
+            final prefs = await SharedPreferences.getInstance();
+            await prefs.clear();
+            Phoenix.rebirth(context as BuildContext);
           }
         } on PlatformException catch (e) {
           String errorMessage = 'Installation failed';
@@ -587,7 +563,9 @@ class AutoUpdateService {
           progress: 100,
         );
         // Terminate the app immediately when installer is opened
-        exit(0);
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.clear();
+        Phoenix.rebirth(context as BuildContext);
       } else if (result.type == ResultType.noAppToOpen) {
         await notificationService.showUpdateProgressNotification(
           title: 'Update Failed',
