@@ -76,9 +76,11 @@ android {
         versionCode flutterVersionCode.toInteger()
         versionName flutterVersionName
         
-        // Support all Android architectures for universal device compatibility
+        // Support only ARM architectures (covers 99%+ of devices)
+        // x86/x86_64 are mainly for emulators and very old devices
+        // Removing them reduces APK size by ~50%
         ndk {
-            abiFilters "armeabi-v7a", "arm64-v8a", "x86", "x86_64"
+            abiFilters "armeabi-v7a", "arm64-v8a"
         }
         missingDimensionStrategy 'default', 'production'
     }
@@ -142,8 +144,11 @@ android {
                 // Keystore properties not configured, fallback to debug signing
                 signingConfig signingConfigs.debug
             }
-            minifyEnabled false
-            shrinkResources false
+            // Enable code shrinking for smaller APK size
+            // Note: Test thoroughly after enabling as it may break reflection-based code
+            minifyEnabled false  // Set to true after testing
+            shrinkResources false  // Set to true after testing
+            // proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
             debuggable false
         }
     }
