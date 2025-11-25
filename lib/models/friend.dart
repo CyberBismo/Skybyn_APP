@@ -7,6 +7,11 @@ class Friend {
   final String avatar;
   final bool online;
   final int? lastActive; // Unix timestamp in seconds
+  final double? latitude;
+  final double? longitude;
+  final String? locationShareMode; // 'off', 'last_active', 'live'
+  final bool? isLive;
+  final bool? locationPrivateMode;
 
   Friend({
     required this.id,
@@ -15,6 +20,11 @@ class Friend {
     required this.avatar,
     required this.online,
     this.lastActive,
+    this.latitude,
+    this.longitude,
+    this.locationShareMode,
+    this.isLive,
+    this.locationPrivateMode,
   });
 
   static bool _parseOnline(dynamic value) {
@@ -59,6 +69,39 @@ class Friend {
         ? json['online_status'] == 'online'
         : _parseOnline(json['online']);
     
+    // Parse location data
+    double? latitude;
+    double? longitude;
+    if (json['latitude'] != null && json['longitude'] != null) {
+      latitude = json['latitude'] is double 
+          ? json['latitude'] 
+          : double.tryParse(json['latitude'].toString());
+      longitude = json['longitude'] is double 
+          ? json['longitude'] 
+          : double.tryParse(json['longitude'].toString());
+    }
+    
+    // Parse location sharing settings
+    String? locationShareMode;
+    if (json['location_share_mode'] != null) {
+      locationShareMode = json['location_share_mode'].toString();
+    }
+    
+    bool? isLive;
+    if (json['is_live'] != null) {
+      isLive = json['is_live'] is bool 
+          ? json['is_live'] 
+          : json['is_live'].toString().toLowerCase() == 'true';
+    }
+    
+    bool? locationPrivateMode;
+    if (json['location_private_mode'] != null) {
+      final value = json['location_private_mode'];
+      locationPrivateMode = value is bool 
+          ? value 
+          : value.toString() == '1' || value.toString().toLowerCase() == 'true';
+    }
+    
     return Friend(
       id: (json['friend_id'] ?? json['userID'] ?? json['id'] ?? '').toString(),
       username: (json['username'] ?? json['name'] ?? 'Unknown').toString(),
@@ -66,6 +109,11 @@ class Friend {
       avatar: avatarUrl,
       online: calculatedOnline,
       lastActive: lastActive,
+      latitude: latitude,
+      longitude: longitude,
+      locationShareMode: locationShareMode,
+      isLive: isLive,
+      locationPrivateMode: locationPrivateMode,
     );
   }
 
@@ -77,11 +125,24 @@ class Friend {
       'avatar': avatar,
       'online': online,
       'last_active': lastActive,
+      'latitude': latitude,
+      'longitude': longitude,
+      'location_share_mode': locationShareMode,
+      'is_live': isLive,
+      'location_private_mode': locationPrivateMode,
     };
   }
 
   /// Create a copy of this friend with updated online status
-  Friend copyWith({bool? online, int? lastActive}) {
+  Friend copyWith({
+    bool? online, 
+    int? lastActive,
+    double? latitude,
+    double? longitude,
+    String? locationShareMode,
+    bool? isLive,
+    bool? locationPrivateMode,
+  }) {
     return Friend(
       id: id,
       username: username,
@@ -89,6 +150,11 @@ class Friend {
       avatar: avatar,
       online: online ?? this.online,
       lastActive: lastActive ?? this.lastActive,
+      latitude: latitude ?? this.latitude,
+      longitude: longitude ?? this.longitude,
+      locationShareMode: locationShareMode ?? this.locationShareMode,
+      isLive: isLive ?? this.isLive,
+      locationPrivateMode: locationPrivateMode ?? this.locationPrivateMode,
     );
   }
   

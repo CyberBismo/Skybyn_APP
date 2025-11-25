@@ -20,6 +20,7 @@ import '../services/translation_service.dart';
 import '../services/auto_update_service.dart';
 import '../services/friend_service.dart';
 import '../services/post_service.dart';
+import '../services/location_service.dart';
 import '../widgets/translated_text.dart';
 import '../widgets/update_dialog.dart';
 import '../utils/translation_keys.dart';
@@ -110,12 +111,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _isCheckingForUpdates = false;
   final GlobalKey _notificationButtonKey = GlobalKey();
 
+  // Location settings
+  String _locationShareMode = 'off'; // 'off', 'last_active', 'live'
+  bool _locationPrivateMode = false;
+  final LocationService _locationService = LocationService();
+
 
   @override
   void initState() {
     super.initState();
     _loadUserProfile();
     _loadBiometricSetting();
+    _loadLocationSettings();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       setState(() {
         _selectedPinOption = _getPinOptionFromValue(user?.pinV);
@@ -126,6 +133,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       });
     });
   }
+
 
   Future<void> _loadUserProfile() async {
     final cachedUser = await AuthService().getStoredUserProfile();
@@ -164,8 +172,148 @@ class _SettingsScreenState extends State<SettingsScreen> {
     });
   }
 
+  Future<void> _loadLocationSettings() async {
+    final userId = await AuthService().getStoredUserId();
+    if (userId == null) return;
+
+    try {
+      final response = await http.post(
+        Uri.parse(ApiConstants.profile),
+        body: {'userID': userId},
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+      ).timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data['responseCode'] == '1' || data['success'] == true) {
+          final userData = data['data'] ?? data;
+          setState(() {
+            _locationShareMode = userData['location_share_mode']?.toString() ?? 'off';
+            _locationPrivateMode = userData['location_private_mode']?.toString() == '1' || 
+                                   userData['location_private_mode'] == true;
+          });
+
+          // Start/stop live tracking based on mode
+          if (_locationShareMode == 'live') {
+            await _locationService.startLiveLocationTracking(userId);
+          } else {
+            _locationService.stopLiveLocationTracking();
+          }
+        }
+      }
+    } catch (e) {
+      // Silently handle errors
+    }
+  }
+
+  Future<void> _saveLocationSettings() async {
+    final userId = await AuthService().getStoredUserId();
+    if (userId == null) return;
+
+    try {
+      final response = await http.post(
+        Uri.parse(ApiConstants.updateLocationSettings),
+        body: {
+          'userID': userId,
+          'location_share_mode': _locationShareMode,
+          'location_private_mode': _locationPrivateMode ? '1' : '0',
+        },
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+      ).timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data['responseCode'] == '1' || data['success'] == true) {
+          // Start/stop live tracking based on mode
+          if (_locationShareMode == 'live') {
+            await _locationService.startLiveLocationTracking(userId);
+          } else {
+            _locationService.stopLiveLocationTracking();
+          }
+        }
+      }
+    } catch (e) {
+      // Silently handle errors
+    }
+  }
+
+  String _getLocationShareModeDescriptionKey() {
+    switch (_locationShareMode) {
+      case 'off':
+        return TranslationKeys.locationSharingDisabled;
+      case 'last_active':
+        return TranslationKeys.shareLastActiveLocation;
+      case 'live':
+        return TranslationKeys.shareLiveLocation;
+      default:
+        return TranslationKeys.locationSharingDisabled;
+    }
+  }
+
+  void _showLocationShareModeDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: TranslatedText(TranslationKeys.locationSharingMode),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              RadioListTile<String>(
+                title: TranslatedText(TranslationKeys.off),
+                subtitle: TranslatedText(TranslationKeys.dontShareLocation),
+                value: 'off',
+                groupValue: _locationShareMode,
+                onChanged: (String? value) async {
+                  if (value != null) {
+                    Navigator.of(context).pop();
+                    setState(() {
+                      _locationShareMode = value;
+                    });
+                    await _saveLocationSettings();
+                  }
+                },
+              ),
+              RadioListTile<String>(
+                title: TranslatedText(TranslationKeys.lastActive),
+                subtitle: TranslatedText(TranslationKeys.shareLastKnownLocation),
+                value: 'last_active',
+                groupValue: _locationShareMode,
+                onChanged: (String? value) async {
+                  if (value != null) {
+                    Navigator.of(context).pop();
+                    setState(() {
+                      _locationShareMode = value;
+                    });
+                    await _saveLocationSettings();
+                  }
+                },
+              ),
+              RadioListTile<String>(
+                title: TranslatedText(TranslationKeys.live),
+                subtitle: TranslatedText(TranslationKeys.shareLiveLocationUpdates),
+                value: 'live',
+                groupValue: _locationShareMode,
+                onChanged: (String? value) async {
+                  if (value != null) {
+                    Navigator.of(context).pop();
+                    setState(() {
+                      _locationShareMode = value;
+                    });
+                    await _saveLocationSettings();
+                  }
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   @override
   void dispose() {
+    _locationService.dispose();
     // Dispose all focus nodes to prevent memory leaks and context menu conflicts
     _emailFocusNode.dispose();
     _usernameFocusNode.dispose();
@@ -1557,6 +1705,48 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       ],
                     );
                   },
+                ),
+                // Location Settings Section
+                _buildExpansionTile(
+                  title: TranslationKeys.locationSharing,
+                  tileColor: transparentColor,
+                  children: [
+                    ListTile(
+                      title: TranslatedText(
+                        TranslationKeys.shareLocation,
+                        style: TextStyle(color: AppColors.getTextColor(context)),
+                      ),
+                      subtitle: TranslatedText(
+                        _getLocationShareModeDescriptionKey(),
+                        style: TextStyle(color: AppColors.getSecondaryTextColor(context)),
+                      ),
+                      trailing: Icon(
+                        Icons.location_on,
+                        color: AppColors.getIconColor(context),
+                      ),
+                      onTap: () {
+                        _showLocationShareModeDialog(context);
+                      },
+                    ),
+                    SwitchListTile(
+                      title: TranslatedText(
+                        TranslationKeys.locationPrivateMode,
+                        style: TextStyle(color: AppColors.getTextColor(context)),
+                      ),
+                      subtitle: TranslatedText(
+                        TranslationKeys.hideLocationFromFriends,
+                        style: TextStyle(color: AppColors.getSecondaryTextColor(context)),
+                      ),
+                      value: _locationPrivateMode,
+                      onChanged: (bool value) async {
+                        setState(() {
+                          _locationPrivateMode = value;
+                        });
+                        await _saveLocationSettings();
+                      },
+                      activeThumbColor: Colors.blue,
+                    ),
+                  ],
                 ),
                 // Language Section
                 _buildExpansionTile(

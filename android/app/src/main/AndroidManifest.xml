@@ -56,6 +56,27 @@
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
+            <!-- Deep link: Custom scheme (skybyn://) -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="skybyn" android:host="login"/>
+            </intent-filter>
+            <!-- Deep link: HTTPS (app.skybyn.no) -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="https" android:host="app.skybyn.no" android:pathPrefix="/qr/login"/>
+            </intent-filter>
+            <!-- Deep link: HTTPS (skybyn.com) -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="https" android:host="skybyn.com" android:pathPrefix="/qr/login"/>
+            </intent-filter>
         </activity>
         
         <service

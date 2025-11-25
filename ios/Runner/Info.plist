@@ -67,5 +67,18 @@
 			<string>background-processing</string>
 			<string>background-fetch</string>
 		</array>
+		<key>CFBundleURLTypes</key>
+		<array>
+			<dict>
+				<key>CFBundleTypeRole</key>
+				<string>Editor</string>
+				<key>CFBundleURLName</key>
+				<string>no.skybyn.app</string>
+				<key>CFBundleURLSchemes</key>
+				<array>
+					<string>skybyn</string>
+				</array>
+			</dict>
+		</array>
 	</dict>
 </plist>

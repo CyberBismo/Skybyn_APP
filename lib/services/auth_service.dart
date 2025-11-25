@@ -10,6 +10,7 @@ import 'firebase_messaging_service.dart';
 import 'translation_service.dart';
 import 'websocket_service.dart';
 import 'background_activity_service.dart';
+import 'navigation_service.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../config/constants.dart';
 
@@ -293,6 +294,13 @@ class AuthService {
     await storage.delete(key: userIdKey);
     await storage.delete(key: userProfileKey);
     await storage.delete(key: usernameKey);
+
+    // Clear last navigation route on logout
+    try {
+      await NavigationService.clearLastRoute();
+    } catch (e) {
+      // Silently fail
+    }
 
     // Unsubscribe from user-specific topics on logout
     try {

@@ -5,8 +5,10 @@ import '../screens/profile_screen.dart';
 import '../screens/settings_screen.dart';
 import '../screens/qr_scanner_screen.dart';
 import '../screens/share_screen.dart';
+import '../screens/map_screen.dart';
 import 'app_colors.dart';
 import '../utils/translation_keys.dart';
+import '../utils/navigation_helper.dart';
 import '../services/translation_service.dart';
 import '../services/auth_service.dart';
 
@@ -149,8 +151,10 @@ class UnifiedMenu {
               icon: Icons.home,
               translationKey: TranslationKeys.home,
               onTap: () {
-                Navigator.of(context).pushReplacement(
-                  MaterialPageRoute(builder: (context) => const HomeScreen()),
+                NavigationHelper.pushReplacement(
+                  context,
+                  const HomeScreen(),
+                  '/home',
                 );
               },
             ),
@@ -158,8 +162,10 @@ class UnifiedMenu {
               icon: Icons.person,
               translationKey: TranslationKeys.profile,
               onTap: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(builder: (context) => const ProfileScreen()),
+                NavigationHelper.push(
+                  context,
+                  const ProfileScreen(),
+                  '/profile',
                 );
               },
             ),
@@ -167,8 +173,21 @@ class UnifiedMenu {
               icon: Icons.settings,
               translationKey: TranslationKeys.settings,
               onTap: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(builder: (context) => const SettingsScreen()),
+                NavigationHelper.push(
+                  context,
+                  const SettingsScreen(),
+                  '/settings',
+                );
+              },
+            ),
+            MenuItem(
+              icon: Icons.map,
+              translationKey: TranslationKeys.map,
+              onTap: () {
+                NavigationHelper.push(
+                  context,
+                  const MapScreen(),
+                  '/map',
                 );
               },
             ),
@@ -176,8 +195,10 @@ class UnifiedMenu {
               icon: Icons.qr_code_scanner,
               translationKey: TranslationKeys.qrScanner,
               onTap: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(builder: (context) => const QrScannerScreen()),
+                NavigationHelper.push(
+                  context,
+                  const QrScannerScreen(),
+                  '/qr-scanner',
                 );
               },
             ),
@@ -185,8 +206,10 @@ class UnifiedMenu {
               icon: Icons.share,
               translationKey: TranslationKeys.shareApp,
               onTap: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(builder: (context) => const ShareScreen()),
+                NavigationHelper.push(
+                  context,
+                  const ShareScreen(),
+                  '/share',
                 );
               },
             ),

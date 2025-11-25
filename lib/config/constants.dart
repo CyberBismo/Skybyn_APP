@@ -66,6 +66,10 @@ class ApiConstants {
   // Activity
   static String get updateActivity => '$apiBase/update_activity.php';
   
+  // Location
+  static String get friendsLocations => '$apiBase/location/friends_locations.php';
+  static String get updateLocationSettings => '$apiBase/location/update_settings.php';
+  
   // Admin
   static String get adminUsers => '$apiBase/admin/users.php';
   static String get adminReports => '$apiBase/admin/reports.php';

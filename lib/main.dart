@@ -2,13 +2,33 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:firebase_core/firebase_core.dart';
 // import 'dart:io' show Platform;
-import 'screens/login_screen.dart';
-import 'screens/home_screen.dart';
 import 'dart:io';
 import 'package:provider/provider.dart';
-import 'services/theme_service.dart';
-// Import for SystemChrome
+import 'package:app_links/app_links.dart';
 import 'dart:async';
+// Screens - all imports in main.dart
+import 'screens/login_screen.dart';
+import 'screens/home_screen.dart';
+import 'screens/qr_login_confirm_screen.dart';
+import 'screens/profile_screen.dart';
+import 'screens/settings_screen.dart';
+import 'screens/qr_scanner_screen.dart';
+import 'screens/share_screen.dart';
+import 'screens/chat_screen.dart';
+import 'screens/create_post_screen.dart';
+import 'screens/register_screen.dart';
+import 'screens/forgot_password_screen.dart';
+import 'screens/call_screen.dart';
+import 'screens/events_screen.dart';
+import 'screens/games_screen.dart';
+import 'screens/groups_screen.dart';
+import 'screens/markets_screen.dart';
+import 'screens/music_screen.dart';
+import 'screens/pages_screen.dart';
+import 'screens/feedback_screen.dart';
+import 'screens/map_screen.dart';
+// Services
+import 'services/theme_service.dart';
 import 'services/focus_service.dart';
 import 'services/auth_service.dart';
 import 'services/notification_service.dart';
@@ -21,8 +41,9 @@ import 'services/background_activity_service.dart';
 import 'services/call_service.dart';
 import 'services/friend_service.dart';
 import 'services/chat_message_count_service.dart';
+import 'services/navigation_service.dart';
+// Widgets and Models
 import 'widgets/incoming_call_notification.dart';
-import 'screens/call_screen.dart';
 import 'models/friend.dart';
 
 Future<void> main() async {
@@ -135,14 +156,78 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   // Track active incoming call
   String? _activeCallId;
   Friend? _activeCallFriend;
+  
+  // Deep linking
+  late AppLinks _appLinks;
+  StreamSubscription<Uri>? _linkSubscription;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
 
+    // Initialize deep linking
+    _initializeDeepLinks();
+
     // Initialize services in the background
     _initializeServices();
+  }
+  
+  /// Initialize deep link handling
+  void _initializeDeepLinks() {
+    _appLinks = AppLinks();
+    
+    // Handle initial link (when app is opened from a deep link)
+    _appLinks.getInitialLink().then((uri) {
+      if (uri != null) {
+        _handleDeepLink(uri);
+      }
+    });
+    
+    // Handle links when app is already running
+    _linkSubscription = _appLinks.uriLinkStream.listen(
+      (uri) {
+        _handleDeepLink(uri);
+      },
+      onError: (err) {
+        // Silently handle errors
+      },
+    );
+  }
+  
+  /// Handle deep link URLs
+  void _handleDeepLink(Uri uri) {
+    // Extract code from URL
+    String? code;
+    
+    // Handle custom scheme: skybyn://login?code=abc123xyz0
+    if (uri.scheme == 'skybyn' && uri.host == 'login') {
+      code = uri.queryParameters['code'];
+    }
+    // Handle HTTPS: https://app.skybyn.no/qr/login?code=abc123xyz0 or https://skybyn.com/qr/login?code=abc123xyz0
+    else if (uri.scheme == 'https' && 
+             (uri.host == 'app.skybyn.no' || uri.host == 'skybyn.com') &&
+             uri.path.contains('/qr/login')) {
+      code = uri.queryParameters['code'];
+    }
+    
+    if (code != null && code.isNotEmpty) {
+      // Show confirmation dialog
+      final context = navigatorKey.currentContext;
+      if (context != null) {
+        // Wait a moment for app to be ready
+        Future.delayed(const Duration(milliseconds: 500), () {
+          final currentContext = navigatorKey.currentContext;
+          if (currentContext != null) {
+            Navigator.of(currentContext).push(
+              MaterialPageRoute(
+                builder: (context) => QrLoginConfirmScreen(qrCode: code!),
+              ),
+            );
+          }
+        });
+      }
+    }
   }
 
   Future<void> _initializeServices() async {
@@ -295,6 +380,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     _activityUpdateTimer?.cancel();
     _webSocketConnectionCheckTimer?.cancel();
     _profileCheckTimer?.cancel();
+    _linkSubscription?.cancel();
     super.dispose();
   }
 
@@ -761,6 +847,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
           ),
           themeMode: themeService.themeMode,
           home: const _InitialScreen(),
+          onGenerateRoute: _generateRoute,
           onUnknownRoute: (settings) {
             return MaterialPageRoute(builder: (context) => const HomeScreen());
           },
@@ -776,6 +863,70 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         );
       },
     );
+  }
+  
+  /// Generate routes for named navigation
+  static Route<dynamic> _generateRoute(RouteSettings settings) {
+    // Save the route when navigating
+    NavigationService.saveLastRoute(settings.name ?? 'home');
+    
+    switch (settings.name) {
+      case '/':
+      case '/home':
+        return MaterialPageRoute(builder: (_) => const HomeScreen());
+      case '/login':
+        return MaterialPageRoute(builder: (_) => const LoginScreen());
+      case '/profile':
+        return MaterialPageRoute(builder: (_) => const ProfileScreen());
+      case '/settings':
+        return MaterialPageRoute(builder: (_) => const SettingsScreen());
+      case '/qr-scanner':
+        return MaterialPageRoute(builder: (_) => const QrScannerScreen());
+      case '/share':
+        return MaterialPageRoute(builder: (_) => const ShareScreen());
+      case '/chat':
+        final args = settings.arguments as Map<String, dynamic>?;
+        final friend = args?['friend'] as Friend?;
+        if (friend != null) {
+          return MaterialPageRoute(
+            builder: (_) => ChatScreen(friend: friend),
+          );
+        }
+        return MaterialPageRoute(builder: (_) => const HomeScreen());
+      case '/create-post':
+        return MaterialPageRoute(builder: (_) => const CreatePostScreen());
+      case '/register':
+        return MaterialPageRoute(builder: (_) => const RegisterScreen());
+      case '/forgot-password':
+        return MaterialPageRoute(builder: (_) => const ForgotPasswordScreen());
+      case '/call':
+        final args = settings.arguments as Map<String, dynamic>?;
+        return MaterialPageRoute(
+          builder: (_) => CallScreen(
+            friend: args?['friend'] as Friend,
+            callType: args?['callType'] ?? CallType.audio,
+            isIncoming: args?['isIncoming'] ?? false,
+          ),
+        );
+      case '/events':
+        return MaterialPageRoute(builder: (_) => const EventsScreen());
+      case '/games':
+        return MaterialPageRoute(builder: (_) => const GamesScreen());
+      case '/groups':
+        return MaterialPageRoute(builder: (_) => const GroupsScreen());
+      case '/markets':
+        return MaterialPageRoute(builder: (_) => const MarketsScreen());
+      case '/music':
+        return MaterialPageRoute(builder: (_) => const MusicScreen());
+      case '/pages':
+        return MaterialPageRoute(builder: (_) => const PagesScreen());
+      case '/feedback':
+        return MaterialPageRoute(builder: (_) => const FeedbackScreen());
+      case '/map':
+        return MaterialPageRoute(builder: (_) => const MapScreen());
+      default:
+        return MaterialPageRoute(builder: (_) => const HomeScreen());
+    }
   }
 }
 
@@ -813,7 +964,8 @@ class __InitialScreenState extends State<_InitialScreen> with TickerProviderStat
       if (mounted) {
         if (userId != null) {
           if (userProfile != null) {
-            Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (context) => const HomeScreen()));
+            // Restore last screen or default to home
+            await _navigateToLastScreen();
             return;
           } else {
             // Try to fetch the profile again
@@ -822,7 +974,8 @@ class __InitialScreenState extends State<_InitialScreen> with TickerProviderStat
               if (username != null) {
                 final profile = await _authService.fetchUserProfile(username).timeout(const Duration(seconds: 5));
                 if (profile != null && mounted) {
-                  Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (context) => const HomeScreen()));
+                  // Restore last screen or default to home
+                  await _navigateToLastScreen();
                   return;
                 }
               }
@@ -832,12 +985,38 @@ class __InitialScreenState extends State<_InitialScreen> with TickerProviderStat
         }
         // Navigate to login if we reach here
         if (mounted) {
+          // Clear last route on logout
+          await NavigationService.clearLastRoute();
           Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (context) => const LoginScreen()));
         }
       }
     } catch (e) {
       if (mounted) {
+        // Clear last route on error
+        await NavigationService.clearLastRoute();
         Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (context) => const LoginScreen()));
+      }
+    }
+  }
+  
+  /// Navigate to the last saved screen or default to home
+  Future<void> _navigateToLastScreen() async {
+    if (!mounted) return;
+    
+    try {
+      final lastRoute = await NavigationService.getLastRoute();
+      
+      if (lastRoute != null && lastRoute.isNotEmpty) {
+        // Navigate to the last route
+        Navigator.of(context).pushReplacementNamed(lastRoute);
+      } else {
+        // Default to home if no last route saved
+        Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (context) => const HomeScreen()));
+      }
+    } catch (e) {
+      // Fallback to home on error
+      if (mounted) {
+        Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (context) => const HomeScreen()));
       }
     }
   }
