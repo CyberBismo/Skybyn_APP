@@ -91,6 +91,35 @@ class _QrScannerScreenState extends State<QrScannerScreen> with WidgetsBindingOb
     setState(() {}); // Trigger rebuild to ensure _userId is available if needed immediately
   }
 
+  /// Extracts the QR code from scanned value.
+  /// Handles both new URL format (https://skybyn.com/qr/login?code=abc123xyz0) 
+  /// and old plain code format (abc123xyz0).
+  String? _extractQrCode(String scannedValue) {
+    // Trim whitespace
+    final trimmed = scannedValue.trim();
+    
+    // Check if it's a URL format
+    try {
+      final uri = Uri.parse(trimmed);
+      // Extract code from URL query parameter
+      if (uri.queryParameters.containsKey('code')) {
+        final code = uri.queryParameters['code'];
+        if (code != null && code.isNotEmpty) {
+          return code;
+        }
+      }
+    } catch (e) {
+      // Not a valid URL, continue to check if it's a plain code
+    }
+    
+    // If it's not a URL or URL parsing failed, check if it's a plain 10-character code
+    if (trimmed.length == 10 && RegExp(r'^[a-zA-Z0-9]+$').hasMatch(trimmed)) {
+      return trimmed;
+    }
+    
+    return null;
+  }
+
   Future<void> _sendQrCodeToServer(String qrCode) async {
     if (_userId == null) {
       return;
@@ -215,12 +244,14 @@ class _QrScannerScreenState extends State<QrScannerScreen> with WidgetsBindingOb
                         onDetect: (capture) async {
                           final List<Barcode> barcodes = capture.barcodes;
                           for (final barcode in barcodes) {
-                            final scannedCode = barcode.rawValue;
-                            if (scannedCode != null) {
-                              if (scannedCode.length == 10) {
-                                await _sendQrCodeToServer(scannedCode);
+                            final scannedValue = barcode.rawValue;
+                            if (scannedValue != null) {
+                              // Extract code from scanned value (handles both URL and plain code formats)
+                              final code = _extractQrCode(scannedValue);
+                              if (code != null && code.length == 10) {
+                                await _sendQrCodeToServer(code);
                               } else {
-                                _showOverlayToast('QR code must be exactly 10 characters long.');
+                                _showOverlayToast('Invalid QR code format. Please scan a valid login QR code.');
                               }
                             }
                           }
