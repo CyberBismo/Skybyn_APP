@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'dart:ui';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import '../widgets/custom_app_bar.dart';
+import '../widgets/header.dart';
 import '../widgets/background_gradient.dart';
 import '../widgets/global_search_overlay.dart';
 import '../models/friend.dart';

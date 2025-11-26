@@ -1,0 +1,209 @@
+import 'package:flutter/material.dart';
+import 'dart:ui'; // Required for ImageFilter.blur
+import 'unified_menu.dart';
+import 'notification_overlay.dart';
+import 'app_colors.dart';
+import '../services/auth_service.dart';
+import '../screens/login_screen.dart';
+
+/// Centralized app bar configuration and styling
+class AppBarConfig {
+  /// Returns the app bar height with platform-specific adjustments
+  static double getAppBarHeight(BuildContext context) {
+    // Web platform uses 60px height (reduced from 75px)
+    return 60.0;
+  }
+
+  /// Returns the total app bar height including status bar padding
+  /// Note: This method is kept for backward compatibility but height is now calculated directly in build
+  static double getTotalAppBarHeight(BuildContext context) {
+    final appBarHeight = getAppBarHeight(context);
+    final statusBarHeight = MediaQuery.of(context).padding.top;
+    
+    return appBarHeight + statusBarHeight;
+  }
+
+  /// App bar styling constants
+  static const double androidHeightAdjustment = 20.0;
+  static const double logoHeightMultiplier = 0.85;
+  static const double blurSigma = 5.0; // Match web platform blur
+}
+
+/// Centralized styling for the CustomAppBar widget
+class CustomAppBarStyles {
+  // Sizes
+  static const double searchIconSize = 24.0;
+  static const double menuIconSize = 24.0;
+  static const double blurSigma = 5.0; // Match web platform blur
+  
+  // Padding and margins
+  static const EdgeInsets searchButtonPadding = EdgeInsets.symmetric(horizontal: 16.0);
+  static const EdgeInsets menuButtonPadding = EdgeInsets.symmetric(horizontal: 16.0);
+  static const EdgeInsets logoPadding = EdgeInsets.zero;
+  
+  // Border radius
+  static const double searchButtonRadius = 0.0;
+  static const double menuButtonRadius = 0.0;
+  
+  // Shadows and effects
+  static const double elevation = 0.0;
+  
+  // Logo styling
+  static const double logoHeightMultiplier = 0.85;
+  static const BoxFit logoFit = BoxFit.contain;
+  
+  // Backdrop filter
+  static const double backdropBlurSigma = 5.0; // Match web platform blur
+}
+
+class CustomAppBar extends StatefulWidget implements PreferredSizeWidget {
+  final String logoPath;
+  final VoidCallback? onLogout; // Made optional since it's handled internally
+  final VoidCallback onLogoPressed;
+  final double? appBarHeight;
+  final VoidCallback? onSearchFormToggle;
+  final VoidCallback? onUserMenuToggle;
+  final bool isSearchFormVisible;
+
+  const CustomAppBar({
+    super.key,
+    required this.logoPath,
+    this.onLogout, // Optional - will use internal handler if not provided
+    required this.onLogoPressed,
+    this.appBarHeight,
+    this.onSearchFormToggle,
+    this.onUserMenuToggle,
+    this.isSearchFormVisible = false,
+  });
+
+  @override
+  Size get preferredSize {
+    // This will be called after build, so we can use a more dynamic approach
+    return const Size.fromHeight(60.0 + 44.0); // Fallback for initial sizing - will be overridden by build method
+  }
+
+  @override
+  State<CustomAppBar> createState() => _CustomAppBarState();
+}
+
+class _CustomAppBarState extends State<CustomAppBar> {
+  final GlobalKey _menuKey = GlobalKey();
+  final _authService = AuthService();
+
+  Future<void> _handleLogout() async {
+    await _authService.logout();
+    if (mounted) {
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (context) => const LoginScreen()),
+        (route) => false,
+      );
+    }
+  }
+
+  void _handleSearchPressed() {
+    // Close user menu if it's open
+    if (UnifiedMenu.isMenuOpen) {
+      UnifiedMenu.closeCurrentMenu();
+    }
+    
+    // Close notification overlay if it's open
+    if (UnifiedNotificationOverlay.isOverlayOpen) {
+      UnifiedNotificationOverlay.closeCurrentOverlay();
+    }
+    
+    // Toggle search form (close if open, open if closed)
+    widget.onSearchFormToggle?.call();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final appBarHeight = widget.appBarHeight ?? AppBarConfig.getAppBarHeight(context);
+    final statusBarHeight = MediaQuery.of(context).padding.top;
+    final totalHeight = appBarHeight + statusBarHeight;
+    
+    return PreferredSize(
+      preferredSize: Size.fromHeight(totalHeight),
+      child: Container(
+        height: totalHeight,
+        decoration: const BoxDecoration(
+          color: Colors.transparent,
+        ),
+        child: ClipRect(
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: CustomAppBarStyles.backdropBlurSigma, sigmaY: CustomAppBarStyles.backdropBlurSigma),
+            child: Container(
+              height: totalHeight,
+              decoration: const BoxDecoration(
+                color: Colors.transparent,
+              ),
+              child: SafeArea(
+                top: false, // Don't add top padding to move closer to status bar
+                child: Padding(
+                  padding: EdgeInsets.only(top: statusBarHeight),
+                  child: SizedBox(
+                    height: appBarHeight,
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                      Row(
+                        children: [
+                          // Search button - fixed width with padding
+                          SizedBox(
+                            width: 72.0,
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                              child: IconButton(
+                                onPressed: _handleSearchPressed,
+                                icon: const Icon(
+                                  Icons.search, 
+                                  color: AppColors.iconColor, // White color, not affected by dark mode
+                                  size: CustomAppBarStyles.searchIconSize,
+                                ),
+                              ),
+                            ),
+                          ),
+                          // Logo - centered with flex
+                          Expanded(
+                            child: Center(
+                              child: GestureDetector(
+                                onTap: widget.onLogoPressed,
+                                child: Image.asset(
+                                  widget.logoPath,
+                                  height: appBarHeight * CustomAppBarStyles.logoHeightMultiplier,
+                                  fit: CustomAppBarStyles.logoFit,
+                                  color: null, // Ensure no color overlay
+                                  colorBlendMode: null, // Ensure no blend mode
+                                ),
+                              ),
+                            ),
+                          ),
+                          // Menu button - fixed width with padding
+                          SizedBox(
+                            width: 72.0,
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                              child: UnifiedMenu.createUserMenuButton(
+                                context: context,
+                                appBarHeight: appBarHeight,
+                                onLogout: widget.onLogout ?? _handleLogout,
+                                menuKey: _menuKey,
+                                onSearchFormToggle: widget.onSearchFormToggle,
+                                isSearchFormVisible: widget.isSearchFormVisible,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+

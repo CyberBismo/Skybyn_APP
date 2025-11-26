@@ -1,25 +1,23 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'dart:async';
-import 'dart:ui' as ui show Image, ImageByteFormat, instantiateImageCodec, PictureRecorder, Canvas, Paint, Path, Rect, Offset, PaintingStyle, ImageFilter;
+import 'dart:ui' as ui show ImageFilter;
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
-import 'dart:typed_data';
-import '../widgets/background_gradient.dart';
-import '../widgets/custom_app_bar.dart';
-import '../widgets/custom_bottom_navigation_bar.dart';
-import '../widgets/app_colors.dart';
+import '../widgets/header.dart';
+import '../widgets/bottom_nav.dart';
 import '../services/auth_service.dart';
 import '../services/location_service.dart';
 import '../config/constants.dart';
 import '../models/friend.dart';
 import '../widgets/translated_text.dart';
 import '../utils/translation_keys.dart';
-import '../services/translation_service.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 class MapScreen extends StatefulWidget {
   const MapScreen({super.key});
@@ -32,18 +30,22 @@ class _MapScreenState extends State<MapScreen> {
   final AuthService _authService = AuthService();
   final LocationService _locationService = LocationService();
   final MapController _mapController = MapController();
-  final Distance _distance = const Distance();
   String? _currentUserId;
   Position? _currentPosition;
   String? _currentUserAvatar;
   List<Friend> _friendsWithLocations = [];
   bool _isLoading = true;
   Timer? _refreshTimer;
-  final Map<String, ui.Image> _customMarkerImages = {};
-  ui.Image? _currentUserMarkerImage;
+  // Only cache avatar URLs, not entire marker images
+  final Map<String, String> _friendAvatarUrls = {};
   final GlobalKey _notificationButtonKey = GlobalKey();
   LatLng _center = const LatLng(59.9139, 10.7522); // Default to Oslo, Norway
   double _zoom = 10.0;
+  
+  // Menu state
+  bool _locationPrivateMode = false;
+  String _locationShareMode = 'off'; // 'off', 'last_active', 'live'
+  bool _useSatelliteView = false; // Toggle between roadmap and satellite view
   
   // Cache manager for map tiles (30 days cache, 200MB max size)
   static final CacheManager _tileCacheManager = CacheManager(
@@ -58,7 +60,19 @@ class _MapScreenState extends State<MapScreen> {
   @override
   void initState() {
     super.initState();
+    // Start preloading location immediately (non-blocking)
+    _preloadLocation();
     _initializeMap();
+  }
+
+  Future<void> _preloadLocation() async {
+    // Preload location in background to speed up map loading
+    try {
+      await _locationService.getCurrentLocation();
+      print('Location preloaded');
+    } catch (e) {
+      print('Error preloading location: $e');
+    }
   }
 
   @override
@@ -69,13 +83,16 @@ class _MapScreenState extends State<MapScreen> {
   }
 
   Future<void> _initializeMap() async {
+    print('=== Initializing map ===');
     final userId = await _authService.getStoredUserId();
     if (userId == null) {
+      print('No user ID found, stopping initialization');
       setState(() {
         _isLoading = false;
       });
       return;
     }
+    print('User ID: $userId');
 
     // Get current user profile for avatar
     final userProfile = await _authService.getStoredUserProfile();
@@ -84,35 +101,106 @@ class _MapScreenState extends State<MapScreen> {
       avatarUrl = userProfile.avatar;
       if (!avatarUrl.startsWith('http')) {
         avatarUrl = 'https://skybyn.no$avatarUrl';
+      } else {
+        // Fix domain if it's skybyn.com instead of skybyn.no
+        avatarUrl = avatarUrl.replaceAll('skybyn.com', 'skybyn.no');
+      }
+      
+      // Check if avatar URL is a known invalid/default URL that should use local asset
+      if (avatarUrl.contains('logo_faded_clean.png') || 
+          avatarUrl.contains('logo.png') ||
+          avatarUrl.endsWith('/assets/images/logo.png') ||
+          avatarUrl.endsWith('/assets/images/logo_faded_clean.png')) {
+        print('Avatar URL is a default/logo URL, using local asset instead');
+        avatarUrl = null; // Will use local logo.png asset
       }
     }
     if (avatarUrl == null || avatarUrl.isEmpty) {
-      avatarUrl = 'https://skybyn.no/assets/images/logo.png';
+      // Use local asset instead of URL for default
+      avatarUrl = null; // Will use local logo.png asset
     }
 
     print('Current user avatar URL: $avatarUrl');
+    
+    // Preload avatar image to cache (non-blocking) - only if it's a valid URL
+    if (avatarUrl != null && avatarUrl.isNotEmpty && avatarUrl.startsWith('http')) {
+      try {
+        final imageProvider = CachedNetworkImageProvider(avatarUrl);
+        imageProvider.resolve(const ImageConfiguration());
+        print('Avatar image preloaded to cache');
+      } catch (e) {
+        print('Error preloading avatar: $e');
+      }
+    }
+
+    // Load privacy mode and location share mode from user profile
+    bool locationPrivateMode = false;
+    String locationShareMode = 'off';
+    if (userProfile != null) {
+      try {
+        final response = await http.post(
+          Uri.parse(ApiConstants.profile),
+          body: {'userID': userId},
+          headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        ).timeout(const Duration(seconds: 10));
+
+        if (response.statusCode == 200) {
+          final data = json.decode(response.body);
+          if (data['responseCode'] == '1' || data['success'] == true) {
+            final userData = data['data'] ?? data;
+            locationPrivateMode = userData['location_private_mode']?.toString() == '1' || 
+                                 userData['location_private_mode'] == true;
+            locationShareMode = userData['location_share_mode']?.toString() ?? 'off';
+          }
+        }
+      } catch (e) {
+        // Silently handle errors
+      }
+    }
 
     setState(() {
       _currentUserId = userId;
       _currentUserAvatar = avatarUrl;
+      _locationPrivateMode = locationPrivateMode;
+      _locationShareMode = locationShareMode;
     });
 
-    // Create current user marker image
+    // Start getting location early (in parallel with other operations)
+    print('Getting current user location...');
+    final locationFuture = _locationService.getCurrentLocation();
+
+    // Create current user marker image (will be recreated after position is set)
+    // Avatar is cached via CachedNetworkImageProvider, markers built dynamically
     if (_currentUserAvatar != null) {
-      await _createCurrentUserMarker();
+      print('Current user avatar URL: $_currentUserAvatar');
+    } else {
+      print('No avatar URL available');
     }
 
-    // Get current user location
-    final position = await _locationService.getCurrentLocation();
+    // Wait for location (may already be ready if preloaded)
+    final position = await locationFuture;
     if (position != null) {
+      print('Location obtained: ${position.latitude}, ${position.longitude}');
       setState(() {
         _currentPosition = position;
         _center = LatLng(position.latitude, position.longitude);
         _zoom = 15.0;
       });
+      // Recreate marker after position is set
+      // Avatar is cached via CachedNetworkImageProvider, markers built dynamically
+    } else {
+      print('No location obtained');
+    }
+
+    // Ensure loading is set to false so map can render
+    if (mounted) {
+      setState(() {
+        _isLoading = false;
+      });
     }
 
     // Load friends locations
+    print('Loading friends locations...');
     await _loadFriendsLocations();
 
     // Set up periodic refresh for live locations
@@ -120,10 +208,12 @@ class _MapScreenState extends State<MapScreen> {
       _loadFriendsLocations();
     });
 
-    // Fit bounds after initial load
+    // Fit bounds after initial load - only once after all data is loaded
     if (mounted) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _fitBounds();
+        // Force rebuild to show markers
+        setState(() {});
       });
     }
   }
@@ -150,16 +240,15 @@ class _MapScreenState extends State<MapScreen> {
           
           setState(() {
             _friendsWithLocations = friends;
-            _isLoading = false;
+            // _isLoading already set to false earlier
           });
 
-          // Create custom marker images for friends
-          await _createCustomMarkerImages();
+          // Cache friend avatar URLs
+          await _cacheFriendAvatars();
           
-          // Update map after creating markers
+          // Update map after creating markers (don't call fitBounds here, it's called in _initializeMap)
           if (mounted) {
             setState(() {});
-            _fitBounds();
           }
         }
       } else {
@@ -179,362 +268,121 @@ class _MapScreenState extends State<MapScreen> {
     }
   }
 
-  Future<void> _createCustomMarkerImages() async {
+  Future<void> _cacheFriendAvatars() async {
+    // Cache friend avatar URLs for marker building
     for (final friend in _friendsWithLocations) {
       if (friend.latitude == null || friend.longitude == null) continue;
       
       final markerId = friend.id;
-      if (_customMarkerImages.containsKey(markerId)) continue;
+      if (_friendAvatarUrls.containsKey(markerId)) continue;
 
-      try {
-        // Create custom marker image with avatar
-        final image = await _createFriendMarkerImage(friend);
-        setState(() {
-          _customMarkerImages[markerId] = image;
-        });
-      } catch (e) {
-        print('Error creating marker for ${friend.nickname}: $e');
+      // Store avatar URL for marker building
+      String avatarUrl = friend.avatar;
+      if (avatarUrl.isNotEmpty && !avatarUrl.startsWith('http')) {
+        avatarUrl = 'https://skybyn.no$avatarUrl';
+      } else if (avatarUrl.contains('skybyn.com')) {
+        avatarUrl = avatarUrl.replaceAll('skybyn.com', 'skybyn.no');
       }
-    }
-  }
-
-  Future<ui.Image> _createFriendMarkerImage(Friend friend) async {
-    // Create a picture recorder
-    final recorder = ui.PictureRecorder();
-    final canvas = ui.Canvas(recorder);
-    const size = 50.0;
-    const avatarSize = 38.0;
-    const padding = 6.0;
-
-    // Draw white circle background
-    final backgroundPaint = ui.Paint()..color = Colors.white;
-    canvas.drawCircle(
-      const Offset(size / 2, size / 2),
-      size / 2,
-      backgroundPaint,
-    );
-
-    // Draw avatar
-    try {
-      final imageProvider = CachedNetworkImageProvider(friend.avatar);
-      final completer = Completer<ui.Image>();
-      final imageStream = imageProvider.resolve(const ImageConfiguration());
       
-      late ImageStreamListener listener;
-      listener = ImageStreamListener(
-        (ImageInfo info, bool synchronousCall) {
-          imageStream.removeListener(listener);
-          completer.complete(info.image);
-        },
-        onError: (exception, stackTrace) {
-          imageStream.removeListener(listener);
-          completer.completeError(exception);
-        },
-      );
-      
-      imageStream.addListener(listener);
-      
-      final loadedImage = await completer.future;
-      
-      // Resize image if needed
-      ui.Image avatarImage = loadedImage;
-      if (loadedImage.width != avatarSize.toInt() || loadedImage.height != avatarSize.toInt()) {
-        final byteData = await loadedImage.toByteData(format: ui.ImageByteFormat.png);
-        if (byteData != null) {
-          final codec = await ui.instantiateImageCodec(
-            byteData.buffer.asUint8List(),
-            targetWidth: avatarSize.toInt(),
-            targetHeight: avatarSize.toInt(),
-          );
-          final frame = await codec.getNextFrame();
-          avatarImage = frame.image;
+      // Preload avatar to cache
+      if (avatarUrl.isNotEmpty && avatarUrl.startsWith('http') &&
+          !avatarUrl.contains('logo_faded_clean.png') &&
+          !avatarUrl.contains('logo.png')) {
+        try {
+          final imageProvider = CachedNetworkImageProvider(avatarUrl);
+          imageProvider.resolve(const ImageConfiguration());
+        } catch (e) {
+          // Silently handle errors
         }
       }
-
-      // Draw avatar as circle
-      final avatarRect = ui.Rect.fromLTWH(
-        padding,
-        padding,
-        avatarSize,
-        avatarSize,
-      );
-      final avatarPath = ui.Path()
-        ..addOval(avatarRect);
-      canvas.save();
-      canvas.clipPath(avatarPath);
-      canvas.drawImageRect(
-        avatarImage,
-        ui.Rect.fromLTWH(0, 0, avatarImage.width.toDouble(), avatarImage.height.toDouble()),
-        avatarRect,
-        ui.Paint(),
-      );
-      canvas.restore();
-    } catch (e) {
-      // If avatar loading fails, draw a placeholder
-      final placeholderPaint = ui.Paint()..color = Colors.grey[300]!;
-      canvas.drawCircle(
-        const Offset(size / 2, size / 2),
-        avatarSize / 2,
-        placeholderPaint,
-      );
-    }
-
-    // Draw private mode icon if enabled
-    if (friend.locationPrivateMode == true) {
-      final privateIconPaint = ui.Paint()
-        ..color = Colors.orange
-        ..style = ui.PaintingStyle.fill;
-      canvas.drawCircle(
-        const ui.Offset(size - 9, 9),
-        5,
-        privateIconPaint,
-      );
-      // Draw lock icon (simplified as a small circle with line)
-      final lockPaint = ui.Paint()
-        ..color = Colors.white
-        ..strokeWidth = 1.5
-        ..style = ui.PaintingStyle.stroke;
-      canvas.drawCircle(
-        const ui.Offset(size - 9, 9),
-        3,
-        lockPaint,
-      );
-    }
-
-    // Draw border
-    final borderPaint = ui.Paint()
-      ..color = Colors.blue
-      ..style = ui.PaintingStyle.stroke
-      ..strokeWidth = 3;
-    canvas.drawCircle(
-      const ui.Offset(size / 2, size / 2),
-      size / 2,
-      borderPaint,
-    );
-
-    // Convert to image
-    final picture = recorder.endRecording();
-    final image = await picture.toImage(size.toInt(), size.toInt());
-    return image;
-  }
-
-  Future<void> _createCurrentUserMarker() async {
-    if (_currentUserAvatar == null) {
-      print('Cannot create marker: _currentUserAvatar is null');
-      return;
-    }
-    
-    print('Creating current user marker with avatar: $_currentUserAvatar');
-    try {
-      final image = await _createUserMarkerImage(_currentUserAvatar!);
-      print('Successfully created current user marker image: ${image.width}x${image.height}');
-      if (mounted) {
-        setState(() {
-          _currentUserMarkerImage = image;
-        });
-      }
-    } catch (e, stackTrace) {
-      print('Error creating current user marker: $e');
-      print('Stack trace: $stackTrace');
+      
+      _friendAvatarUrls[markerId] = avatarUrl;
     }
   }
 
-  Future<ui.Image> _createUserMarkerImage(String avatarUrl) async {
-    // Create a picture recorder
-    final recorder = ui.PictureRecorder();
-    final canvas = ui.Canvas(recorder);
-    const size = 50.0;
-    const avatarSize = 38.0;
-    const padding = 6.0;
-
-    // Draw white circle background
-    final backgroundPaint = ui.Paint()..color = Colors.white;
-    canvas.drawCircle(
-      const ui.Offset(size / 2, size / 2),
-      size / 2,
-      backgroundPaint,
-    );
-
-    // Draw avatar
-    try {
-      print('Loading avatar image from: $avatarUrl');
-      final imageProvider = CachedNetworkImageProvider(avatarUrl);
-      final completer = Completer<ui.Image>();
-      final imageStream = imageProvider.resolve(const ImageConfiguration());
-      
-      late ImageStreamListener listener;
-      listener = ImageStreamListener(
-        (ImageInfo info, bool synchronousCall) {
-          imageStream.removeListener(listener);
-          print('Avatar image loaded: ${info.image.width}x${info.image.height}');
-          completer.complete(info.image);
-        },
-        onError: (exception, stackTrace) {
-          imageStream.removeListener(listener);
-          print('Error loading avatar image: $exception');
-          completer.completeError(exception);
-        },
-      );
-      
-      imageStream.addListener(listener);
-      
-      final loadedImage = await completer.future.timeout(
-        const Duration(seconds: 10),
-        onTimeout: () {
-          throw TimeoutException('Avatar image load timeout');
-        },
-      );
-      
-      // Resize image if needed
-      ui.Image avatarImage = loadedImage;
-      if (loadedImage.width != avatarSize.toInt() || loadedImage.height != avatarSize.toInt()) {
-        final byteData = await loadedImage.toByteData(format: ui.ImageByteFormat.png);
-        if (byteData != null) {
-          final codec = await ui.instantiateImageCodec(
-            byteData.buffer.asUint8List(),
-            targetWidth: avatarSize.toInt(),
-            targetHeight: avatarSize.toInt(),
-          );
-          final frame = await codec.getNextFrame();
-          avatarImage = frame.image;
-        }
-      }
-
-      // Draw avatar as circle
-      final avatarRect = ui.Rect.fromLTWH(
-        padding,
-        padding,
-        avatarSize,
-        avatarSize,
-      );
-      final avatarPath = ui.Path()
-        ..addOval(avatarRect);
-      canvas.save();
-      canvas.clipPath(avatarPath);
-      canvas.drawImageRect(
-        avatarImage,
-        ui.Rect.fromLTWH(0, 0, avatarImage.width.toDouble(), avatarImage.height.toDouble()),
-        avatarRect,
-        ui.Paint(),
-      );
-      canvas.restore();
-    } catch (e) {
-      // If avatar loading fails, draw a placeholder
-      final placeholderPaint = ui.Paint()..color = Colors.grey[300]!;
-      canvas.drawCircle(
-        const ui.Offset(size / 2, size / 2),
-        avatarSize / 2,
-        placeholderPaint,
-      );
-    }
-
-    // Draw border (blue for current user)
-    final borderPaint = ui.Paint()
-      ..color = Colors.blue
-      ..style = ui.PaintingStyle.stroke
-      ..strokeWidth = 3;
-    canvas.drawCircle(
-      const ui.Offset(size / 2, size / 2),
-      size / 2,
-      borderPaint,
-    );
-
-    // Convert to image
-    final picture = recorder.endRecording();
-    final image = await picture.toImage(size.toInt(), size.toInt());
-    return image;
-  }
+  // Marker image creation functions removed - markers are now built dynamically with Flutter widgets
+  // Only avatar images are cached via CachedNetworkImageProvider
 
   List<Marker> _buildMarkers() {
     final markers = <Marker>[];
+    print('Building markers - position: $_currentPosition');
 
-    // Add current user marker with avatar
+    // Add current user marker with avatar (built dynamically with widgets)
     if (_currentPosition != null) {
-      if (_currentUserMarkerImage != null) {
-        // Use custom avatar marker with "Me" label
-        markers.add(
-          Marker(
-            point: LatLng(_currentPosition!.latitude, _currentPosition!.longitude),
-            width: 50,
-            height: 70,
-            alignment: Alignment.topCenter,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                SizedBox(
-                  width: 50,
-                  height: 50,
-                  child: CustomPaint(
-                    painter: _ImageMarkerPainter(_currentUserMarkerImage!),
-                    size: const Size(50, 50),
+      markers.add(
+        Marker(
+          point: LatLng(_currentPosition!.latitude, _currentPosition!.longitude),
+          width: 50,
+          height: 80,
+          alignment: Alignment.topCenter,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              // Marker with black background and avatar
+              Container(
+                width: 50,
+                height: 50,
+                decoration: const BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.black,
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(4.0),
+                  child: ClipOval(
+                    child: _currentUserAvatar != null && 
+                        _currentUserAvatar!.startsWith('http') &&
+                        !_currentUserAvatar!.contains('logo_faded_clean.png') &&
+                        !_currentUserAvatar!.contains('logo.png') &&
+                        !_currentUserAvatar!.endsWith('/assets/images/logo.png') &&
+                        !_currentUserAvatar!.endsWith('/assets/images/logo_faded_clean.png')
+                        ? CachedNetworkImage(
+                            imageUrl: _currentUserAvatar!.replaceAll('skybyn.com', 'skybyn.no'),
+                            width: 42,
+                            height: 42,
+                            fit: BoxFit.cover,
+                            placeholder: (context, url) => Image.asset(
+                              'assets/images/logo.png',
+                              width: 42,
+                              height: 42,
+                              fit: BoxFit.cover,
+                            ),
+                            errorWidget: (context, url, error) => Image.asset(
+                              'assets/images/logo.png',
+                              width: 42,
+                              height: 42,
+                              fit: BoxFit.cover,
+                            ),
+                          )
+                        : Image.asset(
+                            'assets/images/logo.png',
+                            width: 42,
+                            height: 42,
+                            fit: BoxFit.cover,
+                          ),
                   ),
                 ),
-                const SizedBox(height: 2),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.7),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: const Text(
-                    'Me',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                    ),
+              ),
+              const SizedBox(height: 2),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.7),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Text(
+                  'You',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
-        );
-      } else {
-        // Fallback to default marker while avatar loads
-        markers.add(
-          Marker(
-            point: LatLng(_currentPosition!.latitude, _currentPosition!.longitude),
-            width: 40,
-            height: 60,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  decoration: const BoxDecoration(
-                    color: Colors.blue,
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black26,
-                        blurRadius: 4,
-                        offset: Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: const Icon(Icons.person, color: Colors.white, size: 24),
-                ),
-                const SizedBox(height: 2),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.7),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: const Text(
-                    'Me',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      }
+        ),
+      );
     }
 
     // Add friends markers
@@ -546,90 +394,88 @@ class _MapScreenState extends State<MapScreen> {
       // Get display name (nickname or username)
       final displayName = friend.nickname.isNotEmpty ? friend.nickname : friend.username;
       
-      // Use custom marker image if available
-      if (_customMarkerImages.containsKey(friend.id)) {
-        final image = _customMarkerImages[friend.id]!;
-        markers.add(
-          Marker(
-            point: position,
-            width: 50,
-            height: 70,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                CustomPaint(
-                  painter: _ImageMarkerPainter(image),
-                  size: const Size(50, 50),
+      // Get avatar URL (cached separately)
+      final avatarUrl = _friendAvatarUrls[friend.id] ?? friend.avatar;
+      final finalAvatarUrl = avatarUrl.isNotEmpty && !avatarUrl.startsWith('http')
+          ? 'https://skybyn.no$avatarUrl'
+          : avatarUrl.replaceAll('skybyn.com', 'skybyn.no');
+      
+      // Build marker dynamically with widgets (only avatar is cached)
+      final hasValidAvatar = finalAvatarUrl.isNotEmpty && 
+          finalAvatarUrl.startsWith('http') &&
+          !finalAvatarUrl.contains('logo_faded_clean.png') &&
+          !finalAvatarUrl.contains('logo.png');
+      
+      markers.add(
+        Marker(
+          point: position,
+          width: 50,
+          height: 70,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Marker with black background and avatar
+              Container(
+                width: 50,
+                height: 50,
+                decoration: const BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.black,
                 ),
-                const SizedBox(height: 2),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.7),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    displayName,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                child: Padding(
+                  padding: const EdgeInsets.all(4.0),
+                  child: ClipOval(
+                    child: hasValidAvatar
+                        ? CachedNetworkImage(
+                            imageUrl: finalAvatarUrl,
+                            width: 42,
+                            height: 42,
+                            fit: BoxFit.cover,
+                            placeholder: (context, url) => Image.asset(
+                              'assets/images/logo.png',
+                              width: 42,
+                              height: 42,
+                              fit: BoxFit.cover,
+                            ),
+                            errorWidget: (context, url, error) => Image.asset(
+                              'assets/images/logo.png',
+                              width: 42,
+                              height: 42,
+                              fit: BoxFit.cover,
+                            ),
+                          )
+                        : Image.asset(
+                            'assets/images/logo.png',
+                            width: 42,
+                            height: 42,
+                            fit: BoxFit.cover,
+                          ),
                   ),
                 ),
-              ],
-            ),
+              ),
+              const SizedBox(height: 2),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.7),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  displayName,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
           ),
-        );
-      } else {
-        // Use default marker
-        markers.add(
-          Marker(
-            point: position,
-            width: 40,
-            height: 60,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  decoration: BoxDecoration(
-                    color: friend.locationPrivateMode == true ? Colors.orange : Colors.green,
-                    shape: BoxShape.circle,
-                    boxShadow: const [
-                      BoxShadow(
-                        color: Colors.black26,
-                        blurRadius: 4,
-                        offset: Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: const Icon(Icons.person, color: Colors.white, size: 24),
-                ),
-                const SizedBox(height: 2),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.7),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    displayName,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      }
+        ),
+      );
+      
     }
 
     return markers;
@@ -706,13 +552,160 @@ class _MapScreenState extends State<MapScreen> {
   }
 
   void _centerOnCurrentLocation() async {
-    final position = await _locationService.getCurrentLocation();
-    if (position != null) {
+    // Use cached position for instant response, fallback to getting new location
+    if (_currentPosition != null) {
+      // Move immediately using cached position
       _mapController.move(
-        LatLng(position.latitude, position.longitude),
+        LatLng(_currentPosition!.latitude, _currentPosition!.longitude),
         15.0,
       );
     }
+    
+    // Optionally update location in background for next time
+    _locationService.getCurrentLocation().then((position) {
+      if (position != null && mounted) {
+        setState(() {
+          _currentPosition = position;
+        });
+      }
+    }).catchError((e) {
+      // Silently handle errors - we already moved to cached position
+    });
+  }
+
+  Future<void> _togglePrivacyMode() async {
+    if (_currentUserId == null) return;
+
+    final newValue = !_locationPrivateMode;
+    setState(() {
+      _locationPrivateMode = newValue;
+    });
+
+    try {
+      final response = await http.post(
+        Uri.parse(ApiConstants.updateLocationSettings),
+        body: {
+          'userID': _currentUserId!,
+          'location_share_mode': _locationShareMode, // Preserve existing mode
+          'location_private_mode': newValue ? '1' : '0',
+        },
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+      ).timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data['responseCode'] != '1' && data['success'] != true) {
+          // Revert on failure
+          setState(() {
+            _locationPrivateMode = !newValue;
+          });
+        }
+      }
+    } catch (e) {
+      // Revert on error
+      setState(() {
+        _locationPrivateMode = !newValue;
+      });
+    }
+  }
+
+  String _getTileUrl() {
+    // Google Maps tile URL - switch between roadmap and satellite
+    // lyrs=m = roadmap, lyrs=s = satellite
+    // Note: This uses a public tile server that provides Google Maps-like tiles
+    // For production, you may want to use Google Maps API with your own API key
+    return _useSatelliteView
+        ? 'https://mt{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}' // Satellite view
+        : 'https://mt{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}'; // Roadmap view
+  }
+
+  List<String> _getSubdomains() {
+    // Google Maps uses subdomains 0-3
+    return const ['0', '1', '2', '3'];
+  }
+
+  Widget _buildMapMenu(BuildContext context) {
+    final statusBarHeight = MediaQuery.of(context).padding.top;
+    final headerHeight = statusBarHeight;
+    
+    return Positioned(
+      top: headerHeight + 8, // Position just below the header with 8px spacing
+      left: 0,
+      right: 0,
+      child: Center(
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(32),
+          child: BackdropFilter(
+            filter: ui.ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+            child: Container(
+              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+              decoration: BoxDecoration(
+                color: Colors.black.withOpacity(0.3),
+                borderRadius: BorderRadius.circular(32),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Satellite/Roadmap toggle
+                  Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: () {
+                        setState(() {
+                          _useSatelliteView = !_useSatelliteView;
+                        });
+                      },
+                      borderRadius: BorderRadius.circular(24),
+                      child: Container(
+                        width: 48,
+                        height: 48,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: _useSatelliteView
+                              ? Colors.green.withOpacity(0.3)
+                              : Colors.white.withOpacity(0.1),
+                        ),
+                        child: Icon(
+                          _useSatelliteView ? Icons.satellite : Icons.map,
+                          color: _useSatelliteView ? Colors.green : Colors.white,
+                          size: 24,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  // Privacy mode button
+                  Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: _togglePrivacyMode,
+                      borderRadius: BorderRadius.circular(24),
+                      child: Container(
+                        width: 48,
+                        height: 48,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: _locationPrivateMode 
+                              ? Colors.orange.withOpacity(0.3)
+                              : Colors.white.withOpacity(0.1),
+                        ),
+                        child: Center(
+                          child: FaIcon(
+                            _locationPrivateMode ? FontAwesomeIcons.userSecret : FontAwesomeIcons.eye,
+                            color: _locationPrivateMode ? Colors.orange : Colors.white,
+                            size: 24,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   @override
@@ -737,55 +730,127 @@ class _MapScreenState extends State<MapScreen> {
           notificationButtonKey: _notificationButtonKey,
         ),
       ),
-      body: Stack(
-        children: [
-          if (_isLoading)
-            const Center(
-              child: CircularProgressIndicator(),
-            )
-          else
-            Stack(
-              children: [
-                FlutterMap(
-                  mapController: _mapController,
-                  options: MapOptions(
-                    initialCenter: _center,
-                    initialZoom: _zoom,
-                    minZoom: 3.0,
-                    maxZoom: 18.0,
-                    interactionOptions: const InteractionOptions(
-                      flags: InteractiveFlag.pinchZoom | InteractiveFlag.drag | InteractiveFlag.scrollWheelZoom,
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          // Calculate app bar height for background overlay
+          final statusBarHeight = MediaQuery.of(context).padding.top;
+          final headerHeight = statusBarHeight;
+          const bottomNavBarHeight = 130.0;
+          
+          return Stack(
+            children: [
+              // Full screen map
+              SizedBox.expand(
+                child: FlutterMap(
+                        mapController: _mapController,
+                        options: MapOptions(
+                          initialCenter: _center,
+                          initialZoom: _zoom,
+                          minZoom: 3.0,
+                          maxZoom: 18.0,
+                          interactionOptions: const InteractionOptions(
+                            flags: InteractiveFlag.pinchZoom | InteractiveFlag.drag | InteractiveFlag.scrollWheelZoom,
+                          ),
+                          onTap: (tapPosition, point) {
+                            print('Map tapped at: ${point.latitude}, ${point.longitude}');
+                          },
+                          onMapReady: () {
+                            print('Map is ready');
+                            // Force map to render
+                            if (mounted && _currentPosition != null) {
+                              _mapController.move(
+                                LatLng(_currentPosition!.latitude, _currentPosition!.longitude),
+                                _zoom,
+                              );
+                            }
+                          },
+                        ),
+                        children: [
+                          // Google Maps tile layer - switches between roadmap and satellite
+                          TileLayer(
+                            urlTemplate: _getTileUrl(),
+                            userAgentPackageName: 'no.skybyn.app',
+                            maxZoom: 19,
+                            subdomains: _getSubdomains(),
+                            // Enable tile caching using custom provider
+                            tileProvider: _CachedTileProvider(_tileCacheManager),
+                          ),
+                          // Markers layer
+                          MarkerLayer(
+                            markers: _buildMarkers(),
+                          ),
+                        ],
+                      ),
                     ),
-                    onTap: (tapPosition, point) {
-                      print('Map tapped at: ${point.latitude}, ${point.longitude}');
-                    },
+          // Show loading message while fetching location
+          if (_isLoading || (_currentPosition == null && _currentUserAvatar != null))
+            Center(
+                    child: Container(
+                      padding: const EdgeInsets.all(16),
+                      margin: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.7),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          // Show cached avatar if available, otherwise show logo
+                          if (_currentUserAvatar != null && 
+                              _currentUserAvatar!.startsWith('http') &&
+                              !_currentUserAvatar!.contains('logo_faded_clean.png') &&
+                              !_currentUserAvatar!.contains('logo.png') &&
+                              !_currentUserAvatar!.endsWith('/assets/images/logo.png') &&
+                              !_currentUserAvatar!.endsWith('/assets/images/logo_faded_clean.png'))
+                            ClipOval(
+                              child: CachedNetworkImage(
+                                imageUrl: _currentUserAvatar!.replaceAll('skybyn.com', 'skybyn.no'),
+                                width: 48,
+                                height: 48,
+                                fit: BoxFit.cover,
+                                placeholder: (context, url) => ClipOval(
+                                  child: Image.asset(
+                                    'assets/images/logo.png',
+                                    width: 48,
+                                    height: 48,
+                                    fit: BoxFit.cover,
+                                  ),
+                                ),
+                                errorWidget: (context, url, error) {
+                                  print('Error loading avatar in loading message: $error');
+                                  return ClipOval(
+                                    child: Image.asset(
+                                      'assets/images/logo.png',
+                                      width: 48,
+                                      height: 48,
+                                      fit: BoxFit.cover,
+                                    ),
+                                  );
+                                },
+                              ),
+                            )
+                          else
+                            ClipOval(
+                              child: Image.asset(
+                                'assets/images/logo.png',
+                                width: 48,
+                                height: 48,
+                                fit: BoxFit.cover,
+                              ),
+                            ),
+                          const SizedBox(height: 12),
+                          const Text(
+                            'Loading location...',
+                            style: TextStyle(color: Colors.white, fontSize: 16),
+                            textAlign: TextAlign.center,
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
-                  children: [
-                    // OpenStreetMap tile layer - switches between light and dark based on theme
-                    Builder(
-                      builder: (context) {
-                        final isDark = Theme.of(context).brightness == Brightness.dark;
-                        return TileLayer(
-                          urlTemplate: isDark
-                              ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png' // CartoDB Dark Matter (dark mode)
-                              : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', // Standard OSM (light mode)
-                          userAgentPackageName: 'no.skybyn.app',
-                          maxZoom: 19,
-                          subdomains: isDark ? const ['a', 'b', 'c', 'd'] : const [],
-                          // Enable tile caching using custom provider
-                          tileProvider: _CachedTileProvider(_tileCacheManager),
-                        );
-                      },
-                    ),
-                    // Markers layer
-                    MarkerLayer(
-                      markers: _buildMarkers(),
-                    ),
-                  ],
-                ),
-                // Show message overlay if no locations available
-                if (_currentPosition == null && _friendsWithLocations.isEmpty)
-                  Center(
+          // Show message overlay if no locations available (only after loading is complete)
+          if (!_isLoading && _currentPosition == null && _friendsWithLocations.isEmpty && _currentUserAvatar == null)
+            Center(
                     child: Container(
                       padding: const EdgeInsets.all(16),
                       margin: const EdgeInsets.all(20),
@@ -807,44 +872,49 @@ class _MapScreenState extends State<MapScreen> {
                       ),
                     ),
                   ),
-              ],
+          // Loading indicator overlay
+          if (_isLoading)
+            const Center(
+              child: CircularProgressIndicator(),
             ),
           // Floating action button to center on current location
           Positioned(
-            bottom: 100,
-            left: 0,
-            right: 0,
-            child: Center(
-              child: Container(
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Colors.white.withOpacity(0.2),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.1),
-                      blurRadius: 10,
-                      spreadRadius: 2,
+                bottom: 140,
+                left: 0,
+                right: 0,
+                child: Center(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Colors.white.withOpacity(0.2),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.1),
+                          blurRadius: 10,
+                          spreadRadius: 2,
+                        ),
+                      ],
                     ),
-                  ],
-                ),
-                child: ClipOval(
-                  child: BackdropFilter(
-                    filter: ui.ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                    child: Material(
-                      color: Colors.transparent,
-                      child: InkWell(
-                        onTap: _centerOnCurrentLocation,
-                        borderRadius: BorderRadius.circular(30),
-                        child: Container(
-                          width: 56,
-                          height: 56,
-                          decoration: const BoxDecoration(
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(
-                            Icons.my_location,
-                            color: Colors.white,
-                            size: 28,
+                    child: ClipOval(
+                      child: BackdropFilter(
+                        filter: ui.ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                        child: Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                            onTap: _centerOnCurrentLocation,
+                            borderRadius: BorderRadius.circular(30),
+                            child: Container(
+                              width: 56,
+                              height: 56,
+                              decoration: const BoxDecoration(
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(
+                                Icons.my_location,
+                                color: Colors.white,
+                                size: 28,
+                              ),
+                            ),
                           ),
                         ),
                       ),
@@ -852,36 +922,129 @@ class _MapScreenState extends State<MapScreen> {
                   ),
                 ),
               ),
+          // Map menu on the right side
+          if (!_isLoading) _buildMapMenu(context),
+          // Header background overlay (between map and app bar)
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            height: headerHeight,
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: Theme.of(context).brightness == Brightness.dark
+                      ? [
+                          const Color.fromRGBO(11, 19, 43, 1.0), // Midnight navy (matches BackgroundGradient)
+                          const Color.fromRGBO(0, 8, 20, 1.0), // Near-black midnight blue
+                        ]
+                      : [
+                          const Color.fromRGBO(72, 198, 239, 1.0), // Light blue (webLightPrimary)
+                          const Color.fromRGBO(111, 134, 214, 1.0), // Blue (webLightSecondary)
+                        ],
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                ),
+              ),
+              width: double.infinity,
             ),
           ),
-        ],
+          // Bottom nav background overlay (between map and bottom nav)
+          Positioned(
+            bottom: 0,
+            left: 0,
+            right: 0,
+            height: bottomNavBarHeight,
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: Theme.of(context).brightness == Brightness.dark
+                      ? [
+                          const Color.fromRGBO(11, 19, 43, 1.0), // Midnight navy (matches BackgroundGradient)
+                          const Color.fromRGBO(0, 8, 20, 1.0), // Near-black midnight blue
+                        ]
+                      : [
+                          const Color.fromRGBO(72, 198, 239, 1.0), // Light blue (webLightPrimary)
+                          const Color.fromRGBO(111, 134, 214, 1.0), // Blue (webLightSecondary)
+                        ],
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                ),
+              ),
+              width: double.infinity,
+            ),
+          ),
+            ],
+          );
+        },
       ),
     );
   }
 }
 
-// Custom painter for drawing marker images
-class _ImageMarkerPainter extends CustomPainter {
-  final ui.Image image;
-
-  _ImageMarkerPainter(this.image);
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint();
-    canvas.drawImageRect(
-      image,
-      Rect.fromLTWH(0, 0, image.width.toDouble(), image.height.toDouble()),
-      Rect.fromLTWH(0, 0, size.width, size.height),
-      paint,
-    );
-  }
-
-  @override
-  bool shouldRepaint(_ImageMarkerPainter oldDelegate) {
-    return oldDelegate.image != image;
+/// Preload map screen data when app opens
+/// This can be called from main.dart to preload map data on app startup
+Future<void> preloadMapScreen() async {
+  try {
+    final authService = AuthService();
+    final userId = await authService.getStoredUserId();
+    
+    if (userId == null) {
+      return; // User not logged in
+    }
+    
+    // Preload location
+    final locationService = LocationService();
+    await locationService.getCurrentLocation().catchError((e) {
+      return null; // Return null on error
+    });
+    
+    // Preload user profile and avatar
+    final userProfile = await authService.getStoredUserProfile();
+    if (userProfile != null && userProfile.avatar.isNotEmpty) {
+      String avatarUrl = userProfile.avatar;
+      if (!avatarUrl.startsWith('http')) {
+        avatarUrl = 'https://skybyn.no$avatarUrl';
+      } else {
+        avatarUrl = avatarUrl.replaceAll('skybyn.com', 'skybyn.no');
+      }
+      
+      // Preload avatar image to cache
+      if (avatarUrl.isNotEmpty && 
+          avatarUrl.startsWith('http') &&
+          !avatarUrl.contains('logo_faded_clean.png') &&
+          !avatarUrl.contains('logo.png')) {
+        try {
+          final imageProvider = CachedNetworkImageProvider(avatarUrl);
+          imageProvider.resolve(const ImageConfiguration());
+        } catch (e) {
+          // Silently handle errors
+        }
+      }
+    }
+    
+    // Preload friends locations
+    Future.delayed(const Duration(seconds: 1), () async {
+      try {
+        final response = await http.post(
+          Uri.parse(ApiConstants.friendsLocations),
+          body: {'userID': userId},
+          headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        ).timeout(const Duration(seconds: 10));
+        
+        if (response.statusCode == 200) {
+          print('Map screen data preloaded on app startup');
+        }
+      } catch (e) {
+        // Silently handle errors
+      }
+    });
+  } catch (e) {
+    // Silently handle errors - preloading is optional
   }
 }
+
+// _ImageMarkerPainter removed - markers are now built dynamically with Flutter widgets
 
 // Custom tile provider with caching support
 class _CachedTileProvider extends TileProvider {
@@ -898,3 +1061,4 @@ class _CachedTileProvider extends TileProvider {
     );
   }
 }
+

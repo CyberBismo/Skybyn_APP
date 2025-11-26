@@ -5,6 +5,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'dart:io';
 import 'package:provider/provider.dart';
 import 'package:app_links/app_links.dart';
+import 'package:http/http.dart' as http;
 import 'dart:async';
 // Screens - all imports in main.dart
 import 'screens/login_screen.dart';
@@ -42,8 +43,11 @@ import 'services/call_service.dart';
 import 'services/friend_service.dart';
 import 'services/chat_message_count_service.dart';
 import 'services/navigation_service.dart';
+import 'services/location_service.dart';
+import 'config/constants.dart';
 // Widgets and Models
 import 'widgets/incoming_call_notification.dart';
+import 'widgets/background_gradient.dart';
 import 'models/friend.dart';
 
 Future<void> main() async {
@@ -58,6 +62,11 @@ Future<void> main() async {
 
       // Set preferred orientations to portrait only
       await SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp, DeviceOrientation.portraitDown]);
+      
+      // Enable edge-to-edge mode to make app extend behind status bar
+      await SystemChrome.setEnabledSystemUIMode(
+        SystemUiMode.edgeToEdge,
+      );
 
       // Initialize HTTP overrides to handle SSL certificates
       HttpOverrides.global = MyHttpOverrides();
@@ -267,6 +276,12 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       // Start periodic profile checks (every 5 minutes to detect bans/deactivations)
       _startProfileChecks();
 
+      // Preload location and map data (non-blocking, in background)
+      _preloadLocationAndMapData();
+      
+      // Preload map screen (non-blocking, in background)
+      preloadMapScreen();
+
       // Check for updates after a delay
       if (Platform.isAndroid) {
         Future.delayed(const Duration(seconds: 5), () {
@@ -275,6 +290,48 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         });
       }
     } catch (e) {
+    }
+  }
+
+  /// Preload location and map data on app startup
+  /// This makes the map screen load faster when user navigates to it
+  Future<void> _preloadLocationAndMapData() async {
+    try {
+      final authService = AuthService();
+      final userId = await authService.getStoredUserId();
+      
+      if (userId == null) {
+        return; // User not logged in, skip preloading
+      }
+
+      // Preload location in background (non-blocking)
+      final locationService = LocationService();
+      locationService.getCurrentLocation().then((position) {
+        if (position != null) {
+          print('Location preloaded on app startup: ${position.latitude}, ${position.longitude}');
+        }
+      }).catchError((e) {
+        // Silently handle errors - location preloading is optional
+      });
+
+      // Preload friends locations in background (non-blocking)
+      Future.delayed(const Duration(seconds: 2), () async {
+        try {
+          final response = await http.post(
+            Uri.parse(ApiConstants.friendsLocations),
+            body: {'userID': userId},
+            headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+          ).timeout(const Duration(seconds: 10));
+
+          if (response.statusCode == 200) {
+            print('Friends locations preloaded on app startup');
+          }
+        } catch (e) {
+          // Silently handle errors - friends locations preloading is optional
+        }
+      });
+    } catch (e) {
+      // Silently handle errors - preloading is optional
     }
   }
 
@@ -775,6 +832,17 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
 
     return Consumer<ThemeService>(
       builder: (context, themeService, child) {
+        // Set status bar to transparent so background shows through
+        SystemChrome.setSystemUIOverlayStyle(
+          const SystemUiOverlayStyle(
+            statusBarColor: Colors.transparent, // Transparent so background is visible
+            statusBarIconBrightness: Brightness.light, // Light icons (white)
+            statusBarBrightness: Brightness.dark, // For iOS compatibility
+            systemNavigationBarColor: Colors.transparent, // Also set navigation bar to transparent
+            systemNavigationBarIconBrightness: Brightness.light,
+          ),
+        );
+        
         return MaterialApp(
           navigatorKey: navigatorKey,
           title: 'Skybyn',
@@ -852,12 +920,14 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
             return MaterialPageRoute(builder: (context) => const HomeScreen());
           },
           builder: (context, child) {
-            return GestureDetector(
-              onTap: () {
-                FocusService().unfocusAll();
-              },
-              behavior: HitTestBehavior.translucent,
-              child: AnimatedSwitcher(duration: const Duration(milliseconds: 300), child: child!),
+            return BackgroundGradient(
+              child: GestureDetector(
+                onTap: () {
+                  FocusService().unfocusAll();
+                },
+                behavior: HitTestBehavior.translucent,
+                child: AnimatedSwitcher(duration: const Duration(milliseconds: 300), child: child!),
+              ),
             );
           },
         );
