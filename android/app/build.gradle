@@ -82,6 +82,8 @@ android {
         ndk {
             abiFilters "armeabi-v7a", "arm64-v8a"
         }
+        // Handle plugins that still have product flavors (like firebase_app_distribution_android)
+        // Use 'production' as default when resolving dependencies from flavored plugins
         missingDimensionStrategy 'default', 'production'
     }
 
@@ -101,16 +103,6 @@ android {
                     v2SigningEnabled true
                 }
             }
-        }
-    }
-
-    flavorDimensions 'default'
-    productFlavors {
-        production {
-            dimension 'default'
-        }
-        staging {
-            dimension 'default'
         }
     }
 
@@ -194,27 +186,27 @@ tasks.whenTaskAdded { task ->
 // Suppress Java compilation warnings for this module
 afterEvaluate {
     tasks.withType(JavaCompile).configureEach {
-        options.compilerArgs += [
+        options.compilerArgs = [
             '-Xlint:-deprecation',
             '-Xlint:-unchecked',
             '-Xlint:-options',
-            '-Xmaxwarns', '0'  // Suppress all warnings
+            '-Xlint:-processing',
+            '-Xmaxwarns', '0',
+            '-nowarn'
         ]
         options.encoding = 'UTF-8'
         options.deprecation = false
         options.warnings = false
+        options.fork = true
+        options.incremental = true
     }
     
-    // Also suppress warnings from annotation processors
-    tasks.withType(JavaCompile).all {
-        options.compilerArgs += [
-            '-Xlint:-deprecation',
-            '-Xlint:-unchecked',
-            '-Xlint:-options',
-            '-Xmaxwarns', '0'
-        ]
-        options.deprecation = false
-        options.warnings = false
+    // Suppress Kotlin warnings as well
+    tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
+        kotlinOptions {
+            suppressWarnings = true
+            allWarningsAsErrors = false
+        }
     }
 }
 

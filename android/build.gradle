@@ -25,28 +25,45 @@ allprojects {
 allprojects {
     tasks.withType(JavaCompile).configureEach {
         // Suppress deprecation and unchecked warnings (they come from dependencies, not our code)
-        options.compilerArgs += [
+        options.compilerArgs = [
             '-Xlint:-deprecation',
             '-Xlint:-unchecked',
             '-Xlint:-options',
-            '-Xmaxwarns', '0'  // Suppress all warnings
+            '-Xlint:-processing',
+            '-Xmaxwarns', '0',
+            '-nowarn'
         ]
         options.encoding = 'UTF-8'
         options.deprecation = false
         options.warnings = false
+        options.fork = true
+        options.incremental = true
     }
     
     // Also suppress warnings for all subprojects
     afterEvaluate { project ->
         project.tasks.withType(JavaCompile).configureEach {
-            options.compilerArgs += [
+            options.compilerArgs = [
                 '-Xlint:-deprecation',
                 '-Xlint:-unchecked',
                 '-Xlint:-options',
-                '-Xmaxwarns', '0'
+                '-Xlint:-processing',
+                '-Xmaxwarns', '0',
+                '-nowarn'
             ]
+            options.encoding = 'UTF-8'
             options.deprecation = false
             options.warnings = false
+            options.fork = true
+            options.incremental = true
+        }
+        
+        // Suppress Kotlin warnings as well
+        project.tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
+            kotlinOptions {
+                suppressWarnings = true
+                allWarningsAsErrors = false
+            }
         }
         
         if (project.hasProperty('android')) {

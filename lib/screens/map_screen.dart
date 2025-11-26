@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'dart:async';
-import 'dart:ui' as ui;
+import 'dart:ui' as ui show Image, ImageByteFormat, instantiateImageCodec, PictureRecorder, Canvas, Paint, Path, Rect, Offset, PaintingStyle, ImageFilter;
+import 'package:flutter_cache_manager/flutter_cache_manager.dart';
+import 'dart:typed_data';
 import '../widgets/background_gradient.dart';
 import '../widgets/custom_app_bar.dart';
 import '../widgets/custom_bottom_navigation_bar.dart';
@@ -28,14 +31,29 @@ class MapScreen extends StatefulWidget {
 class _MapScreenState extends State<MapScreen> {
   final AuthService _authService = AuthService();
   final LocationService _locationService = LocationService();
-  GoogleMapController? _mapController;
+  final MapController _mapController = MapController();
+  final Distance _distance = const Distance();
   String? _currentUserId;
   Position? _currentPosition;
+  String? _currentUserAvatar;
   List<Friend> _friendsWithLocations = [];
   bool _isLoading = true;
   Timer? _refreshTimer;
-  final Map<String, BitmapDescriptor> _customMarkers = {};
+  final Map<String, ui.Image> _customMarkerImages = {};
+  ui.Image? _currentUserMarkerImage;
   final GlobalKey _notificationButtonKey = GlobalKey();
+  LatLng _center = const LatLng(59.9139, 10.7522); // Default to Oslo, Norway
+  double _zoom = 10.0;
+  
+  // Cache manager for map tiles (30 days cache, 200MB max size)
+  static final CacheManager _tileCacheManager = CacheManager(
+    Config(
+      'map_tiles_cache',
+      stalePeriod: const Duration(days: 30),
+      maxNrOfCacheObjects: 10000,
+      repo: JsonCacheInfoRepository(databaseName: 'map_tiles_cache'),
+    ),
+  );
 
   @override
   void initState() {
@@ -46,7 +64,7 @@ class _MapScreenState extends State<MapScreen> {
   @override
   void dispose() {
     _refreshTimer?.cancel();
-    _mapController?.dispose();
+    _mapController.dispose();
     super.dispose();
   }
 
@@ -59,15 +77,38 @@ class _MapScreenState extends State<MapScreen> {
       return;
     }
 
+    // Get current user profile for avatar
+    final userProfile = await _authService.getStoredUserProfile();
+    String? avatarUrl;
+    if (userProfile != null && userProfile.avatar.isNotEmpty) {
+      avatarUrl = userProfile.avatar;
+      if (!avatarUrl.startsWith('http')) {
+        avatarUrl = 'https://skybyn.no$avatarUrl';
+      }
+    }
+    if (avatarUrl == null || avatarUrl.isEmpty) {
+      avatarUrl = 'https://skybyn.no/assets/images/logo.png';
+    }
+
+    print('Current user avatar URL: $avatarUrl');
+
     setState(() {
       _currentUserId = userId;
+      _currentUserAvatar = avatarUrl;
     });
+
+    // Create current user marker image
+    if (_currentUserAvatar != null) {
+      await _createCurrentUserMarker();
+    }
 
     // Get current user location
     final position = await _locationService.getCurrentLocation();
     if (position != null) {
       setState(() {
         _currentPosition = position;
+        _center = LatLng(position.latitude, position.longitude);
+        _zoom = 15.0;
       });
     }
 
@@ -78,6 +119,13 @@ class _MapScreenState extends State<MapScreen> {
     _refreshTimer = Timer.periodic(const Duration(seconds: 30), (timer) {
       _loadFriendsLocations();
     });
+
+    // Fit bounds after initial load
+    if (mounted) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _fitBounds();
+      });
+    }
   }
 
   Future<void> _loadFriendsLocations() async {
@@ -105,12 +153,13 @@ class _MapScreenState extends State<MapScreen> {
             _isLoading = false;
           });
 
-          // Create custom markers for friends
-          await _createCustomMarkers();
+          // Create custom marker images for friends
+          await _createCustomMarkerImages();
           
-          // Update map markers after creating custom markers
+          // Update map after creating markers
           if (mounted) {
             setState(() {});
+            _fitBounds();
           }
         }
       } else {
@@ -121,6 +170,7 @@ class _MapScreenState extends State<MapScreen> {
         }
       }
     } catch (e) {
+      print('Error loading friends locations: $e');
       if (mounted) {
         setState(() {
           _isLoading = false;
@@ -129,35 +179,35 @@ class _MapScreenState extends State<MapScreen> {
     }
   }
 
-  Future<void> _createCustomMarkers() async {
+  Future<void> _createCustomMarkerImages() async {
     for (final friend in _friendsWithLocations) {
       if (friend.latitude == null || friend.longitude == null) continue;
       
       final markerId = friend.id;
-      if (_customMarkers.containsKey(markerId)) continue;
+      if (_customMarkerImages.containsKey(markerId)) continue;
 
       try {
-        // Create custom marker with avatar
-        final marker = await _createFriendMarker(friend);
+        // Create custom marker image with avatar
+        final image = await _createFriendMarkerImage(friend);
         setState(() {
-          _customMarkers[markerId] = marker;
+          _customMarkerImages[markerId] = image;
         });
       } catch (e) {
-        // If custom marker creation fails, use default marker
+        print('Error creating marker for ${friend.nickname}: $e');
       }
     }
   }
 
-  Future<BitmapDescriptor> _createFriendMarker(Friend friend) async {
+  Future<ui.Image> _createFriendMarkerImage(Friend friend) async {
     // Create a picture recorder
     final recorder = ui.PictureRecorder();
-    final canvas = Canvas(recorder);
-    const size = 80.0;
-    const avatarSize = 60.0;
-    const padding = 10.0;
+    final canvas = ui.Canvas(recorder);
+    const size = 50.0;
+    const avatarSize = 38.0;
+    const padding = 6.0;
 
     // Draw white circle background
-    final backgroundPaint = Paint()..color = Colors.white;
+    final backgroundPaint = ui.Paint()..color = Colors.white;
     canvas.drawCircle(
       const Offset(size / 2, size / 2),
       size / 2,
@@ -202,26 +252,26 @@ class _MapScreenState extends State<MapScreen> {
       }
 
       // Draw avatar as circle
-      final avatarRect = Rect.fromLTWH(
+      final avatarRect = ui.Rect.fromLTWH(
         padding,
         padding,
         avatarSize,
         avatarSize,
       );
-      final avatarPath = Path()
+      final avatarPath = ui.Path()
         ..addOval(avatarRect);
       canvas.save();
       canvas.clipPath(avatarPath);
       canvas.drawImageRect(
         avatarImage,
-        Rect.fromLTWH(0, 0, avatarImage.width.toDouble(), avatarImage.height.toDouble()),
+        ui.Rect.fromLTWH(0, 0, avatarImage.width.toDouble(), avatarImage.height.toDouble()),
         avatarRect,
-        Paint(),
+        ui.Paint(),
       );
       canvas.restore();
     } catch (e) {
       // If avatar loading fails, draw a placeholder
-      final placeholderPaint = Paint()..color = Colors.grey[300]!;
+      final placeholderPaint = ui.Paint()..color = Colors.grey[300]!;
       canvas.drawCircle(
         const Offset(size / 2, size / 2),
         avatarSize / 2,
@@ -231,33 +281,33 @@ class _MapScreenState extends State<MapScreen> {
 
     // Draw private mode icon if enabled
     if (friend.locationPrivateMode == true) {
-      final privateIconPaint = Paint()
+      final privateIconPaint = ui.Paint()
         ..color = Colors.orange
-        ..style = PaintingStyle.fill;
+        ..style = ui.PaintingStyle.fill;
       canvas.drawCircle(
-        const Offset(size - 15, 15),
-        8,
+        const ui.Offset(size - 9, 9),
+        5,
         privateIconPaint,
       );
       // Draw lock icon (simplified as a small circle with line)
-      final lockPaint = Paint()
+      final lockPaint = ui.Paint()
         ..color = Colors.white
-        ..strokeWidth = 2
-        ..style = PaintingStyle.stroke;
+        ..strokeWidth = 1.5
+        ..style = ui.PaintingStyle.stroke;
       canvas.drawCircle(
-        const Offset(size - 15, 15),
-        5,
+        const ui.Offset(size - 9, 9),
+        3,
         lockPaint,
       );
     }
 
     // Draw border
-    final borderPaint = Paint()
+    final borderPaint = ui.Paint()
       ..color = Colors.blue
-      ..style = PaintingStyle.stroke
+      ..style = ui.PaintingStyle.stroke
       ..strokeWidth = 3;
     canvas.drawCircle(
-      const Offset(size / 2, size / 2),
+      const ui.Offset(size / 2, size / 2),
       size / 2,
       borderPaint,
     );
@@ -265,78 +315,327 @@ class _MapScreenState extends State<MapScreen> {
     // Convert to image
     final picture = recorder.endRecording();
     final image = await picture.toImage(size.toInt(), size.toInt());
-    final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
-    final uint8List = byteData!.buffer.asUint8List();
-
-    return BitmapDescriptor.fromBytes(uint8List);
+    return image;
   }
 
-  Set<Marker> _buildMarkers() {
-    final markers = <Marker>{};
+  Future<void> _createCurrentUserMarker() async {
+    if (_currentUserAvatar == null) {
+      print('Cannot create marker: _currentUserAvatar is null');
+      return;
+    }
+    
+    print('Creating current user marker with avatar: $_currentUserAvatar');
+    try {
+      final image = await _createUserMarkerImage(_currentUserAvatar!);
+      print('Successfully created current user marker image: ${image.width}x${image.height}');
+      if (mounted) {
+        setState(() {
+          _currentUserMarkerImage = image;
+        });
+      }
+    } catch (e, stackTrace) {
+      print('Error creating current user marker: $e');
+      print('Stack trace: $stackTrace');
+    }
+  }
 
-    // Add current user marker
-    if (_currentPosition != null) {
-      markers.add(
-        Marker(
-          markerId: const MarkerId('current_user'),
-          position: LatLng(_currentPosition!.latitude, _currentPosition!.longitude),
-          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueBlue),
-          infoWindow: InfoWindow(
-            title: TranslationService().translate(TranslationKeys.you),
-          ),
-        ),
+  Future<ui.Image> _createUserMarkerImage(String avatarUrl) async {
+    // Create a picture recorder
+    final recorder = ui.PictureRecorder();
+    final canvas = ui.Canvas(recorder);
+    const size = 50.0;
+    const avatarSize = 38.0;
+    const padding = 6.0;
+
+    // Draw white circle background
+    final backgroundPaint = ui.Paint()..color = Colors.white;
+    canvas.drawCircle(
+      const ui.Offset(size / 2, size / 2),
+      size / 2,
+      backgroundPaint,
+    );
+
+    // Draw avatar
+    try {
+      print('Loading avatar image from: $avatarUrl');
+      final imageProvider = CachedNetworkImageProvider(avatarUrl);
+      final completer = Completer<ui.Image>();
+      final imageStream = imageProvider.resolve(const ImageConfiguration());
+      
+      late ImageStreamListener listener;
+      listener = ImageStreamListener(
+        (ImageInfo info, bool synchronousCall) {
+          imageStream.removeListener(listener);
+          print('Avatar image loaded: ${info.image.width}x${info.image.height}');
+          completer.complete(info.image);
+        },
+        onError: (exception, stackTrace) {
+          imageStream.removeListener(listener);
+          print('Error loading avatar image: $exception');
+          completer.completeError(exception);
+        },
       );
+      
+      imageStream.addListener(listener);
+      
+      final loadedImage = await completer.future.timeout(
+        const Duration(seconds: 10),
+        onTimeout: () {
+          throw TimeoutException('Avatar image load timeout');
+        },
+      );
+      
+      // Resize image if needed
+      ui.Image avatarImage = loadedImage;
+      if (loadedImage.width != avatarSize.toInt() || loadedImage.height != avatarSize.toInt()) {
+        final byteData = await loadedImage.toByteData(format: ui.ImageByteFormat.png);
+        if (byteData != null) {
+          final codec = await ui.instantiateImageCodec(
+            byteData.buffer.asUint8List(),
+            targetWidth: avatarSize.toInt(),
+            targetHeight: avatarSize.toInt(),
+          );
+          final frame = await codec.getNextFrame();
+          avatarImage = frame.image;
+        }
+      }
+
+      // Draw avatar as circle
+      final avatarRect = ui.Rect.fromLTWH(
+        padding,
+        padding,
+        avatarSize,
+        avatarSize,
+      );
+      final avatarPath = ui.Path()
+        ..addOval(avatarRect);
+      canvas.save();
+      canvas.clipPath(avatarPath);
+      canvas.drawImageRect(
+        avatarImage,
+        ui.Rect.fromLTWH(0, 0, avatarImage.width.toDouble(), avatarImage.height.toDouble()),
+        avatarRect,
+        ui.Paint(),
+      );
+      canvas.restore();
+    } catch (e) {
+      // If avatar loading fails, draw a placeholder
+      final placeholderPaint = ui.Paint()..color = Colors.grey[300]!;
+      canvas.drawCircle(
+        const ui.Offset(size / 2, size / 2),
+        avatarSize / 2,
+        placeholderPaint,
+      );
+    }
+
+    // Draw border (blue for current user)
+    final borderPaint = ui.Paint()
+      ..color = Colors.blue
+      ..style = ui.PaintingStyle.stroke
+      ..strokeWidth = 3;
+    canvas.drawCircle(
+      const ui.Offset(size / 2, size / 2),
+      size / 2,
+      borderPaint,
+    );
+
+    // Convert to image
+    final picture = recorder.endRecording();
+    final image = await picture.toImage(size.toInt(), size.toInt());
+    return image;
+  }
+
+  List<Marker> _buildMarkers() {
+    final markers = <Marker>[];
+
+    // Add current user marker with avatar
+    if (_currentPosition != null) {
+      if (_currentUserMarkerImage != null) {
+        // Use custom avatar marker with "Me" label
+        markers.add(
+          Marker(
+            point: LatLng(_currentPosition!.latitude, _currentPosition!.longitude),
+            width: 50,
+            height: 70,
+            alignment: Alignment.topCenter,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                SizedBox(
+                  width: 50,
+                  height: 50,
+                  child: CustomPaint(
+                    painter: _ImageMarkerPainter(_currentUserMarkerImage!),
+                    size: const Size(50, 50),
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.7),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Text(
+                    'Me',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      } else {
+        // Fallback to default marker while avatar loads
+        markers.add(
+          Marker(
+            point: LatLng(_currentPosition!.latitude, _currentPosition!.longitude),
+            width: 40,
+            height: 60,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  decoration: const BoxDecoration(
+                    color: Colors.blue,
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black26,
+                        blurRadius: 4,
+                        offset: Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: const Icon(Icons.person, color: Colors.white, size: 24),
+                ),
+                const SizedBox(height: 2),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.7),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Text(
+                    'Me',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      }
     }
 
     // Add friends markers
     for (final friend in _friendsWithLocations) {
       if (friend.latitude == null || friend.longitude == null) continue;
 
-      final markerId = MarkerId(friend.id);
       final position = LatLng(friend.latitude!, friend.longitude!);
       
-      // Use custom marker if available, otherwise use default
-      BitmapDescriptor icon;
-      if (_customMarkers.containsKey(friend.id)) {
-        icon = _customMarkers[friend.id]!;
+      // Get display name (nickname or username)
+      final displayName = friend.nickname.isNotEmpty ? friend.nickname : friend.username;
+      
+      // Use custom marker image if available
+      if (_customMarkerImages.containsKey(friend.id)) {
+        final image = _customMarkerImages[friend.id]!;
+        markers.add(
+          Marker(
+            point: position,
+            width: 50,
+            height: 70,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CustomPaint(
+                  painter: _ImageMarkerPainter(image),
+                  size: const Size(50, 50),
+                ),
+                const SizedBox(height: 2),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.7),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    displayName,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
       } else {
-        icon = BitmapDescriptor.defaultMarkerWithHue(
-          friend.locationPrivateMode == true 
-            ? BitmapDescriptor.hueOrange 
-            : BitmapDescriptor.hueGreen,
+        // Use default marker
+        markers.add(
+          Marker(
+            point: position,
+            width: 40,
+            height: 60,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  decoration: BoxDecoration(
+                    color: friend.locationPrivateMode == true ? Colors.orange : Colors.green,
+                    shape: BoxShape.circle,
+                    boxShadow: const [
+                      BoxShadow(
+                        color: Colors.black26,
+                        blurRadius: 4,
+                        offset: Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: const Icon(Icons.person, color: Colors.white, size: 24),
+                ),
+                const SizedBox(height: 2),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.7),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    displayName,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+          ),
         );
       }
-
-      markers.add(
-        Marker(
-          markerId: markerId,
-          position: position,
-          icon: icon,
-          infoWindow: InfoWindow(
-            title: friend.nickname,
-            snippet: friend.isLive == true 
-              ? TranslationService().translate(TranslationKeys.liveLocation)
-              : TranslationService().translate(TranslationKeys.lastActiveLocation),
-          ),
-        ),
-      );
     }
 
     return markers;
   }
 
-  void _onMapCreated(GoogleMapController controller) {
-    _mapController = controller;
-    
-    // Move camera to show all friends or current location
-    if (_friendsWithLocations.isNotEmpty || _currentPosition != null) {
-      _fitBounds();
-    }
-  }
-
   void _fitBounds() {
-    if (_mapController == null) return;
-
     final positions = <LatLng>[];
     
     if (_currentPosition != null) {
@@ -349,7 +648,11 @@ class _MapScreenState extends State<MapScreen> {
       }
     }
 
-    if (positions.isEmpty) return;
+    if (positions.isEmpty) {
+      // Default to Oslo if no positions
+      _mapController.move(_center, _zoom);
+      return;
+    }
 
     // Calculate bounds
     double minLat = positions.first.latitude;
@@ -373,25 +676,41 @@ class _MapScreenState extends State<MapScreen> {
       maxLng += offset;
     }
 
-    _mapController!.animateCamera(
-      CameraUpdate.newLatLngBounds(
-        LatLngBounds(
-          southwest: LatLng(minLat, minLng),
-          northeast: LatLng(maxLat, maxLng),
-        ),
-        100.0, // padding
-      ),
+    // Calculate center and zoom
+    final center = LatLng(
+      (minLat + maxLat) / 2,
+      (minLng + maxLng) / 2,
     );
+    
+    // Calculate appropriate zoom level based on bounds
+    final latDiff = maxLat - minLat;
+    final lngDiff = maxLng - minLng;
+    final maxDiff = latDiff > lngDiff ? latDiff : lngDiff;
+    
+    double zoom = 10.0;
+    if (maxDiff > 0.1) {
+      zoom = 8.0;
+    } else if (maxDiff > 0.05) {
+      zoom = 9.0;
+    } else if (maxDiff > 0.02) {
+      zoom = 10.0;
+    } else if (maxDiff > 0.01) {
+      zoom = 11.0;
+    } else if (maxDiff > 0.005) {
+      zoom = 12.0;
+    } else {
+      zoom = 13.0;
+    }
+
+    _mapController.move(center, zoom);
   }
 
   void _centerOnCurrentLocation() async {
     final position = await _locationService.getCurrentLocation();
-    if (position != null && _mapController != null) {
-      _mapController!.animateCamera(
-        CameraUpdate.newLatLngZoom(
-          LatLng(position.latitude, position.longitude),
-          15.0,
-        ),
+    if (position != null) {
+      _mapController.move(
+        LatLng(position.latitude, position.longitude),
+        15.0,
       );
     }
   }
@@ -424,114 +743,114 @@ class _MapScreenState extends State<MapScreen> {
             const Center(
               child: CircularProgressIndicator(),
             )
-          else if (_currentPosition == null && _friendsWithLocations.isEmpty)
-            Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(Icons.location_off, size: 64, color: Colors.grey),
-                  const SizedBox(height: 16),
-                  TranslatedText(
-                    TranslationKeys.noLocationsAvailable,
-                    style: TextStyle(color: AppColors.getTextColor(context)),
-                  ),
-                ],
-              ),
-            )
           else
-            GoogleMap(
-              onMapCreated: _onMapCreated,
-              initialCameraPosition: CameraPosition(
-                target: _currentPosition != null
-                    ? LatLng(_currentPosition!.latitude, _currentPosition!.longitude)
-                    : _friendsWithLocations.isNotEmpty && _friendsWithLocations.first.latitude != null
-                        ? LatLng(_friendsWithLocations.first.latitude!, _friendsWithLocations.first.longitude!)
-                        : const LatLng(59.9139, 10.7522), // Default to Oslo, Norway instead of (0,0)
-                zoom: 12.0,
-              ),
-              markers: _buildMarkers(),
-              myLocationEnabled: true,
-              myLocationButtonEnabled: false,
-              mapType: MapType.normal,
+            Stack(
+              children: [
+                FlutterMap(
+                  mapController: _mapController,
+                  options: MapOptions(
+                    initialCenter: _center,
+                    initialZoom: _zoom,
+                    minZoom: 3.0,
+                    maxZoom: 18.0,
+                    interactionOptions: const InteractionOptions(
+                      flags: InteractiveFlag.pinchZoom | InteractiveFlag.drag | InteractiveFlag.scrollWheelZoom,
+                    ),
+                    onTap: (tapPosition, point) {
+                      print('Map tapped at: ${point.latitude}, ${point.longitude}');
+                    },
+                  ),
+                  children: [
+                    // OpenStreetMap tile layer - switches between light and dark based on theme
+                    Builder(
+                      builder: (context) {
+                        final isDark = Theme.of(context).brightness == Brightness.dark;
+                        return TileLayer(
+                          urlTemplate: isDark
+                              ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png' // CartoDB Dark Matter (dark mode)
+                              : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', // Standard OSM (light mode)
+                          userAgentPackageName: 'no.skybyn.app',
+                          maxZoom: 19,
+                          subdomains: isDark ? const ['a', 'b', 'c', 'd'] : const [],
+                          // Enable tile caching using custom provider
+                          tileProvider: _CachedTileProvider(_tileCacheManager),
+                        );
+                      },
+                    ),
+                    // Markers layer
+                    MarkerLayer(
+                      markers: _buildMarkers(),
+                    ),
+                  ],
+                ),
+                // Show message overlay if no locations available
+                if (_currentPosition == null && _friendsWithLocations.isEmpty)
+                  Center(
+                    child: Container(
+                      padding: const EdgeInsets.all(16),
+                      margin: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.7),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.location_off, size: 48, color: Colors.white),
+                          const SizedBox(height: 12),
+                          TranslatedText(
+                            TranslationKeys.noLocationsAvailable,
+                            style: const TextStyle(color: Colors.white, fontSize: 16),
+                            textAlign: TextAlign.center,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+              ],
             ),
           // Floating action button to center on current location
           Positioned(
             bottom: 100,
-            right: 16,
-            child: FloatingActionButton(
-              onPressed: _centerOnCurrentLocation,
-              backgroundColor: Colors.blue,
-              child: const Icon(Icons.my_location, color: Colors.white),
-            ),
-          ),
-          // Legend
-          Positioned(
-            top: 100,
-            left: 16,
-            child: Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.9),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Row(
-                    children: [
-                      Container(
-                        width: 16,
-                        height: 16,
-                        decoration: const BoxDecoration(
-                          color: Colors.blue,
-                          shape: BoxShape.circle,
+            left: 0,
+            right: 0,
+            child: Center(
+              child: Container(
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.white.withOpacity(0.2),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.1),
+                      blurRadius: 10,
+                      spreadRadius: 2,
+                    ),
+                  ],
+                ),
+                child: ClipOval(
+                  child: BackdropFilter(
+                    filter: ui.ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                    child: Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        onTap: _centerOnCurrentLocation,
+                        borderRadius: BorderRadius.circular(30),
+                        child: Container(
+                          width: 56,
+                          height: 56,
+                          decoration: const BoxDecoration(
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.my_location,
+                            color: Colors.white,
+                            size: 28,
+                          ),
                         ),
                       ),
-                      const SizedBox(width: 8),
-                      TranslatedText(
-                        TranslationKeys.you,
-                        style: const TextStyle(fontSize: 12),
-                      ),
-                    ],
+                    ),
                   ),
-                  const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      Container(
-                        width: 16,
-                        height: 16,
-                        decoration: const BoxDecoration(
-                          color: Colors.green,
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      TranslatedText(
-                        TranslationKeys.friends,
-                        style: const TextStyle(fontSize: 12),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      Container(
-                        width: 16,
-                        height: 16,
-                        decoration: const BoxDecoration(
-                          color: Colors.orange,
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      TranslatedText(
-                        TranslationKeys.locationPrivateMode,
-                        style: const TextStyle(fontSize: 12),
-                      ),
-                    ],
-                  ),
-                ],
+                ),
               ),
             ),
           ),
@@ -541,3 +860,41 @@ class _MapScreenState extends State<MapScreen> {
   }
 }
 
+// Custom painter for drawing marker images
+class _ImageMarkerPainter extends CustomPainter {
+  final ui.Image image;
+
+  _ImageMarkerPainter(this.image);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint();
+    canvas.drawImageRect(
+      image,
+      Rect.fromLTWH(0, 0, image.width.toDouble(), image.height.toDouble()),
+      Rect.fromLTWH(0, 0, size.width, size.height),
+      paint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(_ImageMarkerPainter oldDelegate) {
+    return oldDelegate.image != image;
+  }
+}
+
+// Custom tile provider with caching support
+class _CachedTileProvider extends TileProvider {
+  final CacheManager cacheManager;
+
+  _CachedTileProvider(this.cacheManager);
+
+  @override
+  ImageProvider getImage(TileCoordinates coordinates, TileLayer options) {
+    final url = getTileUrl(coordinates, options);
+    return CachedNetworkImageProvider(
+      url,
+      cacheManager: cacheManager,
+    );
+  }
+}
