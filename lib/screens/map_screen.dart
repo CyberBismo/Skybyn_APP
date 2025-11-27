@@ -40,7 +40,7 @@ class _MapScreenState extends State<MapScreen> {
   final Map<String, String> _friendAvatarUrls = {};
   final GlobalKey _notificationButtonKey = GlobalKey();
   LatLng _center = const LatLng(59.9139, 10.7522); // Default to Oslo, Norway
-  double _zoom = 10.0;
+  double _zoom = 3.0;
   
   // Menu state
   bool _locationPrivateMode = false;
@@ -327,39 +327,45 @@ class _MapScreenState extends State<MapScreen> {
                   shape: BoxShape.circle,
                   color: Colors.black,
                 ),
-                child: Padding(
-                  padding: const EdgeInsets.all(4.0),
-                  child: ClipOval(
-                    child: _currentUserAvatar != null && 
-                        _currentUserAvatar!.startsWith('http') &&
-                        !_currentUserAvatar!.contains('logo_faded_clean.png') &&
-                        !_currentUserAvatar!.contains('logo.png') &&
-                        !_currentUserAvatar!.endsWith('/assets/images/logo.png') &&
-                        !_currentUserAvatar!.endsWith('/assets/images/logo_faded_clean.png')
-                        ? CachedNetworkImage(
-                            imageUrl: _currentUserAvatar!.replaceAll('skybyn.com', 'skybyn.no'),
-                            width: 42,
-                            height: 42,
-                            fit: BoxFit.cover,
-                            placeholder: (context, url) => Image.asset(
-                              'assets/images/logo.png',
-                              width: 42,
-                              height: 42,
-                              fit: BoxFit.cover,
-                            ),
-                            errorWidget: (context, url, error) => Image.asset(
-                              'assets/images/logo.png',
-                              width: 42,
-                              height: 42,
-                              fit: BoxFit.cover,
-                            ),
-                          )
-                        : Image.asset(
-                            'assets/images/logo.png',
-                            width: 42,
-                            height: 42,
-                            fit: BoxFit.cover,
-                          ),
+                child: Center(
+                  child: SizedBox(
+                    width: 45,
+                    height: 45,
+                    child: ClipOval(
+                      child: Padding(
+                        padding: const EdgeInsets.all(2.0),
+                        child: _currentUserAvatar != null && 
+                            _currentUserAvatar!.startsWith('http') &&
+                            !_currentUserAvatar!.contains('logo_faded_clean.png') &&
+                            !_currentUserAvatar!.contains('logo.png') &&
+                            !_currentUserAvatar!.endsWith('/assets/images/logo.png') &&
+                            !_currentUserAvatar!.endsWith('/assets/images/logo_faded_clean.png')
+                            ? CachedNetworkImage(
+                                imageUrl: _currentUserAvatar!.replaceAll('skybyn.com', 'skybyn.no'),
+                                width: 45,
+                                height: 45,
+                                fit: BoxFit.cover,
+                                placeholder: (context, url) => Image.asset(
+                                  'assets/images/logo.png',
+                                  width: 45,
+                                  height: 45,
+                                  fit: BoxFit.cover,
+                                ),
+                                errorWidget: (context, url, error) => Image.asset(
+                                  'assets/images/logo.png',
+                                  width: 45,
+                                  height: 45,
+                                  fit: BoxFit.cover,
+                                ),
+                              )
+                            : Image.asset(
+                                'assets/images/logo.png',
+                                width: 45,
+                                height: 45,
+                                fit: BoxFit.cover,
+                              ),
+                      ),
+                    ),
                   ),
                 ),
               ),
@@ -410,7 +416,7 @@ class _MapScreenState extends State<MapScreen> {
         Marker(
           point: position,
           width: 50,
-          height: 70,
+          height: 80,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -422,34 +428,40 @@ class _MapScreenState extends State<MapScreen> {
                   shape: BoxShape.circle,
                   color: Colors.black,
                 ),
-                child: Padding(
-                  padding: const EdgeInsets.all(4.0),
-                  child: ClipOval(
-                    child: hasValidAvatar
-                        ? CachedNetworkImage(
-                            imageUrl: finalAvatarUrl,
-                            width: 42,
-                            height: 42,
-                            fit: BoxFit.cover,
-                            placeholder: (context, url) => Image.asset(
-                              'assets/images/logo.png',
-                              width: 42,
-                              height: 42,
-                              fit: BoxFit.cover,
-                            ),
-                            errorWidget: (context, url, error) => Image.asset(
-                              'assets/images/logo.png',
-                              width: 42,
-                              height: 42,
-                              fit: BoxFit.cover,
-                            ),
-                          )
-                        : Image.asset(
-                            'assets/images/logo.png',
-                            width: 42,
-                            height: 42,
-                            fit: BoxFit.cover,
-                          ),
+                child: Center(
+                  child: SizedBox(
+                    width: 45,
+                    height: 45,
+                    child: ClipOval(
+                      child: Padding(
+                        padding: const EdgeInsets.all(2.0),
+                        child: hasValidAvatar
+                            ? CachedNetworkImage(
+                                imageUrl: finalAvatarUrl,
+                                width: 45,
+                                height: 45,
+                                fit: BoxFit.cover,
+                                placeholder: (context, url) => Image.asset(
+                                  'assets/images/logo.png',
+                                  width: 45,
+                                  height: 45,
+                                  fit: BoxFit.cover,
+                                ),
+                                errorWidget: (context, url, error) => Image.asset(
+                                  'assets/images/logo.png',
+                                  width: 45,
+                                  height: 45,
+                                  fit: BoxFit.cover,
+                                ),
+                              )
+                            : Image.asset(
+                                'assets/images/logo.png',
+                                width: 45,
+                                height: 45,
+                                fit: BoxFit.cover,
+                              ),
+                      ),
+                    ),
                   ),
                 ),
               ),
@@ -640,7 +652,7 @@ class _MapScreenState extends State<MapScreen> {
             child: Container(
               padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
               decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.3),
+                color: Colors.black.withOpacity(0.2),
                 borderRadius: BorderRadius.circular(32),
               ),
               child: Row(
@@ -657,23 +669,17 @@ class _MapScreenState extends State<MapScreen> {
                       },
                       borderRadius: BorderRadius.circular(24),
                       child: Container(
-                        width: 48,
-                        height: 48,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: _useSatelliteView
-                              ? Colors.green.withOpacity(0.3)
-                              : Colors.white.withOpacity(0.1),
-                        ),
+                        width: 30,
+                        height: 30,
                         child: Icon(
                           _useSatelliteView ? Icons.satellite : Icons.map,
                           color: _useSatelliteView ? Colors.green : Colors.white,
-                          size: 24,
+                          size: 30,
                         ),
                       ),
                     ),
                   ),
-                  const SizedBox(width: 16),
+                  const SizedBox(width: 30),
                   // Privacy mode button
                   Material(
                     color: Colors.transparent,
@@ -681,19 +687,13 @@ class _MapScreenState extends State<MapScreen> {
                       onTap: _togglePrivacyMode,
                       borderRadius: BorderRadius.circular(24),
                       child: Container(
-                        width: 48,
-                        height: 48,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: _locationPrivateMode 
-                              ? Colors.orange.withOpacity(0.3)
-                              : Colors.white.withOpacity(0.1),
-                        ),
+                        width: 30,
+                        height: 30,
                         child: Center(
                           child: FaIcon(
                             _locationPrivateMode ? FontAwesomeIcons.userSecret : FontAwesomeIcons.eye,
                             color: _locationPrivateMode ? Colors.orange : Colors.white,
-                            size: 24,
+                            size: 30,
                           ),
                         ),
                       ),
@@ -805,14 +805,14 @@ class _MapScreenState extends State<MapScreen> {
                             ClipOval(
                               child: CachedNetworkImage(
                                 imageUrl: _currentUserAvatar!.replaceAll('skybyn.com', 'skybyn.no'),
-                                width: 48,
-                                height: 48,
+                                width: 45,
+                                height: 45,
                                 fit: BoxFit.cover,
                                 placeholder: (context, url) => ClipOval(
                                   child: Image.asset(
                                     'assets/images/logo.png',
-                                    width: 48,
-                                    height: 48,
+                                    width: 45,
+                                    height: 45,
                                     fit: BoxFit.cover,
                                   ),
                                 ),
@@ -821,8 +821,8 @@ class _MapScreenState extends State<MapScreen> {
                                   return ClipOval(
                                     child: Image.asset(
                                       'assets/images/logo.png',
-                                      width: 48,
-                                      height: 48,
+                                      width: 45,
+                                      height: 45,
                                       fit: BoxFit.cover,
                                     ),
                                   );
@@ -833,8 +833,8 @@ class _MapScreenState extends State<MapScreen> {
                             ClipOval(
                               child: Image.asset(
                                 'assets/images/logo.png',
-                                width: 48,
-                                height: 48,
+                                width: 45,
+                                height: 45,
                                 fit: BoxFit.cover,
                               ),
                             ),

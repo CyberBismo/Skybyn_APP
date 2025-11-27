@@ -54,11 +54,27 @@ Future<void> main() async {
   // Gate all print calls behind a debug flag using Zone
   // Logging enabled for debugging FCM token
   const bool enableLogging = false;
+  // Always enable error logging on iOS for debugging
+  final bool enableErrorLogging = Platform.isIOS || enableLogging;
 
   runZonedGuarded(
     () async {
       // Ensure Flutter is initialized first
       WidgetsFlutterBinding.ensureInitialized();
+
+      // Set up Flutter error handler to log all errors
+      FlutterError.onError = (FlutterErrorDetails details) {
+        if (enableErrorLogging) {
+          FlutterError.presentError(details);
+          print('═══════════════════════════════════════════════════════════════');
+          print('FLUTTER ERROR');
+          print('═══════════════════════════════════════════════════════════════');
+          print('Exception: ${details.exception}');
+          print('Library: ${details.library}');
+          print('Stack: ${details.stack}');
+          print('═══════════════════════════════════════════════════════════════');
+        }
+      };
 
       // Set preferred orientations to portrait only
       await SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp, DeviceOrientation.portraitDown]);
@@ -83,8 +99,9 @@ Future<void> main() async {
       await translationService.initialize();
 
       // Initialize Firebase BEFORE running the app (needed for FCM push notifications)
-      await _initializeFirebase().catchError((error) {
-        if (enableLogging) {
+      await _initializeFirebase(enableErrorLogging).catchError((error) {
+        if (enableErrorLogging) {
+          print('Firebase initialization error: $error');
         }
       });
 
@@ -92,8 +109,13 @@ Future<void> main() async {
       runApp(ChangeNotifierProvider.value(value: themeService, child: const MyApp()));
     },
     (error, stack) {
-      if (enableLogging) {
-        // ignore: avoid_print
+      if (enableErrorLogging) {
+        print('═══════════════════════════════════════════════════════════════');
+        print('ZONE ERROR (Uncaught Exception)');
+        print('═══════════════════════════════════════════════════════════════');
+        print('Error: $error');
+        print('Stack: $stack');
+        print('═══════════════════════════════════════════════════════════════');
       }
     },
     zoneSpecification: ZoneSpecification(
@@ -106,7 +128,7 @@ Future<void> main() async {
   );
 }
 
-Future<void> _initializeFirebase() async {
+Future<void> _initializeFirebase(bool enableErrorLogging) async {
   try {
     // Always initialize Firebase Core (needed for FCM push notifications)
     // Check if Firebase is already initialized
@@ -114,6 +136,9 @@ Future<void> _initializeFirebase() async {
       try {
         await Firebase.initializeApp();
       } catch (e) {
+        if (enableErrorLogging) {
+          print('Firebase Core initialization error: $e');
+        }
         rethrow; // Re-throw to be caught by outer catch
       }
     } else {
@@ -132,9 +157,20 @@ Future<void> _initializeFirebase() async {
       // Token is already registered on app start in initialize() method
       // If user is logged in, it will be updated with user ID in auth_service.dart after login
     } catch (e) {
+      if (enableErrorLogging) {
+        print('Firebase Messaging initialization error: $e');
+      }
     }
-  } catch (e) {
+  } catch (e, stackTrace) {
     // Print detailed error
+    if (enableErrorLogging) {
+      print('═══════════════════════════════════════════════════════════════');
+      print('FIREBASE INITIALIZATION ERROR');
+      print('═══════════════════════════════════════════════════════════════');
+      print('Error: $e');
+      print('Stack: $stackTrace');
+      print('═══════════════════════════════════════════════════════════════');
+    }
     // Continue without Firebase - app will still work
   }
 }

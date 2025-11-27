@@ -5,7 +5,6 @@ import '../screens/profile_screen.dart';
 import '../screens/settings_screen.dart';
 import '../screens/qr_scanner_screen.dart';
 import '../screens/share_screen.dart';
-import '../screens/map_screen.dart';
 import 'app_colors.dart';
 import '../utils/translation_keys.dart';
 import '../utils/navigation_helper.dart';
@@ -184,9 +183,10 @@ class UnifiedMenu {
               icon: Icons.map,
               translationKey: TranslationKeys.map,
               onTap: () {
-                NavigationHelper.push(
+                closeCurrentMenu();
+                // Use pushNamed for better iOS compatibility
+                NavigationHelper.pushNamed(
                   context,
-                  const MapScreen(),
                   '/map',
                 );
               },

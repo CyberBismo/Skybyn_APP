@@ -9,9 +9,9 @@ import 'notification_overlay.dart';
 /// Centralized styling for the CustomBottomNavigationBar widget
 class BottomNavBarStyles {
   // Sizes
-  static const double iconSize = 24.0;
-  static const double addButtonSize = 56.0;
-  static const double addButtonIconSize = 32.0;
+  static const double iconSize = 30.0;
+  static const double addButtonSize = 30.0;
+  static const double addButtonIconSize = 30.0;
   
   // Padding and margins
   static const EdgeInsets barPadding = EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0);
@@ -19,7 +19,7 @@ class BottomNavBarStyles {
   
   // Border radius
   static const double barRadius = 25.0;
-  static const double addButtonRadius = 28.0;
+  static const double addButtonRadius = 25.0;
   
   // Shadows and effects
   static const double blurSigma = 10.0;
