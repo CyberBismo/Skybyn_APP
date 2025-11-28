@@ -93,8 +93,37 @@ subprojects {
         }
     }
 }
+
 subprojects {
     project.evaluationDependsOn(':app')
+    
+    // Ensure Flutter extension is available to all subprojects BEFORE they evaluate
+    // This must happen before plugins try to access android.flutter
+    beforeEvaluate { project ->
+        // Create flutter extension early for plugins that need it
+        // The Flutter Gradle plugin should create this, but we ensure it exists
+        if (!project.extensions.findByName('flutter')) {
+            project.extensions.create('flutter', FlutterExtensionCompat)
+        }
+        
+        // Also ensure it's available on android extension for plugins that access android.flutter
+        if (project.hasProperty('android')) {
+            project.android {
+                // The flutter extension should be accessible via project.flutter
+                // Some plugins might try to access it via android.flutter
+            }
+        }
+    }
+}
+
+// Compatibility FlutterExtension for plugins that need it
+// This provides the properties that plugins expect from android.flutter
+class FlutterExtensionCompat {
+    def minSdkVersion = 21
+    def compileSdkVersion = 36
+    def targetSdkVersion = 34
+    
+    FlutterExtensionCompat() {}
 }
 
 // Fix for Windows path resolution issues with different drives

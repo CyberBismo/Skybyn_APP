@@ -70,6 +70,9 @@ class ApiConstants {
   static String get friendsLocations => '$apiBase/location/friends_locations.php';
   static String get updateLocationSettings => '$apiBase/location/update_settings.php';
   
+  // Video Feed
+  static String get videoFeed => '$apiBase/video/feed.php';
+  
   // Admin
   static String get adminUsers => '$apiBase/admin/users.php';
   static String get adminReports => '$apiBase/admin/reports.php';

@@ -16,6 +16,8 @@ import '../services/auto_update_service.dart';
 import '../services/firebase_messaging_service.dart';
 import '../services/websocket_service.dart';
 import 'create_post_screen.dart';
+import 'map_screen.dart';
+import 'video_feed_screen.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'dart:io';
@@ -947,13 +949,64 @@ class _HomeScreenState extends State<HomeScreen> {
             onUnreadCountChanged: _onUnreadCountChanged,
           ),
         ),
-        body: Stack(
-          children: [
-            // Show grey background during initial loading, gradient otherwise
-            if (_isLoading)
-              Container(color: Colors.grey[900])
-            else
-              const BackgroundGradient(),
+        body: GestureDetector(
+          onHorizontalDragEnd: (details) {
+            if (details.primaryVelocity != null) {
+              // Swipe from left to right (positive velocity) opens map screen
+              if (details.primaryVelocity! > 500) {
+                Navigator.of(context).push(
+                  PageRouteBuilder(
+                    pageBuilder: (context, animation, secondaryAnimation) => const MapScreen(),
+                    transitionsBuilder: (context, animation, secondaryAnimation, child) {
+                      const begin = Offset(-1.0, 0.0);
+                      const end = Offset.zero;
+                      const curve = Curves.easeInOut;
+
+                      var tween = Tween(begin: begin, end: end).chain(
+                        CurveTween(curve: curve),
+                      );
+
+                      return SlideTransition(
+                        position: animation.drive(tween),
+                        child: child,
+                      );
+                    },
+                    transitionDuration: const Duration(milliseconds: 300),
+                  ),
+                );
+              }
+              // Swipe from right to left (negative velocity) opens video feed
+              else if (details.primaryVelocity! < -500) {
+                Navigator.of(context).push(
+                  PageRouteBuilder(
+                    pageBuilder: (context, animation, secondaryAnimation) => const VideoFeedScreen(),
+                    transitionsBuilder: (context, animation, secondaryAnimation, child) {
+                      const begin = Offset(1.0, 0.0);
+                      const end = Offset.zero;
+                      const curve = Curves.easeInOut;
+
+                      var tween = Tween(begin: begin, end: end).chain(
+                        CurveTween(curve: curve),
+                      );
+
+                      return SlideTransition(
+                        position: animation.drive(tween),
+                        child: child,
+                      );
+                    },
+                    transitionDuration: const Duration(milliseconds: 300),
+                  ),
+                );
+              }
+            }
+          },
+          child: Stack(
+            children: [
+              // Show grey background during initial loading, gradient otherwise
+              if (_isLoading)
+                Container(color: Colors.grey[900])
+              else
+                const BackgroundGradient(),
             
             // Floating new post indicator
             if (_showNewPostIndicator && !_isLoading)
@@ -1124,6 +1177,7 @@ class _HomeScreenState extends State<HomeScreen> {
               },
             ),
           ],
+          ),
         ),
       ),
     );
