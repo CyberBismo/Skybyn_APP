@@ -481,6 +481,7 @@ class _VideoFeedScreenState extends State<VideoFeedScreen> {
         ],
         ),
       ),
+      ),
     );
   }
 
