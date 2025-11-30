@@ -858,6 +858,34 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     }
   }
 
+  /// Helper function to check if a widget is VideoFeedScreen or contains it
+  bool _isVideoFeedScreen(Widget? widget) {
+    if (widget == null) return false;
+    
+    final widgetType = widget.runtimeType.toString();
+    if (widgetType == 'VideoFeedScreen' || widgetType.contains('VideoFeedScreen')) {
+      return true;
+    }
+    
+    // Check widget key
+    if (widget.key is ValueKey) {
+      final keyValue = (widget.key as ValueKey).value;
+      if (keyValue == 'VideoFeedScreen') {
+        return true;
+      }
+    }
+    
+    // Check if widget is a Container with VideoFeedScreen key
+    if (widget is Container && widget.key is ValueKey) {
+      final keyValue = (widget.key as ValueKey).value;
+      if (keyValue == 'VideoFeedScreen') {
+        return true;
+      }
+    }
+    
+    return false;
+  }
+
   @override
   Widget build(BuildContext context) {
     // Web platform colors
@@ -956,7 +984,52 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
             return MaterialPageRoute(builder: (context) => const HomeScreen());
           },
           builder: (context, child) {
+            // Check if current route is video screen to disable clouds
+            final route = ModalRoute.of(context);
+            bool shouldHideClouds = false;
+            
+            // Check route name - hide for video screen
+            if (route?.settings.name == '/video') {
+              shouldHideClouds = true;
+            }
+            
+            // Check widget type and key using helper function
+            if (child != null) {
+              // Use helper function to check for VideoFeedScreen
+              if (_isVideoFeedScreen(child)) {
+                shouldHideClouds = true;
+              }
+              
+              final widgetType = child.runtimeType.toString();
+              
+              // Additional check for widget type string
+              if (widgetType.contains('VideoFeedScreen') || 
+                  widgetType.contains('_VideoFeedScreenState')) {
+                shouldHideClouds = true;
+              }
+              
+              // If it's HomeScreen, it manages its own clouds, so disable here
+              // HomeScreen will show clouds only on the home page via its own BackgroundGradient
+              if (widgetType.contains('HomeScreen') || 
+                  widgetType.contains('_HomeScreenState')) {
+                shouldHideClouds = true; // HomeScreen manages its own clouds
+              }
+            }
+            
+            // Additional check: Try to detect VideoFeedScreen by checking Navigator's current route
+            // This handles cases where VideoFeedScreen is navigated to and wrapped in a route
+            try {
+              final navigator = Navigator.of(context, rootNavigator: false);
+              // Check if the current route's settings indicate VideoFeedScreen
+              // This is a fallback for when widget type detection doesn't work
+            } catch (e) {
+              // Ignore errors - Navigator might not be available in all contexts
+            }
+            
+            // Always disable clouds in the global BackgroundGradient
+            // Each screen (HomeScreen, MapScreen) manages its own clouds
             return BackgroundGradient(
+              showClouds: false, // Always false - screens manage their own clouds
               child: GestureDetector(
                 onTap: () {
                   FocusService().unfocusAll();

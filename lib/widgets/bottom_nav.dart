@@ -36,6 +36,8 @@ class CustomBottomNavigationBar extends StatelessWidget {
   final int unreadChatCount;
   final GlobalKey? notificationButtonKey;
   final Function(int)? onUnreadCountChanged;
+  final bool showReturnButton;
+  final VoidCallback? onReturnPressed;
 
   const CustomBottomNavigationBar({
     super.key,
@@ -44,6 +46,8 @@ class CustomBottomNavigationBar extends StatelessWidget {
     this.unreadChatCount = 0,
     this.notificationButtonKey,
     this.onUnreadCountChanged,
+    this.showReturnButton = false,
+    this.onReturnPressed,
   });
 
   void _openLeftPanel(BuildContext context) {
@@ -172,7 +176,9 @@ class CustomBottomNavigationBar extends StatelessWidget {
                         Padding(
                           padding: BottomNavBarStyles.buttonPadding,
                           child: GestureDetector(
-                            onTap: onAddPressed,
+                            onTap: showReturnButton && onReturnPressed != null
+                                ? onReturnPressed
+                                : onAddPressed,
                             child: Container(
                               width: BottomNavBarStyles.addButtonSize,
                               height: BottomNavBarStyles.addButtonSize,
@@ -180,9 +186,9 @@ class CustomBottomNavigationBar extends StatelessWidget {
                                 color: Colors.transparent,
                                 shape: BoxShape.circle,
                               ),
-                              child: const Center(
+                              child: Center(
                                 child: Icon(
-                                  Icons.add,
+                                  showReturnButton ? Icons.home : Icons.add,
                                   color: iconColor,
                                   size: BottomNavBarStyles.addButtonIconSize,
                                 ),

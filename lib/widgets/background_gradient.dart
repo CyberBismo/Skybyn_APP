@@ -30,7 +30,8 @@ class CloudData {
 
 class BackgroundGradient extends StatefulWidget {
   final Widget? child;
-  const BackgroundGradient({super.key, this.child});
+  final bool showClouds;
+  const BackgroundGradient({super.key, this.child, this.showClouds = true});
 
   @override
   State<BackgroundGradient> createState() => _BackgroundGradientState();
@@ -49,22 +50,23 @@ class _BackgroundGradientState extends State<BackgroundGradient>
     super.initState();
     _loadGradientFromBackground();
 
-    // Initialize animation controller for cloud movement
+    // Initialize animation controller for cloud movement (always, but only used if showClouds is true)
     _animationController = AnimationController(
       duration: const Duration(milliseconds: 16), // ~60 FPS
       vsync: this,
     );
 
-    // Clouds will be generated in the first build
+    // Only start cloud animation and timer if showClouds is true
+    if (widget.showClouds) {
+      // Start animation
+      _animationController.repeat();
 
-    // Start animation
-    _animationController.repeat();
-
-    // Start cloud position update timer
-    _cloudUpdateTimer =
-        Timer.periodic(const Duration(milliseconds: 16), (timer) {
-      _updateCloudPositions();
-    });
+      // Start cloud position update timer
+      _cloudUpdateTimer =
+          Timer.periodic(const Duration(milliseconds: 16), (timer) {
+        _updateCloudPositions();
+      });
+    }
   }
 
   @override
@@ -148,9 +150,45 @@ class _BackgroundGradientState extends State<BackgroundGradient>
 
   @override
   Widget build(BuildContext context) {
-    // Generate clouds on first build when context is available
-    if (_clouds.isEmpty) {
+    // Generate clouds on first build when context is available, only if showClouds is true
+    if (widget.showClouds && _clouds.isEmpty) {
       _generateClouds();
+      // Start animation and timer if not already started
+      if (!_animationController.isAnimating) {
+        _animationController.repeat();
+      }
+      if (_cloudUpdateTimer == null || !_cloudUpdateTimer!.isActive) {
+        _cloudUpdateTimer =
+            Timer.periodic(const Duration(milliseconds: 16), (timer) {
+          _updateCloudPositions();
+        });
+      }
+    } else if (!widget.showClouds) {
+      // Stop cloud animation and clear clouds if showClouds is false
+      _clouds.clear();
+      _cloudUpdateTimer?.cancel();
+      _cloudUpdateTimer = null;
+      if (_animationController.isAnimating) {
+        _animationController.stop();
+      }
+    }
+    
+    // Regenerate clouds if showClouds changes from false to true
+    if (widget.showClouds && _clouds.isEmpty && mounted) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && widget.showClouds) {
+          _generateClouds();
+          if (!_animationController.isAnimating) {
+            _animationController.repeat();
+          }
+          if (_cloudUpdateTimer == null || !_cloudUpdateTimer!.isActive) {
+            _cloudUpdateTimer =
+                Timer.periodic(const Duration(milliseconds: 16), (timer) {
+              _updateCloudPositions();
+            });
+          }
+        }
+      });
     }
 
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
@@ -182,30 +220,34 @@ class _BackgroundGradientState extends State<BackgroundGradient>
           child: widget.child,
         ),
 
-        // Random cloud overlays
-        if (_clouds.isNotEmpty)
-          Stack(
-            children: _clouds.map((cloud) {
-              return Positioned(
-                left: cloud.x,
-                top: cloud.y,
-                child: Opacity(
-                  opacity: cloud.opacity,
-                  child: Transform.scale(
-                    scale: cloud.scale,
-                    child: Transform.flip(
-                      flipX: cloud.isFlipped,
-                      child: Image.asset(
-                        'assets/images/cloud.png',
-                        width: cloud.width,
-                        height: cloud.height,
-                        fit: BoxFit.contain,
+        // Random cloud overlays (only if showClouds is true)
+        // Clouds are positioned above the background but below child content
+        if (widget.showClouds && _clouds.isNotEmpty)
+          IgnorePointer(
+            ignoring: true, // Allow touches to pass through clouds
+            child: Stack(
+              children: _clouds.map((cloud) {
+                return Positioned(
+                  left: cloud.x,
+                  top: cloud.y,
+                  child: Opacity(
+                    opacity: cloud.opacity,
+                    child: Transform.scale(
+                      scale: cloud.scale,
+                      child: Transform.flip(
+                        flipX: cloud.isFlipped,
+                        child: Image.asset(
+                          'assets/images/cloud.png',
+                          width: cloud.width,
+                          height: cloud.height,
+                          fit: BoxFit.contain,
+                        ),
                       ),
                     ),
                   ),
-                ),
-              );
-            }).toList(),
+                );
+              }).toList(),
+            ),
           ),
       ],
     );

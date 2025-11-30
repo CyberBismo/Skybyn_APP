@@ -7,20 +7,22 @@ import 'dart:convert';
 import '../services/auth_service.dart';
 import '../config/constants.dart';
 import '../models/post.dart';
-import '../widgets/background_gradient.dart';
 import '../widgets/header.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:timeago/timeago.dart' as timeago;
+import 'home_screen.dart';
+import 'map_screen.dart';
 
 class VideoFeedScreen extends StatefulWidget {
-  const VideoFeedScreen({super.key});
+  const VideoFeedScreen() : super(key: const ValueKey('VideoFeedScreen'));
 
   @override
   State<VideoFeedScreen> createState() => _VideoFeedScreenState();
 }
 
 class _VideoFeedScreenState extends State<VideoFeedScreen> {
-  final PageController _pageController = PageController();
+  final PageController _pageController = PageController(); // Vertical scrolling for videos
+  final PageController _horizontalPageController = PageController(initialPage: 1); // Horizontal swiping between screens
   final AuthService _authService = AuthService();
   final List<VideoPost> _videos = [];
   int _currentIndex = 0;
@@ -29,6 +31,7 @@ class _VideoFeedScreenState extends State<VideoFeedScreen> {
   bool _hasMore = true;
   int _currentPage = 1;
   String? _currentUserId;
+  int _currentHorizontalPage = 1; // Track current horizontal page (0=home, 1=video, 2=map)
   final Map<int, VideoPlayerController> _controllers = {};
   final Map<int, YoutubePlayerController> _youtubeControllers = {};
   final Map<int, WebViewController> _webviewControllers = {};
@@ -38,6 +41,22 @@ class _VideoFeedScreenState extends State<VideoFeedScreen> {
     super.initState();
     _loadUserId();
     _loadVideos();
+    
+    // Add listener to prevent swiping to map screen (page 2) from video screen (page 1)
+    _horizontalPageController.addListener(() {
+      if (!_horizontalPageController.position.isScrollingNotifier.value) {
+        // When scrolling stops, check if we're on page 2 and reset to page 1 if we came from page 1
+        if (_horizontalPageController.page != null) {
+          final currentPage = _horizontalPageController.page!.round();
+          if (currentPage == 2 && _currentHorizontalPage == 1) {
+            // Prevent going to map screen - jump back to video screen
+            _horizontalPageController.jumpToPage(1);
+          } else {
+            _currentHorizontalPage = currentPage;
+          }
+        }
+      }
+    });
   }
 
   Future<void> _loadUserId() async {
@@ -362,6 +381,7 @@ class _VideoFeedScreenState extends State<VideoFeedScreen> {
   @override
   void dispose() {
     _pageController.dispose();
+    _horizontalPageController.dispose();
     for (final controller in _controllers.values) {
       controller.dispose();
     }
@@ -376,45 +396,126 @@ class _VideoFeedScreenState extends State<VideoFeedScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      extendBodyBehindAppBar: true,
-      appBar: CustomAppBar(
-        logoPath: 'assets/images/logo.png',
-        onLogoPressed: () {
-          Navigator.of(context).pop();
+    // Disable clouds by setting a key that can be detected
+    return Container(
+      key: const ValueKey('VideoFeedScreen'),
+      color: Colors.black, // Cover clouds with black background
+      child: Scaffold(
+        backgroundColor: Colors.black,
+        extendBodyBehindAppBar: true,
+        appBar: CustomAppBar(
+          logoPath: 'assets/images/logo.png',
+          onLogoPressed: () {
+            Navigator.of(context).pop();
+          },
+        ),
+      body: NotificationListener<ScrollUpdateNotification>(
+        onNotification: (notification) {
+          // Prevent scrolling to page 2 when on page 1 (video screen)
+          if (_currentHorizontalPage == 1 && _horizontalPageController.hasClients) {
+            final currentPage = _horizontalPageController.page ?? 1;
+            // If trying to scroll to page 2 or beyond, prevent it
+            if (currentPage > 1.5) {
+              // Reset to page 1
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (mounted && _horizontalPageController.hasClients) {
+                  _horizontalPageController.jumpToPage(1);
+                }
+              });
+              return true; // Consume the notification
+            }
+          }
+          return false;
         },
+        child: PageView(
+          controller: _horizontalPageController,
+          scrollDirection: Axis.horizontal,
+          physics: const ClampingScrollPhysics(),
+          onPageChanged: (index) {
+          // Store previous page before updating
+          final previousPage = _currentHorizontalPage;
+          
+          // Update current horizontal page
+          _currentHorizontalPage = index;
+          
+          // Prevent navigation to map screen (page 2) from video screen (page 1)
+          if (index == 2 && previousPage == 1) {
+            // If we're trying to go to map screen from video screen, prevent it
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted && _horizontalPageController.hasClients) {
+                _horizontalPageController.jumpToPage(1);
+                _currentHorizontalPage = 1;
+              }
+            });
+            return;
+          }
+          
+          // When page changes, navigate to the new screen using pushReplacement
+          if (index == 0) {
+            // Home screen
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted) {
+                Navigator.of(context).pushReplacement(
+                  MaterialPageRoute(builder: (_) => const HomeScreen()),
+                );
+              }
+            });
+          } else if (index == 2 && previousPage != 1) {
+            // Map screen (only accessible from home screen, not from video screen)
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted) {
+                Navigator.of(context).pushReplacement(
+                  MaterialPageRoute(builder: (_) => const MapScreen()),
+                );
+              }
+            });
+          }
+        },
+        children: [
+          // Page 0: Home Screen
+          const HomeScreen(),
+          // Page 1: Video Feed Screen Content
+          _buildVideoContent(),
+          // Page 2: Map Screen
+          const MapScreen(),
+        ],
+        ),
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : _videos.isEmpty
-              ? const Center(
-                  child: Text(
-                    'No videos found',
-                    style: TextStyle(color: Colors.white),
-                  ),
-                )
-              : PageView.builder(
-                  controller: _pageController,
-                  scrollDirection: Axis.vertical,
-                  onPageChanged: _onPageChanged,
-                  itemCount: _videos.length + (_isLoadingMore ? 1 : 0),
-                  itemBuilder: (context, index) {
-                    if (index >= _videos.length) {
-                      // Loading indicator at the end
-                      return const Center(
-                        child: CircularProgressIndicator(color: Colors.white),
-                      );
-                    }
-                    
-                    final video = _videos[index];
-                    final controller = _controllers[index];
-                    final youtubeController = _youtubeControllers[index];
-                    final webviewController = _webviewControllers[index];
-
-                    return _buildVideoItem(video, controller, youtubeController, webviewController, index);
-                  },
-                ),
     );
+  }
+
+  Widget _buildVideoContent() {
+    return _isLoading
+        ? const Center(child: CircularProgressIndicator())
+        : _videos.isEmpty
+            ? const Center(
+                child: Text(
+                  'No videos found',
+                  style: TextStyle(color: Colors.white),
+                ),
+              )
+            : PageView.builder(
+                controller: _pageController,
+                scrollDirection: Axis.vertical,
+                physics: const ClampingScrollPhysics(),
+                onPageChanged: _onPageChanged,
+                itemCount: _videos.length + (_isLoadingMore ? 1 : 0),
+                itemBuilder: (context, index) {
+                  if (index >= _videos.length) {
+                    // Loading indicator at the end
+                    return const Center(
+                      child: CircularProgressIndicator(color: Colors.white),
+                    );
+                  }
+                  
+                  final video = _videos[index];
+                  final controller = _controllers[index];
+                  final youtubeController = _youtubeControllers[index];
+                  final webviewController = _webviewControllers[index];
+
+                  return _buildVideoItem(video, controller, youtubeController, webviewController, index);
+                },
+              );
   }
 
   Widget _buildVideoItem(

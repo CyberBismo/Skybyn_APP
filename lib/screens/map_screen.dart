@@ -10,6 +10,7 @@ import 'dart:ui' as ui show ImageFilter;
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import '../widgets/header.dart';
 import '../widgets/bottom_nav.dart';
+import '../widgets/background_gradient.dart';
 import '../services/auth_service.dart';
 import '../services/location_service.dart';
 import '../config/constants.dart';
@@ -710,10 +711,12 @@ class _MapScreenState extends State<MapScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      extendBodyBehindAppBar: true,
-      extendBody: true,
-      appBar: CustomAppBar(
+    return Container(
+      key: const ValueKey('MapScreen'),
+      child: Scaffold(
+        extendBodyBehindAppBar: true,
+        extendBody: true,
+        appBar: CustomAppBar(
         logoPath: 'assets/images/logo.png',
         onLogoPressed: () {
           Navigator.of(context).pushReplacementNamed('/home');
@@ -728,6 +731,10 @@ class _MapScreenState extends State<MapScreen> {
         child: CustomBottomNavigationBar(
           onAddPressed: () {},
           notificationButtonKey: _notificationButtonKey,
+          showReturnButton: true,
+          onReturnPressed: () {
+            Navigator.of(context).pushReplacementNamed('/home');
+          },
         ),
       ),
       body: LayoutBuilder(
@@ -737,10 +744,19 @@ class _MapScreenState extends State<MapScreen> {
           final headerHeight = statusBarHeight;
           const bottomNavBarHeight = 130.0;
           
-          return Stack(
-            children: [
-              // Full screen map
-              SizedBox.expand(
+          return FutureBuilder<String?>(
+            future: _authService.getStoredUserId(),
+            builder: (context, snapshot) {
+              final isLoggedIn = snapshot.hasData && snapshot.data != null;
+              
+              return Stack(
+                children: [
+                  // Background gradient with clouds (only when logged in)
+                  Positioned.fill(
+                    child: BackgroundGradient(showClouds: isLoggedIn),
+                  ),
+                  // Full screen map
+                  SizedBox.expand(
                 child: FlutterMap(
                         mapController: _mapController,
                         options: MapOptions(
@@ -974,9 +990,12 @@ class _MapScreenState extends State<MapScreen> {
               width: double.infinity,
             ),
           ),
-            ],
+                ],
+              );
+            },
           );
         },
+      ),
       ),
     );
   }
