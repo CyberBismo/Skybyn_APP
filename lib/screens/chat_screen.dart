@@ -491,10 +491,16 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
       },
     );
 
-    // Set up chat message listener (Firebase fallback)
+    // Set up chat message listener (Firebase fallback - only when WebSocket is not connected)
     _firebaseRealtimeService.setupChatListener(
       widget.friend.id,
       (messageId, fromUserId, toUserId, message) {
+        // Only process if WebSocket is NOT connected (Firebase is fallback)
+        if (_webSocketService.isConnected) {
+          debugPrint('🔵 [ChatScreen] Skipping Firebase message - WebSocket is connected');
+          return; // WebSocket handles it, skip Firebase to prevent duplicates
+        }
+        
         // Only handle messages for this chat
         final isForThisChat = fromUserId == widget.friend.id || toUserId == widget.friend.id;
         if (!isForThisChat) {

@@ -131,9 +131,11 @@ class _MapScreenState extends State<MapScreen> {
     final userId = await _authService.getStoredUserId();
     if (userId == null) {
       print('No user ID found, stopping initialization');
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
       return;
     }
     print('User ID: $userId');
@@ -202,12 +204,14 @@ class _MapScreenState extends State<MapScreen> {
       }
     }
 
-    setState(() {
-      _currentUserId = userId;
-      _currentUserAvatar = avatarUrl;
-      _locationPrivateMode = locationPrivateMode;
-      _locationShareMode = locationShareMode;
-    });
+    if (mounted) {
+      setState(() {
+        _currentUserId = userId;
+        _currentUserAvatar = avatarUrl;
+        _locationPrivateMode = locationPrivateMode;
+        _locationShareMode = locationShareMode;
+      });
+    }
 
     // Start getting location early (in parallel with other operations)
     print('Getting current user location...');
@@ -223,7 +227,7 @@ class _MapScreenState extends State<MapScreen> {
 
     // Wait for location (may already be ready if preloaded)
     final position = await locationFuture;
-    if (position != null) {
+    if (position != null && mounted) {
       print('Location obtained: ${position.latitude}, ${position.longitude}');
       setState(() {
         _currentPosition = position;
@@ -282,10 +286,12 @@ class _MapScreenState extends State<MapScreen> {
           final friendsList = data['data']?['friends'] ?? data['friends'] ?? [];
           final friends = friendsList.map<Friend>((json) => Friend.fromJson(json)).toList();
           
-          setState(() {
-            _friendsWithLocations = friends;
-            // _isLoading already set to false earlier
-          });
+          if (mounted) {
+            setState(() {
+              _friendsWithLocations = friends;
+              // _isLoading already set to false earlier
+            });
+          }
 
           // Cache friend avatar URLs
           await _cacheFriendAvatars();
@@ -795,7 +801,7 @@ class _MapScreenState extends State<MapScreen> {
           notificationButtonKey: _notificationButtonKey,
           showReturnButton: true,
           onReturnPressed: () {
-            // Use callback if provided (when used in MainNavigationScreen), otherwise use Navigator
+            // Use callback if provided (when used in HomeScreen), otherwise use Navigator
             if (widget.onReturnToHome != null) {
               widget.onReturnToHome!();
             } else {

@@ -5,7 +5,10 @@ import 'package:cached_network_image/cached_network_image.dart';
 import '../services/friend_service.dart';
 import '../services/auth_service.dart';
 import '../services/firebase_realtime_service.dart';
+import '../services/chat_message_count_service.dart';
+import '../services/chat_service.dart';
 import '../models/friend.dart';
+import '../models/message.dart';
 import '../screens/chat_screen.dart';
 import '../utils/translation_keys.dart';
 import '../widgets/translated_text.dart';
@@ -23,9 +26,14 @@ class _ChatListModalState extends State<ChatListModal> {
   final FriendService _friendService = FriendService();
   final AuthService _authService = AuthService();
   final FirebaseRealtimeService _firebaseRealtimeService = FirebaseRealtimeService();
+  final ChatMessageCountService _chatMessageCountService = ChatMessageCountService();
+  final ChatService _chatService = ChatService();
 
   List<Friend> _friends = [];
   bool _isLoading = true;
+  
+  // Store last messages for each friend
+  final Map<String, Message?> _lastMessages = {};
 
   // Store subscriptions for cleanup
   final Map<String, StreamSubscription> _onlineStatusSubscriptions = {};
@@ -35,6 +43,8 @@ class _ChatListModalState extends State<ChatListModal> {
     super.initState();
     _loadFriends();
     _setupWebSocketListener();
+    _setupUnreadCountListener();
+    _setupChatMessageListener();
   }
 
   @override
@@ -44,7 +54,59 @@ class _ChatListModalState extends State<ChatListModal> {
       subscription.cancel();
     }
     _onlineStatusSubscriptions.clear();
+    // Remove unread count listener
+    _chatMessageCountService.removeListener(_onUnreadCountChanged);
     super.dispose();
+  }
+
+  void _setupUnreadCountListener() {
+    // Listen to unread count changes to update the UI
+    _chatMessageCountService.addListener(_onUnreadCountChanged);
+  }
+
+  void _onUnreadCountChanged() {
+    if (mounted) {
+      setState(() {
+        // Trigger rebuild to show updated unread counts
+      });
+    }
+  }
+
+  void _setupChatMessageListener() {
+    // Listen to WebSocket chat messages to update last messages in real-time
+    _firebaseRealtimeService.setupChatListener(
+      '', // Empty friendId means listen to all chats
+      (messageId, fromUserId, toUserId, message) async {
+        if (mounted) {
+          final currentUserId = await _authService.getStoredUserId();
+          if (currentUserId == null) return;
+          
+          // Determine which friend this message is from/to
+          String? friendId;
+          if (fromUserId == currentUserId) {
+            friendId = toUserId; // Message sent to this friend
+          } else if (toUserId == currentUserId) {
+            friendId = fromUserId; // Message received from this friend
+          }
+          
+          if (friendId != null && friendId.isNotEmpty) {
+            final friendIdNonNull = friendId; // Non-null assertion
+            setState(() {
+              // Update last message for this friend
+              _lastMessages[friendIdNonNull] = Message(
+                id: messageId,
+                from: fromUserId,
+                to: toUserId,
+                content: message,
+                date: DateTime.now(),
+                viewed: false,
+                isFromMe: fromUserId == currentUserId,
+              );
+            });
+          }
+        }
+      },
+    );
   }
 
   void _setupWebSocketListener() {
@@ -106,6 +168,34 @@ class _ChatListModalState extends State<ChatListModal> {
     // Set up Firebase online status listeners for all friends
     for (var friend in _friends) {
       _setupOnlineStatusListenerForFriend(friend.id);
+    }
+    
+    // Load last messages for all friends
+    _loadLastMessages();
+  }
+
+  Future<void> _loadLastMessages() async {
+    final currentUserId = await _authService.getStoredUserId();
+    if (currentUserId == null) return;
+    
+    // Load last message for each friend
+    for (var friend in _friends) {
+      try {
+        // Fetch only the last message (limit: 1)
+        final messages = await _chatService.getMessages(
+          friendId: friend.id,
+          limit: 1,
+        );
+        
+        if (mounted && messages.isNotEmpty) {
+          setState(() {
+            // Get the last message (newest)
+            _lastMessages[friend.id] = messages.last;
+          });
+        }
+      } catch (e) {
+        // Silently fail - last message is optional
+      }
     }
   }
 
@@ -236,18 +326,35 @@ class _ChatListModalState extends State<ChatListModal> {
                                         fontSize: 16,
                                       ),
                                     ),
-                                    subtitle: friend.nickname.isNotEmpty
-                                        ? Text(
-                                            '@${friend.username}',
-                                            style: const TextStyle(
-                                              color: Colors.white70,
-                                              fontSize: 13,
-                                            ),
-                                          )
-                                        : null,
+                                    subtitle: _getLastMessageText(friend.id),
                                     trailing: Row(
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
+                                        // Unread message count badge
+                                        Builder(
+                                          builder: (context) {
+                                            final unreadCount = _chatMessageCountService.getUnreadCount(friend.id);
+                                            if (unreadCount > 0) {
+                                              return Container(
+                                                margin: const EdgeInsets.only(right: 8),
+                                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                                decoration: BoxDecoration(
+                                                  color: Colors.red,
+                                                  borderRadius: BorderRadius.circular(12),
+                                                ),
+                                                child: Text(
+                                                  unreadCount > 99 ? '99+' : unreadCount.toString(),
+                                                  style: const TextStyle(
+                                                    color: Colors.white,
+                                                    fontSize: 12,
+                                                    fontWeight: FontWeight.bold,
+                                                  ),
+                                                ),
+                                              );
+                                            }
+                                            return const SizedBox.shrink();
+                                          },
+                                        ),
                                         Container(
                                           width: 10,
                                           height: 10,
@@ -266,7 +373,9 @@ class _ChatListModalState extends State<ChatListModal> {
                                         ),
                                       ],
                                     ),
-                                    onTap: () {
+                                    onTap: () async {
+                                      // Clear unread count when opening chat
+                                      await _chatMessageCountService.clearUnreadCount(friend.id);
                                       Navigator.of(context).pop(); // Close the modal first
                                       Navigator.of(context).push(
                                         MaterialPageRoute(
@@ -290,6 +399,41 @@ class _ChatListModalState extends State<ChatListModal> {
       ),
       ),
     );
+  }
+
+  Widget? _getLastMessageText(String friendId) {
+    final lastMessage = _lastMessages[friendId];
+    if (lastMessage != null) {
+      // Truncate message if too long
+      final messageText = lastMessage.content.length > 50
+          ? '${lastMessage.content.substring(0, 50)}...'
+          : lastMessage.content;
+      
+      return Text(
+        messageText,
+        style: const TextStyle(
+          color: Colors.white70,
+          fontSize: 13,
+        ),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      );
+    }
+    // Fallback to username if no last message
+    final friend = _friends.firstWhere(
+      (f) => f.id == friendId,
+      orElse: () => Friend(id: '', username: '', nickname: '', avatar: '', online: false),
+    );
+    if (friend.nickname.isNotEmpty) {
+      return Text(
+        '@${friend.username}',
+        style: const TextStyle(
+          color: Colors.white70,
+          fontSize: 13,
+        ),
+      );
+    }
+    return null;
   }
 }
 

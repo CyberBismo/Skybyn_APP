@@ -105,7 +105,7 @@ class NotificationService {
     }
   }
 
-  void _onNotificationTapped(NotificationResponse response) {
+  void _onNotificationTapped(NotificationResponse response) async {
     // Handle notification tap and action buttons
     final payload = response.payload;
     final action = response.actionId;
@@ -122,6 +122,8 @@ class NotificationService {
 
     // Handle app_update payload
     if (payload == 'app_update' || payload == 'update_check') {
+      // Cancel the update check notification immediately
+      await _localNotifications.cancel(BackgroundUpdateScheduler.updateCheckNotificationId);
       // Trigger background update scheduler
       BackgroundUpdateScheduler().triggerUpdateCheck();
     } else if (payload.startsWith('{')) {

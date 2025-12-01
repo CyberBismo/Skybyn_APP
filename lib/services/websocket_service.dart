@@ -68,6 +68,7 @@ class WebSocketService {
   Function()? _onAppUpdate; // app update notification
   Function(String, String, String, String)? _onChatMessage; // messageId, fromUserId, toUserId, message
   final List<Function(String, String, String, String)> _onChatMessageCallbacks = []; // Multiple listeners for chat messages
+  final Set<int> _registeredChatCallbackHashes = {}; // Track registered callbacks by hash to prevent duplicates
   Function(String, bool)? _onTypingStatus; // userId, isTyping
   final List<Function(String, bool)> _onOnlineStatusCallbacks = []; // Multiple listeners for online status
 
@@ -294,9 +295,16 @@ class WebSocketService {
     if (onAppUpdate != null) _onAppUpdate = onAppUpdate;
     if (onChatMessage != null) {
       _onChatMessage = onChatMessage; // Keep for backward compatibility
-      // Also add to callbacks list (function equality doesn't work in Dart, so we allow duplicates)
-      // Widgets should manage their own callback lifecycle using removeChatMessageCallback
-      _onChatMessageCallbacks.add(onChatMessage);
+      // Use function hash code to prevent duplicate callbacks
+      // Note: Function.hashCode is not reliable for equality, but we use it to prevent obvious duplicates
+      final callbackHash = onChatMessage.hashCode;
+      if (!_registeredChatCallbackHashes.contains(callbackHash)) {
+        _registeredChatCallbackHashes.add(callbackHash);
+        _onChatMessageCallbacks.add(onChatMessage);
+        _logChat('WebSocket Connect', 'Chat callback registered (hash: $callbackHash, total: ${_onChatMessageCallbacks.length})');
+      } else {
+        _logChat('WebSocket Connect', 'Chat callback already registered (hash: $callbackHash), skipping duplicate');
+      }
     }
     if (onTypingStatus != null) _onTypingStatus = onTypingStatus;
     if (onOnlineStatus != null) {
@@ -438,20 +446,26 @@ class WebSocketService {
   Future<void> _handleMessage(dynamic message) async {
     try {
       if (message is String) {
+        final timestamp = DateTime.now().toIso8601String();
         final data = json.decode(message);
 
         if (data is Map) {
           _updateConnectionMetrics('message_received');
           final messageType = data['type']?.toString();
+          final messageId = data['id']?.toString() ?? data['messageId']?.toString() ?? 'no-id';
           
           // Log ALL incoming WebSocket messages for debugging
-          _logChat('WebSocket Message Handler', 'Received message: type=$messageType');
-          if (messageType == 'chat' || messageType == 'notification') {
-            _logChat('WebSocket Message Handler', '   - Full data: $data');
-          }
+          _logChat('WebSocket Incoming', '═══════════════════════════════════════════════════════');
+          _logChat('WebSocket Incoming', '📨 Message received at $timestamp');
+          _logChat('WebSocket Incoming', '   Type: $messageType');
+          _logChat('WebSocket Incoming', '   Message ID: $messageId');
+          _logChat('WebSocket Incoming', '   Full data: $data');
+          _logChat('WebSocket Incoming', '   Raw message length: ${message.length} chars');
+          _logChat('WebSocket Incoming', '═══════════════════════════════════════════════════════');
 
           // Log ping messages in debug mode to monitor connection stability
           if (messageType == 'ping') {
+            // _logChat('WebSocket Ping', 'Received ping, responding with pong');
             // Update last ping received time to track connection health
             _lastPingReceivedTime = DateTime.now().millisecondsSinceEpoch;
             // Always respond to ping immediately, even in background
@@ -459,57 +473,78 @@ class WebSocketService {
             _sendPong();
             return; // Early return to avoid processing in switch statement
           } else if (messageType == 'pong') {
+            // _logChat('WebSocket Pong', 'Received pong (unexpected - clients should not receive pongs)');
             // Note: Clients should not receive PONG messages - only the server sends PINGs
             // and clients respond with PONGs. This is unexpected.
             return; // Early return to avoid processing in switch statement
-          } else {
           }
 
           switch (messageType) {
             case 'ack':
+              // _logChat('WebSocket ACK', 'Received acknowledgment: ${data['id'] ?? 'no-id'}');
               _handleAcknowledgment(Map<String, dynamic>.from(data));
               break;
             case 'broadcast':
               final broadcastMessage = data['message']?.toString() ?? 'Broadcast message';
+              _logChat('WebSocket Broadcast', '📢 Broadcast received: $broadcastMessage');
               _onBroadcast?.call(broadcastMessage);
 
               // Show notification for broadcast
-              _notificationService.showNotification(
-                title: 'Broadcast',
-                body: broadcastMessage,
-                payload: message,
-              );
+              try {
+                await _notificationService.showNotification(
+                  title: 'Broadcast',
+                  body: broadcastMessage,
+                  payload: message,
+                );
+                _logChat('WebSocket Broadcast', '✅ Notification shown successfully');
+              } catch (e) {
+                _logChat('WebSocket Broadcast', '❌ Failed to show notification: $e');
+              }
               break;
             case 'new_post':
               final postId = data['id']?.toString();
+              _logChat('WebSocket New Post', '📝 New post received: postId=$postId');
               _handleNewPost(postId ?? '');
 
               // Show notification for new post
-              _notificationService.showNotification(
-                title: 'New Post',
-                body: 'Someone posted something new',
-                payload: message,
-              );
+              try {
+                await _notificationService.showNotification(
+                  title: 'New Post',
+                  body: 'Someone posted something new',
+                  payload: message,
+                );
+                _logChat('WebSocket New Post', '✅ Notification shown successfully');
+              } catch (e) {
+                _logChat('WebSocket New Post', '❌ Failed to show notification: $e');
+              }
               break;
             case 'delete_post':
               final postId = data['id']?.toString();
+              _logChat('WebSocket Delete Post', '🗑️ Post deleted: postId=$postId');
               _handleDeletePost(postId ?? '');
               break;
             case 'new_comment':
               final postId = data['pid']?.toString();
               final commentId = data['cid']?.toString();
+              _logChat('WebSocket New Comment', '💬 New comment received: postId=$postId, commentId=$commentId');
               _handleNewComment(postId ?? '', commentId ?? '');
 
               // Show notification for new comment
-              _notificationService.showNotification(
-                title: 'New Comment',
-                body: 'Someone commented on a post',
-                payload: message,
-              );
+              try {
+                await _notificationService.showNotification(
+                  title: 'New Comment',
+                  body: 'Someone commented on a post',
+                  payload: message,
+                );
+                _logChat('WebSocket New Comment', '✅ Notification shown successfully');
+              } catch (e) {
+                _logChat('WebSocket New Comment', '❌ Failed to show notification: $e');
+              }
               break;
             case 'delete_comment':
               final postId = data['pid']?.toString();
               final commentId = data['id']?.toString();
+              _logChat('WebSocket Delete Comment', '🗑️ Comment deleted: postId=$postId, commentId=$commentId');
               _handleDeleteComment(postId ?? '', commentId ?? '');
               break;
             case 'notification':
@@ -550,54 +585,34 @@ class WebSocketService {
                   _logChat('WebSocket Chat Notification', 'Failed to show in-app notification: $e');
                 }
                 
-                // Also trigger chat message callbacks if registered
-                if (messageId != null) {
-                  debugPrint('🔵 [WebSocket] Notification chat message: id=$messageId, from=$fromUserId, to=${_userId ?? "null"}, callbacks=${_onChatMessageCallbacks.length}');
-                  
-                  // Call all registered chat message callbacks
-                  for (int i = 0; i < _onChatMessageCallbacks.length; i++) {
-                    try {
-                      debugPrint('🔵 [WebSocket] Calling notification callback $i');
-                      _logChat('WebSocket Chat Notification', 'Executing callback $i');
-                      _onChatMessageCallbacks[i](messageId, fromUserId, _userId ?? '', message);
-                      _logChat('WebSocket Chat Notification', 'Callback $i executed successfully');
-                    } catch (e, stackTrace) {
-                      debugPrint('🔵 [WebSocket] Error in notification callback $i: $e');
-                      debugPrint('🔵 [WebSocket] Stack trace: $stackTrace');
-                      _logChat('WebSocket Chat Notification', 'Error in callback $i: $e');
-                      developer.log('Stack trace', name: 'WebSocket Chat Notification', error: e, stackTrace: stackTrace);
-                    }
-                  }
-                  // Also call legacy single callback for backward compatibility
-                  if (_onChatMessage != null) {
-                    debugPrint('🔵 [WebSocket] Calling legacy notification callback');
-                    _logChat('WebSocket Chat Notification', 'Executing legacy callback');
-                    _onChatMessage?.call(messageId, fromUserId, _userId ?? '', message);
-                    _logChat('WebSocket Chat Notification', 'Legacy callback executed successfully');
-                  } else {
-                    debugPrint('🔵 [WebSocket] No legacy callback for notification');
-                    _logChat('WebSocket Chat Notification', 'No legacy callback registered');
-                  }
-                } else {
-                  _logChat('WebSocket Chat Notification', 'MessageId is null, skipping callbacks');
-                }
+                // NOTE: Do NOT trigger chat message callbacks here for chat notifications
+                // The server may send the same message as both 'chat' and 'notification' types
+                // The 'chat' case will handle the callbacks to prevent duplicates
+                // Only show the notification UI, don't process as a chat message
+                _logChat('WebSocket Chat Notification', 'Skipping chat callbacks - message will be handled by \'chat\' case if sent');
               } else {
                 // Generic notification
-                _notificationService.showNotification(
-                  title: data['title']?.toString() ?? 'Notification',
-                  body: data['message']?.toString() ?? data['body']?.toString() ?? '',
-                  payload: message,
-                );
+                try {
+                  await _notificationService.showNotification(
+                    title: data['title']?.toString() ?? 'Notification',
+                    body: data['message']?.toString() ?? data['body']?.toString() ?? '',
+                    payload: message,
+                  );
+                } catch (e) {
+                  _logChat('WebSocket Notification', 'Failed to show generic notification: $e');
+                }
               }
               break;
             case 'app_update':
-              _handleAppUpdate();
+              _logChat('WebSocket App Update', '🔄 App update notification received');
+              await _handleAppUpdate();
               break;
             case 'call_initiate':
               final callId = data['callId']?.toString() ?? '';
               final fromUserId = data['fromUserId']?.toString() ?? '';
               final callType = data['callType']?.toString() ?? 'audio';
               final fromUsername = data['fromUsername']?.toString() ?? '';
+              _logChat('WebSocket Call Initiate', '📞 Call initiated: callId=$callId, from=$fromUserId ($fromUsername), type=$callType');
               _onCallInitiate?.call(callId, fromUserId, callType, fromUsername);
               break;
             case 'call_offer':
@@ -616,7 +631,9 @@ class WebSocketService {
               } else {
                 callType = 'audio';
               }
+              _logChat('WebSocket Call Offer', '📞 Call offer received: callId=$callId, from=$fromUserId, type=$callType, offerLength=${offer.length}');
               if (_onCallOffer == null) {
+                _logChat('WebSocket Call Offer', '⚠️ No call offer callback registered');
               } else {
                 _onCallOffer?.call(callId, fromUserId, offer, callType);
               }
@@ -624,7 +641,9 @@ class WebSocketService {
             case 'call_answer':
               final callId = data['callId']?.toString() ?? '';
               final answer = data['answer']?.toString() ?? '';
+              _logChat('WebSocket Call Answer', '📞 Call answer received: callId=$callId, answerLength=${answer.length}');
               if (_onCallAnswer == null) {
+                _logChat('WebSocket Call Answer', '⚠️ No call answer callback registered');
               } else {
                 _onCallAnswer?.call(callId, answer);
               }
@@ -634,7 +653,9 @@ class WebSocketService {
               final candidate = data['candidate']?.toString() ?? '';
               final sdpMid = data['sdpMid']?.toString() ?? '';
               final sdpMLineIndex = (data['sdpMLineIndex'] as num?)?.toInt() ?? 0;
+              _logChat('WebSocket ICE Candidate', '🧊 ICE candidate received: callId=$callId, sdpMid=$sdpMid, sdpMLineIndex=$sdpMLineIndex');
               if (_onIceCandidate == null) {
+                _logChat('WebSocket ICE Candidate', '⚠️ No ICE candidate callback registered');
               } else {
                 _onIceCandidate?.call(callId, candidate, sdpMid, sdpMLineIndex);
               }
@@ -643,7 +664,9 @@ class WebSocketService {
               final callId = data['callId']?.toString() ?? '';
               final fromUserId = data['fromUserId']?.toString() ?? '';
               final targetUserId = data['targetUserId']?.toString() ?? '';
+              _logChat('WebSocket Call End', '📞 Call ended: callId=$callId, from=$fromUserId, target=$targetUserId');
               if (_onCallEnd == null) {
+                _logChat('WebSocket Call End', '⚠️ No call end callback registered');
               } else {
                 _onCallEnd?.call(callId, fromUserId, targetUserId);
               }
@@ -653,7 +676,9 @@ class WebSocketService {
               final targetUserId = data['targetUserId']?.toString() ?? '';
               final error = data['error']?.toString() ?? 'unknown';
               final errorMessage = data['message']?.toString() ?? 'Call failed';
+              _logChat('WebSocket Call Error', '❌ Call error: callId=$callId, target=$targetUserId, error=$error, message=$errorMessage');
               if (_onCallError == null) {
+                _logChat('WebSocket Call Error', '⚠️ No call error callback registered');
               } else {
                 _onCallError?.call(callId, targetUserId, errorMessage);
               }
@@ -665,17 +690,20 @@ class WebSocketService {
               final message = data['message']?.toString() ?? '';
               
               // Log chat message received
-              _logChat('WebSocket Chat', 'Chat message received:');
+              _logChat('WebSocket Chat', '💬 Chat message received:');
               _logChat('WebSocket Chat', '   - MessageId: $messageId');
               _logChat('WebSocket Chat', '   - From UserId: $fromUserId');
               _logChat('WebSocket Chat', '   - To UserId: $toUserId');
               _logChat('WebSocket Chat', '   - Current UserId: ${_userId ?? "null"}');
               _logChat('WebSocket Chat', '   - Message: ${message.length > 50 ? message.substring(0, 50) + "..." : message}');
+              _logChat('WebSocket Chat', '   - Full message: $message');
               _logChat('WebSocket Chat', '   - Registered callbacks: ${_onChatMessageCallbacks.length}');
               
               debugPrint('🔵 [WebSocket] Chat message received: id=$messageId, from=$fromUserId, to=$toUserId, callbacks=${_onChatMessageCallbacks.length}');
               
               // Call all registered chat message callbacks
+              // Note: _onChatMessage is also added to _onChatMessageCallbacks, so we only call the list
+              // to avoid calling the same callback twice
               for (int i = 0; i < _onChatMessageCallbacks.length; i++) {
                 try {
                   debugPrint('🔵 [WebSocket] Calling callback $i');
@@ -689,16 +717,8 @@ class WebSocketService {
                   developer.log('Stack trace', name: 'WebSocket Chat', error: e, stackTrace: stackTrace);
                 }
               }
-              // Also call legacy single callback for backward compatibility
-              if (_onChatMessage != null) {
-                debugPrint('🔵 [WebSocket] Calling legacy callback');
-                _logChat('WebSocket Chat', 'Executing legacy callback');
-                _onChatMessage?.call(messageId, fromUserId, toUserId, message);
-                _logChat('WebSocket Chat', 'Legacy callback executed successfully');
-              } else {
-                debugPrint('🔵 [WebSocket] No legacy callback registered');
-                _logChat('WebSocket Chat', 'No legacy callback registered');
-              }
+              // Legacy callback is already in _onChatMessageCallbacks, so don't call it again
+              // This prevents duplicate callback execution
               break;
             case 'typing_start':
               final fromUserId = data['fromUserId']?.toString() ?? '';
@@ -777,13 +797,17 @@ class WebSocketService {
   }
 
   /// Handle app update notification
-  void _handleAppUpdate() {
+  Future<void> _handleAppUpdate() async {
     // Show notification for app update
-    _notificationService.showNotification(
-      title: 'App Update Available',
-      body: 'A new version of Skybyn is ready to download',
-      payload: 'app_update',
-    );
+    try {
+      await _notificationService.showNotification(
+        title: 'App Update Available',
+        body: 'A new version of Skybyn is ready to download',
+        payload: 'app_update',
+      );
+    } catch (e) {
+      _logChat('WebSocket App Update', 'Failed to show notification: $e');
+    }
 
     // Trigger the update check callback to show dialog
     _onAppUpdate?.call();
@@ -1236,7 +1260,10 @@ class WebSocketService {
   /// Remove a chat message callback
   /// Note: Function equality doesn't work in Dart, so this removes by reference
   void removeChatMessageCallback(void Function(String, String, String, String) callback) {
+    final callbackHash = callback.hashCode;
+    _registeredChatCallbackHashes.remove(callbackHash);
     _onChatMessageCallbacks.remove(callback);
+    _logChat('WebSocket', 'Chat callback removed (hash: $callbackHash, remaining: ${_onChatMessageCallbacks.length})');
   }
 }
 

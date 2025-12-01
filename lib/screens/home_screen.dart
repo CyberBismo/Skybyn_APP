@@ -17,7 +17,6 @@ import '../services/firebase_messaging_service.dart';
 import '../services/websocket_service.dart';
 import 'create_post_screen.dart';
 import 'map_screen.dart';
-import 'video_feed_screen.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'dart:io';
@@ -99,7 +98,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   Timer? _postRefreshTimer;
   bool _hasScrolled = false;
   bool _showNewPostIndicator = false;
-  int _lastPostCount = 0;
 
   @override
   void initState() {
@@ -318,6 +316,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     _showNoPostsMessage = false;
   }
 
+
   @override
   void dispose() {
     _noPostsTimer?.cancel();
@@ -336,8 +335,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   void _startPostRefreshTimer() {
     _postRefreshTimer?.cancel();
     
-    // Store initial post count
-    _lastPostCount = _posts.length;
     
     // Refresh posts every 5 minutes
     _postRefreshTimer = Timer.periodic(const Duration(minutes: 5), (timer) async {
@@ -369,7 +366,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         
         setState(() {
           _posts = newPosts;
-          _lastPostCount = newPostCount;
           
           // Show indicator if new posts found and user has scrolled
           if (hasNewPosts && _hasScrolled) {
@@ -884,10 +880,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     _unreadChatCount = _chatMessageCountService.totalUnreadCount;
   }
 
+
   @override
   Widget build(BuildContext context) {
-    final translationService = TranslationService();
-
     return ScaffoldMessenger(
       key: _scaffoldMessengerKey,
       child: Scaffold(
@@ -956,8 +951,41 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   Widget _buildHomeContent() {
-    return Stack(
-      children: [
+    return GestureDetector(
+      behavior: HitTestBehavior.translucent,
+      onHorizontalDragEnd: (DragEndDetails details) {
+        if (details.primaryVelocity == null) return;
+        
+        // Detect left-to-right swipe (swipe right)
+        // Positive velocity means swiping right (left to right)
+        if (details.primaryVelocity! > 500) {
+          // Navigate to map screen with slide animation from left
+          Navigator.of(context).push(
+            PageRouteBuilder(
+              pageBuilder: (context, animation, secondaryAnimation) => const MapScreen(),
+              transitionsBuilder: (context, animation, secondaryAnimation, child) {
+                // Slide in from left (-1.0) to center (0.0)
+                const begin = Offset(-1.0, 0.0);
+                const end = Offset.zero;
+                const curve = Curves.easeInOutCubic;
+
+                var tween = Tween(begin: begin, end: end).chain(
+                  CurveTween(curve: curve),
+                );
+
+                return SlideTransition(
+                  position: animation.drive(tween),
+                  child: child,
+                );
+              },
+              transitionDuration: const Duration(milliseconds: 250),
+              reverseTransitionDuration: const Duration(milliseconds: 250),
+            ),
+          );
+        }
+      },
+      child: Stack(
+        children: [
         // Show grey background during initial loading, gradient otherwise
         if (_isLoading)
           Container(color: Colors.grey[900])
@@ -1139,6 +1167,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               },
             ),
           ],
+      ),
     );
   }
 }

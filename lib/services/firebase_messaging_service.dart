@@ -11,6 +11,7 @@ import 'dart:developer' as developer;
 import 'notification_service.dart';
 import 'auth_service.dart';
 import 'device_service.dart';
+import 'websocket_service.dart';
 import '../config/constants.dart';
 // Firestore disabled - using WebSocket for real-time features instead
 // import 'package:cloud_firestore/cloud_firestore.dart';
@@ -28,6 +29,21 @@ void _logChat(String prefix, String message) {
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   try {
+    // Log ALL incoming Firebase background messages
+    final timestamp = DateTime.now().toIso8601String();
+    final type = message.data['type']?.toString();
+    final messageId = message.messageId ?? 'no-id';
+    
+    developer.log('═══════════════════════════════════════════════════════', name: 'FCM Background');
+    developer.log('📨 Background message received at $timestamp', name: 'FCM Background');
+    developer.log('   Message ID: $messageId', name: 'FCM Background');
+    developer.log('   Type: $type', name: 'FCM Background');
+    developer.log('   Notification title: ${message.notification?.title ?? "null"}', name: 'FCM Background');
+    developer.log('   Notification body: ${message.notification?.body ?? "null"}', name: 'FCM Background');
+    developer.log('   Full data: ${message.data}', name: 'FCM Background');
+    developer.log('   Has notification payload: ${message.notification != null}', name: 'FCM Background');
+    developer.log('═══════════════════════════════════════════════════════', name: 'FCM Background');
+    
     // Process all messages, including in debug mode (for testing)
     // Debug mode check removed to ensure notifications work during development
 
@@ -51,7 +67,6 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
     }
 
     // Show local notification for background messages
-    final type = message.data['type']?.toString();
     
     // For call notifications, show with proper call notification format
     if (type == 'call') {
@@ -153,6 +168,7 @@ class FirebaseMessagingService {
   // Callback for incoming call from notification
   static Function(String, String, String)? _onIncomingCallFromNotification; // callId, fromUserId, callType
   bool _isInitialized = false;
+  static bool _backgroundHandlerRegistered = false; // Track if background handler is already registered
 
   // Topic subscriptions
   final List<String> _subscribedTopics = [];
@@ -168,6 +184,12 @@ class FirebaseMessagingService {
   }
 
   Future<void> initialize() async {
+    // Prevent duplicate initialization
+    if (_isInitialized) {
+      _logChat('FCM Init', 'Already initialized, skipping');
+      return;
+    }
+    
     try {
       // Ensure Firebase Core is initialized first
       if (Firebase.apps.isEmpty) {
@@ -189,8 +211,22 @@ class FirebaseMessagingService {
         _messaging = FirebaseMessaging.instance;
       }
 
-      // Set background message handler
-      FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+      // Set background message handler - only register once to prevent duplicate isolate warning
+      // Note: onBackgroundMessage should ideally be called before runApp(), but we check here to prevent duplicates
+      // The duplicate warning can occur during hot reload or if initialize() is called multiple times
+      if (!_backgroundHandlerRegistered) {
+        try {
+          FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+          _backgroundHandlerRegistered = true;
+          _logChat('FCM Init', '✅ Background message handler registered');
+        } catch (e) {
+          // If it's already registered (e.g., during hot reload), that's okay - just log it
+          _logChat('FCM Init', '⚠️ Background handler registration issue (may already be registered): $e');
+          _backgroundHandlerRegistered = true; // Mark as registered to prevent retries
+        }
+      } else {
+        _logChat('FCM Init', '⏭️ Background handler already registered, skipping');
+      }
 
       // Configure foreground notification presentation for iOS
       // Note: This will fail if APN is not configured in Firebase
@@ -226,8 +262,10 @@ class FirebaseMessagingService {
 
       // Auto-subscribe to default topics
       await autoSubscribeToTopics();
-
+      
+      // Mark as initialized only after everything succeeds
       _isInitialized = true;
+      _logChat('FCM Init', '✅ Firebase Messaging initialized successfully');
     } catch (e) {
       if (Platform.isIOS) {
       } else {
@@ -404,13 +442,36 @@ class FirebaseMessagingService {
     }
     
     // Handle foreground messages
-    // NOTE: When app is in foreground, WebSocket handles real-time updates
-    // Firebase is only used for background notifications
+    // NOTE: When app is in foreground and WebSocket is connected, WebSocket handles real-time updates
+    // Firebase is only used when WebSocket is not available (e.g., connection issues, app just started)
     FirebaseMessaging.onMessage.listen((RemoteMessage message) async {
+      final timestamp = DateTime.now().toIso8601String();
       final type = message.data['type']?.toString();
+      final messageId = message.messageId ?? 'no-id';
       
-      // Log all incoming FCM messages for debugging
-      _logChat('FCM Foreground', 'Received message - type: $type, messageId: ${message.messageId}');
+      // Check if WebSocket is connected - if so, skip Firebase notifications
+      final webSocketService = WebSocketService();
+      final isWebSocketConnected = webSocketService.isConnected;
+      
+      // Log ALL incoming Firebase foreground messages
+      _logChat('FCM Foreground', '═══════════════════════════════════════════════════════');
+      _logChat('FCM Foreground', '📨 Foreground message received at $timestamp');
+      _logChat('FCM Foreground', '   Message ID: $messageId');
+      _logChat('FCM Foreground', '   Type: $type');
+      _logChat('FCM Foreground', '   WebSocket connected: $isWebSocketConnected');
+      _logChat('FCM Foreground', '   Notification title: ${message.notification?.title ?? "null"}');
+      _logChat('FCM Foreground', '   Notification body: ${message.notification?.body ?? "null"}');
+      _logChat('FCM Foreground', '   Full data: ${message.data}');
+      _logChat('FCM Foreground', '   Has notification payload: ${message.notification != null}');
+      _logChat('FCM Foreground', '═══════════════════════════════════════════════════════');
+      
+      // If WebSocket is connected, skip Firebase notifications (WebSocket handles them)
+      if (isWebSocketConnected) {
+        _logChat('FCM Foreground', '⏭️ Skipping Firebase notification - WebSocket is connected and will handle it');
+        return;
+      }
+      
+      _logChat('FCM Foreground', '✅ Processing Firebase notification - WebSocket not available');
       
       // Update activity when receiving notification (user is active)
       // This helps maintain online status even when app is in background
@@ -441,8 +502,21 @@ class FirebaseMessagingService {
       }
       
       // For call notifications, show notification with action buttons
-      // IMPORTANT: Always show notification even when app is open, so user sees it
+      // Only show via Firebase if WebSocket is not available (WebSocket handles calls when connected)
       if (type == 'call') {
+        final callId = message.data['callId']?.toString() ?? '';
+        final fromUserId = message.data['fromUserId']?.toString() ?? message.data['sender']?.toString() ?? '';
+        final callType = message.data['callType']?.toString() ?? 'video';
+        _logChat('FCM Foreground Call', '📞 Call notification: callId=$callId, from=$fromUserId, type=$callType');
+        _logChat('FCM Foreground Call', '   WebSocket connected: $isWebSocketConnected');
+        
+        // If WebSocket is connected, it should handle the call - skip Firebase notification
+        if (isWebSocketConnected) {
+          _logChat('FCM Foreground Call', '⏭️ Skipping Firebase call notification - WebSocket is connected and will handle it');
+          return;
+        }
+        
+        _logChat('FCM Foreground Call', '✅ Showing Firebase call notification - WebSocket not available');
         final notificationService = NotificationService();
         try {
           await notificationService.showNotification(
@@ -450,21 +524,22 @@ class FirebaseMessagingService {
             body: message.notification?.body ?? '',
             payload: jsonEncode({
               'type': 'call',
-              'callId': message.data['callId']?.toString() ?? '',
+              'callId': callId,
               'sender': message.data['sender']?.toString(),
-              'fromUserId': message.data['fromUserId']?.toString() ?? message.data['sender']?.toString() ?? '',
-              'callType': message.data['callType']?.toString() ?? 'video',
+              'fromUserId': fromUserId,
+              'callType': callType,
               'incomingCall': message.data['incomingCall']?.toString() ?? 'true',
             }),
           );
+          _logChat('FCM Foreground Call', '✅ Call notification shown successfully');
         } catch (e) {
+          _logChat('FCM Foreground Call', '❌ Failed to show call notification: $e');
         }
-        // Don't return - also trigger the in-app handler if WebSocket hasn't handled it yet
-        // The notification will show as a heads-up, and the in-app dialog will also appear
         return;
       }
       
       // For other message types (including chat), show notification
+      _logChat('FCM Foreground', 'Showing notification for type: $type');
       final notificationService = NotificationService();
       try {
         await notificationService.showNotification(
@@ -472,18 +547,17 @@ class FirebaseMessagingService {
           body: message.notification?.body ?? '',
           payload: jsonEncode(message.data),
         );
-        if (type == 'chat') {
-          _logChat('FCM Foreground Chat', 'Notification shown successfully');
-        }
+        _logChat('FCM Foreground', '✅ Notification shown successfully for type: $type');
       } catch (e) {
-        if (type == 'chat') {
-          _logChat('FCM Foreground Chat', 'Failed to show notification: $e');
-        }
+        _logChat('FCM Foreground', '❌ Failed to show notification for type $type: $e');
       }
     });
 
     // Handle when app is opened from notification
     FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
+      final type = message.data['type']?.toString();
+      _logChat('FCM Opened App', '📱 App opened from notification: type=$type, messageId=${message.messageId}');
+      _logChat('FCM Opened App', '   Full data: ${message.data}');
       // Handle navigation based on message data
       _handleNotificationTap(message.data);
     });
@@ -491,6 +565,9 @@ class FirebaseMessagingService {
     // Check if app was opened from notification
     RemoteMessage? initialMessage = await _messaging!.getInitialMessage();
     if (initialMessage != null) {
+      final type = initialMessage.data['type']?.toString();
+      _logChat('FCM Initial Message', '📱 App opened from initial notification: type=$type, messageId=${initialMessage.messageId}');
+      _logChat('FCM Initial Message', '   Full data: ${initialMessage.data}');
       await _handleNotificationTap(initialMessage.data);
     }
   }

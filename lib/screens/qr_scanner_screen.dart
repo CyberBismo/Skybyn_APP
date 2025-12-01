@@ -291,6 +291,7 @@ class _QrScannerScreenState extends State<QrScannerScreen> with WidgetsBindingOb
     // If QR code is provided (confirmation mode from deep link), show confirmation UI
     if (widget.qrCode != null) {
       return Scaffold(
+        extendBodyBehindAppBar: true,
         appBar: CustomAppBar(
           logoPath: 'assets/images/logo.png',
           onLogoPressed: () {
@@ -410,6 +411,7 @@ class _QrScannerScreenState extends State<QrScannerScreen> with WidgetsBindingOb
 
     // Normal scanner mode
     return Scaffold(
+      extendBodyBehindAppBar: true,
       appBar: CustomAppBar(
         logoPath: 'assets/images/logo.png',
         onLogoPressed: () {
@@ -454,11 +456,13 @@ class _QrScannerScreenState extends State<QrScannerScreen> with WidgetsBindingOb
                       Container(
                         color: Colors.black.withOpacity(0.8),
                         child: Center(
-                          child: Padding(
-                            padding: const EdgeInsets.all(24.0),
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
+                          child: SingleChildScrollView(
+                            child: Padding(
+                              padding: const EdgeInsets.all(24.0),
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
                                 const Icon(
                                   Icons.error_outline,
                                   color: Colors.white,
@@ -517,6 +521,7 @@ class _QrScannerScreenState extends State<QrScannerScreen> with WidgetsBindingOb
                                   ],
                                 ),
                               ],
+                            ),
                             ),
                           ),
                         ),

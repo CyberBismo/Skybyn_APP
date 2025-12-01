@@ -19,6 +19,7 @@ class BackgroundUpdateScheduler {
   static const String _cachedUpdateKey = 'cached_app_update';
   static const String _lastUpdateCheckKey = 'last_update_check';
   static const int _updateCheckNotificationId = 8888;
+  static int get updateCheckNotificationId => _updateCheckNotificationId;
 
   final FlutterLocalNotificationsPlugin _localNotifications = FlutterLocalNotificationsPlugin();
 
@@ -76,6 +77,7 @@ class BackgroundUpdateScheduler {
         playSound: false,
         enableVibration: false,
         silent: true,
+        autoCancel: true, // Auto-dismiss the notification
         icon: '@drawable/notification_icon', // Use logo.png
       );
 
