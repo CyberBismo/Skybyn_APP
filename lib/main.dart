@@ -12,7 +12,6 @@ import 'dart:async';
 import 'screens/login_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/main_navigation_screen.dart';
-import 'screens/qr_login_confirm_screen.dart';
 import 'screens/profile_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/qr_scanner_screen.dart';
@@ -268,7 +267,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
           if (currentContext != null) {
             Navigator.of(currentContext).push(
               MaterialPageRoute(
-                builder: (context) => QrLoginConfirmScreen(qrCode: code!),
+                builder: (context) => QrScannerScreen(qrCode: code!),
               ),
             );
           }
