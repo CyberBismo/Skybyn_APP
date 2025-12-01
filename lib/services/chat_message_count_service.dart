@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:developer' as developer;
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'auth_service.dart';
@@ -71,11 +72,22 @@ class ChatMessageCountService extends ChangeNotifier {
   /// Increment unread count for a friend
   Future<void> incrementUnreadCount(String friendId) async {
     final currentCount = _unreadCounts[friendId] ?? 0;
-    _unreadCounts[friendId] = currentCount + 1;
+    final newCount = currentCount + 1;
+    
+    developer.log('Incrementing unread count', name: 'ChatMessageCountService');
+    developer.log('   - FriendId: $friendId', name: 'ChatMessageCountService');
+    developer.log('   - Current count: $currentCount', name: 'ChatMessageCountService');
+    developer.log('   - New count: $newCount', name: 'ChatMessageCountService');
+    
+    _unreadCounts[friendId] = newCount;
     _totalUnreadCount = _unreadCounts.values.fold(0, (sum, count) => sum + count);
+    
+    developer.log('   - Total unread count: $_totalUnreadCount', name: 'ChatMessageCountService');
     
     await _saveUnreadCount(friendId, _unreadCounts[friendId]!);
     notifyListeners();
+    
+    developer.log('   - Unread count saved and listeners notified', name: 'ChatMessageCountService');
   }
 
   /// Clear unread count for a friend (when chat is opened)

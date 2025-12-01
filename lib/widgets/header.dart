@@ -177,18 +177,21 @@ class _CustomAppBarState extends State<CustomAppBar> {
                               ),
                             ),
                           ),
-                          // Menu button - fixed width with padding
+                          // Menu button - fixed width with padding, same height as header
                           SizedBox(
                             width: 72.0,
+                            height: appBarHeight,
                             child: Padding(
                               padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                              child: UnifiedMenu.createUserMenuButton(
-                                context: context,
-                                appBarHeight: appBarHeight,
-                                onLogout: widget.onLogout ?? _handleLogout,
-                                menuKey: _menuKey,
-                                onSearchFormToggle: widget.onSearchFormToggle,
-                                isSearchFormVisible: widget.isSearchFormVisible,
+                              child: Center(
+                                child: UnifiedMenu.createUserMenuButton(
+                                  context: context,
+                                  appBarHeight: appBarHeight,
+                                  onLogout: widget.onLogout ?? _handleLogout,
+                                  menuKey: _menuKey,
+                                  onSearchFormToggle: widget.onSearchFormToggle,
+                                  isSearchFormVisible: widget.isSearchFormVisible,
+                                ),
                               ),
                             ),
                           ),

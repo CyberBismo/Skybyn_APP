@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:package_info_plus/package_info_plus.dart';
+import 'dart:developer' as developer;
 import 'notification_service.dart';
 import 'auth_service.dart';
 import 'device_service.dart';
@@ -14,6 +15,14 @@ import '../config/constants.dart';
 // Firestore disabled - using WebSocket for real-time features instead
 // import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:async';
+
+// Helper function to log chat events - always logs regardless of zone filters
+void _logChat(String prefix, String message) {
+  // Use developer.log which always logs, bypassing zone filters
+  developer.log(message, name: prefix);
+  // Also use debugPrint as backup
+  debugPrint('$prefix: $message');
+}
 
 // Handle background messages
 @pragma('vm:entry-point')
@@ -27,16 +36,21 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
       await Firebase.initializeApp();
     }
     
+    // Initialize NotificationService in background isolate
+    // This is critical - NotificationService must be initialized in the background isolate
+    final notificationService = NotificationService();
+    await notificationService.initialize();
+    
     // Update user activity when receiving notification (user is active)
     // This helps maintain online status even when app is closed
     try {
       final authService = AuthService();
       await authService.updateActivity();
     } catch (e) {
+      // Silently fail - activity update is not critical for notifications
     }
 
     // Show local notification for background messages
-    final notificationService = NotificationService();
     final type = message.data['type']?.toString();
     
     // For call notifications, show with proper call notification format
@@ -63,10 +77,22 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
       );
     } else {
       // For other message types (including chat), show normal notification
-      // When app is closed, FCM should show the notification automatically if it has notification payload
-      // But we also show a local notification as backup to ensure it's always displayed
-      final type = message.data['type']?.toString();
+      // IMPORTANT: When app is in background, FCM may automatically show notifications with notification payload
+      // But we ALWAYS show a local notification to ensure it's displayed, especially for data-only messages
       final payload = jsonEncode(message.data);
+      
+      // For chat messages, log details
+      if (type == 'chat') {
+        final sender = message.data['sender']?.toString() ?? message.data['from']?.toString() ?? 'unknown';
+        final messageId = message.data['messageId']?.toString() ?? 'unknown';
+        _logChat('FCM Background Chat', 'Chat message received in background:');
+        _logChat('FCM Background Chat', '   - Sender: $sender');
+        _logChat('FCM Background Chat', '   - MessageId: $messageId');
+        _logChat('FCM Background Chat', '   - Has notification payload: ${message.notification != null}');
+        _logChat('FCM Background Chat', '   - Notification title: ${message.notification?.title ?? "null"}');
+        _logChat('FCM Background Chat', '   - Notification body: ${message.notification?.body ?? "null"}');
+        _logChat('FCM Background Chat', '   - Full data: ${message.data}');
+      }
       
       // For chat messages, ensure we have a proper title and body
       String title = message.notification?.title ?? 'New Message';
@@ -79,15 +105,35 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
         final messageText = message.data['message']?.toString() ?? message.data['body']?.toString() ?? 'New message';
         title = sender;
         body = messageText;
+        if (type == 'chat') {
+          _logChat('FCM Background Chat', 'Extracted title/body from data: title="$title", body="${body.length > 50 ? body.substring(0, 50) + "..." : body}"');
+        }
       }
       
-      await notificationService.showNotification(
-        title: title, 
-        body: body, 
-        payload: payload
-      );
+      // Always show notification - even if FCM shows it automatically, this ensures it's displayed
+      // This is especially important for chat messages when app is in background
+      try {
+        await notificationService.showNotification(
+          title: title, 
+          body: body, 
+          payload: payload
+        );
+        if (type == 'chat') {
+          _logChat('FCM Background Chat', 'Local notification shown successfully');
+        }
+      } catch (e) {
+        if (type == 'chat') {
+          _logChat('FCM Background Chat', 'Failed to show local notification: $e');
+        }
+        rethrow;
+      }
     }
-  } catch (e) {
+  } catch (e, stackTrace) {
+    // Log errors in background handler for debugging
+    // Use developer.log which always logs, even in background isolate
+    developer.log('Error processing notification: $e', name: 'FCM Background Handler', error: e, stackTrace: stackTrace);
+    developer.log('Message data: ${message.data}', name: 'FCM Background Handler');
+    developer.log('Notification: ${message.notification?.title} - ${message.notification?.body}', name: 'FCM Background Handler');
   }
 }
 
@@ -362,6 +408,10 @@ class FirebaseMessagingService {
     // Firebase is only used for background notifications
     FirebaseMessaging.onMessage.listen((RemoteMessage message) async {
       final type = message.data['type']?.toString();
+      
+      // Log all incoming FCM messages for debugging
+      _logChat('FCM Foreground', 'Received message - type: $type, messageId: ${message.messageId}');
+      
       // Update activity when receiving notification (user is active)
       // This helps maintain online status even when app is in background
       final authService = AuthService();
@@ -374,6 +424,20 @@ class FirebaseMessagingService {
         // Just trigger the update check callback
         _triggerUpdateCheck();
         return;
+      }
+      
+      // For chat messages in foreground, log details
+      if (type == 'chat') {
+        final sender = message.data['sender']?.toString() ?? message.data['from']?.toString() ?? 'unknown';
+        final messageId = message.data['messageId']?.toString() ?? 'unknown';
+        final title = message.notification?.title ?? 'New Message';
+        final body = message.notification?.body ?? '';
+        _logChat('FCM Foreground Chat', 'Chat message received:');
+        _logChat('FCM Foreground Chat', '   - Sender: $sender');
+        _logChat('FCM Foreground Chat', '   - MessageId: $messageId');
+        _logChat('FCM Foreground Chat', '   - Title: $title');
+        _logChat('FCM Foreground Chat', '   - Body: ${body.length > 50 ? body.substring(0, 50) + "..." : body}');
+        _logChat('FCM Foreground Chat', '   - Full data: ${message.data}');
       }
       
       // For call notifications, show notification with action buttons
@@ -400,13 +464,22 @@ class FirebaseMessagingService {
         return;
       }
       
-      // For other message types, show notification
+      // For other message types (including chat), show notification
       final notificationService = NotificationService();
-      await notificationService.showNotification(
-        title: message.notification?.title ?? 'Notification',
-        body: message.notification?.body ?? '',
-        payload: jsonEncode(message.data),
-      );
+      try {
+        await notificationService.showNotification(
+          title: message.notification?.title ?? 'Notification',
+          body: message.notification?.body ?? '',
+          payload: jsonEncode(message.data),
+        );
+        if (type == 'chat') {
+          _logChat('FCM Foreground Chat', 'Notification shown successfully');
+        }
+      } catch (e) {
+        if (type == 'chat') {
+          _logChat('FCM Foreground Chat', 'Failed to show notification: $e');
+        }
+      }
     });
 
     // Handle when app is opened from notification
@@ -426,6 +499,9 @@ class FirebaseMessagingService {
     try {
       final type = data['type']?.toString();
       final payload = data['payload']?.toString();
+      
+      // Log notification tap
+      _logChat('FCM', 'Notification tapped - type: $type');
 
       switch (type) {
         case 'new_post':
@@ -440,6 +516,16 @@ class FirebaseMessagingService {
         case 'app_update':
           // Trigger update check - the home screen will handle showing the dialog
           _triggerUpdateCheck();
+          break;
+        case 'chat':
+          // Log chat notification tap
+          final sender = data['sender']?.toString() ?? data['from']?.toString() ?? 'unknown';
+          final messageId = data['messageId']?.toString() ?? 'unknown';
+          _logChat('FCM Chat', 'Chat notification tapped:');
+          _logChat('FCM Chat', '   - Sender: $sender');
+          _logChat('FCM Chat', '   - MessageId: $messageId');
+          _logChat('FCM Chat', '   - Full data: $data');
+          // Navigation will be handled by the app's navigation system
           break;
         case 'call_offer':
         case 'call_initiate':

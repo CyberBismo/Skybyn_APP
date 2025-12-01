@@ -13,6 +13,45 @@ import 'package:timeago/timeago.dart' as timeago;
 import 'home_screen.dart';
 import 'map_screen.dart';
 
+/// Custom ScrollPhysics that prevents left swiping (to map screen) when on video screen
+/// Only allows rightward swipes (to go back to home) when on page 1
+class VideoScreenScrollPhysics extends ScrollPhysics {
+  final int currentPage;
+  
+  const VideoScreenScrollPhysics({
+    required this.currentPage,
+    super.parent,
+  });
+
+  @override
+  VideoScreenScrollPhysics applyTo(ScrollPhysics? ancestor) {
+    return VideoScreenScrollPhysics(
+      currentPage: currentPage,
+      parent: buildParent(ancestor),
+    );
+  }
+
+  @override
+  bool shouldAcceptUserOffset(ScrollMetrics position) {
+    return true;
+  }
+
+  @override
+  double applyBoundaryConditions(ScrollMetrics position, double value) {
+    // Simplified: When on page 1 (video screen), prevent scrolling to page 2
+    // Only check if we're on page 1 and trying to scroll right
+    if (currentPage == 1 && value > position.pixels) {
+      // Prevent scrolling beyond page 1's boundary
+      // For 3-page PageView, page 1 ends at maxScrollExtent / 2
+      final maxAllowed = position.maxScrollExtent / 2;
+      if (value > maxAllowed) {
+        return maxAllowed - value;
+      }
+    }
+    return super.applyBoundaryConditions(position, value);
+  }
+}
+
 class VideoFeedScreen extends StatefulWidget {
   const VideoFeedScreen() : super(key: const ValueKey('VideoFeedScreen'));
 
@@ -35,28 +74,50 @@ class _VideoFeedScreenState extends State<VideoFeedScreen> {
   final Map<int, VideoPlayerController> _controllers = {};
   final Map<int, YoutubePlayerController> _youtubeControllers = {};
   final Map<int, WebViewController> _webviewControllers = {};
+  bool _isVideoScreenVisible = false; // Track if video screen is actually visible
+  bool _isNavigatingToScreen = true; // Track if screen is being navigated to (not yet settled)
+  DateTime? _navigationCompleteTime; // Track when navigation completed
 
   @override
   void initState() {
     super.initState();
     _loadUserId();
-    _loadVideos();
-    
-    // Add listener to prevent swiping to map screen (page 2) from video screen (page 1)
-    _horizontalPageController.addListener(() {
-      if (!_horizontalPageController.position.isScrollingNotifier.value) {
-        // When scrolling stops, check if we're on page 2 and reset to page 1 if we came from page 1
-        if (_horizontalPageController.page != null) {
-          final currentPage = _horizontalPageController.page!.round();
-          if (currentPage == 2 && _currentHorizontalPage == 1) {
-            // Prevent going to map screen - jump back to video screen
-            _horizontalPageController.jumpToPage(1);
-          } else {
-            _currentHorizontalPage = currentPage;
-          }
-        }
+    // Mark as navigating initially - will be cleared after a delay
+    _isNavigatingToScreen = true;
+    // Set navigation complete time after a delay to allow swipe to finish
+    Future.delayed(const Duration(milliseconds: 400), () {
+      if (mounted) {
+        _isNavigatingToScreen = false;
+        _navigationCompleteTime = DateTime.now();
       }
     });
+    // Defer video loading until screen is actually visible
+    // This prevents blocking during swipe animation
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _loadVideos();
+        _isVideoScreenVisible = true;
+      }
+    });
+    
+    // Add listener to prevent swiping to map screen (page 2) from video screen (page 1)
+    // Optimized: only update when scrolling actually stops
+    _horizontalPageController.addListener(_onHorizontalPageScroll);
+  }
+
+  void _onHorizontalPageScroll() {
+    // Only check when scrolling stops to avoid performance issues
+    if (!_horizontalPageController.position.isScrollingNotifier.value) {
+      if (_horizontalPageController.page != null && mounted) {
+        final currentPage = _horizontalPageController.page!.round();
+        if (currentPage == 2 && _currentHorizontalPage == 1) {
+          // Prevent going to map screen - jump back to video screen
+          _horizontalPageController.jumpToPage(1);
+        } else if (currentPage != _currentHorizontalPage) {
+          _currentHorizontalPage = currentPage;
+        }
+      }
+    }
   }
 
   Future<void> _loadUserId() async {
@@ -240,57 +301,89 @@ class _VideoFeedScreenState extends State<VideoFeedScreen> {
   }
 
   Future<void> _initializeVideo(int index) async {
-    if (index < 0 || index >= _videos.length) return;
+    if (index < 0 || index >= _videos.length || !mounted || !_isVideoScreenVisible) return;
+    
+    // Don't initialize if index has changed (user scrolled away)
+    if (index != _currentIndex) return;
+    
+    // Don't initialize if screen is still being navigated to
+    if (_isNavigatingToScreen) return;
+    
+    // Ensure navigation has completed (at least 300ms after navigation)
+    if (_navigationCompleteTime == null || 
+        DateTime.now().difference(_navigationCompleteTime!).inMilliseconds < 300) {
+      return;
+    }
 
     final video = _videos[index];
+    
+    // Don't initialize if we're still in the middle of a swipe
+    if (_horizontalPageController.hasClients) {
+      final currentPage = _horizontalPageController.page ?? 1.0;
+      // If we're not fully on page 1, don't initialize
+      if ((currentPage - 1.0).abs() > 0.1) {
+        return;
+      }
+    }
     
     // Handle different video types
     if (video.videoType == 'youtube') {
       // Extract YouTube video ID
       final videoId = _extractYouTubeId(video.videoUrl);
-      if (videoId != null) {
+        if (videoId != null) {
         final youtubeController = YoutubePlayerController(
           initialVideoId: videoId,
-          flags: const YoutubePlayerFlags(
-            autoPlay: true,
+          flags: YoutubePlayerFlags(
+            autoPlay: index == _currentIndex, // Only autoplay if it's the current video
             loop: true,
             mute: false,
           ),
         );
         
-        if (mounted) {
+        if (mounted && index == _currentIndex) {
           setState(() {
             _youtubeControllers[index] = youtubeController;
           });
+        } else if (mounted) {
+          // Store controller but don't trigger rebuild if not current
+          _youtubeControllers[index] = youtubeController;
         }
       }
       return;
     } else if (video.videoType == 'vimeo' || video.videoType == 'tiktok') {
-      // Use webview for Vimeo and TikTok
-      final webviewController = WebViewController()
-        ..setJavaScriptMode(JavaScriptMode.unrestricted)
-        ..setBackgroundColor(Colors.black)
-        ..setNavigationDelegate(
-          NavigationDelegate(
-            onPageFinished: (String url) {
-              // Inject script to make video fullscreen and autoplay
-              // Use the controller from the map to avoid closure issues
-              final controller = _webviewControllers[index];
-              if (controller != null) {
-                controller.runJavaScript('''
-                  document.querySelector('video')?.play();
-                ''');
-              }
-            },
-          ),
-        )
-        ..loadRequest(Uri.parse(video.videoUrl));
-      
-      if (mounted) {
-        setState(() {
+      // Use webview for Vimeo and TikTok - defer initialization to avoid blocking
+      // WebView initialization is expensive and causes frame drops
+      Future.delayed(const Duration(milliseconds: 500), () {
+        if (!mounted || index != _currentIndex || !_isVideoScreenVisible) return;
+        
+        final webviewController = WebViewController()
+          ..setJavaScriptMode(JavaScriptMode.unrestricted)
+          ..setBackgroundColor(Colors.black)
+          ..setNavigationDelegate(
+            NavigationDelegate(
+              onPageFinished: (String url) {
+                // Inject script to make video fullscreen and autoplay (only if not swiping and navigation complete)
+                final controller = _webviewControllers[index];
+                if (controller != null && mounted && index == _currentIndex && 
+                    _isVideoScreenVisible && _currentHorizontalPage == 1 && !_isNavigatingToScreen) {
+                  final canPlay = _navigationCompleteTime != null && 
+                      DateTime.now().difference(_navigationCompleteTime!).inMilliseconds >= 300;
+                  if (canPlay) {
+                    controller.runJavaScript('''
+                      document.querySelector('video')?.play();
+                    ''');
+                  }
+                }
+              },
+            ),
+          )
+          ..loadRequest(Uri.parse(video.videoUrl));
+        
+        if (mounted && index == _currentIndex) {
           _webviewControllers[index] = webviewController;
-        });
-      }
+          setState(() {});
+        }
+      });
       return;
     }
     
@@ -306,6 +399,7 @@ class _VideoFeedScreenState extends State<VideoFeedScreen> {
         Uri.parse(video.videoUrl),
       );
 
+      // Initialize on a separate isolate to avoid blocking main thread
       await controller.initialize();
       
       // Check if video is portrait (height > width)
@@ -329,12 +423,27 @@ class _VideoFeedScreenState extends State<VideoFeedScreen> {
       }
       
       controller.setLooping(true);
-      controller.play();
+      
+      // Only play if this is still the current video, not swiping, and navigation is complete
+      if (mounted && index == _currentIndex && _isVideoScreenVisible && 
+          _currentHorizontalPage == 1 && !_isNavigatingToScreen) {
+        // Ensure navigation has completed before playing
+        final canPlay = _navigationCompleteTime != null && 
+            DateTime.now().difference(_navigationCompleteTime!).inMilliseconds >= 300;
+        if (canPlay) {
+          controller.play();
+        }
+      }
 
-      if (mounted) {
+      if (mounted && index == _currentIndex) {
         setState(() {
           _controllers[index] = controller;
         });
+      } else {
+        // If user scrolled away, just store the controller but don't play
+        if (mounted) {
+          _controllers[index] = controller;
+        }
       }
     } catch (e) {
       // Video failed to load - will show loading indicator
@@ -353,33 +462,176 @@ class _VideoFeedScreenState extends State<VideoFeedScreen> {
   }
 
   void _onPageChanged(int index) {
-    // Pause previous video
-    if (_controllers.containsKey(_currentIndex)) {
-      _controllers[_currentIndex]!.pause();
-    }
-    if (_youtubeControllers.containsKey(_currentIndex)) {
-      _youtubeControllers[_currentIndex]!.pause();
+    // Validate index and ensure video screen is visible
+    if (index < 0 || _videos.isEmpty || !_isVideoScreenVisible) return;
+    
+    // Dispose videos that are far from current index to free memory
+    _disposeDistantVideos(index);
+    
+    // Pause previous video only if it exists
+    if (_currentIndex >= 0 && _currentIndex < _videos.length && _currentIndex != index) {
+      if (_controllers.containsKey(_currentIndex)) {
+        _controllers[_currentIndex]!.pause();
+      }
+      if (_youtubeControllers.containsKey(_currentIndex)) {
+        _youtubeControllers[_currentIndex]!.pause();
+      }
     }
 
     _currentIndex = index;
 
-    // Load more videos if near the end
-    if (index >= _videos.length - 3 && _hasMore && !_isLoadingMore) {
+    // Load more videos if near the end (only if we have videos)
+    if (index >= _videos.length - 3 && _hasMore && !_isLoadingMore && _videos.isNotEmpty) {
       _loadVideos(page: _currentPage + 1, append: true);
     }
 
-    // Play current video
-    if (_controllers.containsKey(index)) {
-      _controllers[index]!.play();
-    } else if (_youtubeControllers.containsKey(index)) {
-      _youtubeControllers[index]!.play();
-    } else {
-      _initializeVideo(index);
+    // Play current video (only if index is valid, not swiping, and navigation is complete) - defer initialization with longer delay
+    if (index < _videos.length && _isVideoScreenVisible && _currentHorizontalPage == 1 && !_isNavigatingToScreen) {
+      // Ensure navigation has completed before playing
+      final canPlay = _navigationCompleteTime != null && 
+          DateTime.now().difference(_navigationCompleteTime!).inMilliseconds >= 300;
+      
+      if (!canPlay) return;
+      if (_controllers.containsKey(index)) {
+        final controller = _controllers[index]!;
+        if (controller.value.isInitialized) {
+          // Use microtask to avoid blocking
+          Future.microtask(() {
+            if (mounted && index == _currentIndex && controller.value.isInitialized && !_isNavigatingToScreen) {
+              final canPlay = _navigationCompleteTime != null && 
+                  DateTime.now().difference(_navigationCompleteTime!).inMilliseconds >= 300;
+              if (canPlay) {
+                controller.play();
+              }
+            }
+          });
+        }
+      } else if (_youtubeControllers.containsKey(index)) {
+        Future.microtask(() {
+          if (mounted && index == _currentIndex && !_isNavigatingToScreen) {
+            final canPlay = _navigationCompleteTime != null && 
+                DateTime.now().difference(_navigationCompleteTime!).inMilliseconds >= 300;
+            if (canPlay) {
+              _youtubeControllers[index]?.play();
+            }
+          }
+        });
+      } else {
+        // Initialize video asynchronously with delay to ensure smooth scrolling
+        // Longer delay to let swipe animation complete first
+        Future.delayed(const Duration(milliseconds: 300), () {
+          if (mounted && index == _currentIndex && _isVideoScreenVisible) {
+            _initializeVideo(index);
+          }
+        });
+      }
+    }
+  }
+
+  /// Pause all videos (used when leaving video screen or during swiping)
+  void _pauseAllVideos() {
+    // Pause all VideoPlayer controllers
+    for (final controller in _controllers.values) {
+      if (controller.value.isInitialized && controller.value.isPlaying) {
+        controller.pause();
+      }
+    }
+    // Pause all YouTube controllers
+    for (final controller in _youtubeControllers.values) {
+      if (controller.value.isPlaying) {
+        controller.pause();
+      }
+    }
+    // Pause WebView videos by injecting pause script
+    for (final entry in _webviewControllers.entries) {
+      final controller = entry.value;
+      try {
+        controller.runJavaScript('''
+          const video = document.querySelector('video');
+          if (video && !video.paused) {
+            video.pause();
+          }
+        ''');
+      } catch (e) {
+        // Ignore errors - WebView might not be ready
+      }
+    }
+  }
+  
+  void _resumeCurrentVideo() {
+    // Only resume if we're not swiping and screen is visible
+    if (!_isVideoScreenVisible || _currentHorizontalPage != 1) {
+      return;
+    }
+    
+    if (_currentIndex >= 0 && _currentIndex < _videos.length) {
+      // Resume VideoPlayer
+      if (_controllers.containsKey(_currentIndex)) {
+        final controller = _controllers[_currentIndex]!;
+        if (controller.value.isInitialized && !controller.value.isPlaying) {
+          controller.play();
+        }
+      }
+      
+      // Resume YouTube player
+      if (_youtubeControllers.containsKey(_currentIndex)) {
+        final controller = _youtubeControllers[_currentIndex]!;
+        if (!controller.value.isPlaying) {
+          controller.play();
+        }
+      }
+      
+      // WebView videos will auto-play when visible
+    }
+  }
+
+  /// Dispose video controllers that are far from the current index
+  void _disposeDistantVideos(int currentIndex) {
+    const maxDistance = 2; // Keep videos within 2 positions of current
+    
+    final keysToRemove = <int>[];
+    
+    // Dispose controllers that are too far
+    for (final key in _controllers.keys) {
+      if ((key - currentIndex).abs() > maxDistance) {
+        _controllers[key]?.dispose();
+        keysToRemove.add(key);
+      }
+    }
+    for (final key in keysToRemove) {
+      _controllers.remove(key);
+    }
+    
+    keysToRemove.clear();
+    
+    // Dispose YouTube controllers that are too far
+    for (final key in _youtubeControllers.keys) {
+      if ((key - currentIndex).abs() > maxDistance) {
+        _youtubeControllers[key]?.dispose();
+        keysToRemove.add(key);
+      }
+    }
+    for (final key in keysToRemove) {
+      _youtubeControllers.remove(key);
+    }
+    
+    keysToRemove.clear();
+    
+    // Dispose webview controllers that are too far
+    for (final key in _webviewControllers.keys) {
+      if ((key - currentIndex).abs() > maxDistance) {
+        keysToRemove.add(key);
+      }
+    }
+    for (final key in keysToRemove) {
+      _webviewControllers.remove(key);
     }
   }
 
   @override
   void dispose() {
+    // Remove listener before disposing
+    _horizontalPageController.removeListener(_onHorizontalPageScroll);
     _pageController.dispose();
     _horizontalPageController.dispose();
     for (final controller in _controllers.values) {
@@ -409,28 +661,10 @@ class _VideoFeedScreenState extends State<VideoFeedScreen> {
             Navigator.of(context).pop();
           },
         ),
-      body: NotificationListener<ScrollUpdateNotification>(
-        onNotification: (notification) {
-          // Prevent scrolling to page 2 when on page 1 (video screen)
-          if (_currentHorizontalPage == 1 && _horizontalPageController.hasClients) {
-            final currentPage = _horizontalPageController.page ?? 1;
-            // If trying to scroll to page 2 or beyond, prevent it
-            if (currentPage > 1.5) {
-              // Reset to page 1
-              WidgetsBinding.instance.addPostFrameCallback((_) {
-                if (mounted && _horizontalPageController.hasClients) {
-                  _horizontalPageController.jumpToPage(1);
-                }
-              });
-              return true; // Consume the notification
-            }
-          }
-          return false;
-        },
-        child: PageView(
+      body: PageView(
           controller: _horizontalPageController,
           scrollDirection: Axis.horizontal,
-          physics: const ClampingScrollPhysics(),
+          physics: const AlwaysScrollableScrollPhysics(), // Enable normal PageView scrolling
           onPageChanged: (index) {
           // Store previous page before updating
           final previousPage = _currentHorizontalPage;
@@ -438,64 +672,140 @@ class _VideoFeedScreenState extends State<VideoFeedScreen> {
           // Update current horizontal page
           _currentHorizontalPage = index;
           
+          // Update visibility flag - only allow video operations when on video screen
+          _isVideoScreenVisible = (index == 1);
+          
+          // If leaving video screen, pause all videos
+          if (previousPage == 1 && index != 1) {
+            _pauseAllVideos();
+          }
+          
           // Prevent navigation to map screen (page 2) from video screen (page 1)
           if (index == 2 && previousPage == 1) {
             // If we're trying to go to map screen from video screen, prevent it
-            WidgetsBinding.instance.addPostFrameCallback((_) {
+            Future.microtask(() {
               if (mounted && _horizontalPageController.hasClients) {
                 _horizontalPageController.jumpToPage(1);
                 _currentHorizontalPage = 1;
+                _isVideoScreenVisible = true;
               }
             });
             return;
           }
           
-          // When page changes, navigate to the new screen using pushReplacement
+          // When page changes, navigate to the new screen using pushReplacement with smooth transitions
           if (index == 0) {
-            // Home screen
-            WidgetsBinding.instance.addPostFrameCallback((_) {
+            // Home screen - slide in from right
+            Future.microtask(() {
               if (mounted) {
                 Navigator.of(context).pushReplacement(
-                  MaterialPageRoute(builder: (_) => const HomeScreen()),
+                  PageRouteBuilder(
+                    pageBuilder: (context, animation, secondaryAnimation) => const HomeScreen(),
+                    transitionsBuilder: (context, animation, secondaryAnimation, child) {
+                      const begin = Offset(1.0, 0.0);
+                      const end = Offset.zero;
+                      const curve = Curves.easeInOutCubic;
+
+                      var tween = Tween(begin: begin, end: end).chain(
+                        CurveTween(curve: curve),
+                      );
+
+                      return SlideTransition(
+                        position: animation.drive(tween),
+                        child: child,
+                      );
+                    },
+                    transitionDuration: const Duration(milliseconds: 250),
+                    reverseTransitionDuration: const Duration(milliseconds: 250),
+                  ),
                 );
               }
             });
           } else if (index == 2 && previousPage != 1) {
-            // Map screen (only accessible from home screen, not from video screen)
-            WidgetsBinding.instance.addPostFrameCallback((_) {
+            // Map screen (only accessible from home screen, not from video screen) - slide in from left
+            Future.microtask(() {
               if (mounted) {
                 Navigator.of(context).pushReplacement(
-                  MaterialPageRoute(builder: (_) => const MapScreen()),
+                  PageRouteBuilder(
+                    pageBuilder: (context, animation, secondaryAnimation) => const MapScreen(),
+                    transitionsBuilder: (context, animation, secondaryAnimation, child) {
+                      const begin = Offset(-1.0, 0.0);
+                      const end = Offset.zero;
+                      const curve = Curves.easeInOutCubic;
+
+                      var tween = Tween(begin: begin, end: end).chain(
+                        CurveTween(curve: curve),
+                      );
+
+                      return SlideTransition(
+                        position: animation.drive(tween),
+                        child: child,
+                      );
+                    },
+                    transitionDuration: const Duration(milliseconds: 250),
+                    reverseTransitionDuration: const Duration(milliseconds: 250),
+                  ),
                 );
               }
             });
+          } else if (index == 1) {
+            // Video screen - ensure videos are loaded if not already
+            if (_videos.isEmpty && !_isLoading) {
+              Future.delayed(const Duration(milliseconds: 200), () {
+                if (mounted && _isVideoScreenVisible) {
+                  _loadVideos();
+                }
+              });
+            }
+            // Resume current video when returning to video screen (if not swiping)
+            if (_isVideoScreenVisible) {
+              Future.delayed(const Duration(milliseconds: 300), () {
+                if (mounted && _isVideoScreenVisible && _currentHorizontalPage == 1) {
+                  _resumeCurrentVideo();
+                }
+              });
+            }
           }
         },
         children: [
-          // Page 0: Home Screen
+          // Page 0: Home Screen - use const for better performance
           const HomeScreen(),
           // Page 1: Video Feed Screen Content
           _buildVideoContent(),
-          // Page 2: Map Screen
+          // Page 2: Map Screen - use const for better performance
           const MapScreen(),
         ],
-        ),
       ),
       ),
     );
   }
 
   Widget _buildVideoContent() {
-    return _isLoading
-        ? const Center(child: CircularProgressIndicator())
-        : _videos.isEmpty
-            ? const Center(
-                child: Text(
-                  'No videos found',
-                  style: TextStyle(color: Colors.white),
-                ),
-              )
-            : PageView.builder(
+    // Show loading state immediately without blocking
+    if (_isLoading) {
+      return const Center(
+        child: CircularProgressIndicator(
+          color: Colors.white,
+          strokeWidth: 2.0,
+        ),
+      );
+    }
+    
+    // Show empty state if no videos
+    if (_videos.isEmpty) {
+      return const Center(
+        child: Text(
+          'No videos found',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 16,
+          ),
+        ),
+      );
+    }
+    
+    // Build video feed with optimized PageView
+    return PageView.builder(
                 controller: _pageController,
                 scrollDirection: Axis.vertical,
                 physics: const ClampingScrollPhysics(),
@@ -526,72 +836,101 @@ class _VideoFeedScreenState extends State<VideoFeedScreen> {
     WebViewController? webviewController,
     int index,
   ) {
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        // Video player
-        if (youtubeController != null)
-          YoutubePlayer(
-            controller: youtubeController,
-            aspectRatio: 9 / 16, // Portrait aspect ratio
-            showVideoProgressIndicator: true,
-            progressIndicatorColor: Colors.red,
-            progressColors: const ProgressBarColors(
-              playedColor: Colors.red,
-              handleColor: Colors.redAccent,
-            ),
-          )
-        else if (webviewController != null)
-          WebViewWidget(controller: webviewController)
-        else if (controller != null && controller.value.isInitialized)
-          GestureDetector(
-            onTap: () {
-              if (controller.value.isPlaying) {
-                controller.pause();
-              } else {
-                controller.play();
-              }
-              setState(() {});
-            },
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                AspectRatio(
-                  aspectRatio: controller.value.aspectRatio,
-                  child: VideoPlayer(controller),
+    // Only play video if it's the current one
+    final isCurrentVideo = index == _currentIndex;
+    
+    return RepaintBoundary(
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          // Video player - wrapped in RepaintBoundary to isolate repaints
+          if (youtubeController != null)
+            RepaintBoundary(
+              child: YoutubePlayer(
+                controller: youtubeController,
+                aspectRatio: 9 / 16, // Portrait aspect ratio
+                showVideoProgressIndicator: isCurrentVideo, // Only show progress for current video
+                progressIndicatorColor: Colors.red,
+                progressColors: const ProgressBarColors(
+                  playedColor: Colors.red,
+                  handleColor: Colors.redAccent,
                 ),
-                // Play/pause overlay
-                if (!controller.value.isPlaying)
-                  Container(
-                    color: Colors.black.withOpacity(0.3),
-                    child: const Center(
-                      child: Icon(
-                        Icons.play_arrow,
-                        color: Colors.white,
-                        size: 64,
-                      ),
-                    ),
-                  ),
-              ],
+              ),
+            )
+          else if (webviewController != null)
+            RepaintBoundary(
+              child: WebViewWidget(controller: webviewController),
+            )
+          else if (controller != null && controller.value.isInitialized)
+            RepaintBoundary(
+              child: GestureDetector(
+                onTap: () {
+                  // Don't allow play/pause toggle during swiping
+                  // Toggle play/pause without setState - use controller directly
+                  if (controller.value.isPlaying) {
+                    controller.pause();
+                  } else {
+                    if (_isVideoScreenVisible && _currentHorizontalPage == 1 && !_isNavigatingToScreen) {
+                      final canPlay = _navigationCompleteTime != null && 
+                          DateTime.now().difference(_navigationCompleteTime!).inMilliseconds >= 300;
+                      if (canPlay) {
+                        controller.play();
+                      }
+                    }
+                  }
+                },
+                child: ValueListenableBuilder(
+                  valueListenable: controller,
+                  builder: (context, value, child) {
+                    return Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        AspectRatio(
+                          aspectRatio: value.aspectRatio,
+                          child: VideoPlayer(controller),
+                        ),
+                        // Play/pause overlay - only rebuilds when playing state changes
+                        if (!value.isPlaying)
+                          Container(
+                            color: Colors.black.withOpacity(0.3),
+                            child: const Center(
+                              child: Icon(
+                                Icons.play_arrow,
+                                color: Colors.white,
+                                size: 64,
+                              ),
+                            ),
+                          ),
+                      ],
+                    );
+                  },
+                ),
+              ),
+            )
+          else
+            Container(
+              color: Colors.black,
+              child: const Center(
+                child: CircularProgressIndicator(color: Colors.white),
+              ),
             ),
-          )
-        else
-          Container(
-            color: Colors.black,
-            child: const Center(
-              child: CircularProgressIndicator(color: Colors.white),
-            ),
-          ),
 
         // Tap overlay for YouTube and webview videos
         if (youtubeController != null || webviewController != null)
           GestureDetector(
             onTap: () {
+              // Don't allow play/pause toggle during swiping
               if (youtubeController != null) {
                 if (youtubeController.value.isPlaying) {
                   youtubeController.pause();
                 } else {
-                  youtubeController.play();
+                  if (_isVideoScreenVisible && _currentHorizontalPage == 1 && !_isNavigatingToScreen) {
+                    final canPlay = _navigationCompleteTime != null && 
+                        DateTime.now().difference(_navigationCompleteTime!).inMilliseconds >= 300;
+                    if (canPlay) {
+                      youtubeController.play();
+                    }
+                  }
                 }
               }
             },
@@ -689,74 +1028,11 @@ class _VideoFeedScreenState extends State<VideoFeedScreen> {
           ),
         ),
 
-        // Action buttons on the right
-        Positioned(
-          right: 16,
-          bottom: 100,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _buildActionButton(
-                icon: Icons.favorite,
-                label: _formatCount(video.likes),
-                onTap: () {
-                  // TODO: Implement like functionality
-                },
-              ),
-              const SizedBox(height: 24),
-              _buildActionButton(
-                icon: Icons.comment,
-                label: _formatCount(video.comments),
-                onTap: () {
-                  // TODO: Implement comment functionality
-                },
-              ),
-              const SizedBox(height: 24),
-              _buildActionButton(
-                icon: Icons.share,
-                label: 'Share',
-                onTap: () {
-                  // TODO: Implement share functionality
-                },
-              ),
-            ],
-          ),
-        ),
       ],
+      ),
     );
   }
 
-  Widget _buildActionButton({
-    required IconData icon,
-    required String label,
-    required VoidCallback onTap,
-  }) {
-    return Column(
-      children: [
-        IconButton(
-          icon: Icon(icon, color: Colors.white, size: 32),
-          onPressed: onTap,
-        ),
-        Text(
-          label,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 12,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-      ],
-    );
-  }
-
-  String _formatCount(int count) {
-    if (count >= 1000000) {
-      return '${(count / 1000000).toStringAsFixed(1)}M';
-    } else if (count >= 1000) {
-      return '${(count / 1000).toStringAsFixed(1)}K';
-    }
-    return count.toString();
-  }
 }
 
 class VideoPost {

@@ -100,23 +100,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   bool _hasScrolled = false;
   bool _showNewPostIndicator = false;
   int _lastPostCount = 0;
-  // Gesture tracking for sliding navigation
-  double _dragStartX = 0.0;
-  double _dragCurrentX = 0.0;
-  bool _isDragging = false;
-  AnimationController? _slideAnimationController;
-  Animation<double>? _slideAnimation;
 
   @override
   void initState() {
     super.initState();
-    _slideAnimationController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 300),
-    );
-    _slideAnimation = Tween<double>(begin: 0.0, end: 0.0).animate(
-      CurvedAnimation(parent: _slideAnimationController!, curve: Curves.easeOut),
-    );
     _loadData();
     _setupChatMessageCountListener();
     
@@ -338,95 +325,12 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     _firebaseRealtimeService.disconnect();
     _webSocketService.disconnect();
     _scrollController.dispose();
-    _slideAnimationController?.dispose();
     if (_lifecycleEventHandler != null) {
       WidgetsBinding.instance.removeObserver(_lifecycleEventHandler!);
     }
     super.dispose();
   }
   
-  void _handleHorizontalDragStart(DragStartDetails details) {
-    _dragStartX = details.globalPosition.dx;
-    _dragCurrentX = _dragStartX;
-    _isDragging = true;
-  }
-  
-  void _handleHorizontalDragUpdate(DragUpdateDetails details) {
-    if (!_isDragging) return;
-    
-    _dragCurrentX = details.globalPosition.dx;
-    final screenWidth = MediaQuery.of(context).size.width;
-    final deltaX = _dragCurrentX - _dragStartX;
-    final progress = deltaX / screenWidth;
-    
-    // Clamp progress between -1 and 1
-    final clampedProgress = progress.clamp(-1.0, 1.0);
-    
-    setState(() {
-      // Update animation value for visual feedback
-      if (_slideAnimationController != null) {
-        _slideAnimationController!.value = clampedProgress.abs();
-      }
-    });
-  }
-  
-  void _handleHorizontalDragEnd(DragEndDetails details) {
-    if (!_isDragging) return;
-    
-    final screenWidth = MediaQuery.of(context).size.width;
-    final deltaX = _dragCurrentX - _dragStartX;
-    final velocity = details.primaryVelocity ?? 0;
-    final progress = deltaX / screenWidth;
-    
-    // Determine if we should navigate
-    bool shouldNavigate = false;
-    Widget? targetScreen;
-    Offset slideBegin = Offset.zero; // Initialize with default value
-    
-    // Swipe right (positive delta) -> Map screen
-    if (progress > 0.3 || (progress > 0.1 && velocity > 500)) {
-      shouldNavigate = true;
-      targetScreen = const MapScreen();
-      slideBegin = const Offset(-1.0, 0.0);
-    }
-    // Swipe left (negative delta) -> Video screen
-    else if (progress < -0.3 || (progress < -0.1 && velocity < -500)) {
-      shouldNavigate = true;
-      targetScreen = const VideoFeedScreen();
-      slideBegin = const Offset(1.0, 0.0);
-    }
-    
-    _isDragging = false;
-    
-    if (shouldNavigate && targetScreen != null) {
-      // Navigate immediately with slide animation
-      final finalSlideBegin = slideBegin; // Capture for closure
-      Navigator.of(context).pushReplacement(
-        PageRouteBuilder(
-          pageBuilder: (context, animation, secondaryAnimation) => targetScreen!,
-          transitionsBuilder: (context, animation, secondaryAnimation, child) {
-            const end = Offset.zero;
-            const curve = Curves.easeOut;
-
-            var tween = Tween(begin: finalSlideBegin, end: end).chain(
-              CurveTween(curve: curve),
-            );
-
-            return SlideTransition(
-              position: animation.drive(tween),
-              child: child,
-            );
-          },
-          transitionDuration: const Duration(milliseconds: 300),
-        ),
-      );
-    }
-    
-    setState(() {
-      _dragStartX = 0.0;
-      _dragCurrentX = 0.0;
-    });
-  }
 
   /// Start periodic post refresh timer (every 5 minutes)
   void _startPostRefreshTimer() {
@@ -1046,46 +950,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             onUnreadCountChanged: _onUnreadCountChanged,
           ),
         ),
-        body: GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onHorizontalDragStart: _handleHorizontalDragStart,
-          onHorizontalDragUpdate: _handleHorizontalDragUpdate,
-          onHorizontalDragEnd: _handleHorizontalDragEnd,
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              final screenWidth = constraints.maxWidth;
-              final deltaX = _dragCurrentX - _dragStartX;
-              final offsetX = _isDragging ? deltaX.clamp(-screenWidth, screenWidth) : 0.0;
-              
-              return Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  // Home content (slides out as user drags)
-                  Transform.translate(
-                    offset: Offset(offsetX, 0),
-                    child: _buildHomeContent(),
-                  ),
-                  // Map screen preview (slides in from left when swiping right)
-                  if (_isDragging && offsetX > 0)
-                    Positioned.fill(
-                      child: Transform.translate(
-                        offset: Offset(offsetX - screenWidth, 0),
-                        child: const MapScreen(),
-                      ),
-                    ),
-                  // Video screen preview (slides in from right when swiping left)
-                  if (_isDragging && offsetX < 0)
-                    Positioned.fill(
-                      child: Transform.translate(
-                        offset: Offset(offsetX + screenWidth, 0),
-                        child: const VideoFeedScreen(),
-                      ),
-                    ),
-                ],
-              );
-            },
-          ),
-        ),
+        body: _buildHomeContent(),
       ),
     );
   }
@@ -1181,6 +1046,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   physics: const AlwaysScrollableScrollPhysics(
                     parent: ClampingScrollPhysics(),
                   ), // Always allow scrolling for refresh
+                  scrollDirection: Axis.vertical, // Explicitly set vertical scrolling
                   padding: EdgeInsets.only(
                     top: 60.0 + MediaQuery.of(context).padding.top + 5.0, // App bar height + status bar + 5px gap (matches posts)
                     bottom: 80.0,
@@ -1242,6 +1108,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   physics: const AlwaysScrollableScrollPhysics(
                     parent: ClampingScrollPhysics(),
                   ), // Always allow scrolling for refresh
+                  scrollDirection: Axis.vertical, // Explicitly set vertical scrolling
                   padding: EdgeInsets.only(
                     top: 60.0 + MediaQuery.of(context).padding.top + 5.0, // App bar height + status bar + 5px gap (reduced to prevent overlap)
                     bottom: 80.0,

@@ -50,6 +50,24 @@ class CustomBottomNavigationBar extends StatelessWidget {
     this.onReturnPressed,
   });
 
+  /// Determines if we should show the home button instead of the plus button
+  /// Returns true if current route is NOT home or profile
+  bool _shouldShowHomeButton(BuildContext context) {
+    final route = ModalRoute.of(context);
+    final routeName = route?.settings.name;
+    
+    // Show plus button on home and profile screens
+    // Show home button on all other screens
+    if (routeName == null || routeName.isEmpty) {
+      // If no route name, default to showing plus button (assume we're on home)
+      return false;
+    }
+    
+    // Show home button only if route is NOT home or profile
+    final isHomeOrProfile = routeName == '/home' || routeName == '/profile';
+    return !isHomeOrProfile;
+  }
+
   void _openLeftPanel(BuildContext context) {
     showGeneralDialog(
       context: context,
@@ -176,9 +194,18 @@ class CustomBottomNavigationBar extends StatelessWidget {
                         Padding(
                           padding: BottomNavBarStyles.buttonPadding,
                           child: GestureDetector(
-                            onTap: showReturnButton && onReturnPressed != null
-                                ? onReturnPressed
-                                : onAddPressed,
+                            onTap: () {
+                              if (_shouldShowHomeButton(context)) {
+                                // Navigate to home screen
+                                Navigator.of(context).pushReplacementNamed('/home');
+                              } else if (showReturnButton && onReturnPressed != null) {
+                                // Use custom return handler if provided
+                                onReturnPressed!();
+                              } else {
+                                // Show add/create post dialog
+                                onAddPressed();
+                              }
+                            },
                             child: Container(
                               width: BottomNavBarStyles.addButtonSize,
                               height: BottomNavBarStyles.addButtonSize,
@@ -188,7 +215,9 @@ class CustomBottomNavigationBar extends StatelessWidget {
                               ),
                               child: Center(
                                 child: Icon(
-                                  showReturnButton ? Icons.home : Icons.add,
+                                  _shouldShowHomeButton(context) || showReturnButton
+                                      ? Icons.home
+                                      : Icons.add,
                                   color: iconColor,
                                   size: BottomNavBarStyles.addButtonIconSize,
                                 ),

@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:firebase_core/firebase_core.dart';
 // import 'dart:io' show Platform;
 import 'dart:io';
+import 'dart:developer' as developer;
 import 'package:provider/provider.dart';
 import 'package:app_links/app_links.dart';
 import 'package:http/http.dart' as http;
@@ -10,6 +11,7 @@ import 'dart:async';
 // Screens - all imports in main.dart
 import 'screens/login_screen.dart';
 import 'screens/home_screen.dart';
+import 'screens/main_navigation_screen.dart';
 import 'screens/qr_login_confirm_screen.dart';
 import 'screens/profile_screen.dart';
 import 'screens/settings_screen.dart';
@@ -553,36 +555,69 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
 
   /// Set up global chat message listener to update badge count
   void _setupGlobalChatMessageListener() {
+    developer.log('Setting up global chat message listener', name: 'Main Chat Listener');
+    developer.log('   - WebSocket connected: ${_webSocketService.isConnected}', name: 'Main Chat Listener');
+    
     // Listen for chat messages via WebSocket to update badge count
     _webSocketService.connect(
       onChatMessage: (messageId, fromUserId, toUserId, message) async {
+        // Log chat message received via WebSocket
+        developer.log('Chat message received via WebSocket', name: 'Main Chat Listener');
+        developer.log('   - MessageId: $messageId', name: 'Main Chat Listener');
+        developer.log('   - From UserId: $fromUserId', name: 'Main Chat Listener');
+        developer.log('   - To UserId: $toUserId', name: 'Main Chat Listener');
+        developer.log('   - Message: ${message.length > 50 ? message.substring(0, 50) + "..." : message}', name: 'Main Chat Listener');
+        
         // Get current user ID
         final authService = AuthService();
         final currentUserId = await authService.getStoredUserId();
         
+        developer.log('   - Current UserId: ${currentUserId ?? "null"}', name: 'Main Chat Listener');
+        
         // Only increment badge if message is for current user and from someone else
         if (currentUserId != null && toUserId == currentUserId && fromUserId != currentUserId) {
+          developer.log('   - Incrementing unread count for friend: $fromUserId', name: 'Main Chat Listener');
           // Increment unread count for this friend
           await _chatMessageCountService.incrementUnreadCount(fromUserId);
+          developer.log('   - Unread count incremented successfully', name: 'Main Chat Listener');
+        } else {
+          developer.log('   - Skipping unread count (not for current user or from self)', name: 'Main Chat Listener');
         }
       },
     );
     
+    developer.log('   - WebSocket chat message callback registered', name: 'Main Chat Listener');
+    
     // Also listen via Firebase Realtime for messages when app is in background
+    developer.log('Setting up Firebase Realtime chat listener', name: 'Main Chat Listener');
     _firebaseRealtimeService.setupChatListener(
       '', // Empty friendId means listen to all chats
       (messageId, fromUserId, toUserId, message) async {
+        // Log chat message received via Firebase Realtime
+        developer.log('Chat message received via Firebase Realtime', name: 'Main Chat Listener');
+        developer.log('   - MessageId: $messageId', name: 'Main Chat Listener');
+        developer.log('   - From UserId: $fromUserId', name: 'Main Chat Listener');
+        developer.log('   - To UserId: $toUserId', name: 'Main Chat Listener');
+        developer.log('   - Message: ${message.length > 50 ? message.substring(0, 50) + "..." : message}', name: 'Main Chat Listener');
+        
         // Get current user ID
         final authService = AuthService();
         final currentUserId = await authService.getStoredUserId();
         
+        developer.log('   - Current UserId: ${currentUserId ?? "null"}', name: 'Main Chat Listener');
+        
         // Only increment badge if message is for current user and from someone else
         if (currentUserId != null && toUserId == currentUserId && fromUserId != currentUserId) {
+          developer.log('   - Incrementing unread count for friend: $fromUserId', name: 'Main Chat Listener');
           // Increment unread count for this friend
           await _chatMessageCountService.incrementUnreadCount(fromUserId);
+          developer.log('   - Unread count incremented successfully', name: 'Main Chat Listener');
+        } else {
+          developer.log('   - Skipping unread count (not for current user or from self)', name: 'Main Chat Listener');
         }
       },
     );
+    developer.log('Global chat message listener setup complete', name: 'Main Chat Listener');
   }
 
   /// Set up handler for incoming calls from FCM notifications
@@ -1052,7 +1087,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     switch (settings.name) {
       case '/':
       case '/home':
-        return MaterialPageRoute(builder: (_) => const HomeScreen());
+        return MaterialPageRoute(builder: (_) => const MainNavigationScreen());
       case '/login':
         return MaterialPageRoute(builder: (_) => const LoginScreen());
       case '/profile':
@@ -1071,7 +1106,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
             builder: (_) => ChatScreen(friend: friend),
           );
         }
-        return MaterialPageRoute(builder: (_) => const HomeScreen());
+        return MaterialPageRoute(builder: (_) => const MainNavigationScreen());
       case '/create-post':
         return MaterialPageRoute(builder: (_) => const CreatePostScreen());
       case '/register':
@@ -1104,7 +1139,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       case '/map':
         return MaterialPageRoute(builder: (_) => const MapScreen());
       default:
-        return MaterialPageRoute(builder: (_) => const HomeScreen());
+        return MaterialPageRoute(builder: (_) => const MainNavigationScreen());
     }
   }
 }
@@ -1190,12 +1225,12 @@ class __InitialScreenState extends State<_InitialScreen> with TickerProviderStat
         Navigator.of(context).pushReplacementNamed(lastRoute);
       } else {
         // Default to home if no last route saved
-        Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (context) => const HomeScreen()));
+        Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (context) => const MainNavigationScreen()));
       }
     } catch (e) {
       // Fallback to home on error
       if (mounted) {
-        Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (context) => const HomeScreen()));
+        Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (context) => const MainNavigationScreen()));
       }
     }
   }

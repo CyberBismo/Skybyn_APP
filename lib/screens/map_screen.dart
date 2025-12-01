@@ -19,9 +19,12 @@ import '../widgets/translated_text.dart';
 import '../utils/translation_keys.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class MapScreen extends StatefulWidget {
-  const MapScreen({super.key});
+  final VoidCallback? onReturnToHome;
+  
+  const MapScreen({super.key, this.onReturnToHome});
 
   @override
   State<MapScreen> createState() => _MapScreenState();
@@ -47,6 +50,7 @@ class _MapScreenState extends State<MapScreen> {
   bool _locationPrivateMode = false;
   String _locationShareMode = 'off'; // 'off', 'last_active', 'live'
   bool _useSatelliteView = false; // Toggle between roadmap and satellite view
+  static const String _mapLayerPreferenceKey = 'map_use_satellite_view';
   
   // Cache manager for map tiles (30 days cache, 200MB max size)
   static final CacheManager _tileCacheManager = CacheManager(
@@ -64,6 +68,41 @@ class _MapScreenState extends State<MapScreen> {
     // Start preloading location immediately (non-blocking)
     _preloadLocation();
     _initializeMap();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Load saved preference when dependencies change (e.g., theme changes)
+    // This ensures the saved preference is respected
+    _loadMapLayerPreference();
+  }
+  
+  /// Load the saved map layer preference
+  Future<void> _loadMapLayerPreference() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final savedPreference = prefs.getBool(_mapLayerPreferenceKey);
+      if (savedPreference != null) {
+        setState(() {
+          _useSatelliteView = savedPreference;
+        });
+      }
+    } catch (e) {
+      // Silently fail if loading preference fails
+      print('Error loading map layer preference: $e');
+    }
+  }
+  
+  /// Save the current map layer preference
+  Future<void> _saveMapLayerPreference() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(_mapLayerPreferenceKey, _useSatelliteView);
+    } catch (e) {
+      // Silently fail if saving preference fails
+      print('Error saving map layer preference: $e');
+    }
   }
 
   Future<void> _preloadLocation() async {
@@ -85,6 +124,10 @@ class _MapScreenState extends State<MapScreen> {
 
   Future<void> _initializeMap() async {
     print('=== Initializing map ===');
+    
+    // Load saved map layer preference
+    await _loadMapLayerPreference();
+    
     final userId = await _authService.getStoredUserId();
     if (userId == null) {
       print('No user ID found, stopping initialization');
@@ -623,17 +666,34 @@ class _MapScreenState extends State<MapScreen> {
   }
 
   String _getTileUrl() {
-    // Google Maps tile URL - switch between roadmap and satellite
-    // lyrs=m = roadmap, lyrs=s = satellite
-    // Note: This uses a public tile server that provides Google Maps-like tiles
-    // For production, you may want to use Google Maps API with your own API key
-    return _useSatelliteView
-        ? 'https://mt{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}' // Satellite view
-        : 'https://mt{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}'; // Roadmap view
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    
+    // Use satellite view if toggled on
+    if (_useSatelliteView) {
+      return 'https://mt{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}'; // Satellite view
+    }
+    
+    // Default to street map (roadmap)
+    // Use dark street map in dark mode, regular street map in light mode
+    if (isDarkMode) {
+      // Dark street map for dark mode
+      return 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+    } else {
+      // Regular street map for light mode
+      return 'https://mt{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}'; // Roadmap view
+    }
   }
 
   List<String> _getSubdomains() {
-    // Google Maps uses subdomains 0-3
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    
+    // CartoDB uses subdomains a, b, c, d for dark street map
+    // Use CartoDB subdomains when in dark mode and not using satellite (using dark street map)
+    if (isDarkMode && !_useSatelliteView) {
+      return const ['a', 'b', 'c', 'd'];
+    }
+    
+    // Google Maps uses subdomains 0-3 for satellite and regular maps
     return const ['0', '1', '2', '3'];
   }
 
@@ -667,6 +727,8 @@ class _MapScreenState extends State<MapScreen> {
                         setState(() {
                           _useSatelliteView = !_useSatelliteView;
                         });
+                        // Save the preference when user toggles
+                        _saveMapLayerPreference();
                       },
                       borderRadius: BorderRadius.circular(24),
                       child: Container(
@@ -733,7 +795,12 @@ class _MapScreenState extends State<MapScreen> {
           notificationButtonKey: _notificationButtonKey,
           showReturnButton: true,
           onReturnPressed: () {
-            Navigator.of(context).pushReplacementNamed('/home');
+            // Use callback if provided (when used in MainNavigationScreen), otherwise use Navigator
+            if (widget.onReturnToHome != null) {
+              widget.onReturnToHome!();
+            } else {
+              Navigator.of(context).pushReplacementNamed('/home');
+            }
           },
         ),
       ),
@@ -742,7 +809,7 @@ class _MapScreenState extends State<MapScreen> {
           // Calculate app bar height for background overlay
           final statusBarHeight = MediaQuery.of(context).padding.top;
           final headerHeight = statusBarHeight;
-          const bottomNavBarHeight = 130.0;
+          const bottomNavBarHeight = 85.0;
           
           return FutureBuilder<String?>(
             future: _authService.getStoredUserId(),
