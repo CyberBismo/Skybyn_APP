@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import '../config/constants.dart';
 
 class Friend {
@@ -186,6 +187,27 @@ class Friend {
       final days = secondsAgo ~/ 86400;
       return 'Last active ${days}d ago';
     }
+  }
+  
+  /// Get color for status text based on status string
+  /// Green for "Online", Orange for "Last active xxx", Grey for "Offline"
+  Color getStatusColor() {
+    final status = getLastActiveStatus();
+    return Friend.getStatusColorFromText(status);
+  }
+  
+  /// Static method to get color for status text
+  /// Green for "Online", Orange for "Last active xxx", Grey for "Offline"
+  static Color getStatusColorFromText(String status) {
+    if (status == 'Online') {
+      return Colors.green;
+    } else if (status.startsWith('Last active')) {
+      return Colors.orange;
+    } else if (status == 'Offline') {
+      return Colors.grey;
+    }
+    // Default fallback
+    return Colors.grey;
   }
 }
 

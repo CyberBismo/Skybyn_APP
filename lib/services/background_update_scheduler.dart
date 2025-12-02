@@ -1,11 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:timezone/timezone.dart' as tz;
-import 'package:timezone/data/latest.dart' as tz;
-import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'auto_update_service.dart';
 import '../widgets/update_dialog.dart';
@@ -18,17 +14,10 @@ class BackgroundUpdateScheduler {
 
   static const String _cachedUpdateKey = 'cached_app_update';
   static const String _lastUpdateCheckKey = 'last_update_check';
-  static const int _updateCheckNotificationId = 8888;
-  static int get updateCheckNotificationId => _updateCheckNotificationId;
-
-  final FlutterLocalNotificationsPlugin _localNotifications = FlutterLocalNotificationsPlugin();
 
   /// Initialize the background update scheduler
   Future<void> initialize() async {
     try {
-      // Initialize timezone data
-      tz.initializeTimeZones();
-
       // Schedule daily update checks at noon
       await _scheduleDailyUpdateCheck();
 
@@ -41,85 +30,11 @@ class BackgroundUpdateScheduler {
   /// Schedule a daily update check at noon local time
   Future<void> _scheduleDailyUpdateCheck() async {
     try {
-      // Cancel any existing scheduled notification
-      await _localNotifications.cancel(_updateCheckNotificationId);
-
-      // Calculate next noon
-      final now = DateTime.now();
-      final nextNoon = _getNextNoon(now);
-      // Create notification channel for update checks (Android only)
-      final androidImplementation = _localNotifications.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
-      if (androidImplementation != null) {
-        const AndroidNotificationChannel updateCheckChannel = AndroidNotificationChannel(
-          'update_check',
-          'Update Check',
-          description: 'Background update checks',
-          importance: Importance.low,
-          playSound: false,
-          enableVibration: false,
-        );
-        await androidImplementation.createNotificationChannel(updateCheckChannel);
-      }
-
-      // Schedule notification that will trigger the update check
-      // Note: On iOS, this will only work if the app is in foreground or background
-      // For true background execution, we'd need WorkManager (Android) or Background Fetch (iOS)
-      final tzDateTime = tz.TZDateTime.from(nextNoon, tz.local);
-
-      // Create a silent notification that triggers the update check
-      const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
-        'update_check',
-        'Update Check',
-        channelDescription: 'Background update checks',
-        importance: Importance.low,
-        priority: Priority.low,
-        showWhen: false,
-        playSound: false,
-        enableVibration: false,
-        silent: true,
-        autoCancel: true, // Auto-dismiss the notification
-        icon: '@drawable/notification_icon', // Use logo.png
-      );
-
-      const DarwinNotificationDetails iOSDetails = DarwinNotificationDetails(
-        presentAlert: false,
-        presentBadge: false,
-        presentSound: false,
-      );
-
-      const NotificationDetails notificationDetails = NotificationDetails(
-        android: androidDetails,
-        iOS: iOSDetails,
-      );
-
-      await _localNotifications.zonedSchedule(
-        _updateCheckNotificationId,
-        'Update Check', // Title (won't be shown for silent notification on Android)
-        'Checking for updates...', // Body (won't be shown for silent notification on Android)
-        tzDateTime,
-        notificationDetails,
-        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-        payload: 'update_check',
-      );
-
-      // Also set up a periodic check using a timer when app is in foreground
-      // This ensures we check even if scheduled notifications don't fire
+      // Set up a periodic check using a timer when app is in foreground
+      // This ensures we check at noon each day
       _setupPeriodicCheck();
     } catch (e) {
     }
-  }
-
-  /// Calculate the next noon time from the given date
-  DateTime _getNextNoon(DateTime now) {
-    final noon = DateTime(now.year, now.month, now.day, 12, 0, 0);
-    
-    // If it's already past noon today, schedule for tomorrow
-    if (now.isAfter(noon)) {
-      return noon.add(const Duration(days: 1));
-    }
-    
-    // Otherwise, schedule for today at noon
-    return noon;
   }
 
   /// Set up a periodic check that runs at noon each day
@@ -165,21 +80,13 @@ class BackgroundUpdateScheduler {
         return; // Not around noon
       }
       
-      // Show notification while checking
-      // await _showUpdateCheckNotification();
-      
-      // Perform the update check (notification will be cancelled in _checkForUpdates finally block)
+      // Perform the update check
       await _checkForUpdates();
 
       // Update last check timestamp
       await prefs.setInt(_lastUpdateCheckKey, now.millisecondsSinceEpoch);
     } catch (e) {
     }
-  }
-
-  /// Show update check notification
-  Future<void> _showUpdateCheckNotification() async {
-    // User requested to hide this notification.
   }
 
   /// Check for updates and cache if available
@@ -194,9 +101,8 @@ class BackgroundUpdateScheduler {
         // Clear any cached update if no update is available
         await _clearCachedUpdate();
       }
-    } finally {
-      // Always cancel the notification when check completes
-      await _localNotifications.cancel(_updateCheckNotificationId);
+    } catch (e) {
+      // Error handling
     }
   }
 

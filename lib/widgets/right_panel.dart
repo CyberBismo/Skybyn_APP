@@ -304,7 +304,7 @@ class _RightPanelState extends State<RightPanel> {
                                         subtitle: Text(
                                           friend.getLastActiveStatus(),
                                           style: TextStyle(
-                                            color: friend.online ? Colors.greenAccent : Colors.white70,
+                                            color: friend.getStatusColor(),
                                             fontSize: 12,
                                             decoration: TextDecoration.none,
                                           ),
@@ -316,7 +316,7 @@ class _RightPanelState extends State<RightPanel> {
                                               width: 10,
                                               height: 10,
                                               decoration: BoxDecoration(
-                                                color: friend.online ? Colors.greenAccent : Colors.white70,
+                                                color: friend.getStatusColor(),
                                                 shape: BoxShape.circle,
                                               ),
                                             ),

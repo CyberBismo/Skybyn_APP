@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -12,7 +13,10 @@ import 'firebase_messaging_service.dart';
 import 'auto_update_service.dart';
 import 'background_update_scheduler.dart';
 import 'websocket_service.dart';
+import 'auth_service.dart';
+import 'friend_service.dart';
 import '../widgets/update_dialog.dart';
+import '../models/friend.dart';
 import '../main.dart';
 
 class NotificationService {
@@ -121,9 +125,7 @@ class NotificationService {
     }
 
     // Handle app_update payload
-    if (payload == 'app_update' || payload == 'update_check') {
-      // Cancel the update check notification immediately
-      await _localNotifications.cancel(BackgroundUpdateScheduler.updateCheckNotificationId);
+    if (payload == 'app_update') {
       // Trigger background update scheduler
       BackgroundUpdateScheduler().triggerUpdateCheck();
     } else if (payload.startsWith('{')) {
@@ -136,6 +138,9 @@ class NotificationService {
         } else if (type == 'call') {
           // Handle call notification tap (when user taps notification body, not action button)
           _handleCallNotificationTap(data);
+        } else if (type == 'chat') {
+          // Handle chat notification tap - navigate to chat screen
+          await _handleChatNotificationTap(data);
         }
       } catch (e) {
       }
@@ -212,6 +217,48 @@ class NotificationService {
         // This could be done via a queue or SharedPreferences
       }
     } catch (e) {
+    }
+  }
+
+  /// Handle chat notification tap - navigate to chat screen
+  Future<void> _handleChatNotificationTap(Map<String, dynamic> data) async {
+    try {
+      final fromUserId = data['from']?.toString();
+      if (fromUserId == null) {
+        return;
+      }
+
+      // Get current user ID to fetch friends
+      final authService = AuthService();
+      final currentUserId = await authService.getStoredUserId();
+      if (currentUserId == null) {
+        return;
+      }
+
+      // Fetch friend information
+      final friendService = FriendService();
+      final friends = await friendService.fetchFriendsForUser(userId: currentUserId);
+      final friend = friends.firstWhere(
+        (f) => f.id == fromUserId,
+        orElse: () => Friend(
+          id: fromUserId,
+          username: fromUserId,
+          nickname: '',
+          avatar: '',
+          online: false,
+        ),
+      );
+
+      // Navigate to chat screen
+      final navigator = navigatorKey.currentState;
+      if (navigator != null) {
+        navigator.pushNamed(
+          '/chat',
+          arguments: {'friend': friend},
+        );
+      }
+    } catch (e) {
+      // Silently handle errors
     }
   }
 
@@ -433,7 +480,7 @@ class NotificationService {
       bool isChat = false;
       bool isCall = false;
       if (payload != null) {
-        if (payload == 'app_update' || payload == 'update_check') {
+        if (payload == 'app_update') {
           isAppUpdate = true;
         } else if (payload.startsWith('{')) {
           try {
@@ -562,6 +609,13 @@ class NotificationService {
       if (Platform.isIOS) {
         // Check if we can get pending notifications to verify it was created
         final pendingNotifications = await _localNotifications.pendingNotificationRequests();
+      }
+      
+      // Auto-dismiss app update notifications after 3 seconds (like login notifications)
+      if (isAppUpdate && notificationId >= 0) {
+        Timer(const Duration(seconds: 3), () {
+          cancelNotification(notificationId);
+        });
       }
       
       return notificationId;

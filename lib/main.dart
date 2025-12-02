@@ -598,37 +598,44 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
             
             // Only show notification if chat screen for this friend is NOT currently open
             if (!_chatMessageCountService.isChatOpenForFriend(fromUserId)) {
-              // Show notification for new message
-              try {
-                // Get friend's name for notification
-                final friendService = FriendService();
-                final friends = await friendService.fetchFriendsForUser(userId: currentUserId);
-                final friend = friends.firstWhere(
-                  (f) => f.id == fromUserId,
-                  orElse: () => Friend(
-                    id: fromUserId,
-                    username: fromUserId,
-                    nickname: fromUserId,
-                    avatar: '',
-                    online: false,
-                  ),
-                );
-                
-                final friendName = friend.nickname.isNotEmpty ? friend.nickname : friend.username;
-                
-                await _notificationService.showNotification(
-                  title: friendName,
-                  body: message,
-                  payload: jsonEncode({
-                    'type': 'chat',
-                    'from': fromUserId,
-                    'messageId': messageId,
-                    'to': currentUserId,
-                  }),
-                );
-                print('[SKYBYN] ✅ [Main Chat Listener] Notification shown for message from $friendName');
-              } catch (e) {
-                print('[SKYBYN] ⚠️ [Main Chat Listener] Failed to show notification: $e');
+              // Check if app is in foreground - only show system notification if app is in background
+              // If app is in foreground, WebSocket service will show in-app notification
+              final isAppInForeground = WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed;
+              if (!isAppInForeground) {
+                // App is in background - show system notification only
+                try {
+                  // Get friend's name for notification
+                  final friendService = FriendService();
+                  final friends = await friendService.fetchFriendsForUser(userId: currentUserId);
+                  final friend = friends.firstWhere(
+                    (f) => f.id == fromUserId,
+                    orElse: () => Friend(
+                      id: fromUserId,
+                      username: fromUserId,
+                      nickname: fromUserId,
+                      avatar: '',
+                      online: false,
+                    ),
+                  );
+                  
+                  final friendName = friend.nickname.isNotEmpty ? friend.nickname : friend.username;
+                  
+                  await _notificationService.showNotification(
+                    title: friendName,
+                    body: message,
+                    payload: jsonEncode({
+                      'type': 'chat',
+                      'from': fromUserId,
+                      'messageId': messageId,
+                      'to': currentUserId,
+                    }),
+                  );
+                  print('[SKYBYN] ✅ [Main Chat Listener] System notification shown for message from $friendName (app in background)');
+                } catch (e) {
+                  print('[SKYBYN] ⚠️ [Main Chat Listener] Failed to show notification: $e');
+                }
+              } else {
+                print('[SKYBYN] ⏭️ [Main Chat Listener] Skipping system notification - app is in foreground (WebSocket will show in-app notification)');
               }
             } else {
               print('[SKYBYN] ⏭️ [Main Chat Listener] Skipping notification - chat screen is open for this friend');

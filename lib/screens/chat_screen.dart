@@ -1166,9 +1166,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
                                           width: 8,
                                           height: 8,
                                           decoration: BoxDecoration(
-                                            color: _friendOnline
-                                                ? Colors.greenAccent
-                                                : Colors.white70,
+                                            color: Friend.getStatusColorFromText(_getLastActiveStatus()),
                                             shape: BoxShape.circle,
                                           ),
                                         ),
@@ -1176,9 +1174,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
                                         Text(
                                           _getLastActiveStatus(),
                                           style: TextStyle(
-                                            color: _friendOnline
-                                                ? Colors.greenAccent
-                                                : Colors.white70,
+                                            color: Friend.getStatusColorFromText(_getLastActiveStatus()),
                                             fontSize: 14,
                                           ),
                                         ),

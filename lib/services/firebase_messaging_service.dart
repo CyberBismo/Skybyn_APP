@@ -12,7 +12,11 @@ import 'notification_service.dart';
 import 'auth_service.dart';
 import 'device_service.dart';
 import 'websocket_service.dart';
+import 'in_app_notification_service.dart';
+import 'friend_service.dart';
 import '../config/constants.dart';
+import '../models/friend.dart';
+import '../main.dart';
 // Firestore disabled - using WebSocket for real-time features instead
 // import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:async';
@@ -538,18 +542,88 @@ class FirebaseMessagingService {
         return;
       }
       
-      // For other message types (including chat), show notification
-      _logChat('FCM Foreground', 'Showing notification for type: $type');
-      final notificationService = NotificationService();
-      try {
-        await notificationService.showNotification(
-          title: message.notification?.title ?? 'Notification',
-          body: message.notification?.body ?? '',
-          payload: jsonEncode(message.data),
-        );
-        _logChat('FCM Foreground', '✅ Notification shown successfully for type: $type');
-      } catch (e) {
-        _logChat('FCM Foreground', '❌ Failed to show notification for type $type: $e');
+      // For other message types (including chat), show in-app notification if foreground, system if background
+      // Check if app is in foreground - if so, show in-app notification only (no system notification)
+      final isAppInForeground = WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed;
+      if (isAppInForeground) {
+        // App is in foreground - show in-app notification only, not system notification
+        if (type == 'chat') {
+          // For chat messages, use the in-app notification service
+          final sender = message.data['sender']?.toString() ?? message.data['from']?.toString() ?? '';
+          final messageText = message.notification?.body ?? message.data['message']?.toString() ?? '';
+          
+          // Check if chat screen is in focus - if so, don't show notification
+          final inAppNotificationService = InAppNotificationService();
+          if (inAppNotificationService.isChatScreenInFocus(sender)) {
+            _logChat('FCM Foreground Chat', 'Chat screen is in focus, skipping notification');
+            return;
+          }
+          
+          // Get friend info and show in-app notification
+          try {
+            final authService = AuthService();
+            final currentUserId = await authService.getStoredUserId();
+            if (currentUserId != null) {
+              final friendService = FriendService();
+              final friends = await friendService.fetchFriendsForUser(userId: currentUserId);
+              final friend = friends.firstWhere(
+                (f) => f.id == sender,
+                orElse: () => Friend(
+                  id: sender,
+                  username: sender,
+                  nickname: '',
+                  avatar: '',
+                  online: false,
+                ),
+              );
+              
+              inAppNotificationService.showChatNotification(
+                friend: friend,
+                message: messageText,
+                onTap: () {
+                  final nav = navigatorKey.currentState;
+                  if (nav != null) {
+                    nav.pushNamed('/chat', arguments: {'friend': friend});
+                  }
+                },
+              );
+              _logChat('FCM Foreground Chat', '✅ In-app notification shown successfully');
+            }
+          } catch (e) {
+            _logChat('FCM Foreground Chat', '❌ Failed to show in-app notification: $e');
+          }
+        } else {
+          // For other types, show in-app notification
+          final inAppNotificationService = InAppNotificationService();
+          inAppNotificationService.showNotification(
+            title: message.notification?.title ?? 'Notification',
+            body: message.notification?.body ?? '',
+            icon: Icons.notifications,
+            iconColor: Colors.blue,
+            notificationType: type ?? 'generic',
+            onTap: () {
+              final nav = navigatorKey.currentState;
+              if (nav != null) {
+                nav.pushNamed('/home');
+              }
+            },
+          );
+          _logChat('FCM Foreground', '✅ In-app notification shown for type: $type');
+        }
+      } else {
+        // App is in background - show system notification only
+        _logChat('FCM Foreground', 'App is in background, showing system notification for type: $type');
+        final notificationService = NotificationService();
+        try {
+          await notificationService.showNotification(
+            title: message.notification?.title ?? 'Notification',
+            body: message.notification?.body ?? '',
+            payload: jsonEncode(message.data),
+          );
+          _logChat('FCM Foreground', '✅ System notification shown successfully for type: $type');
+        } catch (e) {
+          _logChat('FCM Foreground', '❌ Failed to show system notification for type $type: $e');
+        }
       }
     });
 
@@ -569,6 +643,59 @@ class FirebaseMessagingService {
       _logChat('FCM Initial Message', '📱 App opened from initial notification: type=$type, messageId=${initialMessage.messageId}');
       _logChat('FCM Initial Message', '   Full data: ${initialMessage.data}');
       await _handleNotificationTap(initialMessage.data);
+    }
+  }
+
+  /// Handle chat notification tap - navigate to chat screen
+  Future<void> _handleChatNotificationNavigation(Map<String, dynamic> data) async {
+    try {
+      final sender = data['sender']?.toString() ?? data['from']?.toString();
+      if (sender == null) {
+        _logChat('FCM Chat', 'Cannot navigate - sender ID is null');
+        return;
+      }
+
+      // Log chat notification tap
+      final messageId = data['messageId']?.toString() ?? 'unknown';
+      _logChat('FCM Chat', 'Chat notification tapped:');
+      _logChat('FCM Chat', '   - Sender: $sender');
+      _logChat('FCM Chat', '   - MessageId: $messageId');
+
+      // Get current user ID to fetch friends
+      final authService = AuthService();
+      final currentUserId = await authService.getStoredUserId();
+      if (currentUserId == null) {
+        _logChat('FCM Chat', 'Cannot navigate - current user ID is null');
+        return;
+      }
+
+      // Fetch friend information
+      final friendService = FriendService();
+      final friends = await friendService.fetchFriendsForUser(userId: currentUserId);
+      final friend = friends.firstWhere(
+        (f) => f.id == sender,
+        orElse: () => Friend(
+          id: sender,
+          username: sender,
+          nickname: '',
+          avatar: '',
+          online: false,
+        ),
+      );
+
+      // Navigate to chat screen
+      final navigator = navigatorKey.currentState;
+      if (navigator != null) {
+        navigator.pushNamed(
+          '/chat',
+          arguments: {'friend': friend},
+        );
+        _logChat('FCM Chat', '✅ Navigated to chat screen for friend: ${friend.username}');
+      } else {
+        _logChat('FCM Chat', '⚠️ Cannot navigate - navigator is null');
+      }
+    } catch (e) {
+      _logChat('FCM Chat', '❌ Failed to handle chat notification tap: $e');
     }
   }
 
@@ -595,14 +722,8 @@ class FirebaseMessagingService {
           _triggerUpdateCheck();
           break;
         case 'chat':
-          // Log chat notification tap
-          final sender = data['sender']?.toString() ?? data['from']?.toString() ?? 'unknown';
-          final messageId = data['messageId']?.toString() ?? 'unknown';
-          _logChat('FCM Chat', 'Chat notification tapped:');
-          _logChat('FCM Chat', '   - Sender: $sender');
-          _logChat('FCM Chat', '   - MessageId: $messageId');
-          _logChat('FCM Chat', '   - Full data: $data');
-          // Navigation will be handled by the app's navigation system
+          // Handle chat notification tap - navigate to chat screen
+          await _handleChatNotificationNavigation(data);
           break;
         case 'call_offer':
         case 'call_initiate':

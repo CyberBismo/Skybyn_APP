@@ -6,10 +6,16 @@ import 'dart:developer' as developer;
 import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:web_socket_channel/io.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
+import 'package:flutter/material.dart';
 import '../models/post.dart';
+import '../models/friend.dart';
 import 'auth_service.dart';
 import 'device_service.dart';
 import 'notification_service.dart';
+import 'friend_service.dart';
+import 'in_app_notification_service.dart';
+import '../main.dart';
 
 // Helper function to log chat events - always logs regardless of zone filters
 void _logChat(String prefix, String message) {
@@ -82,6 +88,8 @@ class WebSocketService {
 
   // Services
   final NotificationService _notificationService = NotificationService();
+  final FriendService _friendService = FriendService();
+  final InAppNotificationService _inAppNotificationService = InAppNotificationService();
 
   bool get isConnected => _isConnected;
   bool get isInitialized => _isInitialized;
@@ -489,16 +497,35 @@ class WebSocketService {
               _logChat('WebSocket Broadcast', '📢 Broadcast received: $broadcastMessage');
               _onBroadcast?.call(broadcastMessage);
 
-              // Show notification for broadcast
-              try {
-                await _notificationService.showNotification(
+              // Show only one type of notification - in-app if foreground, system if background
+              if (_isAppInForeground()) {
+                // App is in foreground - show in-app notification only
+                _showInAppNotification(
                   title: 'Broadcast',
                   body: broadcastMessage,
-                  payload: message,
+                  icon: Icons.campaign,
+                  iconColor: Colors.orange,
+                  notificationType: 'broadcast',
+                  onTap: () {
+                    // Navigate to home screen to see broadcast
+                    final nav = navigatorKey.currentState;
+                    if (nav != null) {
+                      nav.pushNamed('/home');
+                    }
+                  },
                 );
-                _logChat('WebSocket Broadcast', '✅ Notification shown successfully');
-              } catch (e) {
-                _logChat('WebSocket Broadcast', '❌ Failed to show notification: $e');
+              } else {
+                // App is in background - show system notification only
+                try {
+                  await _notificationService.showNotification(
+                    title: 'Broadcast',
+                    body: broadcastMessage,
+                    payload: message,
+                  );
+                  _logChat('WebSocket Broadcast', '✅ System notification shown successfully');
+                } catch (e) {
+                  _logChat('WebSocket Broadcast', '❌ Failed to show system notification: $e');
+                }
               }
               break;
             case 'new_post':
@@ -506,16 +533,35 @@ class WebSocketService {
               _logChat('WebSocket New Post', '📝 New post received: postId=$postId');
               _handleNewPost(postId ?? '');
 
-              // Show notification for new post
-              try {
-                await _notificationService.showNotification(
+              // Show only one type of notification - in-app if foreground, system if background
+              if (_isAppInForeground()) {
+                // App is in foreground - show in-app notification only
+                _showInAppNotification(
                   title: 'New Post',
                   body: 'Someone posted something new',
-                  payload: message,
+                  icon: Icons.post_add,
+                  iconColor: Colors.blue,
+                  notificationType: 'new_post',
+                  onTap: () {
+                    // Navigate to home screen to see new post
+                    final nav = navigatorKey.currentState;
+                    if (nav != null) {
+                      nav.pushNamed('/home');
+                    }
+                  },
                 );
-                _logChat('WebSocket New Post', '✅ Notification shown successfully');
-              } catch (e) {
-                _logChat('WebSocket New Post', '❌ Failed to show notification: $e');
+              } else {
+                // App is in background - show system notification only
+                try {
+                  await _notificationService.showNotification(
+                    title: 'New Post',
+                    body: 'Someone posted something new',
+                    payload: message,
+                  );
+                  _logChat('WebSocket New Post', '✅ System notification shown successfully');
+                } catch (e) {
+                  _logChat('WebSocket New Post', '❌ Failed to show system notification: $e');
+                }
               }
               break;
             case 'delete_post':
@@ -529,16 +575,35 @@ class WebSocketService {
               _logChat('WebSocket New Comment', '💬 New comment received: postId=$postId, commentId=$commentId');
               _handleNewComment(postId ?? '', commentId ?? '');
 
-              // Show notification for new comment
-              try {
-                await _notificationService.showNotification(
+              // Show only one type of notification - in-app if foreground, system if background
+              if (_isAppInForeground()) {
+                // App is in foreground - show in-app notification only
+                _showInAppNotification(
                   title: 'New Comment',
                   body: 'Someone commented on a post',
-                  payload: message,
+                  icon: Icons.comment,
+                  iconColor: Colors.green,
+                  notificationType: 'new_comment',
+                  onTap: () {
+                    // Navigate to home screen to see new comment
+                    final nav = navigatorKey.currentState;
+                    if (nav != null) {
+                      nav.pushNamed('/home');
+                    }
+                  },
                 );
-                _logChat('WebSocket New Comment', '✅ Notification shown successfully');
-              } catch (e) {
-                _logChat('WebSocket New Comment', '❌ Failed to show notification: $e');
+              } else {
+                // App is in background - show system notification only
+                try {
+                  await _notificationService.showNotification(
+                    title: 'New Comment',
+                    body: 'Someone commented on a post',
+                    payload: message,
+                  );
+                  _logChat('WebSocket New Comment', '✅ System notification shown successfully');
+                } catch (e) {
+                  _logChat('WebSocket New Comment', '❌ Failed to show system notification: $e');
+                }
               }
               break;
             case 'delete_comment':
@@ -568,21 +633,31 @@ class WebSocketService {
                 _logChat('WebSocket Chat Notification', '   - Message: ${message.length > 50 ? message.substring(0, 50) + "..." : message}');
                 _logChat('WebSocket Chat Notification', '   - Registered callbacks: ${_onChatMessageCallbacks.length}');
                 
-                // Show in-app notification for chat message when app is open
-                try {
-                  await _notificationService.showNotification(
-                    title: fromName ?? 'New Message',
-                    body: message,
-                    payload: jsonEncode({
-                      'type': 'chat',
-                      'from': fromUserId,
-                      'messageId': messageId,
-                      'to': _userId,
-                    }),
-                  );
-                  _logChat('WebSocket Chat Notification', 'In-app notification shown successfully');
-                } catch (e) {
-                  _logChat('WebSocket Chat Notification', 'Failed to show in-app notification: $e');
+                // Show only one type of notification - in-app if foreground, system if background
+                // Note: The 'chat' case will also handle showing in-app notifications, so this is a fallback
+                // for when the message comes as 'notification' type instead of 'chat' type
+                if (_isAppInForeground() && _userId != null) {
+                  // App is in foreground - show in-app notification only (via _showInAppChatNotification)
+                  // This will be handled by the 'chat' case if the message also comes as 'chat' type
+                  // For now, we skip showing here to avoid duplicates
+                  _logChat('WebSocket Chat Notification', 'App is in foreground - notification will be handled by chat case if message arrives');
+                } else {
+                  // App is in background - show system notification only
+                  try {
+                    await _notificationService.showNotification(
+                      title: fromName ?? 'New Message',
+                      body: message,
+                      payload: jsonEncode({
+                        'type': 'chat',
+                        'from': fromUserId,
+                        'messageId': messageId,
+                        'to': _userId,
+                      }),
+                    );
+                    _logChat('WebSocket Chat Notification', 'System notification shown successfully');
+                  } catch (e) {
+                    _logChat('WebSocket Chat Notification', 'Failed to show system notification: $e');
+                  }
                 }
                 
                 // NOTE: Do NOT trigger chat message callbacks here for chat notifications
@@ -592,20 +667,61 @@ class WebSocketService {
                 _logChat('WebSocket Chat Notification', 'Skipping chat callbacks - message will be handled by \'chat\' case if sent');
               } else {
                 // Generic notification
-                try {
-                  await _notificationService.showNotification(
-                    title: data['title']?.toString() ?? 'Notification',
-                    body: data['message']?.toString() ?? data['body']?.toString() ?? '',
-                    payload: message,
+                final title = data['title']?.toString() ?? 'Notification';
+                final body = data['message']?.toString() ?? data['body']?.toString() ?? '';
+                
+                // Show only one type of notification - in-app if foreground, system if background
+                if (_isAppInForeground()) {
+                  // App is in foreground - show in-app notification only
+                  _showInAppNotification(
+                    title: title,
+                    body: body,
+                    icon: Icons.notifications,
+                    iconColor: Colors.blue,
+                    notificationType: notificationType ?? 'generic',
+                    onTap: () {
+                      // Navigate to home screen
+                      final nav = navigatorKey.currentState;
+                      if (nav != null) {
+                        nav.pushNamed('/home');
+                      }
+                    },
                   );
-                } catch (e) {
-                  _logChat('WebSocket Notification', 'Failed to show generic notification: $e');
+                } else {
+                  // App is in background - show system notification only
+                  try {
+                    await _notificationService.showNotification(
+                      title: title,
+                      body: body,
+                      payload: message,
+                    );
+                  } catch (e) {
+                    _logChat('WebSocket Notification', 'Failed to show system notification: $e');
+                  }
                 }
               }
               break;
             case 'app_update':
               _logChat('WebSocket App Update', '🔄 App update notification received');
               await _handleAppUpdate();
+
+              // Show only one type of notification - in-app if foreground, system if background
+              // Note: _handleAppUpdate() already shows system notification, so we only show in-app if foreground
+              if (_isAppInForeground()) {
+                // App is in foreground - show in-app notification only (system notification is skipped in _handleAppUpdate)
+                _showInAppNotification(
+                  title: 'App Update Available',
+                  body: 'A new version of Skybyn is ready to download',
+                  icon: Icons.system_update,
+                  iconColor: Colors.orange,
+                  notificationType: 'app_update',
+                  onTap: () {
+                    // Trigger update check via callback
+                    _onAppUpdate?.call();
+                  },
+                );
+              }
+              // If app is in background, _handleAppUpdate() will show system notification
               break;
             case 'call_initiate':
               final callId = data['callId']?.toString() ?? '';
@@ -700,6 +816,12 @@ class WebSocketService {
               _logChat('WebSocket Chat', '   - Registered callbacks: ${_onChatMessageCallbacks.length}');
               
               debugPrint('🔵 [WebSocket] Chat message received: id=$messageId, from=$fromUserId, to=$toUserId, callbacks=${_onChatMessageCallbacks.length}');
+              
+              // Show in-app notification if chat screen is not in focus
+              // Only show if the message is for the current user
+              if (_userId != null && toUserId == _userId) {
+                _showInAppChatNotification(fromUserId, message);
+              }
               
               // Call all registered chat message callbacks
               // Note: _onChatMessage is also added to _onChatMessageCallbacks, so we only call the list
@@ -798,15 +920,21 @@ class WebSocketService {
 
   /// Handle app update notification
   Future<void> _handleAppUpdate() async {
-    // Show notification for app update
-    try {
-      await _notificationService.showNotification(
-        title: 'App Update Available',
-        body: 'A new version of Skybyn is ready to download',
-        payload: 'app_update',
-      );
-    } catch (e) {
-      _logChat('WebSocket App Update', 'Failed to show notification: $e');
+    // Only show system notification if app is in background
+    // If app is in foreground, the caller will show in-app notification instead
+    if (!_isAppInForeground()) {
+      try {
+        await _notificationService.showNotification(
+          title: 'App Update Available',
+          body: 'A new version of Skybyn is ready to download',
+          payload: 'app_update',
+        );
+        _logChat('WebSocket App Update', 'System notification shown (app in background)');
+      } catch (e) {
+        _logChat('WebSocket App Update', 'Failed to show system notification: $e');
+      }
+    } else {
+      _logChat('WebSocket App Update', 'Skipping system notification (app in foreground, will show in-app)');
     }
 
     // Trigger the update check callback to show dialog
@@ -1264,6 +1392,112 @@ class WebSocketService {
     _registeredChatCallbackHashes.remove(callbackHash);
     _onChatMessageCallbacks.remove(callback);
     _logChat('WebSocket', 'Chat callback removed (hash: $callbackHash, remaining: ${_onChatMessageCallbacks.length})');
+  }
+
+  /// Show in-app chat notification if chat screen is not in focus
+  Future<void> _showInAppChatNotification(String fromUserId, String message) async {
+    try {
+      // Check if app is in foreground - only show in-app notifications when foreground
+      if (!_isAppInForeground()) {
+        return; // Don't show in-app notification if app is in background
+      }
+
+      // Check if chat screen for this friend is already in focus
+      if (_inAppNotificationService.isChatScreenInFocus(fromUserId)) {
+        _logChat('WebSocket Chat Notification', 'Chat screen is in focus, skipping in-app notification');
+        return;
+      }
+
+      // Get current user ID to fetch friends
+      final authService = AuthService();
+      final currentUserId = await authService.getStoredUserId();
+      if (currentUserId == null) {
+        _logChat('WebSocket Chat Notification', 'Cannot show notification - current user ID is null');
+        return;
+      }
+
+      // Fetch friend information (using cached data for speed)
+      final friends = await _friendService.fetchFriendsForUser(userId: currentUserId);
+      final friend = friends.firstWhere(
+        (f) => f.id == fromUserId,
+        orElse: () => Friend(
+          id: fromUserId,
+          username: fromUserId, // Fallback
+          nickname: '',
+          avatar: '',
+          online: false,
+        ),
+      );
+
+      // Show in-app notification
+      _inAppNotificationService.showChatNotification(
+        friend: friend,
+        message: message,
+        onTap: () {
+          // Navigate to chat screen
+          final navigator = navigatorKey.currentState;
+          if (navigator != null) {
+            navigator.pushNamed(
+              '/chat',
+              arguments: {'friend': friend},
+            );
+          }
+        },
+      );
+
+      _logChat('WebSocket Chat Notification', 'In-app notification shown for friend: ${friend.username}');
+    } catch (e) {
+      _logChat('WebSocket Chat Notification', 'Failed to show in-app notification: $e');
+    }
+  }
+
+  /// Check if app is in foreground
+  bool _isAppInForeground() {
+    try {
+      final lifecycleState = WidgetsBinding.instance.lifecycleState;
+      final isResumed = lifecycleState == AppLifecycleState.resumed;
+      _logChat('WebSocket Foreground Check', 'Lifecycle state: $lifecycleState, isResumed: $isResumed');
+      return isResumed;
+    } catch (e) {
+      // Fallback: check if navigator is available
+      final hasNavigator = navigatorKey.currentState != null;
+      _logChat('WebSocket Foreground Check', 'Exception checking lifecycle: $e, hasNavigator: $hasNavigator');
+      return hasNavigator;
+    }
+  }
+
+  /// Show in-app notification for any notification type
+  void _showInAppNotification({
+    required String title,
+    required String body,
+    String? avatarUrl,
+    IconData? icon,
+    Color? iconColor,
+    required String notificationType,
+    required VoidCallback onTap,
+  }) {
+    try {
+      // Check if app is in foreground - only show in-app notifications when foreground
+      if (!_isAppInForeground()) {
+        return; // Don't show in-app notification if app is in background
+      }
+
+      // Show in-app notification
+      _inAppNotificationService.showNotification(
+        title: title,
+        body: body,
+        avatarUrl: avatarUrl,
+        icon: icon,
+        iconColor: iconColor,
+        notificationId: '${notificationType}_${DateTime.now().millisecondsSinceEpoch}',
+        notificationType: notificationType,
+        onTap: onTap,
+      );
+
+      _logChat('WebSocket In-App Notification', 'In-app notification shown: type=$notificationType, title=$title');
+    } catch (e) {
+      _logChat('WebSocket In-App Notification', 'Failed to show in-app notification: $e');
+    }
   }
 }
 
