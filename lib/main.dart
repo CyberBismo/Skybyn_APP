@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_database/firebase_database.dart';
 // import 'dart:io' show Platform;
 import 'dart:io';
 import 'dart:developer' as developer;
@@ -218,6 +219,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   Timer? _activityUpdateTimer;
   Timer? _webSocketConnectionCheckTimer;
   Timer? _profileCheckTimer;
+  Timer? _firebaseConnectivityCheckTimer;
   
   // Track active incoming call
   String? _activeCallId;
@@ -332,6 +334,9 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
 
       // Start periodic profile checks (every 5 minutes to detect bans/deactivations)
       _startProfileChecks();
+
+      // Start Firebase connectivity checks (every hour)
+      _startFirebaseConnectivityChecks();
 
       // Preload location and map data (non-blocking, in background)
       _preloadLocationAndMapData();
@@ -480,6 +485,60 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     }
   }
 
+  /// Start periodic Firebase connectivity checks
+  /// Checks if user is connected to internet via Firebase every hour
+  void _startFirebaseConnectivityChecks() {
+    // Cancel any existing timer
+    _firebaseConnectivityCheckTimer?.cancel();
+    
+    // Check immediately on startup
+    _checkFirebaseConnectivity();
+    
+    // Check every hour
+    _firebaseConnectivityCheckTimer = Timer.periodic(const Duration(hours: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        _firebaseConnectivityCheckTimer = null;
+        return;
+      }
+      _checkFirebaseConnectivity();
+    });
+  }
+
+  /// Check Firebase connectivity to verify internet connection
+  Future<void> _checkFirebaseConnectivity() async {
+    try {
+      // Check if Firebase is initialized
+      if (Firebase.apps.isEmpty) {
+        return; // Firebase not initialized
+      }
+
+      final database = FirebaseDatabase.instance;
+      final connectedRef = database.ref('.info/connected');
+      
+      // Listen to connection state for a short period to check connectivity
+      final subscription = connectedRef.onValue.listen((event) {
+        final isConnected = event.snapshot.value as bool? ?? false;
+        
+        if (!isConnected) {
+          // User is not connected to Firebase (likely no internet)
+          // This means the user is offline - activity will naturally stop updating
+          // The last_active timestamp will reflect this when checked
+        }
+        // If connected, user has internet - activity updates will continue
+      }, onError: (error) {
+        // Silently fail - connectivity checks are not critical
+      });
+
+      // Wait a short time to get the connection state, then cancel
+      await Future.delayed(const Duration(seconds: 2));
+      await subscription.cancel();
+    } catch (e) {
+      // Silently fail - connectivity checks are not critical
+      // Firebase may not be configured or available
+    }
+  }
+
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
@@ -487,6 +546,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     _activityUpdateTimer?.cancel();
     _webSocketConnectionCheckTimer?.cancel();
     _profileCheckTimer?.cancel();
+    _firebaseConnectivityCheckTimer?.cancel();
     _linkSubscription?.cancel();
     super.dispose();
   }

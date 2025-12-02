@@ -2377,24 +2377,24 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
     
     final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
     final twoMinutesAgo = now - 120; // 2 minutes = 120 seconds
+    final oneHourAgo = now - 3600; // 1 hour = 3600 seconds
     
     if (_friendLastActive! >= twoMinutesAgo) {
       return 'Online';
+    }
+    
+    // If last activity was more than 1 hour ago, show "Offline"
+    if (_friendLastActive! < oneHourAgo) {
+      return 'Offline';
     }
     
     final secondsAgo = now - _friendLastActive!;
     
     if (secondsAgo < 60) {
       return 'Last active ${secondsAgo}s ago';
-    } else if (secondsAgo < 3600) {
+    } else {
       final minutes = secondsAgo ~/ 60;
       return 'Last active ${minutes}m ago';
-    } else if (secondsAgo < 86400) {
-      final hours = secondsAgo ~/ 3600;
-      return 'Last active ${hours}h ago';
-    } else {
-      final days = secondsAgo ~/ 86400;
-      return 'Last active ${days}d ago';
     }
   }
 }
