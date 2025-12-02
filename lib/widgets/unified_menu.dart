@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:ui';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../screens/home_screen.dart';
 import '../screens/profile_screen.dart';
 import '../screens/settings_screen.dart';
@@ -10,6 +11,7 @@ import '../utils/translation_keys.dart';
 import '../utils/navigation_helper.dart';
 import '../services/translation_service.dart';
 import '../services/auth_service.dart';
+import '../config/constants.dart';
 
 /// Menu item definition
 class MenuItem {
@@ -224,10 +226,47 @@ class UnifiedMenu {
           _showMenu(context, items, position: 'right', topOffset: appBarHeight + 70);
         }
       },
-      child: const Icon(
-        Icons.menu,
-        color: Colors.white,
-        size: 24.0,
+      child: FutureBuilder(
+        future: AuthService().getStoredUserProfile(),
+        builder: (context, snapshot) {
+          final user = snapshot.data;
+          final avatarUrl = user?.avatar ?? '';
+          final hasAvatar = avatarUrl.isNotEmpty && 
+              !avatarUrl.contains('logo_faded_clean.png') &&
+              !avatarUrl.contains('logo.png');
+
+          return CircleAvatar(
+            radius: 12.0,
+            backgroundColor: Colors.white.withOpacity(0.2),
+            child: hasAvatar
+                ? ClipOval(
+                    child: CachedNetworkImage(
+                      imageUrl: UrlHelper.convertUrl(avatarUrl),
+                      width: 24.0,
+                      height: 24.0,
+                      fit: BoxFit.cover,
+                      placeholder: (context, url) => Container(
+                        color: Colors.white.withOpacity(0.1),
+                        child: const Icon(
+                          Icons.person,
+                          color: Colors.white,
+                          size: 16.0,
+                        ),
+                      ),
+                      errorWidget: (context, url, error) => const Icon(
+                        Icons.person,
+                        color: Colors.white,
+                        size: 16.0,
+                      ),
+                    ),
+                  )
+                : const Icon(
+                    Icons.person,
+                    color: Colors.white,
+                    size: 16.0,
+                  ),
+          );
+        },
       ),
     );
   }
