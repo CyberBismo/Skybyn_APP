@@ -14,16 +14,29 @@ class MainActivity: FlutterActivity() {
     private val CHANNEL = "no.skybyn.app/background_service"
     private val NOTIFICATION_CHANNEL = "no.skybyn.app/notification"
     private val INSTALLER_CHANNEL = "no.skybyn.app/installer"
+    private val FLOATING_BUBBLE_CHANNEL = "no.skybyn.app/floating_bubble"
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         handleNotificationIntent(intent)
+        handleChatIntent(intent)
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
         handleNotificationIntent(intent)
+        handleChatIntent(intent)
+    }
+    
+    private fun handleChatIntent(intent: Intent?) {
+        val openChat = intent?.getBooleanExtra("open_chat", false) ?: false
+        val friendId = intent?.getStringExtra("friendId")
+        if (openChat && friendId != null) {
+            // Navigate to chat screen - this will be handled by Flutter routing
+            // The friendId will be passed to Flutter via method channel if needed
+            android.util.Log.d("MainActivity", "Opening chat for friend: $friendId")
+        }
     }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
@@ -79,6 +92,86 @@ class MainActivity: FlutterActivity() {
                 }
             }
         }
+        
+        // Method channel for floating bubble
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, FLOATING_BUBBLE_CHANNEL).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "showBubble" -> {
+                    val friendId = call.argument<String>("friendId")
+                    val friendName = call.argument<String>("friendName")
+                    val avatarUrl = call.argument<String>("avatarUrl")
+                    val unreadCount = call.argument<Int>("unreadCount") ?: 0
+                    val message = call.argument<String>("message")
+                    
+                    if (friendId != null && friendName != null) {
+                        showFloatingBubble(friendId, friendName, avatarUrl, unreadCount, message)
+                        result.success(true)
+                    } else {
+                        result.error("INVALID_ARGUMENT", "friendId and friendName are required", null)
+                    }
+                }
+                "updateBubble" -> {
+                    val friendId = call.argument<String>("friendId")
+                    val friendName = call.argument<String>("friendName")
+                    val avatarUrl = call.argument<String>("avatarUrl")
+                    val unreadCount = call.argument<Int>("unreadCount") ?: 0
+                    val message = call.argument<String>("message")
+                    
+                    if (friendId != null && friendName != null) {
+                        updateFloatingBubble(friendId, friendName, avatarUrl, unreadCount, message)
+                        result.success(true)
+                    } else {
+                        result.error("INVALID_ARGUMENT", "friendId and friendName are required", null)
+                    }
+                }
+                "hideBubble" -> {
+                    hideFloatingBubble()
+                    result.success(true)
+                }
+                else -> {
+                    result.notImplemented()
+                }
+            }
+        }
+    }
+    
+    private fun showFloatingBubble(friendId: String, friendName: String, avatarUrl: String?, unreadCount: Int, message: String?) {
+        val intent = Intent(this, FloatingBubbleService::class.java).apply {
+            action = "SHOW_BUBBLE"
+            putExtra("friendId", friendId)
+            putExtra("friendName", friendName)
+            putExtra("avatarUrl", avatarUrl ?: "")
+            putExtra("unreadCount", unreadCount)
+            putExtra("message", message ?: "")
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startForegroundService(intent)
+        } else {
+            startService(intent)
+        }
+    }
+    
+    private fun updateFloatingBubble(friendId: String, friendName: String, avatarUrl: String?, unreadCount: Int, message: String?) {
+        val intent = Intent(this, FloatingBubbleService::class.java).apply {
+            action = "UPDATE_BUBBLE"
+            putExtra("friendId", friendId)
+            putExtra("friendName", friendName)
+            putExtra("avatarUrl", avatarUrl ?: "")
+            putExtra("unreadCount", unreadCount)
+            putExtra("message", message ?: "")
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startForegroundService(intent)
+        } else {
+            startService(intent)
+        }
+    }
+    
+    private fun hideFloatingBubble() {
+        val intent = Intent(this, FloatingBubbleService::class.java).apply {
+            action = "HIDE_BUBBLE"
+        }
+        stopService(intent)
     }
     
     private fun installApk(apkPath: String): Boolean {

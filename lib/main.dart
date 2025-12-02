@@ -46,7 +46,9 @@ import 'services/friend_service.dart';
 import 'services/chat_message_count_service.dart';
 import 'services/navigation_service.dart';
 import 'services/location_service.dart';
+import 'services/floating_chat_bubble_service.dart';
 import 'config/constants.dart';
+import 'package:overlay_support/overlay_support.dart';
 // Widgets and Models
 import 'widgets/incoming_call_notification.dart';
 import 'widgets/background_gradient.dart';
@@ -214,6 +216,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   final CallService _callService = CallService();
   final FriendService _friendService = FriendService();
   final ChatMessageCountService _chatMessageCountService = ChatMessageCountService();
+  final FloatingChatBubbleService _floatingBubbleService = FloatingChatBubbleService();
   Timer? _serviceCheckTimer;
   Timer? _activityUpdateTimer;
   Timer? _webSocketConnectionCheckTimer;
@@ -310,6 +313,9 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       
       // Initialize background activity service (updates activity even when app is closed)
       await BackgroundActivityService.initialize();
+      
+      // Initialize floating chat bubble service
+      await _floatingBubbleService.initialize();
       
       // Set up call callbacks for incoming calls via WebSocket
       _setupCallHandlers();
@@ -1027,7 +1033,8 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
           ),
         );
         
-        return MaterialApp(
+        return OverlaySupport(
+          child: MaterialApp(
           navigatorKey: navigatorKey,
           title: 'Skybyn',
           theme: ThemeData(
@@ -1117,6 +1124,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
               ),
             );
           },
+        ),
         );
       },
     );
@@ -1148,6 +1156,13 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
           return MaterialPageRoute(
             builder: (_) => ChatScreen(friend: friend),
           );
+        }
+        // Check if opened from native bubble (friendId in arguments)
+        final friendId = args?['friendId'] as String?;
+        if (friendId != null) {
+          // Try to load friend and navigate
+          // This will be handled by the app's navigation system
+          return MaterialPageRoute(builder: (_) => const HomeScreen());
         }
         return MaterialPageRoute(builder: (_) => const HomeScreen());
       case '/create-post':

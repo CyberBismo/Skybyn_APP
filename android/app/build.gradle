@@ -47,6 +47,9 @@ android {
     // Use compileSdk 36 (Android 16) - required for sqflite_android 2.4.2+ which hardcodes compileSdk 36
     // Note: targetSdk remains at 34 for compatibility
     compileSdk 36
+    // NDK version - comment out if you get "failed to strip debug symbols" error
+    // and install NDK via Android Studio SDK Manager (Tools > SDK Manager > SDK Tools > NDK)
+    // Then uncomment and use the installed version, or let AGP auto-detect by removing this line
     ndkVersion "27.0.12077973"
 
     buildFeatures {
@@ -168,6 +171,16 @@ android {
         abortOnError false
     }
     
+    // Packaging options for AGP 8.x
+    packaging {
+        jniLibs {
+            useLegacyPackaging = false
+        }
+        resources {
+            excludes += ['/META-INF/{AL2.0,LGPL2.1}']
+        }
+    }
+    
 }
 
 flutter {
@@ -208,6 +221,29 @@ afterEvaluate {
             allWarningsAsErrors = false
         }
     }
+    
+    // Fix for debug symbol stripping issue
+    // Ensure NDK strip tool is available and handle errors gracefully
+    tasks.matching { it.name.contains('strip') && it.name.contains('Release') }.configureEach { task ->
+        task.doFirst {
+            def ndkDir = android.ndkDirectory
+            if (ndkDir == null || !ndkDir.exists()) {
+                logger.warn("NDK directory not found. Debug symbol stripping may fail.")
+            }
+        }
+    }
+    
+    // Configure bundle task to handle stripping errors more gracefully
+    tasks.matching { it.name.contains('Bundle') && it.name.contains('Release') }.configureEach { task ->
+        task.doFirst {
+            // Ensure NDK is available before bundling
+            def ndkDir = android.ndkDirectory
+            if (ndkDir == null || !ndkDir.exists()) {
+                logger.warn("NDK directory not found at: ${android.ndkDirectory}")
+                logger.warn("Please ensure NDK version ${android.ndkVersion} is installed via Android Studio SDK Manager")
+            }
+        }
+    }
 }
 
 
@@ -220,4 +256,6 @@ dependencies {
     coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.1.4'
     // WebSocket support for background service
     implementation 'com.squareup.okhttp3:okhttp:4.12.0'
+    // Coroutines for async operations
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3'
 } 

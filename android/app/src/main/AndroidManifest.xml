@@ -111,6 +111,12 @@
             android:exported="false"
             android:foregroundServiceType="dataSync" />
         
+        <!-- Floating Bubble Service -->
+        <service
+            android:name=".FloatingBubbleService"
+            android:enabled="true"
+            android:exported="false" />
+        
         <!-- FileProvider for APK installation on Android 7+ -->
         <provider
             android:name="androidx.core.content.FileProvider"

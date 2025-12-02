@@ -15,6 +15,7 @@ import 'device_service.dart';
 import 'notification_service.dart';
 import 'friend_service.dart';
 import 'in_app_notification_service.dart';
+import 'floating_chat_bubble_service.dart';
 import '../main.dart';
 
 // Helper function to log chat events - always logs regardless of zone filters
@@ -90,6 +91,7 @@ class WebSocketService {
   final NotificationService _notificationService = NotificationService();
   final FriendService _friendService = FriendService();
   final InAppNotificationService _inAppNotificationService = InAppNotificationService();
+  final FloatingChatBubbleService _floatingBubbleService = FloatingChatBubbleService();
 
   bool get isConnected => _isConnected;
   bool get isInitialized => _isInitialized;
@@ -1444,6 +1446,19 @@ class WebSocketService {
           }
         },
       );
+
+      // Show floating chat bubble
+      try {
+        // Get unread count for this friend (simplified - you may want to track this properly)
+        await _floatingBubbleService.updateBubble(
+          friend: friend,
+          message: message,
+          unreadCount: null, // Will increment existing count
+        );
+        _logChat('WebSocket Chat Notification', 'Floating bubble shown for friend: ${friend.username}');
+      } catch (e) {
+        _logChat('WebSocket Chat Notification', 'Failed to show floating bubble: $e');
+      }
 
       _logChat('WebSocket Chat Notification', 'In-app notification shown for friend: ${friend.username}');
     } catch (e) {
