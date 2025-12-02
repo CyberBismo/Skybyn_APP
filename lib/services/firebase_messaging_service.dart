@@ -58,8 +58,16 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
     
     // Initialize NotificationService in background isolate
     // This is critical - NotificationService must be initialized in the background isolate
+    // When app is completely closed, FCM will automatically show the notification from the notification field
+    // We still initialize the service to show local notifications as a fallback
     final notificationService = NotificationService();
-    await notificationService.initialize();
+    try {
+      await notificationService.initialize();
+    } catch (e) {
+      // If initialization fails (e.g., app is terminated), FCM will still show the notification automatically
+      developer.log('NotificationService initialization failed in background: $e', name: 'FCM Background Handler');
+      // Continue - FCM will show the notification from the notification field
+    }
     
     // Update user activity when receiving notification (user is active)
     // This helps maintain online status even when app is closed
@@ -129,8 +137,17 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
         }
       }
       
-      // Always show notification - even if FCM shows it automatically, this ensures it's displayed
-      // This is especially important for chat messages when app is in background
+      // IMPORTANT: When app is TERMINATED, this background handler does NOT run.
+      // FCM will automatically display notifications that have a 'notification' field.
+      // This handler only runs when app is in BACKGROUND (not terminated).
+      // 
+      // For terminated apps: FCM automatically shows the notification from the 'notification' field.
+      // For background apps: This handler shows a local notification as a fallback/backup.
+      // 
+      // Always show local notification in background handler (when app is in background):
+      // 1. App is in background - ensures notification is shown even if FCM notification fails
+      // 2. Data-only messages - extracts title/body from data payload
+      // Note: When app is terminated, FCM will automatically show the notification from the notification field
       try {
         await notificationService.showNotification(
           title: title, 
@@ -144,7 +161,8 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
         if (type == 'chat') {
           _logChat('FCM Background Chat', 'Failed to show local notification: $e');
         }
-        rethrow;
+        // Don't rethrow - if local notification fails, FCM may still show the notification from the notification field
+        // Log the error but continue execution
       }
     }
   } catch (e, stackTrace) {
