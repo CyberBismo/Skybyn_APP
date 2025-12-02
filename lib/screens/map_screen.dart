@@ -65,9 +65,24 @@ class _MapScreenState extends State<MapScreen> {
   @override
   void initState() {
     super.initState();
+    // Request location permission when navigating to map screen
+    _requestLocationPermission();
     // Start preloading location immediately (non-blocking)
     _preloadLocation();
     _initializeMap();
+  }
+
+  Future<void> _requestLocationPermission() async {
+    try {
+      final hasPermission = await _locationService.requestLocationPermission();
+      if (hasPermission) {
+        print('Location permission granted');
+      } else {
+        print('Location permission denied');
+      }
+    } catch (e) {
+      print('Error requesting location permission: $e');
+    }
   }
 
   @override

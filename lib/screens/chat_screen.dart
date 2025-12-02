@@ -86,6 +86,8 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
     WidgetsBinding.instance.addObserver(this);
     _friendOnline = widget.friend.online; // Initialize with friend's current status
     _friendLastActive = widget.friend.lastActive; // Initialize with friend's last active
+    // Track that this chat screen is now open
+    _chatMessageCountService.setCurrentOpenChat(widget.friend.id);
     _loadUserId();
     _loadMessages();
     _setupWebSocketListener();
@@ -139,6 +141,10 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    // Clear the current open chat when leaving the screen
+    if (_chatMessageCountService.currentOpenChatFriendId == widget.friend.id) {
+      _chatMessageCountService.setCurrentOpenChat(null);
+    }
     _closeMenu();
     _closeMessageOptions();
     _messageFocusNode.dispose();

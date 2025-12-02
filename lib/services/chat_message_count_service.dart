@@ -15,6 +15,7 @@ class ChatMessageCountService extends ChangeNotifier {
   SharedPreferences? _prefs;
   final Set<String> _processedMessageIds = {}; // Track processed message IDs to prevent duplicates
   final Map<String, int> _recentMessageHashes = {}; // Track recent messages by hash (friendId_messageHash -> timestamp) to handle temp/real ID duplicates
+  String? _currentOpenChatFriendId; // Track which chat screen is currently open
 
   int get totalUnreadCount => _totalUnreadCount;
   Map<String, int> get unreadCounts => Map.unmodifiable(_unreadCounts);
@@ -73,7 +74,8 @@ class ChatMessageCountService extends ChangeNotifier {
   /// Increment unread count for a friend
   /// [messageId] is optional - if provided, prevents duplicate increments for the same message
   /// [messageContent] is optional - if provided, used for content-based deduplication (handles temp/real ID duplicates)
-  Future<void> incrementUnreadCount(String friendId, {String? messageId, String? messageContent}) async {
+  /// Returns true if the count was actually incremented, false if it was skipped (duplicate)
+  Future<bool> incrementUnreadCount(String friendId, {String? messageId, String? messageContent}) async {
     // Use print with [SKYBYN] prefix - zone will allow it through
     print('[SKYBYN] ═══════════════════════════════════════════════════════');
     print('[SKYBYN] 📊 [ChatMessageCount] incrementUnreadCount called');
@@ -91,7 +93,7 @@ class ChatMessageCountService extends ChangeNotifier {
         print('[SKYBYN]    MessageKey: $messageKey');
         print('[SKYBYN]    Processed count: ${_processedMessageIds.length}');
         print('[SKYBYN] ═══════════════════════════════════════════════════════');
-        return; // Already processed this message
+        return false; // Already processed this message
       }
     }
     
@@ -107,7 +109,7 @@ class ChatMessageCountService extends ChangeNotifier {
         print('[SKYBYN]    ContentKey: $contentKey');
         print('[SKYBYN]    Last seen: ${now - lastSeen}ms ago');
         print('[SKYBYN] ═══════════════════════════════════════════════════════');
-        return; // Same content from same friend within 10 seconds - likely temp/real ID duplicate
+        return false; // Same content from same friend within 10 seconds - likely temp/real ID duplicate
       }
       
       // Track this content
@@ -149,6 +151,7 @@ class ChatMessageCountService extends ChangeNotifier {
     
     await _saveUnreadCount(friendId, _unreadCounts[friendId]!);
     notifyListeners();
+    return true; // Successfully incremented
   }
 
   /// Clear unread count for a friend (when chat is opened)
@@ -185,6 +188,19 @@ class ChatMessageCountService extends ChangeNotifier {
       notifyListeners();
     } catch (e) {
     }
+  }
+
+  /// Set the currently open chat friend ID (called when ChatScreen opens)
+  void setCurrentOpenChat(String? friendId) {
+    _currentOpenChatFriendId = friendId;
+  }
+
+  /// Get the currently open chat friend ID
+  String? get currentOpenChatFriendId => _currentOpenChatFriendId;
+
+  /// Check if a specific friend's chat is currently open
+  bool isChatOpenForFriend(String friendId) {
+    return _currentOpenChatFriendId == friendId;
   }
 }
 

@@ -9,6 +9,7 @@ import 'package:provider/provider.dart';
 import 'package:app_links/app_links.dart';
 import 'package:http/http.dart' as http;
 import 'dart:async';
+import 'dart:convert';
 // Screens - all imports in main.dart
 import 'screens/login_screen.dart';
 import 'screens/home_screen.dart';
@@ -50,6 +51,9 @@ import 'config/constants.dart';
 import 'widgets/incoming_call_notification.dart';
 import 'widgets/background_gradient.dart';
 import 'models/friend.dart';
+// Firebase background handler - must be imported at top level
+import 'services/firebase_messaging_service.dart' show firebaseMessagingBackgroundHandler;
+import 'package:firebase_messaging/firebase_messaging.dart';
 
 Future<void> main() async {
   // Gate all print calls behind a debug flag using Zone
@@ -98,6 +102,21 @@ Future<void> main() async {
       // Initialize translation service BEFORE showing UI to prevent translation keys from showing
       // This loads cached translations first (fast), then updates from API in background
       await translationService.initialize();
+
+      // CRITICAL: Register Firebase background message handler BEFORE runApp()
+      // This ensures notifications work when app is terminated/closed
+      // Must be at top level, not inside a class or method
+      try {
+        FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+        if (enableErrorLogging) {
+          print('✅ [FCM] Background message handler registered at top level');
+        }
+      } catch (e) {
+        // Handler may already be registered (e.g., during hot reload) - that's okay
+        if (enableErrorLogging) {
+          print('⚠️ [FCM] Background handler registration: $e');
+        }
+      }
 
       // Initialize Firebase BEFORE running the app (needed for FCM push notifications)
       await _initializeFirebase(enableErrorLogging).catchError((error) {
@@ -342,15 +361,8 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         return; // User not logged in, skip preloading
       }
 
-      // Preload location in background (non-blocking)
-      final locationService = LocationService();
-      locationService.getCurrentLocation().then((position) {
-        if (position != null) {
-          print('Location preloaded on app startup: ${position.latitude}, ${position.longitude}');
-        }
-      }).catchError((e) {
-        // Silently handle errors - location preloading is optional
-      });
+      // Note: Location permission is now only requested when navigating to map screen
+      // Preloading location removed to avoid requesting permission on app startup
 
       // Preload friends locations in background (non-blocking)
       Future.delayed(const Duration(seconds: 2), () async {
@@ -576,12 +588,54 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         if (currentUserId != null && toUserId == currentUserId && fromUserId != currentUserId) {
           print('[SKYBYN] 🔵 [Main Chat Listener] Incrementing unread count for: $fromUserId');
           // Increment unread count for this friend (with messageId and messageContent to prevent duplicates)
-          await _chatMessageCountService.incrementUnreadCount(
+          final wasIncremented = await _chatMessageCountService.incrementUnreadCount(
             fromUserId, 
             messageId: messageId,
             messageContent: message, // Pass message content for content-based deduplication
           );
-          print('[SKYBYN] ✅ [Main Chat Listener] Unread count incremented');
+          if (wasIncremented) {
+            print('[SKYBYN] ✅ [Main Chat Listener] Unread count incremented');
+            
+            // Only show notification if chat screen for this friend is NOT currently open
+            if (!_chatMessageCountService.isChatOpenForFriend(fromUserId)) {
+              // Show notification for new message
+              try {
+                // Get friend's name for notification
+                final friendService = FriendService();
+                final friends = await friendService.fetchFriendsForUser(userId: currentUserId);
+                final friend = friends.firstWhere(
+                  (f) => f.id == fromUserId,
+                  orElse: () => Friend(
+                    id: fromUserId,
+                    username: fromUserId,
+                    nickname: fromUserId,
+                    avatar: '',
+                    online: false,
+                  ),
+                );
+                
+                final friendName = friend.nickname.isNotEmpty ? friend.nickname : friend.username;
+                
+                await _notificationService.showNotification(
+                  title: friendName,
+                  body: message,
+                  payload: jsonEncode({
+                    'type': 'chat',
+                    'from': fromUserId,
+                    'messageId': messageId,
+                    'to': currentUserId,
+                  }),
+                );
+                print('[SKYBYN] ✅ [Main Chat Listener] Notification shown for message from $friendName');
+              } catch (e) {
+                print('[SKYBYN] ⚠️ [Main Chat Listener] Failed to show notification: $e');
+              }
+            } else {
+              print('[SKYBYN] ⏭️ [Main Chat Listener] Skipping notification - chat screen is open for this friend');
+            }
+          } else {
+            print('[SKYBYN] ⏭️ [Main Chat Listener] Skipped (duplicate message)');
+          }
         } else {
           print('[SKYBYN] ⏭️ [Main Chat Listener] Skipping (not for current user or from self)');
         }
@@ -615,12 +669,54 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         if (currentUserId != null && toUserId == currentUserId && fromUserId != currentUserId) {
           print('[SKYBYN] 🔵 [Main Chat Listener] Incrementing unread count for: $fromUserId');
           // Increment unread count for this friend (with messageId and messageContent to prevent duplicates)
-          await _chatMessageCountService.incrementUnreadCount(
+          final wasIncremented = await _chatMessageCountService.incrementUnreadCount(
             fromUserId, 
             messageId: messageId,
             messageContent: message, // Pass message content for content-based deduplication
           );
-          print('[SKYBYN] ✅ [Main Chat Listener] Unread count incremented');
+          if (wasIncremented) {
+            print('[SKYBYN] ✅ [Main Chat Listener] Unread count incremented');
+            
+            // Only show notification if chat screen for this friend is NOT currently open
+            if (!_chatMessageCountService.isChatOpenForFriend(fromUserId)) {
+              // Show notification for new message
+              try {
+                // Get friend's name for notification
+                final friendService = FriendService();
+                final friends = await friendService.fetchFriendsForUser(userId: currentUserId);
+                final friend = friends.firstWhere(
+                  (f) => f.id == fromUserId,
+                  orElse: () => Friend(
+                    id: fromUserId,
+                    username: fromUserId,
+                    nickname: fromUserId,
+                    avatar: '',
+                    online: false,
+                  ),
+                );
+                
+                final friendName = friend.nickname.isNotEmpty ? friend.nickname : friend.username;
+                
+                await _notificationService.showNotification(
+                  title: friendName,
+                  body: message,
+                  payload: jsonEncode({
+                    'type': 'chat',
+                    'from': fromUserId,
+                    'messageId': messageId,
+                    'to': currentUserId,
+                  }),
+                );
+                print('[SKYBYN] ✅ [Main Chat Listener] Notification shown for message from $friendName');
+              } catch (e) {
+                print('[SKYBYN] ⚠️ [Main Chat Listener] Failed to show notification: $e');
+              }
+            } else {
+              print('[SKYBYN] ⏭️ [Main Chat Listener] Skipping notification - chat screen is open for this friend');
+            }
+          } else {
+            print('[SKYBYN] ⏭️ [Main Chat Listener] Skipped (duplicate message)');
+          }
         } else {
           print('[SKYBYN] ⏭️ [Main Chat Listener] Skipping (not for current user or from self)');
         }

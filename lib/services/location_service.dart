@@ -34,11 +34,27 @@ class LocationService {
     return true;
   }
 
-  /// Get current user location
+  /// Check if location permission is granted (without requesting)
+  Future<bool> hasLocationPermission() async {
+    // Check if location services are enabled
+    bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) {
+      return false;
+    }
+
+    // Check location permission status
+    LocationPermission permission = await Geolocator.checkPermission();
+    
+    return permission == LocationPermission.whileInUse || 
+           permission == LocationPermission.always;
+  }
+
+  /// Get current user location (only if permission is already granted)
+  /// Use requestLocationPermission() first if you need to request permission
   Future<Position?> getCurrentLocation() async {
     try {
-      // Request permission first
-      final hasPermission = await requestLocationPermission();
+      // Check permission without requesting
+      final hasPermission = await hasLocationPermission();
       if (!hasPermission) {
         return null;
       }
