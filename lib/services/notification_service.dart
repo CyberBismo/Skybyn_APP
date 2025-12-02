@@ -480,13 +480,13 @@ class NotificationService {
       bool isChat = false;
       bool isCall = false;
       if (payload != null) {
-        if (payload == 'app_update') {
+        if (payload == 'app_update' || payload == 'update_check') {
           isAppUpdate = true;
         } else if (payload.startsWith('{')) {
           try {
             final Map<String, dynamic> data = json.decode(payload);
             final type = data['type']?.toString();
-            if (type == 'app_update') {
+            if (type == 'app_update' || type == 'update_check') {
               isAppUpdate = true;
             } else if (type == 'chat') {
               isChat = true;
@@ -611,8 +611,37 @@ class NotificationService {
         final pendingNotifications = await _localNotifications.pendingNotificationRequests();
       }
       
-      // Auto-dismiss app update notifications after 3 seconds (like login notifications)
-      if (isAppUpdate && notificationId >= 0) {
+      // Auto-dismiss app update and update_check notifications after 3 seconds
+      // Check both isAppUpdate flag and also check payload directly as fallback
+      bool shouldAutoDismiss = isAppUpdate;
+      if (!shouldAutoDismiss && payload != null) {
+        // Double-check payload in case isAppUpdate wasn't set correctly
+        if (payload == 'app_update' || payload == 'update_check') {
+          shouldAutoDismiss = true;
+        } else if (payload.startsWith('{')) {
+          try {
+            final Map<String, dynamic> data = json.decode(payload);
+            final type = data['type']?.toString();
+            if (type == 'app_update' || type == 'update_check') {
+              shouldAutoDismiss = true;
+            }
+          } catch (e) {
+            // Ignore parse errors
+          }
+        }
+      }
+      
+      // Also check title as a fallback (in case payload is missing or incorrect)
+      if (!shouldAutoDismiss) {
+        final titleLower = title.toLowerCase();
+        if (titleLower.contains('update check') || 
+            titleLower.contains('app update') ||
+            titleLower == 'update check') {
+          shouldAutoDismiss = true;
+        }
+      }
+      
+      if (shouldAutoDismiss) {
         Timer(const Duration(seconds: 3), () {
           cancelNotification(notificationId);
         });

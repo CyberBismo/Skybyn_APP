@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../widgets/in_app_notification.dart';
 import '../models/friend.dart';
@@ -12,6 +13,7 @@ class InAppNotificationService {
   OverlayEntry? _currentNotification;
   String? _currentNotificationId;
   String? _currentNotificationType;
+  Timer? _autoDismissTimer;
 
   /// Check if a specific chat screen is currently in focus
   bool isChatScreenInFocus(String friendId) {
@@ -137,10 +139,18 @@ class InAppNotificationService {
     );
 
     overlayState.insert(_currentNotification!);
+
+    // Auto-dismiss after 3 seconds
+    _autoDismissTimer?.cancel();
+    _autoDismissTimer = Timer(const Duration(seconds: 3), () {
+      dismissNotification();
+    });
   }
 
   /// Dismiss the current notification
   void dismissNotification() {
+    _autoDismissTimer?.cancel();
+    _autoDismissTimer = null;
     _currentNotification?.remove();
     _currentNotification = null;
     _currentNotificationId = null;
