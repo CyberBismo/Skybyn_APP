@@ -13,6 +13,7 @@ import '../models/friend.dart';
 import 'auth_service.dart';
 import 'device_service.dart';
 import 'notification_service.dart';
+import 'notification_sound_service.dart';
 import 'friend_service.dart';
 import 'in_app_notification_service.dart';
 import '../main.dart';
@@ -88,6 +89,7 @@ class WebSocketService {
 
   // Services
   final NotificationService _notificationService = NotificationService();
+  final NotificationSoundService _notificationSoundService = NotificationSoundService();
   final FriendService _friendService = FriendService();
   final InAppNotificationService _inAppNotificationService = InAppNotificationService();
 
@@ -821,6 +823,8 @@ class WebSocketService {
               // Only show if the message is for the current user
               if (_userId != null && toUserId == _userId) {
                 _showInAppChatNotification(fromUserId, message);
+                // Play notification sound when receiving a message
+                _notificationSoundService.playNotificationSound();
               }
               
               // Call all registered chat message callbacks

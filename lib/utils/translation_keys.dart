@@ -262,6 +262,16 @@ class TranslationKeys {
   static const String enableNotifications = 'enable_notifications';
   static const String privateProfile = 'private_profile';
   static const String biometricLock = 'biometric_lock';
+  static const String notificationSound = 'notification_sound';
+  static const String soundEffect = 'sound_effect';
+  static const String customSound = 'custom_sound';
+  static const String noCustomSoundSelected = 'no_custom_sound_selected';
+  static const String removeCustomSound = 'remove_custom_sound';
+  static const String selectSoundEffect = 'select_sound_effect';
+  static const String tapToChange = 'tap_to_change';
+  static const String customSoundSet = 'custom_sound_set';
+  static const String errorSelectingSoundFile = 'error_selecting_sound_file';
+  static const String defaultSound = 'default_sound';
   static const String updateAvatar = 'update_avatar';
   static const String updateWallpaper = 'update_wallpaper';
   static const String takePhoto = 'take_photo';

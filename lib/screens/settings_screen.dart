@@ -4,6 +4,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:image_cropper/image_cropper.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:provider/provider.dart';
 import 'dart:io';
 import 'dart:ui';
@@ -21,6 +22,7 @@ import '../services/auto_update_service.dart';
 import '../services/friend_service.dart';
 import '../services/post_service.dart';
 import '../services/location_service.dart';
+import '../services/notification_sound_service.dart';
 import '../widgets/translated_text.dart';
 import '../widgets/update_dialog.dart';
 import '../utils/translation_keys.dart';
@@ -47,6 +49,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool notificationsEnabled = true;
   bool isPrivate = false;
   bool _biometricEnabled = false;
+  bool _notificationSoundEnabled = true;
+  String _selectedNotificationSound = 'default';
+  List<Map<String, String>> _availableSounds = [];
+  bool _isLoadingSounds = false;
+  String? _customSoundFileName;
+  final NotificationSoundService _notificationSoundService = NotificationSoundService();
 
   final _oldPasswordController = TextEditingController();
   final _newPasswordController = TextEditingController();
@@ -123,6 +131,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _loadUserProfile();
     _loadBiometricSetting();
     _loadLocationSettings();
+    _loadNotificationSoundSettings();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       setState(() {
         _selectedPinOption = _getPinOptionFromValue(user?.pinV);
@@ -203,6 +212,36 @@ class _SettingsScreenState extends State<SettingsScreen> {
       }
     } catch (e) {
       // Silently handle errors
+    }
+  }
+
+  Future<void> _loadNotificationSoundSettings() async {
+    final soundEnabled = await _notificationSoundService.isSoundEnabled();
+    final selectedSound = await _notificationSoundService.getSelectedSound();
+    final customSoundPath = await _notificationSoundService.getCustomSoundPath();
+    
+    setState(() {
+      _notificationSoundEnabled = soundEnabled;
+      _selectedNotificationSound = selectedSound;
+      _isLoadingSounds = true;
+      if (customSoundPath != null) {
+        _customSoundFileName = customSoundPath.split('/').last;
+      } else {
+        _customSoundFileName = null;
+      }
+    });
+    
+    // Load available system sounds
+    try {
+      final sounds = await _notificationSoundService.getAvailableSounds();
+      setState(() {
+        _availableSounds = sounds;
+        _isLoadingSounds = false;
+      });
+    } catch (e) {
+      setState(() {
+        _isLoadingSounds = false;
+      });
     }
   }
 
@@ -1640,6 +1679,86 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
                     SwitchListTile(
                       title: TranslatedText(
+                        TranslationKeys.notificationSound,
+                        style: TextStyle(color: AppColors.getTextColor(context)),
+                      ),
+                      value: _notificationSoundEnabled,
+                      onChanged: (bool value) async {
+                        setState(() {
+                          _notificationSoundEnabled = value;
+                        });
+                        await _notificationSoundService.setSoundEnabled(value);
+                      },
+                      activeThumbColor: Colors.blue,
+                    ),
+                    ListTile(
+                      title: TranslatedText(
+                        TranslationKeys.soundEffect,
+                        style: TextStyle(color: AppColors.getTextColor(context)),
+                      ),
+                      subtitle: Text(
+                        _getSoundDisplayName(_selectedNotificationSound),
+                        style: TextStyle(color: AppColors.getSecondaryTextColor(context)),
+                      ),
+                      trailing: Icon(
+                        Icons.music_note,
+                        color: AppColors.getIconColor(context),
+                      ),
+                      onTap: () {
+                        _showSoundSelectionDialog();
+                      },
+                    ),
+                    // Custom sound option - only for rank > 1
+                    if (user != null && int.tryParse(user!.rank) != null && int.parse(user!.rank) > 1) ...[
+                      ListTile(
+                        title: TranslatedText(
+                          TranslationKeys.customSound,
+                          style: TextStyle(color: AppColors.getTextColor(context)),
+                        ),
+                        subtitle: Text(
+                          _customSoundFileName ?? TranslationKeys.noCustomSoundSelected.tr,
+                          style: TextStyle(color: AppColors.getSecondaryTextColor(context)),
+                        ),
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (_customSoundFileName != null)
+                              IconButton(
+                                icon: Icon(Icons.play_arrow, color: AppColors.getIconColor(context)),
+                                onPressed: () async {
+                                  await _notificationSoundService.playNotificationSound();
+                                },
+                                tooltip: 'Preview',
+                              ),
+                            Icon(
+                              Icons.upload_file,
+                              color: AppColors.getIconColor(context),
+                            ),
+                          ],
+                        ),
+                        onTap: () {
+                          _pickCustomSound();
+                        },
+                      ),
+                      if (_customSoundFileName != null)
+                        ListTile(
+                          title: TranslatedText(
+                            TranslationKeys.removeCustomSound,
+                            style: TextStyle(color: Colors.red),
+                          ),
+                          trailing: Icon(Icons.delete, color: Colors.red),
+                          onTap: () async {
+                            await _notificationSoundService.setCustomSoundPath(null);
+                            setState(() {
+                              _customSoundFileName = null;
+                              _selectedNotificationSound = NotificationSoundService.defaultSound;
+                            });
+                            await _notificationSoundService.setSelectedSound(NotificationSoundService.defaultSound);
+                          },
+                        ),
+                    ],
+                    SwitchListTile(
+                      title: TranslatedText(
                         TranslationKeys.privateProfile,
                         style: TextStyle(color: AppColors.getTextColor(context)),
                       ),
@@ -2967,6 +3086,176 @@ class _SettingsScreenState extends State<SettingsScreen> {
         }
       }
     }
+  }
+
+  String _getSoundDisplayName(String soundId) {
+    if (soundId == NotificationSoundService.customSound) {
+      return _customSoundFileName ?? TranslationKeys.customSound.tr;
+    }
+    if (soundId == NotificationSoundService.defaultSound) {
+      return TranslationKeys.defaultSound.tr;
+    }
+    // Find the sound in the available sounds list
+    final sound = _availableSounds.firstWhere(
+      (s) => s['id'] == soundId,
+      orElse: () => {'title': TranslationKeys.defaultSound.tr},
+    );
+    return sound['title'] ?? TranslationKeys.defaultSound.tr;
+  }
+
+  Future<void> _pickCustomSound() async {
+    try {
+      FilePickerResult? result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['mp3', 'wav', 'm4a', 'aac', 'ogg'],
+      );
+
+      if (result != null && result.files.single.path != null) {
+        final filePath = result.files.single.path!;
+        final fileName = result.files.single.name;
+        
+        // Copy file to app's documents directory for persistence
+        final appDir = await getApplicationDocumentsDirectory();
+        final soundDir = Directory('${appDir.path}/notification_sounds');
+        if (!await soundDir.exists()) {
+          await soundDir.create(recursive: true);
+        }
+        
+        final savedFile = File('${soundDir.path}/$fileName');
+        final sourceFile = File(filePath);
+        await sourceFile.copy(savedFile.path);
+        
+        // Save the custom sound path
+        await _notificationSoundService.setCustomSoundPath(savedFile.path);
+        
+        setState(() {
+          _customSoundFileName = fileName;
+          _selectedNotificationSound = NotificationSoundService.customSound;
+        });
+        
+        // Play preview
+        await _notificationSoundService.playNotificationSound();
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('${TranslationKeys.customSoundSet.tr}: $fileName'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('${TranslationKeys.errorSelectingSoundFile.tr}: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  void _showSoundSelectionDialog() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          backgroundColor: Colors.grey[900],
+          title: TranslatedText(
+            TranslationKeys.selectSoundEffect,
+            style: TextStyle(color: AppColors.getTextColor(context)),
+          ),
+          content: _isLoadingSounds
+              ? SizedBox(
+                  height: 100,
+                  child: Center(
+                    child: CircularProgressIndicator(
+                      valueColor: AlwaysStoppedAnimation<Color>(Colors.blue),
+                    ),
+                  ),
+                )
+              : SizedBox(
+                  width: double.maxFinite,
+                  child: ListView.builder(
+                    shrinkWrap: true,
+                    itemCount: _availableSounds.length + (user != null && int.tryParse(user!.rank) != null && int.parse(user!.rank) > 1 ? 1 : 0),
+                    itemBuilder: (context, index) {
+                      // Add custom sound option at the end if user has rank > 1
+                      if (user != null && int.tryParse(user!.rank) != null && int.parse(user!.rank) > 1 && index == _availableSounds.length) {
+                        return RadioListTile<String>(
+                          title: Text(
+                            _customSoundFileName ?? TranslationKeys.customSound.tr,
+                            style: TextStyle(color: AppColors.getTextColor(context)),
+                          ),
+                          subtitle: _customSoundFileName != null
+                              ? TranslatedText(
+                                  TranslationKeys.tapToChange,
+                                  style: TextStyle(color: AppColors.getSecondaryTextColor(context), fontSize: 12),
+                                )
+                              : null,
+                          value: NotificationSoundService.customSound,
+                          groupValue: _selectedNotificationSound,
+                          onChanged: (String? value) async {
+                            if (value != null) {
+                              if (_customSoundFileName == null) {
+                                Navigator.of(context).pop();
+                                await _pickCustomSound();
+                              } else {
+                                setState(() {
+                                  _selectedNotificationSound = value;
+                                });
+                                await _notificationSoundService.setSelectedSound(value);
+                                // Play a preview of the selected sound
+                                await _notificationSoundService.playNotificationSound();
+                                Navigator.of(context).pop();
+                              }
+                            }
+                          },
+                          activeColor: Colors.blue,
+                        );
+                      }
+                      
+                      final sound = _availableSounds[index];
+                      final soundId = sound['id'] ?? '';
+                      final soundTitle = sound['title'] ?? 'Unknown';
+                      
+                      return RadioListTile<String>(
+                        title: Text(
+                          soundTitle,
+                          style: TextStyle(color: AppColors.getTextColor(context)),
+                        ),
+                        value: soundId,
+                        groupValue: _selectedNotificationSound,
+                        onChanged: (String? value) async {
+                          if (value != null) {
+                            setState(() {
+                              _selectedNotificationSound = value;
+                            });
+                            await _notificationSoundService.setSelectedSound(value);
+                            // Play a preview of the selected sound
+                            await _notificationSoundService.playNotificationSound();
+                            Navigator.of(context).pop();
+                          }
+                        },
+                        activeColor: Colors.blue,
+                      );
+                    },
+                  ),
+                ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: TranslatedText(
+                TranslationKeys.cancel,
+                style: TextStyle(color: AppColors.getTextColor(context)),
+              ),
+            ),
+          ],
+        );
+      },
+    );
   }
 
 }
