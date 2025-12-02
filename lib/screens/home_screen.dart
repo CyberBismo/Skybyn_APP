@@ -17,6 +17,7 @@ import '../services/firebase_messaging_service.dart';
 import '../services/websocket_service.dart';
 import 'create_post_screen.dart';
 import 'map_screen.dart';
+import 'video_feed_screen.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'dart:io';
@@ -953,12 +954,43 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   Widget _buildHomeContent() {
     return GestureDetector(
       behavior: HitTestBehavior.translucent,
-      onHorizontalDragEnd: (DragEndDetails details) {
+      onHorizontalDragEnd: (DragEndDetails details) async {
         if (details.primaryVelocity == null) return;
         
+        // Check if user is logged in before navigating to video feed
+        final userId = await _authService.getStoredUserId();
+        if (userId == null) return;
+        
+        // Detect right-to-left swipe (swipe left)
+        // Negative velocity means swiping left (right to left)
+        if (details.primaryVelocity! < -500) {
+          // Navigate to video feed screen with slide animation from right
+          Navigator.of(context).push(
+            PageRouteBuilder(
+              pageBuilder: (context, animation, secondaryAnimation) => const VideoFeedScreen(),
+              transitionsBuilder: (context, animation, secondaryAnimation, child) {
+                // Slide in from right (1.0) to center (0.0)
+                const begin = Offset(1.0, 0.0);
+                const end = Offset.zero;
+                const curve = Curves.easeInOutCubic;
+
+                var tween = Tween(begin: begin, end: end).chain(
+                  CurveTween(curve: curve),
+                );
+
+                return SlideTransition(
+                  position: animation.drive(tween),
+                  child: child,
+                );
+              },
+              transitionDuration: const Duration(milliseconds: 250),
+              reverseTransitionDuration: const Duration(milliseconds: 250),
+            ),
+          );
+        }
         // Detect left-to-right swipe (swipe right)
         // Positive velocity means swiping right (left to right)
-        if (details.primaryVelocity! > 500) {
+        else if (details.primaryVelocity! > 500) {
           // Navigate to map screen with slide animation from left
           Navigator.of(context).push(
             PageRouteBuilder(
