@@ -168,9 +168,6 @@ class ChatService {
     required String toUserId,
     required String content,
   }) async {
-    // Track if WebSocket send succeeded (for error handling)
-    bool wsSent = false;
-    
     try {
       final userId = await _authService.getStoredUserId();
       if (userId == null) {
@@ -182,28 +179,7 @@ class ChatService {
         throw Exception('Missing required parameters: userId=${userId.isEmpty ? "empty" : "ok"}, toUserId=${toUserId.isEmpty ? "empty" : "ok"}, message=${content.isEmpty ? "empty" : "ok"}');
       }
 
-      // Step 1: Send message directly via WebSocket for real-time delivery
-      // Generate a temporary message ID (will be updated when API returns real ID)
-      final tempMessageId = 'temp_${DateTime.now().millisecondsSinceEpoch}';
-      
-      if (_webSocketService.isConnected) {
-        try {
-          _webSocketService.sendChatMessage(
-            messageId: tempMessageId,
-            targetUserId: toUserId,
-            content: content,
-          );
-          wsSent = true;
-        } catch (e) {
-          // WebSocket send failed, but continue with API call
-          // Message will be delivered via API's WebSocket notification as fallback
-          if (kDebugMode) {
-            print('WebSocket send failed: $e');
-          }
-        }
-      }
-
-      // Step 2: Store message in database via API (runs in parallel)
+      // Store message in database via API
       // Encrypt the message for API
       final encryptedContent = await _encryptMessage(content);
 
@@ -321,15 +297,9 @@ class ChatService {
       }
       
       // Process normal response
-      // Note: If API fails, message was still sent via WebSocket (if wsSent was true)
-      // The API call is primarily for database persistence
+      // The API call stores the message in the database
       return await _processSendMessageResponse(response, userId, toUserId, content);
     } catch (e) {
-      // If API fails but WebSocket succeeded, message was still delivered in real-time
-      // Re-throw the error so caller can handle it, but message delivery succeeded
-      if (wsSent && kDebugMode) {
-        print('API call failed but message was delivered via WebSocket: $e');
-      }
       rethrow;
     }
   }

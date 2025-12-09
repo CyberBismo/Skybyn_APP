@@ -820,10 +820,10 @@ class WebSocketService {
               debugPrint('🔵 [WebSocket] Chat message received: id=$messageId, from=$fromUserId, to=$toUserId, callbacks=${_onChatMessageCallbacks.length}');
               
               // Show in-app notification if chat screen is not in focus
-              // Only show if the message is for the current user
-              if (_userId != null && toUserId == _userId) {
+              // Only show if the message is for the current user and from someone else
+              if (_userId != null && toUserId == _userId && fromUserId != _userId) {
                 _showInAppChatNotification(fromUserId, message);
-                // Play notification sound when receiving a message
+                // Play notification sound when receiving a message from others (not your own)
                 _notificationSoundService.playNotificationSound();
               }
               

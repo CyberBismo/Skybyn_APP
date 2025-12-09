@@ -4,6 +4,7 @@ import 'dart:async';
 import 'package:http/http.dart' as http;
 import 'package:http/io_client.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import '../models/user.dart';
 import 'device_service.dart';
 import 'firebase_messaging_service.dart';
@@ -11,6 +12,10 @@ import 'translation_service.dart';
 import 'websocket_service.dart';
 import 'background_activity_service.dart';
 import 'navigation_service.dart';
+import 'chat_message_count_service.dart';
+import 'post_service.dart';
+import 'friend_service.dart';
+import 'chat_service.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../config/constants.dart';
 
@@ -269,9 +274,9 @@ class AuthService {
     }
     
     // Reset cached online status on logout
-      _lastKnownOnlineStatus = null;
-      
-      // Online status is now calculated from last_active, no need to update
+    _lastKnownOnlineStatus = null;
+    
+    // Online status is now calculated from last_active, no need to update
 
     // Disconnect WebSocket connection on logout
     try {
@@ -283,7 +288,74 @@ class AuthService {
       // Ignore errors during WebSocket disconnection
     }
 
+    // Clear all caches on logout
+    try {
+      // Clear chat message counts
+      final chatMessageCountService = ChatMessageCountService();
+      await chatMessageCountService.clearAllUnreadCounts();
+    } catch (e) {
+      // Silently fail
+    }
+
+    try {
+      // Clear posts/timeline cache
+      final postService = PostService();
+      await postService.clearTimelineCache();
+    } catch (e) {
+      // Silently fail
+    }
+
+    try {
+      // Clear friends cache
+      final friendService = FriendService();
+      await friendService.clearCache();
+    } catch (e) {
+      // Silently fail
+    }
+
+    try {
+      // Clear all chat message caches
+      final prefs = await SharedPreferences.getInstance();
+      final keys = prefs.getKeys();
+      for (final key in keys) {
+        // Clear chat cache keys (chat_messages_* and chat_timestamp_*)
+        if (key.startsWith('chat_messages_') || key.startsWith('chat_timestamp_')) {
+          await prefs.remove(key);
+        }
+      }
+    } catch (e) {
+      // Silently fail
+    }
+
+    try {
+      // Clear translations cache
+      final translationService = TranslationService();
+      await translationService.clearCache();
+    } catch (e) {
+      // Silently fail
+    }
+
+    try {
+      // Clear image cache (CachedNetworkImage uses flutter_cache_manager)
+      await DefaultCacheManager().emptyCache();
+    } catch (e) {
+      // Silently fail
+    }
+
+    // Clear all SharedPreferences data (user-specific)
     await initPrefs();
+    final keys = _prefs?.getKeys() ?? {};
+    
+    // Clear all keys except system-level preferences
+    // Keep only theme and language preferences (these are device-level, not user-specific)
+    final keysToKeep = {'theme_mode', 'language'};
+    for (final key in keys) {
+      if (!keysToKeep.contains(key)) {
+        await _prefs?.remove(key);
+      }
+    }
+    
+    // Also explicitly remove user-specific keys (in case they weren't caught above)
     await _prefs?.remove(userIdKey);
     await _prefs?.remove(userProfileKey);
     await _prefs?.remove(usernameKey);

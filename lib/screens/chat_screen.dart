@@ -283,6 +283,11 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
       return; // Can't check if we don't have messages or user ID
     }
     
+    // Skip periodic check if WebSocket is connected (WebSocket handles real-time updates)
+    if (_webSocketService.isConnected) {
+      return; // WebSocket is handling real-time updates, no need for periodic check
+    }
+    
     try {
       // Get the latest message timestamp
       final latestMessage = _messages.last;
@@ -306,11 +311,10 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
           final trulyNewMessages = newMessages.where((msg) => !existingIds.contains(msg.id)).toList();
           
           if (trulyNewMessages.isNotEmpty) {
-            // Add new messages to the list
-            setState(() {
-              _messages.addAll(trulyNewMessages);
-              _messages.sort((a, b) => a.date.compareTo(b.date));
-            });
+            // Use the helper method to add messages safely (double-check for duplicates)
+            for (final msg in trulyNewMessages) {
+              _addMessageIfNotExists(msg);
+            }
             // Scroll to bottom if user is at the bottom
             if (_scrollController.hasClients) {
               final isAtBottom = _scrollController.position.pixels >= 
@@ -406,6 +410,16 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
   }
 
   void _setupWebSocketListener() {
+    // Remove any existing callbacks first to prevent duplicates
+    if (_webSocketChatMessageCallback != null) {
+      _webSocketService.removeChatMessageCallback(_webSocketChatMessageCallback!);
+      _webSocketChatMessageCallback = null;
+    }
+    if (_webSocketOnlineStatusCallback != null) {
+      _webSocketService.removeOnlineStatusCallback(_webSocketOnlineStatusCallback!);
+      _webSocketOnlineStatusCallback = null;
+    }
+    
     // Set up Firebase real-time listeners for chat (fallback)
     // Set up online status listener for the friend
     _onlineStatusSubscription = _firebaseRealtimeService.setupOnlineStatusListener(
@@ -531,17 +545,36 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
 
   // Handle incoming chat message (extracted for reuse)
   /// Helper method to safely add a message, preventing duplicates
+  /// This method is thread-safe and checks for duplicates by message ID
   void _addMessageIfNotExists(Message message) {
-    final existingIndex = _messages.indexWhere((m) => m.id == message.id);
-    if (existingIndex == -1) {
-      setState(() {
-        _messages.add(message);
-        _messages.sort((a, b) => a.date.compareTo(b.date));
-      });
-      debugPrint('🟢 [ChatScreen] Message ${message.id} added. Total: ${_messages.length}');
-    } else {
-      debugPrint('🟢 [ChatScreen] Message ${message.id} already exists, skipping duplicate');
+    // Double-check for duplicates - check both by ID and by content+timestamp to be extra safe
+    final existingById = _messages.indexWhere((m) => m.id == message.id);
+    if (existingById != -1) {
+      debugPrint('🟢 [ChatScreen] Message ${message.id} already exists (by ID), skipping duplicate');
+      return;
     }
+    
+    // Additional check: if message ID is empty or invalid, check by content and timestamp
+    // This prevents duplicates from messages with missing IDs
+    if (message.id.isEmpty) {
+      final existingByContent = _messages.indexWhere((m) => 
+        m.content == message.content && 
+        m.from == message.from && 
+        m.to == message.to &&
+        (m.date.difference(message.date).inSeconds.abs() < 2) // Within 2 seconds
+      );
+      if (existingByContent != -1) {
+        debugPrint('🟢 [ChatScreen] Message already exists (by content+timestamp), skipping duplicate');
+        return;
+      }
+    }
+    
+    // Message doesn't exist, add it
+    setState(() {
+      _messages.add(message);
+      _messages.sort((a, b) => a.date.compareTo(b.date));
+    });
+    debugPrint('🟢 [ChatScreen] Message ${message.id} added. Total: ${_messages.length}');
   }
 
   void _handleIncomingChatMessage(String messageId, String fromUserId, String toUserId, String message) {
@@ -562,10 +595,9 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
       return; // Not for this chat
     }
     
-    // If we're the sender, check if this is an optimistic message (temp ID) that needs updating
-    // OR if it's a message sent from another device that needs to be added
+    // If we're the sender, check if message already exists (sent from another device)
     if (fromUserId == _currentUserId) {
-      // First, check if message already exists with this ID (sent from another device)
+      // Check if message already exists with this ID
       final existingMessageIndex = _messages.indexWhere((m) => m.id == messageId);
       if (existingMessageIndex != -1) {
         // Message already exists, don't add duplicate
@@ -573,58 +605,24 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
         return;
       }
       
-      // Check if there's a temp message (optimistic UI) that matches this message
-      final tempMessageIndex = _messages.indexWhere((m) => 
-        m.id.startsWith('temp_') && 
-        m.from == fromUserId && 
-        m.to == toUserId &&
-        m.content == message
+      // This was sent from another device (website/other app instance)
+      // Add it to the list so it appears on this device
+      debugPrint('🟢 [ChatScreen] Message from self (other device) - adding to list');
+      final newMessage = Message(
+        id: messageId,
+        from: fromUserId,
+        to: toUserId,
+        content: message,
+        date: DateTime.now(),
+        viewed: false,
+        isFromMe: true,
       );
-      
-      if (tempMessageIndex != -1) {
-        // Update temp message with real ID (message sent from this device)
-        debugPrint('🟢 [ChatScreen] Updating temp message with real ID');
-        if (mounted) {
-          setState(() {
-            _messages[tempMessageIndex] = Message(
-              id: messageId,
-              from: _messages[tempMessageIndex].from,
-              to: _messages[tempMessageIndex].to,
-              content: _messages[tempMessageIndex].content,
-              date: _messages[tempMessageIndex].date,
-              viewed: _messages[tempMessageIndex].viewed,
-              isFromMe: true,
-            );
-          });
-        }
-        return; // Don't add duplicate - message already displayed
-      } else {
-        // No temp message found - this was sent from another device (website/other app instance)
-        // Add it to the list so it appears on this device
-        // Double-check it doesn't already exist (prevent duplicates)
-        final duplicateCheck = _messages.indexWhere((m) => m.id == messageId);
-        if (duplicateCheck != -1) {
-          debugPrint('🟢 [ChatScreen] Message from self already exists (duplicate check), skipping');
-          return;
-        }
-        
-        debugPrint('🟢 [ChatScreen] Message from self (other device) - adding to list');
-        final newMessage = Message(
-          id: messageId,
-          from: fromUserId,
-          to: toUserId,
-          content: message,
-          date: DateTime.now(),
-          viewed: false,
-          isFromMe: true,
-        );
-        if (mounted) {
-          _addMessageIfNotExists(newMessage);
-          // Scroll to bottom to show the new message
-          _scrollToBottom();
-        }
-        return; // Message added, don't process as recipient message
+      if (mounted) {
+        _addMessageIfNotExists(newMessage);
+        // Scroll to bottom to show the new message
+        _scrollToBottom();
       }
+      return; // Message added, don't process as recipient message
     }
     
     // We're the recipient - check if message already exists
@@ -687,22 +685,8 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
     });
 
     try {
-      // Optimistically add message to UI
-      final tempMessage = Message(
-        id: 'temp_${DateTime.now().millisecondsSinceEpoch}',
-        from: _currentUserId ?? '',
-        to: widget.friend.id,
-        content: message,
-        date: DateTime.now(),
-        viewed: false,
-        isFromMe: true,
-      );
-
-      setState(() {
-        _messages.add(tempMessage);
-      });
+      // Clear input field
       _messageController.clear();
-      _scrollToBottom();
       
       // Keep keyboard open by maintaining focus
       if (mounted && _messageFocusNode.hasFocus) {
@@ -735,11 +719,8 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
       }
 
       if (sentMessage != null && mounted) {
-        // Replace temp message with real one
-        setState(() {
-          _messages.removeWhere((m) => m.id == tempMessage.id);
-        });
-        // Use helper method to add message (prevents duplicates)
+        // Add message to UI (check for duplicates first - might have been added via WebSocket already)
+        // Use the helper method which checks for duplicates by ID
         _addMessageIfNotExists(sentMessage);
         // Scroll to bottom to show the sent message
         _scrollToBottom();
@@ -780,14 +761,11 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
           // Don't fail the send - message was already saved via HTTP API
         }
       } else {
-        // sentMessage is null or not mounted - remove temp message and reset
+        // sentMessage is null or not mounted - reset sending state
         if (mounted) {
           setState(() {
-            _messages.removeWhere((m) => m.id == tempMessage.id);
-            _isSending = false; // Always reset _isSending
+            _isSending = false;
           });
-        } else {
-          // Not mounted, but still need to reset _isSending (finally will handle it, but reset here too for safety)
         }
       }
     } catch (e) {
@@ -807,12 +785,6 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
           lowerError.contains('already sent');
       if (isConflict) {
         // Message might have been sent - try to refresh messages
-        // Remove temp message since it might have been sent
-        setState(() {
-          _messages.removeWhere((m) => m.id.startsWith('temp_'));
-        });
-        
-        // Refresh messages to check if it was sent
         _refreshMessages();
         
         // Show a less alarming message (orange instead of red)
@@ -833,11 +805,6 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
         }
         return;
       }
-      
-      // Remove temp message on error
-      setState(() {
-        _messages.removeWhere((m) => m.id.startsWith('temp_'));
-      });
       
       // Provide user-friendly error messages
       String userFriendlyMessage = errorMessage;

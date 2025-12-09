@@ -71,8 +71,8 @@ android {
         applicationId "no.skybyn.app"
         // minSdk 21 = Android 5.0 (Lollipop) - supports ~99% of active Android devices
         minSdkVersion flutter.minSdkVersion
-        // targetSdk 34 = Android 14 - stable version for optimal compatibility
-        targetSdkVersion 34
+        // targetSdk 36 = Android 16 - updated to match compileSdk for latest compatibility
+        targetSdkVersion 36
         versionCode flutterVersionCode.toInteger()
         versionName flutterVersionName
         
@@ -161,13 +161,13 @@ android {
             enable false
         }
     }
-    
-    // Lint options to prevent build failures
-    lintOptions {
-        checkReleaseBuilds false
+    lint {
         abortOnError false
+        checkReleaseBuilds false
     }
-    
+
+    // Lint options to prevent build failures
+
 }
 
 flutter {
@@ -214,7 +214,7 @@ afterEvaluate {
 
 dependencies {
     implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version"
-    implementation platform('com.google.firebase:firebase-bom:32.7.2')
+    implementation platform('com.google.firebase:firebase-bom:33.7.0')
     implementation 'com.google.firebase:firebase-messaging'
     implementation 'com.google.firebase:firebase-analytics'
     coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.1.4'

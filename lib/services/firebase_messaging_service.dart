@@ -142,27 +142,38 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
       // This handler only runs when app is in BACKGROUND (not terminated).
       // 
       // For terminated apps: FCM automatically shows the notification from the 'notification' field.
-      // For background apps: This handler shows a local notification as a fallback/backup.
+      // For background apps: 
+      // - If notification has 'notification' field: FCM will show it automatically, don't show duplicate
+      // - If notification is data-only: Show local notification to ensure it's displayed
       // 
-      // Always show local notification in background handler (when app is in background):
-      // 1. App is in background - ensures notification is shown even if FCM notification fails
-      // 2. Data-only messages - extracts title/body from data payload
-      // Note: When app is terminated, FCM will automatically show the notification from the notification field
-      try {
-        await notificationService.showNotification(
-          title: title, 
-          body: body, 
-          payload: payload
-        );
-        if (type == 'chat') {
-          _logChat('FCM Background Chat', 'Local notification shown successfully');
+      // Only show local notification if FCM won't show it automatically (data-only messages)
+      final hasNotificationPayload = message.notification != null && 
+                                     message.notification!.title != null && 
+                                     message.notification!.title!.isNotEmpty;
+      
+      if (!hasNotificationPayload) {
+        // Data-only message - FCM won't show it automatically, so we need to show local notification
+        try {
+          await notificationService.showNotification(
+            title: title, 
+            body: body, 
+            payload: payload
+          );
+          if (type == 'chat') {
+            _logChat('FCM Background Chat', 'Local notification shown (data-only message)');
+          }
+        } catch (e) {
+          if (type == 'chat') {
+            _logChat('FCM Background Chat', 'Failed to show local notification: $e');
+          }
+          // Don't rethrow - log the error but continue execution
         }
-      } catch (e) {
+      } else {
+        // Notification has 'notification' field - FCM will show it automatically
+        // Don't show duplicate local notification
         if (type == 'chat') {
-          _logChat('FCM Background Chat', 'Failed to show local notification: $e');
+          _logChat('FCM Background Chat', 'Skipping local notification - FCM will show it automatically (has notification payload)');
         }
-        // Don't rethrow - if local notification fails, FCM may still show the notification from the notification field
-        // Log the error but continue execution
       }
     }
   } catch (e, stackTrace) {

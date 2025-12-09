@@ -645,7 +645,14 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         print('[SKYBYN]    Current UserId: ${currentUserId ?? "null"}');
         
         // Only increment badge if message is for current user and from someone else
-        if (currentUserId != null && toUserId == currentUserId && fromUserId != currentUserId) {
+        if (currentUserId == null) {
+          print('[SKYBYN] ⏭️ [Main Chat Listener] Skipping - current user ID is null');
+        } else if (toUserId != currentUserId) {
+          print('[SKYBYN] ⏭️ [Main Chat Listener] Skipping - message not for current user (To: $toUserId, Current: $currentUserId)');
+        } else if (fromUserId == currentUserId) {
+          print('[SKYBYN] ⏭️ [Main Chat Listener] Skipping - message from self (From: $fromUserId, Current: $currentUserId)');
+        } else {
+          // Message is for current user and from someone else - process it
           print('[SKYBYN] 🔵 [Main Chat Listener] Incrementing unread count for: $fromUserId');
           // Increment unread count for this friend (with messageId and messageContent to prevent duplicates)
           final wasIncremented = await _chatMessageCountService.incrementUnreadCount(
@@ -658,11 +665,24 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
             
             // Only show notification if chat screen for this friend is NOT currently open
             if (!_chatMessageCountService.isChatOpenForFriend(fromUserId)) {
-              // Check if app is in foreground - only show system notification if app is in background
-              // If app is in foreground, WebSocket service will show in-app notification
-              final isAppInForeground = WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed;
+              // Only show system notification if app is in background or closed
+              // If app is in foreground, in-app notifications will be shown instead
+              final appLifecycleState = WidgetsBinding.instance.lifecycleState;
+              final isAppInForeground = appLifecycleState == AppLifecycleState.resumed;
+              
+              // Debug logging for lifecycle state
+              print('[SKYBYN] 📱 [Main Chat Listener] App Lifecycle State: $appLifecycleState');
+              print('[SKYBYN]    Is Foreground (resumed): $isAppInForeground');
+              print('[SKYBYN]    State breakdown:');
+              print('[SKYBYN]      - resumed: ${appLifecycleState == AppLifecycleState.resumed}');
+              print('[SKYBYN]      - paused: ${appLifecycleState == AppLifecycleState.paused}');
+              print('[SKYBYN]      - inactive: ${appLifecycleState == AppLifecycleState.inactive}');
+              print('[SKYBYN]      - hidden: ${appLifecycleState == AppLifecycleState.hidden}');
+              print('[SKYBYN]      - detached: ${appLifecycleState == AppLifecycleState.detached}');
+              
               if (!isAppInForeground) {
-                // App is in background - show system notification only
+                // App is in background or closed - show system notification
+                print('[SKYBYN] 🔔 [Main Chat Listener] App is NOT in foreground - will show system notification');
                 try {
                   // Get friend's name for notification
                   final friendService = FriendService();
@@ -695,7 +715,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
                   print('[SKYBYN] ⚠️ [Main Chat Listener] Failed to show notification: $e');
                 }
               } else {
-                print('[SKYBYN] ⏭️ [Main Chat Listener] Skipping system notification - app is in foreground (WebSocket will show in-app notification)');
+                print('[SKYBYN] ⏭️ [Main Chat Listener] App is in foreground (resumed) - skipping system notification (in-app notification will be shown)');
               }
             } else {
               print('[SKYBYN] ⏭️ [Main Chat Listener] Skipping notification - chat screen is open for this friend');
@@ -703,8 +723,6 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
           } else {
             print('[SKYBYN] ⏭️ [Main Chat Listener] Skipped (duplicate message)');
           }
-        } else {
-          print('[SKYBYN] ⏭️ [Main Chat Listener] Skipping (not for current user or from self)');
         }
       },
     );
@@ -733,8 +751,15 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         print('[SKYBYN]    Current UserId: ${currentUserId ?? "null"}');
         
         // Only increment badge if message is for current user and from someone else
-        if (currentUserId != null && toUserId == currentUserId && fromUserId != currentUserId) {
-          print('[SKYBYN] 🔵 [Main Chat Listener] Incrementing unread count for: $fromUserId');
+        if (currentUserId == null) {
+          print('[SKYBYN] ⏭️ [Main Chat Listener] Skipping - current user ID is null (Firebase)');
+        } else if (toUserId != currentUserId) {
+          print('[SKYBYN] ⏭️ [Main Chat Listener] Skipping - message not for current user (To: $toUserId, Current: $currentUserId, Firebase)');
+        } else if (fromUserId == currentUserId) {
+          print('[SKYBYN] ⏭️ [Main Chat Listener] Skipping - message from self (From: $fromUserId, Current: $currentUserId, Firebase)');
+        } else {
+          // Message is for current user and from someone else - process it
+          print('[SKYBYN] 🔵 [Main Chat Listener] Incrementing unread count for: $fromUserId (Firebase)');
           // Increment unread count for this friend (with messageId and messageContent to prevent duplicates)
           final wasIncremented = await _chatMessageCountService.incrementUnreadCount(
             fromUserId, 
@@ -746,37 +771,57 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
             
             // Only show notification if chat screen for this friend is NOT currently open
             if (!_chatMessageCountService.isChatOpenForFriend(fromUserId)) {
-              // Show notification for new message
-              try {
-                // Get friend's name for notification
-                final friendService = FriendService();
-                final friends = await friendService.fetchFriendsForUser(userId: currentUserId);
-                final friend = friends.firstWhere(
-                  (f) => f.id == fromUserId,
-                  orElse: () => Friend(
-                    id: fromUserId,
-                    username: fromUserId,
-                    nickname: fromUserId,
-                    avatar: '',
-                    online: false,
-                  ),
-                );
-                
-                final friendName = friend.nickname.isNotEmpty ? friend.nickname : friend.username;
-                
-                await _notificationService.showNotification(
-                  title: friendName,
-                  body: message,
-                  payload: jsonEncode({
-                    'type': 'chat',
-                    'from': fromUserId,
-                    'messageId': messageId,
-                    'to': currentUserId,
-                  }),
-                );
-                print('[SKYBYN] ✅ [Main Chat Listener] Notification shown for message from $friendName');
-              } catch (e) {
-                print('[SKYBYN] ⚠️ [Main Chat Listener] Failed to show notification: $e');
+              // Only show system notification if app is in background or closed
+              // If app is in foreground, in-app notifications will be shown instead
+              final appLifecycleState = WidgetsBinding.instance.lifecycleState;
+              final isAppInForeground = appLifecycleState == AppLifecycleState.resumed;
+              
+              // Debug logging for lifecycle state (Firebase fallback)
+              print('[SKYBYN] 📱 [Main Chat Listener] App Lifecycle State (Firebase): $appLifecycleState');
+              print('[SKYBYN]    Is Foreground (resumed): $isAppInForeground');
+              print('[SKYBYN]    State breakdown:');
+              print('[SKYBYN]      - resumed: ${appLifecycleState == AppLifecycleState.resumed}');
+              print('[SKYBYN]      - paused: ${appLifecycleState == AppLifecycleState.paused}');
+              print('[SKYBYN]      - inactive: ${appLifecycleState == AppLifecycleState.inactive}');
+              print('[SKYBYN]      - hidden: ${appLifecycleState == AppLifecycleState.hidden}');
+              print('[SKYBYN]      - detached: ${appLifecycleState == AppLifecycleState.detached}');
+              
+              if (!isAppInForeground) {
+                // App is in background or closed - show system notification
+                print('[SKYBYN] 🔔 [Main Chat Listener] App is NOT in foreground (Firebase) - will show system notification');
+                try {
+                  // Get friend's name for notification
+                  final friendService = FriendService();
+                  final friends = await friendService.fetchFriendsForUser(userId: currentUserId);
+                  final friend = friends.firstWhere(
+                    (f) => f.id == fromUserId,
+                    orElse: () => Friend(
+                      id: fromUserId,
+                      username: fromUserId,
+                      nickname: fromUserId,
+                      avatar: '',
+                      online: false,
+                    ),
+                  );
+                  
+                  final friendName = friend.nickname.isNotEmpty ? friend.nickname : friend.username;
+                  
+                  await _notificationService.showNotification(
+                    title: friendName,
+                    body: message,
+                    payload: jsonEncode({
+                      'type': 'chat',
+                      'from': fromUserId,
+                      'messageId': messageId,
+                      'to': currentUserId,
+                    }),
+                  );
+                  print('[SKYBYN] ✅ [Main Chat Listener] System notification shown for message from $friendName (app in background, Firebase fallback)');
+                } catch (e) {
+                  print('[SKYBYN] ⚠️ [Main Chat Listener] Failed to show notification: $e');
+                }
+              } else {
+                print('[SKYBYN] ⏭️ [Main Chat Listener] App is in foreground (resumed) - skipping system notification (in-app notification will be shown, Firebase fallback)');
               }
             } else {
               print('[SKYBYN] ⏭️ [Main Chat Listener] Skipping notification - chat screen is open for this friend');
@@ -784,8 +829,6 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
           } else {
             print('[SKYBYN] ⏭️ [Main Chat Listener] Skipped (duplicate message)');
           }
-        } else {
-          print('[SKYBYN] ⏭️ [Main Chat Listener] Skipping (not for current user or from self)');
         }
       },
     );

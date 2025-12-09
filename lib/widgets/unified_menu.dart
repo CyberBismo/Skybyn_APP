@@ -245,25 +245,27 @@ class UnifiedMenu {
                       width: 24.0,
                       height: 24.0,
                       fit: BoxFit.cover,
-                      placeholder: (context, url) => Container(
-                        color: Colors.white.withOpacity(0.1),
-                        child: const Icon(
-                          Icons.person,
-                          color: Colors.white,
-                          size: 16.0,
-                        ),
+                      placeholder: (context, url) => Image.asset(
+                        'assets/images/icon.png',
+                        width: 24.0,
+                        height: 24.0,
+                        fit: BoxFit.cover,
                       ),
-                      errorWidget: (context, url, error) => const Icon(
-                        Icons.person,
-                        color: Colors.white,
-                        size: 16.0,
+                      errorWidget: (context, url, error) => Image.asset(
+                        'assets/images/icon.png',
+                        width: 24.0,
+                        height: 24.0,
+                        fit: BoxFit.cover,
                       ),
                     ),
                   )
-                : const Icon(
-                    Icons.person,
-                    color: Colors.white,
-                    size: 16.0,
+                : ClipOval(
+                    child: Image.asset(
+                      'assets/images/icon.png',
+                      width: 24.0,
+                      height: 24.0,
+                      fit: BoxFit.cover,
+                    ),
                   ),
           );
         },

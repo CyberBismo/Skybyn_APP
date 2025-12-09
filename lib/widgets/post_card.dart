@@ -1125,12 +1125,45 @@ class _PostCardState extends State<PostCard> {
     final now = DateTime.now();
     final diff = now.difference(dateTime);
     final translationService = TranslationService();
-    if (diff.inMinutes < 60) {
-      return '${diff.inMinutes} ${translationService.translate(TranslationKeys.minutesAgo)}';
-    } else if (diff.inHours < 24) {
-      return '${diff.inHours} ${translationService.translate(TranslationKeys.hoursAgo)}';
-    } else {
-      return '${diff.inDays} ${translationService.translate(TranslationKeys.daysAgo)}';
+    
+    // Handle negative differences (future dates) - shouldn't happen but handle gracefully
+    if (diff.isNegative) {
+      return translationService.translate(TranslationKeys.justNow);
+    }
+    
+    // Less than 1 minute - show "Just now"
+    if (diff.inSeconds < 60) {
+      return translationService.translate(TranslationKeys.justNow);
+    }
+    // Less than 1 hour - show minutes
+    else if (diff.inMinutes < 60) {
+      final minutes = diff.inMinutes;
+      return '$minutes ${translationService.translate(TranslationKeys.minutesAgo)}';
+    }
+    // Less than 24 hours - show hours
+    else if (diff.inHours < 24) {
+      final hours = diff.inHours;
+      return '$hours ${translationService.translate(TranslationKeys.hoursAgo)}';
+    }
+    // Less than 7 days - show days
+    else if (diff.inDays < 7) {
+      final days = diff.inDays;
+      return '$days ${translationService.translate(TranslationKeys.daysAgo)}';
+    }
+    // Less than 30 days - show weeks
+    else if (diff.inDays < 30) {
+      final weeks = (diff.inDays / 7).floor();
+      return '$weeks ${weeks == 1 ? 'week' : 'weeks'} ago';
+    }
+    // Less than 365 days - show months
+    else if (diff.inDays < 365) {
+      final months = (diff.inDays / 30).floor();
+      return '$months ${months == 1 ? 'month' : 'months'} ago';
+    }
+    // More than 365 days - show years
+    else {
+      final years = (diff.inDays / 365).floor();
+      return '$years ${years == 1 ? 'year' : 'years'} ago';
     }
   }
 

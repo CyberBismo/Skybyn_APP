@@ -85,13 +85,21 @@ class Post {
         try {
           return DateTime.parse(value).toLocal();
         } catch (e) {
-          // Priority 3: Handle old custom format "d M. y H:i:s"
+          // Priority 3: Handle PHP date format "d M. y H:i:s" (e.g., "15 Nov. 24 14:30:00")
+          // PHP's 'd' always has leading zero (01-31), so we use 'dd' in DateFormat
+          // PHP's 'M' produces abbreviated month (Jan-Dec), which matches 'MMM' in DateFormat
           try {
-            final format = DateFormat('d MMM. yy HH:mm:ss', 'en_US');
+            final format = DateFormat('dd MMM. yy HH:mm:ss', 'en_US');
             return format.parse(value, true).toLocal();
           } catch (e2) {
-            // If all parsing fails, return current time
-            return DateTime.now();
+            // Try without leading zero for day (in case format varies)
+            try {
+              final format2 = DateFormat('d MMM. yy HH:mm:ss', 'en_US');
+              return format2.parse(value, true).toLocal();
+            } catch (e3) {
+              // If all parsing fails, return current time
+              return DateTime.now();
+            }
           }
         }
       }

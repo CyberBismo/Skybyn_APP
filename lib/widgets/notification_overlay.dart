@@ -294,9 +294,19 @@ class _NotificationOverlayState extends State<NotificationOverlayContent> {
 
   String _formatDate(int timestamp) {
     if (timestamp == 0) return '';
-    final date = DateTime.fromMillisecondsSinceEpoch(timestamp * 1000);
+    
+    // Handle both seconds and milliseconds timestamps
+    final date = timestamp > 1000000000000 
+        ? DateTime.fromMillisecondsSinceEpoch(timestamp, isUtc: true).toLocal()
+        : DateTime.fromMillisecondsSinceEpoch(timestamp * 1000, isUtc: true).toLocal();
+    
     final now = DateTime.now();
     final difference = now.difference(date);
+
+    // Handle negative differences (future dates) - shouldn't happen but handle gracefully
+    if (difference.isNegative) {
+      return 'Just now';
+    }
 
     if (difference.inDays > 7) {
       return DateFormat('MMM d, y').format(date);
