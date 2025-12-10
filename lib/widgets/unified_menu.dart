@@ -54,8 +54,18 @@ class UnifiedMenu {
   }) {
     return _createMenuButton(
       context: context,
-      onTap: () {
+      onTap: () async {
         final bool isAuthor = currentUserId == postUserId;
+        
+        // Check user rank for admin access
+        final authService = AuthService();
+        final user = await authService.getStoredUserProfile();
+        final userRank = user?.rank != null ? int.tryParse(user!.rank) : 0;
+        final isAdmin = userRank != null && userRank > 5;
+        
+        final bool canDelete = isAuthor || isAdmin;
+        final bool canEdit = isAuthor; // Only author can edit
+        
         final List<MenuItem> items = [
           MenuItem(
             icon: Icons.share,
@@ -69,20 +79,25 @@ class UnifiedMenu {
           ),
         ];
 
-        if (isAuthor) {
-          items.addAll([
+        if (canEdit) {
+          items.add(
             MenuItem(
               icon: Icons.edit,
               translationKey: TranslationKeys.edit,
               onTap: onEdit,
             ),
+          );
+        }
+        
+        if (canDelete) {
+          items.add(
             MenuItem(
               icon: Icons.delete_outline,
               translationKey: TranslationKeys.delete,
               onTap: onDelete,
               isDestructive: true,
             ),
-          ]);
+          );
         }
 
         _showMenu(context, items, position: 'right');
@@ -98,26 +113,37 @@ class UnifiedMenu {
     required String commentUserId,
     required VoidCallback onDelete,
   }) {
-    // Only show menu button if the comment belongs to the current user
-    if (currentUserId == null || currentUserId != commentUserId) {
-      return const SizedBox.shrink();
-    }
+    return FutureBuilder(
+      future: AuthService().getStoredUserProfile(),
+      builder: (context, snapshot) {
+        final user = snapshot.data;
+        final userRank = user?.rank != null ? int.tryParse(user!.rank) : 0;
+        final isAdmin = userRank != null && userRank > 5;
+        final bool isAuthor = currentUserId == commentUserId;
+        final bool canDelete = isAuthor || isAdmin;
+        
+        // Only show menu button if user can delete (owns comment or has rank > 5)
+        if (currentUserId == null || !canDelete) {
+          return const SizedBox.shrink();
+        }
 
-    return _createMenuButton(
-      context: context,
-      onTap: () {
-        final List<MenuItem> items = [
-          MenuItem(
-            icon: Icons.delete_outline,
-            translationKey: TranslationKeys.delete,
-            onTap: onDelete,
-            isDestructive: true,
-          ),
-        ];
+        return _createMenuButton(
+          context: context,
+          onTap: () {
+            final List<MenuItem> items = [
+              MenuItem(
+                icon: Icons.delete_outline,
+                translationKey: TranslationKeys.delete,
+                onTap: onDelete,
+                isDestructive: true,
+              ),
+            ];
 
-        _showMenu(context, items, position: 'left');
+            _showMenu(context, items, position: 'left');
+          },
+          iconSize: 16,
+        );
       },
-      iconSize: 16,
     );
   }
 

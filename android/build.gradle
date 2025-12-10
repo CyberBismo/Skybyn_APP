@@ -119,7 +119,7 @@ subprojects {
 // Compatibility FlutterExtension for plugins that need it
 // This provides the properties that plugins expect from android.flutter
 class FlutterExtensionCompat {
-    def minSdkVersion = 21
+    def minSdkVersion = 26  // Android 8.0+ for smaller APK size (reduces APK by removing desugaring)
     def compileSdkVersion = 36
     def targetSdkVersion = 36
     

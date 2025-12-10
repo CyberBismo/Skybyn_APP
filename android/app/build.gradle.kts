@@ -15,7 +15,8 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
-        isCoreLibraryDesugaringEnabled = true
+        // Desugaring not needed for minSdk 26+ (Android 8.0+)
+        isCoreLibraryDesugaringEnabled = false
     }
 
     kotlinOptions {
@@ -27,8 +28,9 @@ android {
         applicationId = "no.skybyn.app"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
-        // minSdk 21 = Android 5.0 (Lollipop) - supports ~99% of active Android devices
-        minSdk = 21
+        // minSdk 26 = Android 8.0 (Oreo) - reduces APK size by removing desugaring and compatibility libraries
+        // Still covers ~95%+ of active Android devices
+        minSdk = 26
         // targetSdk 36 = Android 16 - updated to match compileSdk for latest compatibility
         targetSdk = 36
         versionCode = flutter.versionCode
@@ -117,8 +119,22 @@ android {
     }
 }
 
+// Global configuration to exclude conflicting Play Core dependencies
+configurations.all {
+    exclude(group = "com.google.android.play", module = "core-common")
+}
+
 dependencies {
-    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
+    // Firebase BOM for version management
+    implementation(platform("com.google.firebase:firebase-bom:33.7.0"))
+    // Firebase KTX for app distribution (required by firebase_app_distribution plugin)
+    // firebase-common-ktx provides the base Firebase KTX class
+    implementation("com.google.firebase:firebase-common-ktx")
+    // Play Core library for Flutter deferred components (referenced by Flutter engine)
+    // This is required to prevent R8 errors when minifyEnabled is true
+    implementation("com.google.android.play:core:1.10.3")
+    // Desugaring not needed for minSdk 26+ (Android 8.0+)
+    // coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
 }
 
 flutter {
