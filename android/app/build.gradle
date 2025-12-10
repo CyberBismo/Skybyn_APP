@@ -136,11 +136,11 @@ android {
                 // Keystore properties not configured, fallback to debug signing
                 signingConfig signingConfigs.debug
             }
-            // Enable code shrinking for smaller APK size
-            // Note: Test thoroughly after enabling as it may break reflection-based code
-            minifyEnabled false  // Set to true after testing
-            shrinkResources false  // Set to true after testing
-            // proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            // Enable code shrinking for smaller APK size (only for release builds)
+            // Note: Test thoroughly as it may break reflection-based code
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
             debuggable false
         }
     }
