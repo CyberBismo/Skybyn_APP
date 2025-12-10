@@ -34,9 +34,11 @@ android {
         versionCode = flutter.versionCode
         versionName = flutter.versionName
         
-        // Support all Android architectures for universal device compatibility
+        // Support only ARM architectures (covers 99%+ of devices)
+        // x86/x86_64 are mainly for emulators and very old devices
+        // Removing them reduces APK size by ~50%
         ndk {
-            abiFilters += listOf("armeabi-v7a", "arm64-v8a", "x86", "x86_64")
+            abiFilters += listOf("armeabi-v7a", "arm64-v8a")
         }
     }
 
