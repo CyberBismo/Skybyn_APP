@@ -61,16 +61,12 @@ class _LoginScreenState extends State<LoginScreen> {
       if (response['responseCode'] == '1') {
         if (mounted) {
           // Show login success notification
+          // Note: Permissions are requested in auth_service.dart after login
           try {
             final notificationService = NotificationService();
-            await notificationService.requestPermissions();
 
             // Check if notifications are enabled
-            final isEnabled = await notificationService.areNotificationsEnabled();
-            // For iOS, check notification status
-            if (Platform.isIOS) {
-              await notificationService.checkIOSNotificationStatus();
-            }
+            final isEnabled = await notificationService.hasNotificationPermission();
 
             if (isEnabled) {
               // Show system notification for login success

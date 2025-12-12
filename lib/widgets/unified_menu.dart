@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:ui';
+import 'dart:developer' as developer;
 import 'package:cached_network_image/cached_network_image.dart';
 import '../screens/home_screen.dart';
 import '../screens/profile_screen.dart';
@@ -12,6 +13,7 @@ import '../utils/navigation_helper.dart';
 import '../services/translation_service.dart';
 import '../services/auth_service.dart';
 import '../config/constants.dart';
+import '../config/constants.dart' show UrlHelper, AvatarCacheManager;
 
 /// Menu item definition
 class MenuItem {
@@ -32,6 +34,9 @@ class MenuItem {
 class UnifiedMenu {
   static OverlayEntry? _currentOverlayEntry;
   
+  // Cache the user profile future to prevent FutureBuilder from restarting on rebuilds
+  static Future<dynamic>? _cachedUserProfileFuture;
+  
   static bool get isMenuOpen => _currentOverlayEntry != null;
   
   static void closeCurrentMenu() {
@@ -39,6 +44,11 @@ class UnifiedMenu {
       _currentOverlayEntry?.remove();
       _currentOverlayEntry = null;
     }
+  }
+  
+  /// Clear cached user profile (call when user logs out or profile is updated)
+  static void clearUserProfileCache() {
+    _cachedUserProfileFuture = null;
   }
 
   /// Create a menu button for posts
@@ -253,7 +263,7 @@ class UnifiedMenu {
         }
       },
       child: FutureBuilder(
-        future: AuthService().getStoredUserProfile(),
+        future: _cachedUserProfileFuture ??= AuthService().getStoredUserProfile(),
         builder: (context, snapshot) {
           final user = snapshot.data;
           final avatarUrl = user?.avatar ?? '';
@@ -267,22 +277,35 @@ class UnifiedMenu {
             child: hasAvatar
                 ? ClipOval(
                     child: CachedNetworkImage(
+                      key: ValueKey(avatarUrl), // Stable key based on original URL
                       imageUrl: UrlHelper.convertUrl(avatarUrl),
                       width: 24.0,
                       height: 24.0,
                       fit: BoxFit.cover,
+                      httpHeaders: UrlHelper.imageHeaders,
+                      cacheManager: AvatarCacheManager.instance, // Use shared cache manager
+                      fadeInDuration: Duration.zero, // Disable fade to prevent flickering
+                      fadeOutDuration: Duration.zero,
+                      memCacheWidth: 48, // Cache at 2x resolution for crisp display
+                      memCacheHeight: 48,
                       placeholder: (context, url) => Image.asset(
                         'assets/images/icon.png',
                         width: 24.0,
                         height: 24.0,
                         fit: BoxFit.cover,
                       ),
-                      errorWidget: (context, url, error) => Image.asset(
-                        'assets/images/icon.png',
-                        width: 24.0,
-                        height: 24.0,
-                        fit: BoxFit.cover,
-                      ),
+                      errorWidget: (context, url, error) {
+                        developer.log('❌ [Avatar] Failed to load avatar image', name: 'UnifiedMenu');
+                        developer.log('❌ [Avatar] URL: $url', name: 'UnifiedMenu');
+                        developer.log('❌ [Avatar] Error: $error', name: 'UnifiedMenu', error: error);
+                        developer.log('❌ [Avatar] Error type: ${error.runtimeType}', name: 'UnifiedMenu');
+                        return Image.asset(
+                          'assets/images/icon.png',
+                          width: 24.0,
+                          height: 24.0,
+                          fit: BoxFit.cover,
+                        );
+                      },
                     ),
                   )
                 : ClipOval(

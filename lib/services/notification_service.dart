@@ -46,12 +46,7 @@ class NotificationService {
 
       await _initializeLocalNotifications();
 
-      // Request permissions after initialization
-      if (Platform.isIOS) {
-        await requestIOSPermissions();
-      } else if (Platform.isAndroid) {
-        await requestAndroidPermissions();
-      }
+      // Don't request permissions on initialization - will be requested on login
     } catch (e) {
     }
   }
@@ -60,17 +55,18 @@ class NotificationService {
     // Android initialization settings
     const AndroidInitializationSettings initializationSettingsAndroid = AndroidInitializationSettings('@mipmap/launcher_icon');
 
-    // iOS initialization settings - updated for better iOS support
-    const DarwinInitializationSettings initializationSettingsIOS = DarwinInitializationSettings(
-      requestAlertPermission: true, // Request alert permission during initialization
-      requestBadgePermission: true, // Request badge permission during initialization
-      requestSoundPermission: true, // Request sound permission during initialization
-      defaultPresentAlert: true,
-      defaultPresentBadge: true,
-      defaultPresentSound: true,
-      // defaultPresentBanner: true, // Removed, managed by defaultPresentAlert
-      // defaultPresentList: true, // Removed, managed by defaultPresentAlert
-    );
+      // iOS initialization settings - updated for better iOS support
+      // Don't request permissions during initialization - will be requested on login
+      const DarwinInitializationSettings initializationSettingsIOS = DarwinInitializationSettings(
+        requestAlertPermission: false, // Don't request on initialization
+        requestBadgePermission: false, // Don't request on initialization
+        requestSoundPermission: false, // Don't request on initialization
+        defaultPresentAlert: true,
+        defaultPresentBadge: true,
+        defaultPresentSound: true,
+        // defaultPresentBanner: true, // Removed, managed by defaultPresentAlert
+        // defaultPresentList: true, // Removed, managed by defaultPresentAlert
+      );
 
     const InitializationSettings initializationSettings = InitializationSettings(
       android: initializationSettingsAndroid,
@@ -777,17 +773,87 @@ class NotificationService {
     }
   }
 
-  Future<bool> requestPermissions() async {
+  /// Check if notification permission was previously denied
+  Future<bool> wasPermissionDenied() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final denied = prefs.getBool('notification_permission_denied') ?? false;
+      return denied;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  /// Check current notification permission status
+  Future<bool> hasNotificationPermission() async {
     try {
       if (Platform.isIOS) {
-        await requestIOSPermissions();
-        return true;
+        final iOSImplementation = _localNotifications.resolvePlatformSpecificImplementation<IOSFlutterLocalNotificationsPlugin>();
+        if (iOSImplementation != null) {
+          // For iOS, the most reliable way to check permissions is to try requesting them
+          // requestPermissions() returns true if permissions are already granted (won't show dialog)
+          // and false/null if they need to be requested or are denied
+          try {
+            final bool? result = await iOSImplementation.requestPermissions(
+              alert: true,
+              badge: true,
+              sound: true,
+            );
+            return result == true;
+          } catch (e) {
+            // If request fails, assume not granted
+            return false;
+          }
+        }
       } else if (Platform.isAndroid) {
-        await requestAndroidPermissions();
-        return true;
+        final androidImplementation = _localNotifications.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+        if (androidImplementation != null) {
+          final bool? enabled = await androidImplementation.areNotificationsEnabled();
+          return enabled == true;
+        }
       }
       return false;
     } catch (e) {
+      return false;
+    }
+  }
+
+  /// Request notification permissions (only if not previously denied)
+  /// Returns true if permission was granted, false otherwise
+  Future<bool> requestPermissions({bool force = false}) async {
+    try {
+      // Check if permission was previously denied (unless forcing)
+      if (!force) {
+        final wasDenied = await wasPermissionDenied();
+        if (wasDenied) {
+          print('⚠️ [Notifications] Permission was previously denied - not requesting again');
+          return false;
+        }
+      }
+
+      bool granted = false;
+      
+      if (Platform.isIOS) {
+        await requestIOSPermissions();
+        granted = await hasNotificationPermission();
+      } else if (Platform.isAndroid) {
+        await requestAndroidPermissions();
+        granted = await hasNotificationPermission();
+      }
+
+      // Store denied flag if permission was not granted
+      final prefs = await SharedPreferences.getInstance();
+      if (!granted) {
+        await prefs.setBool('notification_permission_denied', true);
+        print('❌ [Notifications] Permission denied');
+      } else {
+        await prefs.setBool('notification_permission_denied', false);
+        print('✅ [Notifications] Permission granted');
+      }
+
+      return granted;
+    } catch (e) {
+      print('❌ [Notifications] Error requesting permission: $e');
       return false;
     }
   }

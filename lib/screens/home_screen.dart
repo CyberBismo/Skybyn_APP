@@ -821,7 +821,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       }
 
       final friendService = FriendService();
-      final friends = await friendService.fetchFriendsForUser(userId: userId);
+      // Force refresh friends on home screen load to ensure fresh avatars
+      final friends = await friendService.fetchFriendsForUser(userId: userId, forceRefresh: true);
       if (mounted) {
         setState(() {
           _friendsCount = friends.length;
