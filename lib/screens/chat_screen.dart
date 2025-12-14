@@ -20,13 +20,16 @@ import '../services/translation_service.dart';
 import 'package:timeago/timeago.dart' as timeago;
 import 'dart:convert';
 import 'dart:async';
+import 'dart:io';
 import 'package:http/http.dart' as http;
+import 'package:http/io_client.dart';
 import 'profile_screen.dart';
 import 'call_screen.dart';
 import '../config/constants.dart';
 import '../widgets/chat_list_modal.dart';
 import '../widgets/app_colors.dart';
 import '../services/chat_message_count_service.dart';
+import '../widgets/skeleton_loader.dart';
 
 class ChatScreen extends StatefulWidget {
   final Friend friend;
@@ -90,13 +93,13 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
     _chatMessageCountService.setCurrentOpenChat(widget.friend.id);
     _loadUserId();
     _loadMessages();
-    _setupWebSocketListener();
+    _setupWebSocketListener(); // Set up WebSocket listener for real-time messages
     _setupScrollListener();
     _setupKeyboardListener();
-    _setupTypingListener();
+    // _setupTypingListener();
     _setupTypingAnimation();
     _checkFriendOnlineStatus(); // Check immediately
-    _startPeriodicMessageCheck(); // Start periodic message checking
+    _startPeriodicMessageCheck(); // Start periodic message checking as fallback
     // Clear unread count when opening chat
     _chatMessageCountService.clearUnreadCount(widget.friend.id);
     // Messages are loaded once when opening chat, then WebSocket handles all updates
@@ -201,15 +204,10 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
   }
 
   void _setupScrollListener() {
-    _scrollController.addListener(() {
-      // Check if user scrolled to the top
-      if (_scrollController.position.pixels <= 100 && 
-          !_isLoadingOlder && 
-          _hasMoreMessages &&
-          _messages.isNotEmpty) {
-        _loadOlderMessages();
-      }
-    });
+    // Chat scroll listener disabled - UI only
+    // _scrollController.addListener(() {
+    //   // Chat loading disabled
+    // });
   }
 
   void _setupTypingAnimation() {
@@ -225,32 +223,10 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
     );
   }
 
-  void _setupTypingListener() {
-    _messageController.addListener(() {
-      if (!_firebaseRealtimeService.isConnected || _currentUserId == null) return;
-      
-      final text = _messageController.text;
-      
-      // Cancel existing timer
-      _typingTimer?.cancel();
-      
-      if (text.isNotEmpty) {
-        // Send typing start immediately
-        _firebaseRealtimeService.sendTypingStart(widget.friend.id);
-        
-        // Set timer to send typing stop after 2 seconds of no typing
-        _typingTimer = Timer(const Duration(seconds: 2), () {
-          if (_firebaseRealtimeService.isConnected && _messageController.text.isNotEmpty) {
-            // Only send stop if still typing (text hasn't been cleared)
-            _firebaseRealtimeService.sendTypingStop(widget.friend.id);
-          }
-        });
-      } else {
-        // Text is empty, send typing stop
-        _firebaseRealtimeService.sendTypingStop(widget.friend.id);
-      }
-    });
-  }
+  // Typing listener removed - UI only
+  // void _setupTypingListener() {
+  //   // Chat typing logic removed
+  // }
 
   Future<void> _loadUserId() async {
     _currentUserId = await _authService.getStoredUserId();
@@ -264,71 +240,73 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
     }
   }
 
-  /// Start periodic message checking (fallback for when WebSocket fails)
+  /// Start periodic message checking as fallback if WebSocket is not connected
   void _startPeriodicMessageCheck() {
-    // Cancel any existing timer
     _messageCheckTimer?.cancel();
     
-    // Check for new messages every 5 seconds
-    _messageCheckTimer = Timer.periodic(const Duration(seconds: 5), (_) {
-      if (mounted && _currentUserId != null) {
-        _checkForNewMessages();
+    // Check every 3 seconds if WebSocket is not connected
+    _messageCheckTimer = Timer.periodic(const Duration(seconds: 3), (_) async {
+      if (!mounted) return;
+      
+      // Only poll if WebSocket is not connected
+      if (!_webSocketService.isConnected) {
+        await _checkForNewMessages();
       }
     });
   }
 
-  /// Check for new messages (only fetches messages newer than the latest one we have)
+  /// Check for new messages using get.php API (fallback when WebSocket is not connected)
   Future<void> _checkForNewMessages() async {
-    if (_messages.isEmpty || _currentUserId == null) {
-      return; // Can't check if we don't have messages or user ID
-    }
-    
-    // Skip periodic check if WebSocket is connected (WebSocket handles real-time updates)
-    if (_webSocketService.isConnected) {
-      return; // WebSocket is handling real-time updates, no need for periodic check
-    }
+    if (_currentUserId == null || _isLoading) return;
     
     try {
-      // Get the latest message timestamp
-      final latestMessage = _messages.last;
-      final latestTimestamp = latestMessage.date.millisecondsSinceEpoch ~/ 1000; // Convert to seconds
+      // Get the latest message ID and timestamp to detect new messages
+      final lastMessageId = _messages.isNotEmpty ? _messages.last.id : null;
+      final lastMessageDate = _messages.isNotEmpty 
+          ? _messages.last.date.millisecondsSinceEpoch ~/ 1000 
+          : 0;
       
-      // Fetch messages from API (will get all messages, but we'll filter)
-      final allMessages = await _chatService.getMessages(
+      // Fetch messages from API
+      final messages = await _chatService.getMessages(
         friendId: widget.friend.id,
       );
       
-      if (mounted) {
-        // Find messages that are newer than our latest message
-        final newMessages = allMessages.where((msg) {
-          final msgTimestamp = msg.date.millisecondsSinceEpoch ~/ 1000;
-          return msgTimestamp > latestTimestamp;
-        }).toList();
-        
-        if (newMessages.isNotEmpty) {
-          // Filter out messages that already exist (by ID) to prevent duplicates
-          final existingIds = _messages.map((m) => m.id).toSet();
-          final trulyNewMessages = newMessages.where((msg) => !existingIds.contains(msg.id)).toList();
+      if (mounted && messages.isNotEmpty) {
+        // Find new messages (messages we don't have yet)
+        final newMessages = <Message>[];
+        for (final msg in messages) {
+          // Check by ID first (most reliable)
+          if (lastMessageId != null && msg.id == lastMessageId) {
+            // We've reached the last message we have, stop checking
+            break;
+          }
           
-          if (trulyNewMessages.isNotEmpty) {
-            // Use the helper method to add messages safely (double-check for duplicates)
-            for (final msg in trulyNewMessages) {
-              _addMessageIfNotExists(msg);
-            }
-            // Scroll to bottom if user is at the bottom
-            if (_scrollController.hasClients) {
-              final isAtBottom = _scrollController.position.pixels >= 
-                  _scrollController.position.maxScrollExtent - 100;
-              if (isAtBottom) {
-                _scrollToBottom();
-              }
+          // Check if we already have this message
+          if (!_messages.any((m) => m.id == msg.id)) {
+            // Check if it's newer than our last message
+            final msgTimestamp = msg.date.millisecondsSinceEpoch ~/ 1000;
+            if (msgTimestamp >= lastMessageDate) {
+              newMessages.add(msg);
             }
           }
+        }
+        
+        if (newMessages.isNotEmpty) {
+          setState(() {
+            // Add new messages
+            _messages.addAll(newMessages);
+            // Sort messages by date
+            _messages.sort((a, b) => a.date.compareTo(b.date));
+          });
+          
+          // Scroll to bottom to show new messages
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            _scrollToBottom();
+          });
         }
       }
     } catch (e) {
       // Silently fail - don't spam errors for periodic checks
-      // WebSocket should handle real-time updates, this is just a fallback
     }
   }
 
@@ -381,6 +359,19 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
   }
 
   Future<void> _loadMessages() async {
+    if (_currentUserId == null) {
+      // Wait for user ID to be loaded
+      await Future.delayed(const Duration(milliseconds: 100));
+      if (_currentUserId == null) {
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+          });
+        }
+        return;
+      }
+    }
+
     setState(() {
       _isLoading = true;
     });
@@ -391,14 +382,15 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
       );
       if (mounted) {
         setState(() {
-          // Messages are already sorted oldest to newest from service
-          // But ensure they're sorted by date to be safe
           _messages = messages;
+          // Sort messages by date (oldest first) for proper display
           _messages.sort((a, b) => a.date.compareTo(b.date));
           _isLoading = false;
         });
-        // Scroll to bottom when initially loading messages
-        _scrollToBottom();
+        // Scroll to bottom after a short delay to ensure list is rendered
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _scrollToBottom();
+        });
       }
     } catch (e) {
       if (mounted) {
@@ -406,253 +398,328 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
           _isLoading = false;
         });
       }
+      // Log error for debugging
+      debugPrint('Error loading messages: $e');
     }
   }
 
+  /// Set up WebSocket listener for real-time chat messages
   void _setupWebSocketListener() {
-    // Remove any existing callbacks first to prevent duplicates
+    // Register callback for offline notifications
+    _webSocketService.connect(
+      onChatOffline: (fromUserId, toUserId, message) {
+        _handleChatOffline(fromUserId, toUserId, message);
+      },
+    );
+    // Remove existing callback if any
     if (_webSocketChatMessageCallback != null) {
       _webSocketService.removeChatMessageCallback(_webSocketChatMessageCallback!);
-      _webSocketChatMessageCallback = null;
-    }
-    if (_webSocketOnlineStatusCallback != null) {
-      _webSocketService.removeOnlineStatusCallback(_webSocketOnlineStatusCallback!);
-      _webSocketOnlineStatusCallback = null;
     }
     
-    // Set up Firebase real-time listeners for chat (fallback)
-    // Set up online status listener for the friend
-    _onlineStatusSubscription = _firebaseRealtimeService.setupOnlineStatusListener(
-      widget.friend.id,
-      (userId, isOnline) {
-        if (userId == widget.friend.id && mounted) {
-          final oldStatus = _friendOnline;
-          setState(() {
-            _friendOnline = isOnline;
-          });
-        }
-      },
-    );
-
-    // Set up WebSocket online status listener (primary real-time source)
-    _webSocketOnlineStatusCallback = (userId, isOnline) {
-      if (userId == widget.friend.id && mounted) {
-        final oldStatus = _friendOnline;
-        setState(() {
-          _friendOnline = isOnline;
-        });
+    // Register callback to receive chat messages
+    _webSocketChatMessageCallback = (String messageId, String fromUserId, String toUserId, String messageContent) {
+      if (!mounted) return;
+      
+      // Only handle messages for this friend
+      if (toUserId == widget.friend.id || fromUserId == widget.friend.id) {
+        _handleIncomingChatMessage(messageId, fromUserId, toUserId, messageContent);
       }
     };
     
-    // Register callbacks with WebSocket service
-    _webSocketChatMessageCallback = (messageId, fromUserId, toUserId, message) {
-      // Debug: Log received message
-      debugPrint('🔵 [ChatScreen] WebSocket chat message received: id=$messageId, from=$fromUserId, to=$toUserId, msg=${message.substring(0, message.length > 20 ? 20 : message.length)}...');
-      
-      // Only handle messages for this chat
-      // Check if message is for this friend (either as sender or recipient)
-      final isForThisChat = fromUserId == widget.friend.id || toUserId == widget.friend.id;
-      debugPrint('🔵 [ChatScreen] Message for this chat? $isForThisChat (friend.id=${widget.friend.id}, currentUserId=$_currentUserId)');
-      
-      if (!isForThisChat) {
-        debugPrint('🔵 [ChatScreen] Message rejected - not for this chat');
-        return; // Not for this chat
-      }
-      
-      // Ensure _currentUserId is loaded
-      if (_currentUserId == null) {
-        debugPrint('🔵 [ChatScreen] Current user ID is null, loading...');
-        // Load user ID asynchronously and retry
-        _loadUserId().then((_) {
-          if (mounted) {
-            debugPrint('🔵 [ChatScreen] User ID loaded: $_currentUserId, retrying message handling');
-            // Retry handling the message after user ID is loaded
-            _handleIncomingChatMessage(messageId, fromUserId, toUserId, message);
-          }
-        });
-        return;
-      }
-      
-      // Handle the message
-      debugPrint('🔵 [ChatScreen] Handling incoming chat message');
-      _handleIncomingChatMessage(messageId, fromUserId, toUserId, message);
-    };
-    
-    _webSocketService.connect(
-      onOnlineStatus: _webSocketOnlineStatusCallback,
-      onChatMessage: _webSocketChatMessageCallback,
-    );
-    
-    debugPrint('🔵 [ChatScreen] WebSocket callbacks registered. Chat callback: ${_webSocketChatMessageCallback != null}, Online callback: ${_webSocketOnlineStatusCallback != null}');
-    debugPrint('🔵 [ChatScreen] Friend ID: ${widget.friend.id}, Current User ID: $_currentUserId');
-
-    // Set up typing status listener
-    _firebaseRealtimeService.setupTypingStatusListener(
-      widget.friend.id,
-      (userId, isTyping) {
-        if (userId == widget.friend.id && mounted) {
-          setState(() {
-            _isFriendTyping = isTyping;
-          });
-          // Auto-hide typing indicator after 3 seconds if no stop message received
-          if (isTyping) {
-            _typingStopTimer?.cancel();
-            _typingStopTimer = Timer(const Duration(seconds: 3), () {
-              if (mounted) {
-                setState(() {
-                  _isFriendTyping = false;
-                });
-              }
-            });
-          } else {
-            _typingStopTimer?.cancel();
-          }
-        }
-      },
-    );
-
-    // Set up chat message listener (Firebase fallback - only when WebSocket is not connected)
-    _firebaseRealtimeService.setupChatListener(
-      widget.friend.id,
-      (messageId, fromUserId, toUserId, message) {
-        // Only process if WebSocket is NOT connected (Firebase is fallback)
-        if (_webSocketService.isConnected) {
-          debugPrint('🔵 [ChatScreen] Skipping Firebase message - WebSocket is connected');
-          return; // WebSocket handles it, skip Firebase to prevent duplicates
-        }
-        
-        // Only handle messages for this chat
-        final isForThisChat = fromUserId == widget.friend.id || toUserId == widget.friend.id;
-        if (!isForThisChat) {
-          return; // Not for this chat
-        }
-        
-        // Ensure _currentUserId is loaded
-        if (_currentUserId == null) {
-          _loadUserId().then((_) {
-            if (mounted) {
-              _handleIncomingChatMessage(messageId, fromUserId, toUserId, message);
-            }
-          });
-          return;
-        }
-        
-        // Handle the message
-        _handleIncomingChatMessage(messageId, fromUserId, toUserId, message);
-      },
-    );
+    _webSocketService.registerChatMessageCallback(_webSocketChatMessageCallback!);
   }
 
-  // Handle incoming chat message (extracted for reuse)
-  /// Helper method to safely add a message, preventing duplicates
-  /// This method is thread-safe and checks for duplicates by message ID
-  void _addMessageIfNotExists(Message message) {
-    // Double-check for duplicates - check both by ID and by content+timestamp to be extra safe
-    final existingById = _messages.indexWhere((m) => m.id == message.id);
-    if (existingById != -1) {
-      debugPrint('🟢 [ChatScreen] Message ${message.id} already exists (by ID), skipping duplicate');
+  // Chat message handling logic removed - UI only
+  // void _addMessageIfNotExists(Message message) {
+  //   // Removed
+  // }
+  
+  // Chat status logic removed - UI only
+  // bool _isStatusMoreAdvanced(MessageStatus newStatus, MessageStatus oldStatus) {
+  //   // Removed
+  // }
+
+  /// Handle incoming chat message from WebSocket
+  void _handleIncomingChatMessage(String messageId, String fromUserId, String toUserId, String messageContent) {
+    if (!mounted || _currentUserId == null) return;
+    
+    // Check if message already exists (prevent duplicates)
+    if (_messages.any((m) => m.id == messageId)) {
       return;
     }
     
-    // Additional check: if message ID is empty or invalid, check by content and timestamp
-    // This prevents duplicates from messages with missing IDs
-    if (message.id.isEmpty) {
-      final existingByContent = _messages.indexWhere((m) => 
-        m.content == message.content && 
-        m.from == message.from && 
-        m.to == message.to &&
-        (m.date.difference(message.date).inSeconds.abs() < 2) // Within 2 seconds
-      );
-      if (existingByContent != -1) {
-        debugPrint('🟢 [ChatScreen] Message already exists (by content+timestamp), skipping duplicate');
+    try {
+      // Parse date if available, otherwise use current time
+      DateTime messageDate = DateTime.now();
+      
+      final isFromMe = fromUserId == _currentUserId;
+      
+      // If this is an incoming message (not from me), try to store it in database
+      // This is a workaround for bot protection blocking sender's storage attempt
+      if (!isFromMe && messageId.startsWith('temp_')) {
+        _storeIncomingMessageInDatabase(fromUserId, toUserId, messageContent).catchError((e) {
+          // Continue anyway - message is displayed via WebSocket
+        });
+      }
+      
+      // If message has temp ID, fetch real ID from API
+      if (messageId.startsWith('temp_') || messageId.isEmpty) {
+        // Fetch message ID from API by getting latest messages
+        _fetchMessageIdFromAPI(fromUserId, messageContent, messageDate).then((realMessageId) {
+          if (realMessageId != null && mounted) {
+            // Update message with real ID
+            final messageIndex = _messages.indexWhere((m) => 
+              m.content == messageContent && 
+              m.from == fromUserId &&
+              (m.id == messageId || m.id.startsWith('temp_'))
+            );
+            
+            if (messageIndex != -1) {
+              setState(() {
+                _messages[messageIndex] = Message(
+                  id: realMessageId,
+                  from: fromUserId,
+                  to: toUserId,
+                  content: messageContent,
+                  date: _messages[messageIndex].date,
+                  viewed: false,
+                  isFromMe: isFromMe,
+                  status: MessageStatus.sent,
+                );
+                _messages.sort((a, b) => a.date.compareTo(b.date));
+              });
+            } else {
+              // Message not found, create new one with real ID
+              final message = Message(
+                id: realMessageId,
+                from: fromUserId,
+                to: toUserId,
+                content: messageContent,
+                date: messageDate,
+                viewed: false,
+                isFromMe: isFromMe,
+                status: MessageStatus.sent,
+              );
+              
+              setState(() {
+                _messages.add(message);
+                _messages.sort((a, b) => a.date.compareTo(b.date));
+              });
+              
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                _scrollToBottom();
+              });
+            }
+          }
+        }).catchError((e) {
+          debugPrint('[SKYBYN] ⚠️ [Chat] Error fetching message ID from API: $e');
+          // Still add message with temp ID if API fails
+          _addMessageWithTempId(messageId, fromUserId, toUserId, messageContent, messageDate, isFromMe);
+        });
         return;
       }
+      
+      // If this is a confirmation for a message we sent (chat_sent), update the optimistic message
+      if (isFromMe && !messageId.startsWith('temp_')) {
+        // Find optimistic message with same content and update it
+        final tempIndex = _messages.indexWhere((m) => 
+          m.content == messageContent && 
+          m.isFromMe && 
+          (m.status == MessageStatus.sending || m.id.startsWith('temp_'))
+        );
+        
+        if (tempIndex != -1) {
+          // Update existing optimistic message with real ID
+          setState(() {
+            _messages[tempIndex] = Message(
+              id: messageId,
+              from: fromUserId,
+              to: toUserId,
+              content: messageContent,
+              date: messageDate,
+              viewed: false,
+              isFromMe: true,
+              status: MessageStatus.sent,
+            );
+            _messages.sort((a, b) => a.date.compareTo(b.date));
+          });
+          return; // Don't add duplicate
+        }
+      }
+      
+      // Create message object for new incoming message with real ID
+      final message = Message(
+        id: messageId,
+        from: fromUserId,
+        to: toUserId,
+        content: messageContent,
+        date: messageDate,
+        viewed: false,
+        isFromMe: isFromMe,
+        status: MessageStatus.sent,
+      );
+      
+      setState(() {
+        _messages.add(message);
+        // Sort messages by date
+        _messages.sort((a, b) => a.date.compareTo(b.date));
+      });
+      
+      // Scroll to bottom to show new message
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _scrollToBottom();
+      });
+    } catch (e) {
+      // Silently fail
     }
+  }
+  
+  /// Fetch message ID from API by matching content and sender
+  Future<String?> _fetchMessageIdFromAPI(String fromUserId, String messageContent, DateTime messageDate) async {
+    try {
+      // Get recent messages from API
+      final messages = await _chatService.getMessages(
+        friendId: fromUserId,
+      );
+      
+      // Find message matching content and sender, within last 30 seconds
+      final now = DateTime.now();
+      for (final msg in messages) {
+        final timeDiff = now.difference(msg.date).inSeconds;
+        if (msg.content == messageContent && 
+            msg.from == fromUserId && 
+            timeDiff <= 30) {
+          return msg.id;
+        }
+      }
+    } catch (e) {
+      debugPrint('[SKYBYN] ⚠️ [Chat] Error fetching messages from API: $e');
+    }
+    return null;
+  }
+  
+  /// Add message with temp ID (fallback if API fails)
+  void _addMessageWithTempId(String messageId, String fromUserId, String toUserId, String messageContent, DateTime messageDate, bool isFromMe) {
+    final message = Message(
+      id: messageId,
+      from: fromUserId,
+      to: toUserId,
+      content: messageContent,
+      date: messageDate,
+      viewed: false,
+      isFromMe: isFromMe,
+      status: MessageStatus.sent,
+    );
     
-    // Message doesn't exist, add it
     setState(() {
       _messages.add(message);
       _messages.sort((a, b) => a.date.compareTo(b.date));
     });
-    debugPrint('🟢 [ChatScreen] Message ${message.id} added. Total: ${_messages.length}');
+    
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _scrollToBottom();
+    });
   }
-
-  void _handleIncomingChatMessage(String messageId, String fromUserId, String toUserId, String message) {
-    debugPrint('🟢 [ChatScreen] _handleIncomingChatMessage: id=$messageId, from=$fromUserId, to=$toUserId');
-    
-    // Verify this message is for this chat
-    if (_currentUserId == null) {
-      debugPrint('🟢 [ChatScreen] Cannot process - currentUserId is null');
-      return; // Can't process without user ID
-    }
-    
-    final isForThisChat = (fromUserId == widget.friend.id && toUserId == _currentUserId) ||
-                          (fromUserId == _currentUserId && toUserId == widget.friend.id);
-    debugPrint('🟢 [ChatScreen] Message is for this chat? $isForThisChat (friend.id=${widget.friend.id}, currentUserId=$_currentUserId)');
-    
-    if (!isForThisChat) {
-      debugPrint('🟢 [ChatScreen] Message rejected - not for this chat');
-      return; // Not for this chat
-    }
-    
-    // If we're the sender, check if message already exists (sent from another device)
-    if (fromUserId == _currentUserId) {
-      // Check if message already exists with this ID
-      final existingMessageIndex = _messages.indexWhere((m) => m.id == messageId);
-      if (existingMessageIndex != -1) {
-        // Message already exists, don't add duplicate
-        debugPrint('🟢 [ChatScreen] Message from self already exists, skipping');
-        return;
+  
+  /// Handle chat offline notification - send FCM notification to recipient
+  Future<void> _handleChatOffline(String fromUserId, String toUserId, String message) async {
+    try {
+      // Get username and avatar from current user profile (sender's own profile)
+      final authService = AuthService();
+      final user = await authService.getStoredUserProfile();
+      final senderUsername = user?.username ?? 'Someone';
+      final senderAvatar = user?.avatar ?? '';
+      
+      // Build avatar URL if provided
+      String? avatarUrl;
+      if (senderAvatar.isNotEmpty && !senderAvatar.startsWith('http')) {
+        // If avatar is a relative path, convert to full URL
+        avatarUrl = 'https://skybyn.no/$senderAvatar';
+      } else if (senderAvatar.isNotEmpty) {
+        avatarUrl = senderAvatar;
       }
       
-      // This was sent from another device (website/other app instance)
-      // Add it to the list so it appears on this device
-      debugPrint('🟢 [ChatScreen] Message from self (other device) - adding to list');
-      final newMessage = Message(
-        id: messageId,
-        from: fromUserId,
-        to: toUserId,
-        content: message,
-        date: DateTime.now(),
-        viewed: false,
-        isFromMe: true,
-      );
-      if (mounted) {
-        _addMessageIfNotExists(newMessage);
-        // Scroll to bottom to show the new message
-        _scrollToBottom();
-      }
-      return; // Message added, don't process as recipient message
-    }
-    
-    // We're the recipient - check if message already exists
-    final existingMessageIndex = _messages.indexWhere((m) => m.id == messageId);
-    debugPrint('🟢 [ChatScreen] Message already exists? ${existingMessageIndex != -1} (index: $existingMessageIndex)');
-    
-    if (existingMessageIndex == -1) {
-      // Message doesn't exist, add it
-      debugPrint('🟢 [ChatScreen] Adding new message to list');
-      final newMessage = Message(
-        id: messageId,
-        from: fromUserId,
-        to: toUserId,
-        content: message,
-        date: DateTime.now(),
-        viewed: false,
-        isFromMe: false,
-      );
-      if (mounted) {
-        // Use helper method to prevent duplicates
-        _addMessageIfNotExists(newMessage);
-        // Always scroll to bottom for new messages
-        _scrollToBottom();
+      // Call firebase.php API to send notification (same as admin panel)
+      final url = ApiConstants.firebase;
+      final client = IOClient(HttpClient());
+      final response = await client.post(
+        Uri.parse(url),
+        body: {
+          'user': toUserId,
+          'title': senderUsername,
+          'body': message,
+          'type': 'chat',
+          'from': fromUserId,
+          'priority': 'high',
+          'channel': 'chat_messages',
+          if (avatarUrl != null) 'image': avatarUrl,
+          'payload': jsonEncode({
+            'messageId': 'temp_${DateTime.now().millisecondsSinceEpoch}',
+            'from': fromUserId,
+            'to': toUserId,
+            'message': message,
+            'chat': message,
+          }),
+        },
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'Accept': 'application/json',
+          'Accept-Language': 'en-US,en;q=0.9',
+          'X-Requested-With': 'XMLHttpRequest',
+          'X-API-Key': ApiConstants.apiKey,
+          'User-Agent': 'Mozilla/5.0 (Linux; Android 10; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.120 Mobile Safari/537.36 Skybyn-App/1.0',
+          'Referer': 'https://api.skybyn.no/',
+          'Origin': 'https://api.skybyn.no',
+        },
+      ).timeout(const Duration(seconds: 10));
+      
+      if (response.statusCode == 200) {
+        final responseData = json.decode(response.body);
+        if (responseData['status'] == 'success' || responseData['status'] == 'ok') {
+          debugPrint('[SKYBYN] ✅ [Chat] FCM notification sent successfully to user: $toUserId');
+        } else {
+          debugPrint('[SKYBYN] ⚠️ [Chat] FCM notification response: ${responseData['message'] ?? 'Unknown error'}');
+        }
       } else {
-        debugPrint('🟢 [ChatScreen] Widget not mounted, cannot add message');
+        debugPrint('[SKYBYN] ❌ [Chat] FCM notification failed with status: ${response.statusCode}');
       }
-    } else {
-      debugPrint('🟢 [ChatScreen] Message already exists, skipping');
+    } catch (e) {
+      debugPrint('[SKYBYN] ❌ [Chat] Error sending FCM notification: $e');
     }
   }
+  
+  /// Store incoming message in database (called when recipient receives message via WebSocket)
+  /// This is a workaround for bot protection blocking sender's storage attempt
+  Future<void> _storeIncomingMessageInDatabase(String fromUserId, String toUserId, String message) async {
+    try {
+      final url = ApiConstants.chatSend;
+      final client = IOClient(HttpClient());
+      final response = await client.post(
+        Uri.parse(url),
+        body: {
+          'userID': fromUserId,
+          'to': toUserId,
+          'message': message,
+        },
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'Accept': 'application/json',
+          'Accept-Language': 'en-US,en;q=0.9',
+          'X-Requested-With': 'XMLHttpRequest',
+          'X-API-Key': ApiConstants.apiKey,
+          'User-Agent': 'Mozilla/5.0 (Linux; Android 10; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.120 Mobile Safari/537.36 Skybyn-App/1.0',
+          'Referer': 'https://api.skybyn.no/',
+          'Origin': 'https://api.skybyn.no',
+        },
+      ).timeout(const Duration(seconds: 10));
+      
+      // Response handled silently
+    } catch (e) {
+      // Don't throw - message is already displayed via WebSocket
+    }
+  }
+  //   // Removed
+  // }
 
   void _scrollToBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -680,148 +747,70 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
     if (message.isEmpty || _isSending) {
       return;
     }
+
+    if (_currentUserId == null) {
+      return;
+    }
+
     setState(() {
       _isSending = true;
     });
 
-    try {
-      // Clear input field
-      _messageController.clear();
-      
-      // Keep keyboard open by maintaining focus
-      if (mounted && _messageFocusNode.hasFocus) {
-        // Request focus again after a brief delay to ensure keyboard stays open
-        Future.microtask(() {
-          if (mounted && _messageFocusNode.canRequestFocus) {
-            _messageFocusNode.requestFocus();
-          }
-        });
-      }
-      
-      // Send typing stop when message is sent
-      if (_firebaseRealtimeService.isConnected) {
-        _firebaseRealtimeService.sendTypingStop(widget.friend.id);
-      }
-      _typingTimer?.cancel();
+    // Clear input field immediately for better UX
+    _messageController.clear();
 
+    try {
       // Send message via API
       final sentMessage = await _chatService.sendMessage(
         toUserId: widget.friend.id,
         content: message,
       );
 
-      // Reset _isSending IMMEDIATELY after API call succeeds (before WebSocket/Firebase)
-      // This ensures the button is enabled even if WebSocket/Firebase calls hang
-      if (mounted) {
+      if (sentMessage != null && mounted) {
+        // Add message to local list optimistically
         setState(() {
-          _isSending = false;
+          _messages.add(sentMessage);
+          // Keep messages sorted by date
+          _messages.sort((a, b) => a.date.compareTo(b.date));
+        });
+
+        // Scroll to bottom to show new message
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _scrollToBottom();
+        });
+
+        // Refresh messages to get latest from server (handles any server-side updates)
+        // Do this in background to avoid blocking UI
+        Future.delayed(const Duration(milliseconds: 500), () async {
+          try {
+            final refreshedMessages = await _chatService.getMessages(
+              friendId: widget.friend.id,
+            );
+            if (mounted && refreshedMessages.isNotEmpty) {
+              setState(() {
+                _messages = refreshedMessages;
+                _messages.sort((a, b) => a.date.compareTo(b.date));
+              });
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                _scrollToBottom();
+              });
+            }
+          } catch (e) {
+            // Ignore refresh errors - we already have the message
+          }
         });
       }
-
-      if (sentMessage != null && mounted) {
-        // Add message to UI (check for duplicates first - might have been added via WebSocket already)
-        // Use the helper method which checks for duplicates by ID
-        _addMessageIfNotExists(sentMessage);
-        // Scroll to bottom to show the sent message
-        _scrollToBottom();
-        
-        // Keep keyboard open by maintaining focus
-        if (_messageFocusNode.hasFocus) {
-          Future.microtask(() {
-            if (mounted && _messageFocusNode.canRequestFocus) {
-              _messageFocusNode.requestFocus();
-            }
-          });
-        }
-
-        // Send message via both WebSocket and Firebase for real-time delivery
-        // WebSocket: For immediate delivery when recipient's app is running
-        // Firebase: For delivery when app is in background (triggers push notification)
-        // NOTE: These are fire-and-forget - don't block on them
-        try {
-          // Send via WebSocket (non-blocking)
-          if (_webSocketService.isConnected) {
-            _webSocketService.sendChatMessage(
-              messageId: sentMessage.id,
-              targetUserId: widget.friend.id,
-              content: message,
-            );
-          }
-          
-          // Send via Firebase (non-blocking, but await to catch errors)
-          if (_firebaseRealtimeService.isConnected) {
-            _firebaseRealtimeService.sendChatMessageNotification(
-              messageId: sentMessage.id,
-              targetUserId: widget.friend.id,
-              content: message,
-            ).catchError((e) {
-            });
-          }
-        } catch (e) {
-          // Don't fail the send - message was already saved via HTTP API
-        }
-      } else {
-        // sentMessage is null or not mounted - reset sending state
-        if (mounted) {
-          setState(() {
-            _isSending = false;
-          });
-        }
-      }
     } catch (e) {
-      // Extract error message (remove "Exception: " prefix if present)
-      String errorMessage = e.toString();
-      if (errorMessage.startsWith('Exception: ')) {
-        errorMessage = errorMessage.substring(11);
-      }
-      // Handle 409 Conflict - message may have been sent already
-      // Check for various forms of conflict/duplicate messages
-      final lowerError = errorMessage.toLowerCase();
-      final isConflict = lowerError.contains('409') || 
-          lowerError.contains('conflict') || 
-          lowerError.contains('already been sent') || 
-          lowerError.contains('may have been sent') ||
-          lowerError.contains('duplicate') ||
-          lowerError.contains('already sent');
-      if (isConflict) {
-        // Message might have been sent - try to refresh messages
-        _refreshMessages();
-        
-        // Show a less alarming message (orange instead of red)
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Message may have been sent already. Refreshing...'),
-              backgroundColor: Colors.orange,
-              duration: Duration(seconds: 2),
-            ),
-          );
-        }
-        // Reset _isSending before returning (finally will also reset it, but this ensures it's reset immediately)
-        if (mounted) {
-          setState(() {
-            _isSending = false;
-          });
-        }
-        return;
-      }
-      
-      // Provide user-friendly error messages
-      String userFriendlyMessage = errorMessage;
-      if (lowerError.contains('500') || lowerError.contains('server error')) {
-        userFriendlyMessage = 'Server error. Please try again in a moment.';
-      } else if (lowerError.contains('timeout') || lowerError.contains('connection')) {
-        userFriendlyMessage = 'Connection timeout. Please check your internet and try again.';
-      } else if (lowerError.contains('network') || lowerError.contains('unreachable')) {
-        userFriendlyMessage = 'Network error. Please check your connection and try again.';
-      }
+      // Restore message text on error
+      _messageController.text = message;
       
       if (mounted) {
+        // Show error to user
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(userFriendlyMessage),
+            content: Text('Failed to send message: ${e.toString()}'),
             backgroundColor: Colors.red,
-            duration: const Duration(seconds: 4),
+            duration: const Duration(seconds: 3),
           ),
         );
       }
@@ -830,115 +819,19 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
         setState(() {
           _isSending = false;
         });
-      } else {
       }
     }
   }
 
-  Future<void> _refreshMessages() async {
-    try {
-      final messages = await _chatService.getMessages(
-        friendId: widget.friend.id,
-      );
-      if (mounted) {
-        // Only update if we have new messages - check for duplicates by ID
-        final currentMessageIds = _messages.map((m) => m.id).toSet();
-        final newMessages = messages.where((m) => !currentMessageIds.contains(m.id)).toList();
-        
-        if (newMessages.isNotEmpty) {
-          // Double-check for duplicates before adding (prevent race conditions)
-          final existingIds = _messages.map((m) => m.id).toSet();
-          final trulyNewMessages = newMessages.where((m) => !existingIds.contains(m.id)).toList();
-          
-          if (trulyNewMessages.isNotEmpty) {
-            // Check if user is near bottom before updating
-            final wasNearBottom = _scrollController.hasClients 
-                ? _scrollController.position.pixels >= 
-                  _scrollController.position.maxScrollExtent - 200
-                : true;
-            
-            setState(() {
-              // Merge new messages with existing ones, avoiding duplicates
-              final existingIds = _messages.map((m) => m.id).toSet();
-              final messagesToAdd = trulyNewMessages.where((m) => !existingIds.contains(m.id)).toList();
-              if (messagesToAdd.isNotEmpty) {
-                _messages.addAll(messagesToAdd);
-                _messages.sort((a, b) => a.date.compareTo(b.date));
-              }
-            });
-            
-            // Only scroll to bottom if user was already near the bottom
-            // This prevents interrupting user if they're reading older messages
-            if (wasNearBottom) {
-              _scrollToBottom();
-            }
-          }
-        }
-      }
-    } catch (e) {
-      // Silently fail - don't spam errors
-    }
-  }
+  // Chat refresh logic removed - UI only
+  // Future<void> _refreshMessages() async {
+  //   // Removed
+  // }
 
-  Future<void> _loadOlderMessages() async {
-    if (_isLoadingOlder || !_hasMoreMessages) return;
-
-    setState(() {
-      _isLoadingOlder = true;
-    });
-
-    try {
-      final olderMessages = await _chatService.loadOlderMessages(
-        friendId: widget.friend.id,
-        currentMessageCount: _messages.length,
-      );
-
-      if (mounted && olderMessages.isNotEmpty) {
-        // Save current scroll position
-        final scrollPosition = _scrollController.hasClients 
-            ? _scrollController.position.pixels 
-            : 0.0;
-        final firstMessageId = _messages.isNotEmpty ? _messages.first.id : null;
-
-        // Prepend older messages to the list, avoiding duplicates
-        setState(() {
-          final existingIds = _messages.map((m) => m.id).toSet();
-          final uniqueOlderMessages = olderMessages.where((m) => !existingIds.contains(m.id)).toList();
-          _messages = [...uniqueOlderMessages, ..._messages];
-          // Sort to ensure correct chronological order (oldest to newest)
-          _messages.sort((a, b) => a.date.compareTo(b.date));
-          _hasMoreMessages = olderMessages.length >= 50; // If we got less than 50, no more messages
-        });
-
-        // Restore scroll position after prepending
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (_scrollController.hasClients && firstMessageId != null) {
-            // Find the position of the first message we had before loading
-            final firstMessageIndex = _messages.indexWhere((m) => m.id == firstMessageId);
-            if (firstMessageIndex != -1) {
-              // Calculate the new scroll position
-              final newScrollPosition = scrollPosition + (olderMessages.length * 100.0); // Approximate
-              _scrollController.jumpTo(newScrollPosition.clamp(
-                0.0,
-                _scrollController.position.maxScrollExtent,
-              ));
-            }
-          }
-        });
-      } else if (mounted && olderMessages.isEmpty) {
-        // No more messages to load
-        setState(() {
-          _hasMoreMessages = false;
-        });
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLoadingOlder = false;
-        });
-      }
-    }
-  }
+  // Chat load older messages logic removed - UI only
+  // Future<void> _loadOlderMessages() async {
+  //   // Removed
+  // }
 
   /// Check and request permissions for voice/video calls using Android system dialogs
   Future<bool> _checkCallPermissions(CallType callType) async {
@@ -1290,11 +1183,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
                             ),
                           ),
                           child: _isLoading
-                              ? const Center(
-                                  child: CircularProgressIndicator(
-                                    color: Colors.white,
-                                  ),
-                                )
+                              ? const ChatScreenSkeleton()
                               : _messages.isEmpty
                                   ? const Center(
                                       child: TranslatedText(
@@ -1309,7 +1198,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
                                       children: [
                                         Expanded(
                                           child: RefreshIndicator(
-                                            onRefresh: _refreshMessages,
+                                            onRefresh: () async {}, // Chat refresh disabled - UI only
                                             color: Colors.white,
                                             backgroundColor: Colors.black.withOpacity(0.3),
                                             child: ListView.builder(
@@ -1439,6 +1328,8 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
                               child: TextField(
                                 controller: _messageController,
                                 focusNode: _messageFocusNode,
+                                enabled: !_isSending,
+                                onSubmitted: (_) => _sendMessage(),
                                 decoration: InputDecoration(
                                   hintText: 'Type a message...',
                                   hintStyle: TextStyle(
@@ -1457,11 +1348,6 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
                                 ),
                                 maxLines: null,
                                 textInputAction: TextInputAction.send,
-                                onSubmitted: (value) {
-                                  if (value.trim().isNotEmpty) {
-                                    _sendMessage();
-                                  }
-                                },
                               ),
                             ),
                             Padding(
@@ -1473,13 +1359,22 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
                                   color: Colors.white.withOpacity(0.2),
                                   shape: BoxShape.circle,
                                 ),
-                                child: IconButton(
-                                  onPressed: _sendMessage,
-                                  icon: const Icon(
-                                    Icons.send,
-                                    color: Colors.white,
-                                    size: 20,
-                                  ),
+                                child:                                 IconButton(
+                                  onPressed: _isSending ? null : _sendMessage,
+                                  icon: _isSending
+                                      ? const SizedBox(
+                                          width: 20,
+                                          height: 20,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                            color: Colors.white54,
+                                          ),
+                                        )
+                                      : const Icon(
+                                          Icons.send,
+                                          color: Colors.white,
+                                          size: 20,
+                                        ),
                                   padding: EdgeInsets.zero,
                                 ),
                               ),

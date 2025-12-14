@@ -1,3 +1,12 @@
+/// Message delivery status (like WhatsApp/Telegram)
+enum MessageStatus {
+  sending,    // Message is being sent (optimistic UI)
+  sent,       // Message sent to server successfully
+  delivered,  // Message delivered to recipient's device
+  read,       // Message read by recipient
+  failed,     // Message failed to send
+}
+
 class Message {
   final String id;
   final String from;
@@ -6,6 +15,7 @@ class Message {
   final DateTime date;
   final bool viewed;
   final bool isFromMe;
+  final MessageStatus status; // Message delivery status
 
   Message({
     required this.id,
@@ -15,6 +25,7 @@ class Message {
     required this.date,
     this.viewed = false,
     required this.isFromMe,
+    this.status = MessageStatus.sent, // Default to sent for received messages
   });
 
   factory Message.fromJson(Map<String, dynamic> json, String currentUserId) {
@@ -37,6 +48,34 @@ class Message {
       }
     }
     
+    // Parse message status (default to sent for received messages)
+    MessageStatus parseStatus(dynamic statusValue, bool isFromMe) {
+      if (!isFromMe) {
+        // Received messages are always delivered (we received them)
+        return MessageStatus.delivered;
+      }
+      
+      if (statusValue == null) return MessageStatus.sent;
+      
+      final statusStr = statusValue.toString().toLowerCase();
+      switch (statusStr) {
+        case 'sending':
+          return MessageStatus.sending;
+        case 'sent':
+          return MessageStatus.sent;
+        case 'delivered':
+          return MessageStatus.delivered;
+        case 'read':
+          return MessageStatus.read;
+        case 'failed':
+          return MessageStatus.failed;
+        default:
+          return MessageStatus.sent;
+      }
+    }
+    
+    final isFromMe = json['from']?.toString() == currentUserId;
+    
     return Message(
       id: json['id']?.toString() ?? '',
       from: json['from']?.toString() ?? '',
@@ -44,7 +83,8 @@ class Message {
       content: json['content']?.toString() ?? '',
       date: parseDate(json['date']),
       viewed: json['viewed'] == 1 || json['viewed'] == true,
-      isFromMe: json['from']?.toString() == currentUserId,
+      isFromMe: isFromMe,
+      status: parseStatus(json['status'], isFromMe),
     );
   }
 
@@ -56,7 +96,31 @@ class Message {
       'content': content,
       'date': date.millisecondsSinceEpoch,
       'viewed': viewed ? 1 : 0,
+      'status': status.name,
     };
+  }
+  
+  /// Create a copy with updated status
+  Message copyWith({
+    String? id,
+    String? from,
+    String? to,
+    String? content,
+    DateTime? date,
+    bool? viewed,
+    bool? isFromMe,
+    MessageStatus? status,
+  }) {
+    return Message(
+      id: id ?? this.id,
+      from: from ?? this.from,
+      to: to ?? this.to,
+      content: content ?? this.content,
+      date: date ?? this.date,
+      viewed: viewed ?? this.viewed,
+      isFromMe: isFromMe ?? this.isFromMe,
+      status: status ?? this.status,
+    );
   }
 }
 

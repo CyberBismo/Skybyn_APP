@@ -57,6 +57,12 @@ class ChatService {
     String toUserId,
     String content,
   ) async {
+    // Check for bot protection response (409 with HTML/script)
+    if (response.statusCode == 409 || 
+        (response.body.contains('<script>') || response.body.contains('humans_'))) {
+      throw Exception('Bot protection blocked request. Message may still be delivered via WebSocket.');
+    }
+    
     // Try to parse response body regardless of status code
     Map<String, dynamic>? responseData;
     try {
@@ -64,22 +70,45 @@ class ChatService {
     } catch (e) {
       // If we can't parse JSON and it's not HTML, it might be an error
       if (response.statusCode != 200) {
+        // Check if it's HTML (bot protection)
+        if (response.body.contains('<') || response.body.contains('script')) {
+          throw Exception('Bot protection blocked request. Message may still be delivered via WebSocket.');
+        }
         throw Exception('Invalid response from server. Please try again.');
       }
     }
 
     if (response.statusCode == 200) {
       if (responseData != null) {
-        if (responseData['responseCode'] == 1 && responseData['messageId'] != null) {
+        // Check responseCode as both string "1" and integer 1 (PHP may return either)
+        final responseCode = responseData['responseCode'];
+        final isSuccess = (responseCode == 1 || responseCode == "1" || responseCode == '1');
+        
+        if (isSuccess && responseData['messageId'] != null) {
+          // Parse date from response (Unix timestamp in seconds)
+          DateTime messageDate = DateTime.now();
+          if (responseData['date'] != null) {
+            final dateInt = int.tryParse(responseData['date'].toString()) ?? 0;
+            if (dateInt > 0) {
+              // Convert seconds to milliseconds if needed
+              if (dateInt < 1000000000000) {
+                messageDate = DateTime.fromMillisecondsSinceEpoch(dateInt * 1000, isUtc: true).toLocal();
+              } else {
+                messageDate = DateTime.fromMillisecondsSinceEpoch(dateInt, isUtc: true).toLocal();
+              }
+            }
+          }
+          
           // Create message object
           return Message(
             id: responseData['messageId'].toString(),
             from: userId,
             to: toUserId,
             content: content,
-            date: DateTime.now(),
+            date: messageDate,
             viewed: false,
             isFromMe: true,
+            status: MessageStatus.sent,
           );
         }
         // Server returned 200 but with error in response body
@@ -161,229 +190,166 @@ class ChatService {
     return message;
   }
 
-  /// Send a message
-  /// Step 1: Send via WebSocket for real-time delivery
-  /// Step 2: Store in database via API (runs in parallel)
+  /// Send a message to a user
   Future<Message?> sendMessage({
     required String toUserId,
     required String content,
   }) async {
     try {
+      // Get current user ID
       final userId = await _authService.getStoredUserId();
       if (userId == null) {
         throw Exception('User not logged in');
       }
 
-      // Validate that all required parameters are present
-      if (userId.isEmpty || toUserId.isEmpty || content.isEmpty) {
-        throw Exception('Missing required parameters: userId=${userId.isEmpty ? "empty" : "ok"}, toUserId=${toUserId.isEmpty ? "empty" : "ok"}, message=${content.isEmpty ? "empty" : "ok"}');
+      // Validate message content
+      final trimmedContent = content.trim();
+      if (trimmedContent.isEmpty) {
+        throw Exception('Message cannot be empty');
       }
 
-      // Store message in database via API
-      // Encrypt the message for API
-      final encryptedContent = await _encryptMessage(content);
-
-      final url = ApiConstants.chatSend;
-      // Build headers with optional protection cookie and API key
-      final headers = <String, String>{
-        'Content-Type': 'application/x-www-form-urlencoded',
-        'Accept': 'application/json',
-        'X-Requested-With': 'XMLHttpRequest', // Helps bypass some bot protection
-        'X-API-Key': ApiConstants.apiKey, // API key for unrestricted access
-      };
-      
-      // Add protection cookie if we have one
-      if (_protectionCookie != null) {
-        headers['Cookie'] = _protectionCookie!;
+      // Send message via WebSocket only
+      // WebSocket server will deliver if recipient is online, or respond with chat_offline if offline
+      if (!_webSocketService.isConnected) {
+        throw Exception('WebSocket not connected. Please check your connection.');
       }
-      
-      // Build body map to ensure all parameters are strings
-      final bodyMap = <String, String>{
-        'userID': userId.toString(),
-        'from': userId.toString(),
-        'to': toUserId.toString(),
-        'message': encryptedContent,
-        'api_key': ApiConstants.apiKey, // Also send in POST body for compatibility
-      };
-      
-      // Use Map format - http package will automatically encode it as form-urlencoded
-      // when Content-Type is set to application/x-www-form-urlencoded
-      final response = await _retryHttpRequest(
-        () async {
-          final resp = await _client.post(
-            Uri.parse(url),
-            body: bodyMap,
-            headers: headers,
-            encoding: utf8, // Explicitly set encoding
-          );
-          return resp;
-        },
-        maxRetries: 2,
-      );
 
-      // Log response in both debug and release (using debugPrint)
-      // Check if response is HTML/JavaScript (bot protection, Cloudflare, etc.)
-      final responseBody = response.body.trim();
-      final isHtmlResponse = responseBody.startsWith('<') || 
-                             responseBody.contains('<script>') ||
-                             responseBody.contains('<!DOCTYPE') ||
-                             responseBody.contains('<html') ||
-                             responseBody.startsWith('<br') ||
-                             (responseBody.length < 50 && responseBody.contains('<'));
-      
-      if (isHtmlResponse) {
+      try {
+        final sent = await _webSocketService.sendChatMessage(
+          targetUserId: toUserId,
+          content: trimmedContent,
+        );
         
-        // Try to extract protection cookie from response
-        final cookieMatch = RegExp(r'humans_\d+=\d+').firstMatch(responseBody);
-        if (cookieMatch != null) {
-          _protectionCookie = cookieMatch.group(0);
-          // Wait a moment before retrying (bot protection may need time to process)
-          await Future.delayed(const Duration(milliseconds: 500));
-          
-          // Retry the request with the cookie and API key
-          // Validate parameters before retry
-          if (userId.isEmpty || toUserId.isEmpty || encryptedContent.isEmpty) {
-            throw Exception('Missing required parameters for retry');
-          }
-          
-          try {
-            // Build the body map to ensure all parameters are present and are strings
-            final retryBody = <String, String>{
-              'userID': userId.toString(),
-              'from': userId.toString(),
-              'to': toUserId.toString(),
-              'message': encryptedContent,
-              'api_key': ApiConstants.apiKey, // Also send in POST body for compatibility
-            };
-            
-            // Make a direct request without retry wrapper to avoid nested retries
-            // Use Map format - http package will automatically encode it correctly
-            final retryResponse = await _client.post(
-              Uri.parse(url),
-              body: retryBody,
-              headers: {
-                'Content-Type': 'application/x-www-form-urlencoded',
-                'Accept': 'application/json',
-                'X-Requested-With': 'XMLHttpRequest',
-                'X-API-Key': ApiConstants.apiKey, // API key for unrestricted access
-                'Cookie': _protectionCookie!,
-              },
-              encoding: utf8, // Explicitly set encoding
-            ).timeout(const Duration(seconds: 15));
-            // Check if retry also got HTML
-            final retryResponseBody = retryResponse.body.trim();
-            final retryIsHtml = retryResponseBody.startsWith('<') || 
-                               retryResponseBody.contains('<script>') ||
-                               retryResponseBody.contains('<!DOCTYPE') ||
-                               retryResponseBody.contains('<html') ||
-                               retryResponseBody.startsWith('<br');
-            
-            if (retryIsHtml) {
-              throw Exception('Server protection is still active. The API key may need to be configured on the server.');
-            }
-            
-            // Process the retry response
-            return await _processSendMessageResponse(retryResponse, userId, toUserId, content);
-          } catch (retryError) {
-            // Fall through to throw error
-          }
+        if (!sent) {
+          throw Exception('Failed to send message via WebSocket');
         }
         
-        // This is likely bot protection (Cloudflare, etc.) - treat as temporary error
-        if (response.statusCode == 409 || response.statusCode == 403) {
-          throw Exception('Server protection triggered. The API key may need to be configured in your hosting control panel (cPanel/Cloudflare).');
+        // Create optimistic message - will be updated when we get confirmation or store in database
+        final optimisticMessage = Message(
+          id: 'temp_${DateTime.now().millisecondsSinceEpoch}',
+          from: userId,
+          to: toUserId,
+          content: trimmedContent,
+          date: DateTime.now(),
+          viewed: false,
+          isFromMe: true,
+          status: MessageStatus.sending,
+        );
+        
+        // Store message in database (do this asynchronously, don't wait)
+        // The message will be stored regardless of whether recipient is online or offline
+        _storeMessageInDatabase(userId, toUserId, trimmedContent).then((_) {
+          print('[SKYBYN] ✅ [Chat] Message stored in database successfully');
+        }).catchError((e) {
+          print('[SKYBYN] ⚠️ [Chat] Failed to store message in database: $e');
+        });
+        
+        // Invalidate cache for this conversation
+        try {
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.remove('$_cacheKeyPrefix$toUserId');
+          await prefs.remove('$_cacheTimestampPrefix$toUserId');
+        } catch (e) {
+          // Ignore cache errors
         }
-        throw Exception('Server temporarily unavailable. Please try again in a moment.');
+        
+        return optimisticMessage;
+      } catch (e) {
+        rethrow;
       }
-      
-      // Process normal response
-      // The API call stores the message in the database
-      return await _processSendMessageResponse(response, userId, toUserId, content);
     } catch (e) {
       rethrow;
     }
   }
+  
+  /// Store message in database (called asynchronously after WebSocket send)
+  Future<void> _storeMessageInDatabase(String userId, String toUserId, String message) async {
+    try {
+      final url = ApiConstants.chatSend;
+      // Use simple http.post() like token.php does (no custom client, minimal headers)
+      final response = await http.post(
+        Uri.parse(url),
+        body: {
+          'userID': userId,
+          'to': toUserId,
+          'message': message,
+        },
+      ).timeout(const Duration(seconds: 10));
+      
+      // Check for bot protection
+      if (response.statusCode == 409 || response.body.contains('<script>') || response.body.contains('humans_')) {
+        return; // Don't throw - message is already delivered
+      }
+      
+      // Process response to get message ID (for future use if needed)
+      await _processSendMessageResponse(
+        response,
+        userId,
+        toUserId,
+        message,
+      );
+    } catch (e) {
+      // Silently fail - message delivery via WebSocket is more important
+    }
+  }
 
-  /// Get messages between current user and another user
-  /// Returns messages ordered oldest to newest (for UI display)
+  /// Get messages for a friend with caching support
   Future<List<Message>> getMessages({
     required String friendId,
     int? limit,
     int? offset,
   }) async {
     try {
+      // Get current user ID
       final userId = await _authService.getStoredUserId();
       if (userId == null) {
         throw Exception('User not logged in');
       }
 
-      // Try to load from cache first (only for initial load, offset 0)
-      if (offset == null || offset == 0) {
-        final cachedMessages = await _loadMessagesFromCache(friendId, userId);
-        if (cachedMessages.isNotEmpty) {
-          // Refresh in background
-          _refreshMessagesInBackground(friendId, userId);
-          return cachedMessages;
-        }
+      // Try to load from cache first
+      final cachedMessages = await _loadMessagesFromCache(friendId, userId);
+      
+      // If we have fresh cache, return it and refresh in background
+      if (cachedMessages.isNotEmpty) {
+        _refreshMessagesInBackground(friendId, userId);
+        return cachedMessages;
       }
 
-      // If no cache, fetch from API
+      // No cache or cache expired, fetch from API
       final messages = await _fetchMessagesFromAPI(friendId, userId, limit, offset);
-
-      // API returns newest first (DESC), reverse to oldest first for UI
-      // Also sort by date to ensure correct order (in case dates are not sequential)
-      final reversedMessages = messages.reversed.toList();
-      reversedMessages.sort((a, b) => a.date.compareTo(b.date));
-
-      // Cache the messages (only for initial load)
-      if ((offset == null || offset == 0) && reversedMessages.isNotEmpty) {
-        await _saveMessagesToCache(friendId, reversedMessages);
+      
+      // Save to cache
+      if (messages.isNotEmpty) {
+        await _saveMessagesToCache(friendId, messages);
       }
-
-      return reversedMessages;
+      
+      return messages;
     } catch (e) {
-      // If API fails, try to return cached data as fallback (only for initial load)
-      if (offset == null || offset == 0) {
+      // If API fails, try to return cached messages even if expired
+      try {
         final userId = await _authService.getStoredUserId();
         if (userId != null) {
           final cachedMessages = await _loadMessagesFromCache(friendId, userId);
           if (cachedMessages.isNotEmpty) {
+            return cachedMessages;
           }
-          return cachedMessages;
         }
+      } catch (cacheError) {
+        // Ignore cache errors
       }
-      return [];
+      rethrow;
     }
   }
 
-  /// Load older messages (for pagination when scrolling up)
-  /// Returns messages ordered oldest to newest
-  Future<List<Message>> loadOlderMessages({
-    required String friendId,
-    required int currentMessageCount,
-    int limit = 50,
-  }) async {
-    try {
-      final userId = await _authService.getStoredUserId();
-      if (userId == null) {
-        throw Exception('User not logged in');
-      }
-
-      // Calculate offset based on current message count
-      final offset = currentMessageCount;
-
-      // Fetch older messages from API
-      final messages = await _fetchMessagesFromAPI(friendId, userId, limit, offset);
-
-      // API returns newest first (DESC), reverse to oldest first for UI
-      // Also sort by date to ensure correct order
-      final reversedMessages = messages.reversed.toList();
-      reversedMessages.sort((a, b) => a.date.compareTo(b.date));
-      return reversedMessages;
-    } catch (e) {
-      return [];
-    }
-  }
+  // Chat load older messages logic removed - UI only
+  // Future<List<Message>> loadOlderMessages({
+  //   required String friendId,
+  //   required int currentMessageCount,
+  //   int limit = 50,
+  // }) async {
+  //   // Removed
+  //   return [];
+  // }
 
   /// Check if an exception is a transient network error that should be retried
   bool _isTransientError(dynamic error) {
