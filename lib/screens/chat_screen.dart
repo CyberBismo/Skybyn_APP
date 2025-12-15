@@ -23,6 +23,7 @@ import 'dart:async';
 import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:http/io_client.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'profile_screen.dart';
 import 'call_screen.dart';
 import '../config/constants.dart';
@@ -630,6 +631,16 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
       final senderUsername = user?.username ?? 'Someone';
       final senderAvatar = user?.avatar ?? '';
       
+      // Get session token and user ID for authentication
+      final prefs = await SharedPreferences.getInstance();
+      final sessionToken = prefs.getString('sessionToken');
+      final currentUserId = prefs.getString('userID') ?? prefs.getString(StorageKeys.userId);
+      
+      if (sessionToken == null || currentUserId == null) {
+        // Session not available - cannot send notification
+        return;
+      }
+      
       // Build avatar URL if provided
       String? avatarUrl;
       if (senderAvatar.isNotEmpty && !senderAvatar.startsWith('http')) {
@@ -639,16 +650,18 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
         avatarUrl = senderAvatar;
       }
       
-      // Call firebase.php API to send notification (same as admin panel)
+      // Call firebase.php API to send notification
+      // Use simple http.post() like token.php does (no custom client, minimal headers)
       final url = ApiConstants.firebase;
-      final client = IOClient(HttpClient());
-      final response = await client.post(
+      final response = await http.post(
         Uri.parse(url),
         body: {
+          'userID': currentUserId, // Required for session validation
+          'sessionToken': sessionToken, // Required for session validation
           'user': toUserId,
           'title': senderUsername,
           'body': message,
-          'type': 'chat',
+          'type': 'admin',
           'from': fromUserId,
           'priority': 'high',
           'channel': 'chat_messages',
@@ -661,27 +674,31 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
             'chat': message,
           }),
         },
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-          'Accept': 'application/json',
-          'Accept-Language': 'en-US,en;q=0.9',
-          'X-Requested-With': 'XMLHttpRequest',
-          'X-API-Key': ApiConstants.apiKey,
-          'User-Agent': 'Mozilla/5.0 (Linux; Android 10; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.120 Mobile Safari/537.36 Skybyn-App/1.0',
-          'Referer': 'https://api.skybyn.no/',
-          'Origin': 'https://api.skybyn.no',
-        },
       ).timeout(const Duration(seconds: 10));
       
       if (response.statusCode == 200) {
         final responseData = json.decode(response.body);
-        if (responseData['status'] == 'success' || responseData['status'] == 'ok') {
+        // Check both responseCode (like token.php) and status field
+        final responseCode = responseData['responseCode'] ?? responseData['status'];
+        final isSuccess = responseCode == '1' || responseCode == 'success' || responseCode == 'ok';
+        
+        if (isSuccess) {
           debugPrint('[SKYBYN] ✅ [Chat] FCM notification sent successfully to user: $toUserId');
+          if (responseData['messageId'] != null) {
+            debugPrint('[SKYBYN] 📨 [Chat] FCM message ID: ${responseData['messageId']}');
+          }
         } else {
-          debugPrint('[SKYBYN] ⚠️ [Chat] FCM notification response: ${responseData['message'] ?? 'Unknown error'}');
+          final errorMsg = responseData['message'] ?? 'Unknown error';
+          debugPrint('[SKYBYN] ⚠️ [Chat] FCM notification failed: $errorMsg');
         }
       } else {
-        debugPrint('[SKYBYN] ❌ [Chat] FCM notification failed with status: ${response.statusCode}');
+        debugPrint('[SKYBYN] ❌ [Chat] FCM notification HTTP error: ${response.statusCode}');
+        try {
+          final responseData = json.decode(response.body);
+          debugPrint('[SKYBYN] ❌ [Chat] Error message: ${responseData['message'] ?? response.body}');
+        } catch (e) {
+          debugPrint('[SKYBYN] ❌ [Chat] Response body: ${response.body}');
+        }
       }
     } catch (e) {
       debugPrint('[SKYBYN] ❌ [Chat] Error sending FCM notification: $e');
@@ -693,23 +710,13 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
   Future<void> _storeIncomingMessageInDatabase(String fromUserId, String toUserId, String message) async {
     try {
       final url = ApiConstants.chatSend;
-      final client = IOClient(HttpClient());
-      final response = await client.post(
+      // Use simple http.post() like token.php does (no custom client, minimal headers)
+      final response = await http.post(
         Uri.parse(url),
         body: {
           'userID': fromUserId,
           'to': toUserId,
           'message': message,
-        },
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-          'Accept': 'application/json',
-          'Accept-Language': 'en-US,en;q=0.9',
-          'X-Requested-With': 'XMLHttpRequest',
-          'X-API-Key': ApiConstants.apiKey,
-          'User-Agent': 'Mozilla/5.0 (Linux; Android 10; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.120 Mobile Safari/537.36 Skybyn-App/1.0',
-          'Referer': 'https://api.skybyn.no/',
-          'Origin': 'https://api.skybyn.no',
         },
       ).timeout(const Duration(seconds: 10));
       

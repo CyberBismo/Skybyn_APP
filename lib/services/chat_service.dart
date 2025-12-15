@@ -19,6 +19,9 @@ class ChatService {
   final AuthService _authService = AuthService();
   final WebSocketService _webSocketService = WebSocketService();
   
+  // Track if chat_offline callback is registered
+  bool _chatOfflineCallbackRegistered = false;
+  
   // Store protection cookie to bypass bot challenges
   static String? _protectionCookie;
   
@@ -214,6 +217,26 @@ class ChatService {
         throw Exception('WebSocket not connected. Please check your connection.');
       }
 
+      // Register chat_offline callback to send Firebase notification when recipient is offline
+      // Only register once to avoid overwriting
+      if (!_chatOfflineCallbackRegistered) {
+        await _webSocketService.connect(
+          onChatOffline: (String fromUserId, String toUserId, String messageContent) async {
+            // Get current user ID to check if this is our message
+            final currentUserId = await _authService.getStoredUserId();
+            if (currentUserId != null && fromUserId == currentUserId) {
+              // This is a message we sent, and recipient is offline - send Firebase notification
+              await _sendFirebaseNotificationForOfflineUser(
+                fromUserId: fromUserId,
+                toUserId: toUserId,
+                messageContent: messageContent,
+              );
+            }
+          },
+        );
+        _chatOfflineCallbackRegistered = true;
+      }
+
       try {
         final sent = await _webSocketService.sendChatMessage(
           targetUserId: toUserId,
@@ -259,6 +282,85 @@ class ChatService {
       }
     } catch (e) {
       rethrow;
+    }
+  }
+  
+  /// Send Firebase notification when recipient is offline
+  Future<void> _sendFirebaseNotificationForOfflineUser({
+    required String fromUserId,
+    required String toUserId,
+    required String messageContent,
+  }) async {
+    try {
+      // Get sender's profile info (username, nickname, avatar)
+      final userProfile = await _authService.getStoredUserProfile();
+      String senderName = 'Someone';
+      String? senderAvatar;
+      
+      if (userProfile != null) {
+        final nickname = userProfile.nickname.trim();
+        final username = userProfile.username.trim();
+        senderName = nickname.isNotEmpty ? nickname : (username.isNotEmpty ? username : 'Someone');
+        senderAvatar = userProfile.avatar.trim();
+        if (senderAvatar.isEmpty) {
+          senderAvatar = null;
+        }
+      }
+      
+      // Get session token for authentication
+      final prefs = await SharedPreferences.getInstance();
+      final sessionToken = prefs.getString('sessionToken');
+      
+      if (sessionToken == null || sessionToken.isEmpty) {
+        print('[SKYBYN] ⚠️ [Chat] No session token available, cannot send Firebase notification');
+        return;
+      }
+      
+      // Truncate message for notification (max 100 chars)
+      String notificationBody = messageContent;
+      if (notificationBody.length > 100) {
+        notificationBody = notificationBody.substring(0, 97) + '...';
+      }
+      
+      // Build Firebase notification payload
+      final firebaseData = <String, String>{
+        'userID': fromUserId, // Required for authentication
+        'sessionToken': sessionToken, // Required for authentication
+        'user': toUserId, // Recipient user ID
+        'title': senderName,
+        'body': notificationBody,
+        'type': 'chat',
+        'from': fromUserId,
+        'priority': 'high',
+        'channel': 'chat_messages',
+        'payload': jsonEncode({
+          'from': fromUserId,
+          'to': toUserId,
+          'message': messageContent,
+          'date': DateTime.now().millisecondsSinceEpoch ~/ 1000,
+        }),
+      };
+      
+      // Add avatar if available
+      if (senderAvatar != null && senderAvatar.isNotEmpty) {
+        firebaseData['image'] = senderAvatar;
+      }
+      
+      // Send Firebase notification via API (async - don't wait for response)
+      final url = ApiConstants.firebase;
+      try {
+        await _client.post(
+          Uri.parse(url),
+          body: firebaseData,
+        ).timeout(const Duration(seconds: 3));
+        print('[SKYBYN] ✅ [Chat] Firebase notification sent to offline user $toUserId');
+      } catch (e) {
+        // Silently fail - notification failure shouldn't break message sending
+        print('[SKYBYN] ⚠️ [Chat] Failed to send Firebase notification: $e');
+      }
+    } catch (e) {
+      // Silently fail - notification failure shouldn't break message sending
+      print('[SKYBYN] ⚠️ [Chat] Error sending Firebase notification: $e');
     }
   }
   

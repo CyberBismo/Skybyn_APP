@@ -37,19 +37,6 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
     final timestamp = DateTime.now().toIso8601String();
     final type = message.data['type']?.toString();
     final messageId = message.messageId ?? 'no-id';
-    
-    developer.log('═══════════════════════════════════════════════════════', name: 'FCM Background');
-    developer.log('📨 Background message received at $timestamp', name: 'FCM Background');
-    developer.log('   Message ID: $messageId', name: 'FCM Background');
-    developer.log('   Type: $type', name: 'FCM Background');
-    developer.log('   Notification title: ${message.notification?.title ?? "null"}', name: 'FCM Background');
-    developer.log('   Notification body: ${message.notification?.body ?? "null"}', name: 'FCM Background');
-    developer.log('   Full data: ${message.data}', name: 'FCM Background');
-    developer.log('   Has notification payload: ${message.notification != null}', name: 'FCM Background');
-    developer.log('═══════════════════════════════════════════════════════', name: 'FCM Background');
-    
-    // Process all messages, including in debug mode (for testing)
-    // Debug mode check removed to ensure notifications work during development
 
     // Check if Firebase is already initialized
     if (Firebase.apps.isEmpty) {
