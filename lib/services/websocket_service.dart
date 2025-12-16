@@ -232,7 +232,7 @@ class WebSocketService {
     } catch (e) {
     }
   }
-  
+
   /// Get WebSocket URL
   String _getWebSocketUrl() {
     // Use production port and host
@@ -244,13 +244,13 @@ class WebSocketService {
   /// Create WebSocket channel with SSL certificate handling
   Future<WebSocketChannel> _createWebSocketChannel(String url) async {
     final uri = Uri.parse(url);
-    
+
     try {
       // Create an HttpClient with custom certificate handling
       // The certificate is valid, so we'll use standard validation
       // but configure it to handle the certificate chain properly
       final httpClient = HttpClient();
-      
+
       // Set up certificate validation callback
       // This allows proper validation of the server's certificate
       httpClient.badCertificateCallback = (X509Certificate cert, String host, int port) {
@@ -262,13 +262,13 @@ class WebSocketService {
         // For other hosts, use standard validation
         return false;
       };
-      
+
       // Create WebSocket connection using the custom HttpClient
       final webSocket = await WebSocket.connect(
         url,
         customClient: httpClient,
       );
-      
+
       // Wrap the socket in an IOWebSocketChannel
       return IOWebSocketChannel(webSocket);
     } catch (e) {
@@ -311,7 +311,7 @@ class WebSocketService {
     if (!_isInitialized) {
       await initialize();
     }
-    
+
     // Test connection if it appears connected
     if (_isConnected) {
       // Verify the connection is actually alive
@@ -325,7 +325,7 @@ class WebSocketService {
         _channel = null;
       }
     }
-    
+
     if (_isConnecting) {
       return;
     }
@@ -335,7 +335,7 @@ class WebSocketService {
 
     try {
       _updateConnectionMetrics('connecting');
-      
+
       // Generate session ID if not exists
       _sessionId ??= _generateSessionId();
 
@@ -365,13 +365,13 @@ class WebSocketService {
         _reconnectAttempts = 0;
         _lastPingReceivedTime = DateTime.now().millisecondsSinceEpoch;
         _updateConnectionMetrics('connected'); // This already logs the connection message
-        
+
         // Process any queued messages now that we're connected
         _processMessageQueue();
-        
+
         // Start connection health monitoring
         _startConnectionHealthMonitor();
-        
+
         // Note: Online status is managed by app lifecycle in main.dart
         // to avoid duplicate updates when both WebSocket and lifecycle fire
       }
@@ -446,7 +446,7 @@ class WebSocketService {
           _updateConnectionMetrics('message_received');
           final messageType = data['type']?.toString();
           final messageId = data['id']?.toString() ?? data['messageId']?.toString() ?? 'no-id';
-          
+
           if (messageType == 'ping') {
             // _logChat('WebSocket Ping', 'Received ping, responding with pong');
             // Update last ping received time to track connection health
@@ -585,7 +585,7 @@ class WebSocketService {
               final fromName = data['fromName']?.toString();
               final message = data['message']?.toString();
               final messageId = data['messageId']?.toString();
-              
+
               if (notificationType == 'chat' && fromUserId != null && message != null) {
                 // Show only one type of notification - in-app if foreground, system if background
                 // Note: The 'chat' case will also handle showing in-app notifications, so this is a fallback
@@ -611,7 +611,7 @@ class WebSocketService {
                     // Silently fail
                   }
                 }
-                
+
                 // NOTE: Do NOT trigger chat message callbacks here for chat notifications
                 // The server may send the same message as both 'chat' and 'notification' types
                 // The 'chat' case will handle the callbacks to prevent duplicates
@@ -620,7 +620,7 @@ class WebSocketService {
                 // Generic notification
                 final title = data['title']?.toString() ?? 'Notification';
                 final body = data['message']?.toString() ?? data['body']?.toString() ?? '';
-                
+
                 // Show only one type of notification - in-app if foreground, system if background
                 if (_isAppInForeground()) {
                   // App is in foreground - show in-app notification only
@@ -729,7 +729,7 @@ class WebSocketService {
               final toUserId = data['to']?.toString() ?? '';
               final messageContent = data['message']?.toString() ?? '';
               final messageDate = data['date'];
-              
+
               if (messageId.isNotEmpty && fromUserId.isNotEmpty && messageContent.isNotEmpty) {
                 // Trigger all registered chat message callbacks
                 for (final callback in _onChatMessageCallbacks) {
@@ -747,7 +747,7 @@ class WebSocketService {
               final fromUserId = data['from']?.toString() ?? '';
               final toUserId = data['to']?.toString() ?? '';
               final messageContent = data['message']?.toString() ?? '';
-              
+
               if (messageId.isNotEmpty) {
                 // Trigger callbacks with the confirmed message ID
                 for (final callback in _onChatMessageCallbacks) {
@@ -764,7 +764,7 @@ class WebSocketService {
               final fromUserId = data['from']?.toString() ?? '';
               final toUserId = data['to']?.toString() ?? '';
               final messageContent = data['message']?.toString() ?? '';
-              
+
               // Trigger callback to send FCM notification (app will get username/avatar from its own profile)
               if (_onChatOffline != null) {
                 try {
@@ -783,20 +783,20 @@ class WebSocketService {
               _onTypingStatus?.call(fromUserId, false);
               break;
             case 'online_status':
-              final userId = data['userId']?.toString() ?? 
-                            data['user_id']?.toString() ?? 
+              final userId = data['userId']?.toString() ??
+                            data['user_id']?.toString() ??
                             data['userID']?.toString() ?? '';
               // Parse isOnline value - check multiple possible field names and formats
               final isOnlineRaw = data['isOnline'] ?? data['online'];
-              final parsedIsOnline = isOnlineRaw == true || 
-                              isOnlineRaw == 'true' || 
+              final parsedIsOnline = isOnlineRaw == true ||
+                              isOnlineRaw == 'true' ||
                               isOnlineRaw == 1 ||
                               isOnlineRaw == '1';
-              
+
               // Invert the value if server is sending reversed status
               // Server might be sending: true = offline, false = online
               final isOnline = !parsedIsOnline;
-              
+
               if (userId.isEmpty) {
                 // Missing userId - skip
               } else if (_onOnlineStatusCallbacks.isEmpty) {
@@ -960,16 +960,16 @@ class WebSocketService {
       // The sink.add() will throw if the channel is closed
       _channel!.sink.add(message);
       _updateConnectionMetrics('message_sent');
-      
+
       return true;
     } catch (e) {
       // Log error in both debug and release (using debugPrint which works in release)
       _updateConnectionMetrics('error');
-      
+
       // If channel error, mark as disconnected and reconnect
       _isConnected = false;
       _scheduleReconnect();
-      
+
       return false;
     }
   }
@@ -1180,7 +1180,7 @@ class WebSocketService {
     if (!_isConnected || _channel == null) {
       return false;
     }
-    
+
     try {
       // Try to check if the channel is still valid by checking if it's closed
       // Note: WebSocketChannel doesn't expose a direct "isClosed" property,
@@ -1210,18 +1210,18 @@ class WebSocketService {
       } catch (e) {
       }
     }
-    
+
     // Reset connection state
     _channel = null;
     _isConnected = false;
     _isConnecting = false;
     _lastPingReceivedTime = null;
     _reconnectAttempts = 0;
-    
+
     // Cancel any existing reconnect timers
     _reconnectTimer?.cancel();
     _connectionHealthTimer?.cancel();
-    
+
     // Reconnect immediately
     await connect();
   }
@@ -1230,13 +1230,13 @@ class WebSocketService {
   void disconnect() {
     _reconnectTimer?.cancel();
     _connectionHealthTimer?.cancel();
-    
+
     // Close channel gracefully
     try {
       _channel?.sink.close();
     } catch (e) {
     }
-    
+
     _channel = null;
     _isConnected = false;
     _isConnecting = false;
@@ -1253,7 +1253,7 @@ class WebSocketService {
   /// Monitors if server is still sending pings (server sends pings every 30 seconds)
   void _startConnectionHealthMonitor() {
     _connectionHealthTimer?.cancel();
-    
+
     // Check every 20 seconds to detect dead connections faster
     // If we haven't received a ping from server in 60 seconds (2x interval), connection is likely dead
     _connectionHealthTimer = Timer.periodic(const Duration(seconds: 20), (timer) {
@@ -1261,17 +1261,17 @@ class WebSocketService {
         timer.cancel();
         return;
       }
-      
+
       // Test connection health
       if (!_testConnection()) {
         _onConnectionClosed();
         return;
       }
-      
+
       if (_lastPingReceivedTime != null) {
         final now = DateTime.now().millisecondsSinceEpoch;
         final timeSinceLastPing = now - _lastPingReceivedTime!;
-        
+
         // If we haven't received a ping from server in 60 seconds, connection is likely dead
         if (timeSinceLastPing > 60000) {
           // Connection appears dead, trigger reconnection
@@ -1372,4 +1372,3 @@ class WebSocketService {
     }
   }
 }
-
