@@ -17,6 +17,9 @@ class DeviceService {
       encryptedSharedPreferences: true,
     ),
   );
+<<<<<<< HEAD
+>>>>>>> parent of 6049610 (Fix FCM token registration, device ID generation, and background notifications)
+=======
 >>>>>>> parent of 6049610 (Fix FCM token registration, device ID generation, and background notifications)
 
   Future<Map<String, dynamic>> getDeviceInfo() async {
@@ -134,6 +137,9 @@ class DeviceService {
       deviceId = const Uuid().v4();
       await _secureStorage.write(key: _secureDeviceIdKey, value: deviceId);
       await prefs.setString(_deviceIdKey, deviceId);
+<<<<<<< HEAD
+>>>>>>> parent of 6049610 (Fix FCM token registration, device ID generation, and background notifications)
+=======
 >>>>>>> parent of 6049610 (Fix FCM token registration, device ID generation, and background notifications)
       return deviceId;
     } catch (e) {
