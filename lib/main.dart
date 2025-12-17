@@ -214,9 +214,6 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   String? _activeCallId;
   Friend? _activeCallFriend;
 
-  // Track handled call IDs to prevent duplicate dialogs
-  final Set<String> _handledCallIds = {};
-
   // Deep linking
   late AppLinks _appLinks;
   StreamSubscription<Uri>? _linkSubscription;
@@ -586,17 +583,6 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         // Always force reconnect WebSocket when app resumes to ensure connection is alive
         // The connection might appear connected but actually be dead after backgrounding
         _webSocketService.forceReconnect().catchError((error) {
-        }).then((_) async {
-          // Check for pending calls after reconnecting
-          if (_webSocketService.isConnected) {
-            final authService = AuthService();
-            final userId = await authService.getStoredUserId();
-
-            if (userId != null && userId.isNotEmpty) {
-              await Future.delayed(const Duration(milliseconds: 500));
-              await _checkPendingCallsFromAPI(userId);
-            }
-          }
         });
         // Check profile status when app resumes (detect bans/deactivations)
         _checkProfileStatus();
@@ -654,18 +640,6 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   /// This ensures WebSocket is always connected as long as the app is running
   void _connectWebSocketGlobally() {
     _webSocketService.connect().catchError((error) {
-    }).then((_) async {
-      // Check for pending calls after WebSocket connects
-      if (_webSocketService.isConnected) {
-        await Future.delayed(const Duration(milliseconds: 500));
-
-        final authService = AuthService();
-        final userId = await authService.getStoredUserId();
-
-        if (userId != null && userId.isNotEmpty) {
-          await _checkPendingCallsFromAPI(userId);
-        }
-      }
     });
   }
 
@@ -959,8 +933,6 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   void _setupIncomingCallFromNotificationHandler() {
     FirebaseMessagingService.setIncomingCallCallback((callId, fromUserId, callType) async {
       // App was opened from a call notification
-      print('[SKYBYN] 📞 Opening app from call notification: callId=$callId, from=$fromUserId');
-
       // Ensure WebSocket is connected so we can receive the call offer
       if (!_webSocketService.isConnected) {
         try {
@@ -994,150 +966,15 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         }
       }
 
-      // Wait a moment for app to fully initialize
-      await Future.delayed(const Duration(milliseconds: 800));
+      // Wait a moment for WebSocket to receive any pending call offers
+      // The server should resend the call offer when the user comes online
+      await Future.delayed(const Duration(milliseconds: 500));
 
-      // Check API for pending calls
-      final authService = AuthService();
-      final currentUserId = await authService.getStoredUserId();
-
-      if (currentUserId != null) {
-        await _checkPendingCallsFromAPI(currentUserId);
-      }
+      // Check if we already received the call offer via WebSocket
+      // If not, the caller should resend it when they see us come online
+      // For now, we'll wait for the WebSocket handler to receive it
+      // The call offer should arrive within a few seconds
     });
-  }
-
-  /// Check for pending calls from API when app connects or resumes
-  Future<void> _checkPendingCallsFromAPI(String userId) async {
-    try {
-      print('[SKYBYN] 📞 Checking for pending calls...');
-
-      final response = await http.post(
-        Uri.parse(ApiConstants.getPendingCalls),
-        body: {'userID': userId},
-      ).timeout(const Duration(seconds: 5));
-
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-
-        if (data['responseCode'] == '1') {
-          final List<dynamic> pendingCalls = data['pendingCalls'] ?? [];
-
-          print('[SKYBYN] 📞 Found ${pendingCalls.length} pending call(s)');
-
-          for (var call in pendingCalls) {
-            await _handlePendingCall(call);
-          }
-        }
-      }
-    } catch (e) {
-      print('[SKYBYN] ⚠️ Failed to check pending calls: $e');
-    }
-  }
-
-  /// Handle a pending call from API
-  Future<void> _handlePendingCall(Map<String, dynamic> callData) async {
-    final callId = callData['callId']?.toString() ?? '';
-    final fromUserId = callData['fromUserId']?.toString() ?? '';
-    final offerSdp = callData['offerSdp']?.toString() ?? '';
-    final callType = callData['callType']?.toString() ?? 'audio';
-
-    if (callId.isEmpty || fromUserId.isEmpty || offerSdp.isEmpty) {
-      print('[SKYBYN] ⚠️ Invalid pending call data');
-      return;
-    }
-
-    // Check if already handled
-    if (_handledCallIds.contains(callId)) {
-      print('[SKYBYN] ⏭️ Call $callId already handled, skipping');
-      return;
-    }
-
-    _handledCallIds.add(callId);
-
-    print('[SKYBYN] 📞 Processing pending call: $callId from user $fromUserId');
-
-    // Create Friend object from call data
-    final friend = Friend(
-      id: fromUserId,
-      username: callData['callerUsername']?.toString() ?? 'Unknown',
-      nickname: callData['callerNickname']?.toString() ?? '',
-      avatar: callData['callerAvatar']?.toString() ?? '',
-      online: false,
-    );
-
-    // Show incoming call dialog
-    final context = navigatorKey.currentContext;
-    if (context != null && mounted) {
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (dialogContext) => IncomingCallNotification(
-          callId: callId,
-          fromUserId: fromUserId,
-          fromUsername: friend.nickname.isNotEmpty ? friend.nickname : friend.username,
-          avatarUrl: friend.avatar,
-          callType: callType == 'video' ? CallType.video : CallType.audio,
-          onAccept: () async {
-            Navigator.of(dialogContext).pop();
-
-            try {
-              // Handle the incoming offer
-              await _callService.handleIncomingOffer(
-                callId: callId,
-                fromUserId: fromUserId,
-                offer: offerSdp,
-                callType: callType,
-              );
-
-              // Navigate to call screen
-              if (context.mounted) {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => CallScreen(
-                      friend: friend,
-                      callType: callType == 'video' ? CallType.video : CallType.audio,
-                      isIncoming: true,
-                    ),
-                  ),
-                );
-              }
-
-              // Update call status to answered
-              await http.post(
-                Uri.parse(ApiConstants.updateCallStatus),
-                body: {'callId': callId, 'status': 'answered'},
-              );
-            } catch (e) {
-              print('[SKYBYN] ❌ Error accepting pending call: $e');
-
-              if (context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('Failed to accept call: $e'),
-                    backgroundColor: Colors.red,
-                  ),
-                );
-              }
-            }
-          },
-          onReject: () async {
-            Navigator.of(dialogContext).pop();
-
-            // Reject the call
-            await _callService.rejectCall();
-
-            // Update status via API
-            await http.post(
-              Uri.parse(ApiConstants.updateCallStatus),
-              body: {'callId': callId, 'status': 'rejected'},
-            ).catchError((e) {
-              print('[SKYBYN] ⚠️ Failed to update call status: $e');
-            });
-          },
-        ),
-      );
-    }
   }
 
   /// Set up call handlers for incoming calls via WebSocket

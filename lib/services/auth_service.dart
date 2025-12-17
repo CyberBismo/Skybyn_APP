@@ -30,36 +30,36 @@ class AuthService {
   static const String userProfileKey = StorageKeys.userProfile;
   static const String usernameKey = StorageKeys.username;
   SharedPreferences? _prefs;
-
+  
   // HTTP client with standard SSL validation
   static http.Client? _httpClient;
   static http.Client get _client {
     _httpClient ??= _createHttpClient();
     return _httpClient!;
   }
-
+  
   static http.Client _createHttpClient() {
     HttpClient httpClient;
-
+    
     // Use default HttpClient with standard SSL validation
     if (HttpOverrides.current != null) {
       httpClient = HttpOverrides.current!.createHttpClient(null);
     } else {
       httpClient = HttpClient();
     }
-
+    
     // Set user agent and timeouts
     httpClient.userAgent = 'Skybyn-App/1.0';
     httpClient.connectionTimeout = const Duration(seconds: 30);
     httpClient.idleTimeout = const Duration(seconds: 30);
-
+    
     // Set auto-uncompress to handle compressed responses
     httpClient.autoUncompress = true;
     final ioClient = IOClient(httpClient);
     return ioClient;
   }
   // final fb_auth.FirebaseAuth _auth = fb_auth.FirebaseAuth.instance;
-
+  
   // Track last known online status to prevent duplicate updates
   static bool? _lastKnownOnlineStatus;
 
@@ -80,7 +80,7 @@ class AuthService {
     try {
       // Ensure HTTP client is initialized
       _httpClient ??= _createHttpClient();
-
+      
       final deviceService = DeviceService();
       final deviceInfo = await deviceService.getDeviceInfo();
 
@@ -97,15 +97,15 @@ class AuthService {
       // Get the client (should already be initialized above)
       final client = _client;
       final loginUrl = ApiConstants.login;
-
+      
       // Make the HTTP request
       http.Response response;
       try {
         response = await client.post(
-          Uri.parse(loginUrl),
+          Uri.parse(loginUrl), 
           body: {
-            'user': username,
-            'password': password,
+            'user': username, 
+            'password': password, 
             'deviceInfo': json.encode(deviceInfo)
           }
         ).timeout(
@@ -130,7 +130,7 @@ class AuthService {
           // Convert userID to string to avoid type mismatch
           await _prefs?.setString(userIdKey, data['userID'].toString());
           await _prefs?.setString(usernameKey, username);
-
+          
           // Store session token if provided
           if (data['sessionToken'] != null) {
             await _prefs?.setString('sessionToken', data['sessionToken'].toString());
@@ -145,7 +145,7 @@ class AuthService {
           } catch (e) {
             print('⚠️ [Auth] Failed to clear cached profile: $e');
           }
-
+          
           // Try to fetch user profile, but don't fail login if it fails
           // Force refresh to ensure we get the latest avatar and profile data
           try {
@@ -168,7 +168,7 @@ class AuthService {
               }
             });
           }
-
+          
           // Clear friends cache on login to ensure fresh data with correct avatars
           try {
             final friendService = FriendService();
@@ -176,7 +176,7 @@ class AuthService {
           } catch (e) {
             // Silently fail - friends will be fetched fresh anyway
           }
-
+          
           // Clear image cache on login to ensure fresh avatars are loaded
           try {
             await AvatarCacheManager.clearCache();
@@ -186,7 +186,7 @@ class AuthService {
             developer.log('⚠️ [Auth] Failed to clear image cache: $e', name: 'Auth');
             print('[SKYBYN] ⚠️ [Auth] Failed to clear image cache: $e');
           }
-
+          
           // Set login timestamp for cache-busting (ensures avatars refresh on every login)
           try {
             final loginTimestamp = DateTime.now().millisecondsSinceEpoch;
@@ -202,7 +202,7 @@ class AuthService {
           try {
             final firebaseService = FirebaseMessagingService();
             final notificationService = NotificationService();
-
+            
             // Request Firebase messaging permissions
             if (firebaseService.isInitialized) {
               final wasDenied = await firebaseService.wasPermissionDenied();
@@ -210,7 +210,7 @@ class AuthService {
                 await firebaseService.requestPermissions();
               }
             }
-
+            
             // Request local notification permissions
             final wasDeniedLocal = await notificationService.wasPermissionDenied();
             if (!wasDeniedLocal) {
@@ -276,7 +276,7 @@ class AuthService {
       // Return error response
       String errorMessage = 'Connection error: ${e.toString()}';
       return {
-        'responseCode': '0',
+        'responseCode': '0', 
         'message': errorMessage
       };
     }
@@ -308,13 +308,13 @@ class AuthService {
         () => _client.post(Uri.parse(ApiConstants.profile), body: requestBody),
         operationName: 'fetchUserProfile',
       );
-
+      
       developer.log('📸 [Auth] Profile API response status: ${response.statusCode}', name: 'Auth');
       final responseBodyPreview = response.body.length > 500 ? '${response.body.substring(0, 500)}...' : response.body;
       developer.log('📸 [Auth] Profile API response body: $responseBodyPreview', name: 'Auth');
       print('📸 [Auth] Profile API response status: ${response.statusCode}');
       print('📸 [Auth] Profile API response body preview: $responseBodyPreview');
-
+      
       if (response.statusCode == 200) {
         final data = _safeJsonDecode(response.body);
         if (data['responseCode'] == '1') {
@@ -322,21 +322,21 @@ class AuthService {
           final rawAvatar = data['avatar']?.toString() ?? '';
           developer.log('📸 [Auth] Raw avatar from API: "$rawAvatar"', name: 'Auth');
           print('📸 [Auth] Raw avatar from API: "$rawAvatar"');
-
+          
           // Manually add the userID to the map before creating the User object
           data['id'] = userId.toString(); // Ensure it's a string
-
+          
           final user = User.fromJson(data);
-
+          
           // Debug: Log processed avatar URL
           developer.log('📸 [Auth] Processed avatar URL: "${user.avatar}"', name: 'Auth');
           print('📸 [Auth] Processed avatar URL: "${user.avatar}"');
-
+          
           // Initialize cached online status from user profile
           if (user.online.isNotEmpty) {
             _lastKnownOnlineStatus = user.online == '1' || user.online.toLowerCase() == 'true';
           }
-
+          
           // Store user profile locally
           await initPrefs();
           await _prefs?.setString(userProfileKey, json.encode(user.toJson()));
@@ -345,7 +345,7 @@ class AuthService {
         } else {
           final message = data['message'] ?? 'Unknown error';
           // If user not found or account not active, automatically log out
-          if (message.contains('not found') || message.contains('not active') ||
+          if (message.contains('not found') || message.contains('not active') || 
               message.contains('banned') || message.contains('deactivated')) {
             await logout();
           }
@@ -382,12 +382,6 @@ class AuthService {
     return username;
   }
 
-  Future<String?> getStoredSessionToken() async {
-    await initPrefs();
-    final sessionToken = _prefs?.getString('sessionToken');
-    return sessionToken;
-  }
-
   Future<User?> getStoredUserProfile() async {
     await initPrefs();
     final profileJson = _prefs?.getString(userProfileKey);
@@ -411,10 +405,10 @@ class AuthService {
     } catch (e) {
       // Silently fail
     }
-
+    
     // Reset cached online status on logout
     _lastKnownOnlineStatus = null;
-
+    
     // Online status is now calculated from last_active, no need to update
 
     // Disconnect WebSocket connection on logout
@@ -495,7 +489,7 @@ class AuthService {
     await _prefs?.remove('sessionToken'); // Clear session token
     await initPrefs();
     final keys = _prefs?.getKeys() ?? {};
-
+    
     // Clear all keys except system-level preferences
     // Keep only theme and language preferences (these are device-level, not user-specific)
     final keysToKeep = {'theme_mode', 'language'};
@@ -504,7 +498,7 @@ class AuthService {
         await _prefs?.remove(key);
       }
     }
-
+    
     // Also explicitly remove user-specific keys (in case they weren't caught above)
     await _prefs?.remove(userIdKey);
     await _prefs?.remove(userProfileKey);
@@ -549,66 +543,40 @@ class AuthService {
 
   Future<User?> fetchAnyUserProfile({String? username, String? userId}) async {
     try {
-      // Get current user's credentials for authentication
-      final currentUserId = await getStoredUserId();
-      final sessionToken = await getStoredSessionToken();
-
-      if (currentUserId == null || sessionToken == null) {
-        developer.log('❌ [Auth] Not authenticated - cannot fetch profile', name: 'Auth');
-        return null;
-      }
-
-      // Build request body with authentication
-      final requestBody = <String, String>{
-        'userID': currentUserId,  // Current user ID for authentication
-        'sessionToken': sessionToken,  // Session token for validation
-      };
-
-      // Store target user ID for later
+      final requestBody = <String, String>{};
       String? targetUserId = userId;
-
-      // Add target user identifier
-      if (userId != null && userId.isNotEmpty) {
-        // Fetching by user ID - add as separate parameter
-        requestBody['targetUserID'] = userId;
-      } else if (username != null && username.isNotEmpty) {
-        // Fetching by username - add as separate parameter
-        requestBody['targetUsername'] = username;
+      if (userId != null) {
+        requestBody['userID'] = userId;
+      } else if (username != null) {
+        requestBody['username'] = username;
       } else {
         throw Exception('Must provide either username or userId');
       }
-
       final response = await _retryHttpRequest(
         () => _client.post(Uri.parse(ApiConstants.profile), body: requestBody),
         operationName: 'fetchAnyUserProfile',
       );
-
+      
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         if (data['responseCode'] == '1') {
-          // Extract user data from response (might be nested under 'user' key)
-          final userData = data['user'] ?? data;
-
-          // Ensure ID is set
+          // Ensure the user ID is set in the response data
+          // The API might return it as 'userID' or 'id', but User.fromJson expects it
           if (targetUserId != null) {
-            userData['id'] = targetUserId.toString();
-            userData['userID'] = targetUserId.toString();
-          } else if (userData['id'] != null) {
-            userData['userID'] = userData['id'].toString();
-          } else if (userData['userID'] != null) {
-            userData['id'] = userData['userID'].toString();
+            data['id'] = targetUserId.toString();
+            data['userID'] = targetUserId.toString(); // Also set userID for compatibility
+          } else if (data['userID'] != null) {
+            // If we used username, extract userID from response
+            data['id'] = data['userID'].toString();
+          } else if (data['id'] != null) {
+            // If id exists, also set userID for compatibility
+            data['userID'] = data['id'].toString();
           }
-
-          return User.fromJson(userData);
-        } else {
-          developer.log('❌ [Auth] Profile API error: ${data['message']}', name: 'Auth');
+          return User.fromJson(data);
         }
-      } else {
-        developer.log('❌ [Auth] Profile API HTTP error: ${response.statusCode}', name: 'Auth');
       }
       return null;
     } catch (e) {
-      developer.log('❌ [Auth] Exception in fetchAnyUserProfile: $e', name: 'Auth');
       return null;
     }
   }
@@ -626,7 +594,7 @@ class AuthService {
           // Check if email is already verified (same logic as web version)
           final status = data['status']?.toString().toLowerCase();
           final alreadyVerified = (status == 'verified');
-
+          
           return {
             'success': true,
             'message': data['message'] ?? 'Verification code sent successfully',
@@ -702,7 +670,7 @@ class AuthService {
     if (error is HttpException) {
       // Retry on connection-related HTTP exceptions
       final message = error.message.toLowerCase();
-      return message.contains('connection') ||
+      return message.contains('connection') || 
              message.contains('timeout') ||
              message.contains('reset');
     }
@@ -719,7 +687,7 @@ class AuthService {
   }) async {
     int attempt = 0;
     Duration delay = initialDelay;
-
+    
     while (attempt < maxRetries) {
       try {
         final response = await request();
@@ -734,25 +702,25 @@ class AuthService {
         return response;
       } catch (e) {
         attempt++;
-
+        
         // Don't retry if it's not a transient error
         if (!_isTransientError(e)) {
           rethrow;
         }
-
+        
         // Don't retry if we've exhausted all attempts
         if (attempt >= maxRetries) {
           rethrow;
         }
-
+        
         // Wait before retrying with exponential backoff
         await Future.delayed(delay);
-
+        
         // Exponential backoff: double the delay for next retry
         delay = Duration(milliseconds: (delay.inMilliseconds * 2).clamp(500, 8000));
       }
     }
-
+    
     // This should never be reached, but just in case
     throw Exception('Retry logic error');
   }
@@ -840,12 +808,12 @@ class AuthService {
 
   /// Registers a new user account
   Future<Map<String, dynamic>> registerUser({
-    required String email,
-    required String username,
-    required String password,
-    required String firstName,
-    required String? middleName,
-    required String lastName,
+    required String email, 
+    required String username, 
+    required String password, 
+    required String firstName, 
+    required String? middleName, 
+    required String lastName, 
     required DateTime dateOfBirth,
     bool isPrivate = false,
     bool isVisible = true,
@@ -881,14 +849,14 @@ class AuthService {
       }
 
       final response = await _client.post(
-        Uri.parse(ApiConstants.register),
+        Uri.parse(ApiConstants.register), 
         body: {
-          'email': email,
-          'username': username,
-          'password': password,
-          'fname': firstName,
-          'mname': middleName ?? '',
-          'lname': lastName,
+          'email': email, 
+          'username': username, 
+          'password': password, 
+          'fname': firstName, 
+          'mname': middleName ?? '', 
+          'lname': lastName, 
           'dob': dobString,
           'private': isPrivate ? '1' : '0',
           'visible': isVisible ? '1' : '0',
@@ -902,18 +870,18 @@ class AuthService {
         if (data['responseCode'] == '1' || data['success'] == true) {
           final userId = data['userID']?.toString() ?? data['data']?['userID']?.toString();
           final token = data['token']?.toString() ?? data['data']?['token']?.toString();
-
+          
           // Automatically log the user in after successful registration
           // Token verification is not needed here since the token comes directly from the successful registration response
           // (Same logic as web version - web version verifies token when it comes from URL, but we get it from API response)
           if (userId != null) {
             await _postRegistrationLogin(userId, username, token ?? '');
           }
-
+          
           return {
-            'success': true,
-            'message': data['message'] ?? 'Registration successful',
-            'userID': userId,
+            'success': true, 
+            'message': data['message'] ?? 'Registration successful', 
+            'userID': userId, 
             'username': username,
             'token': token
           };
@@ -975,3 +943,4 @@ class AuthService {
     }
   }
 }
+

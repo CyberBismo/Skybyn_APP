@@ -44,7 +44,7 @@ class ApiConstants {
   // Friends
   static String get friend => '$apiBase/friend/friend.php';
   static String get friends => '$apiBase/friend/friends.php';
-
+  
   // Reports
   static String get report => '$apiBase/report.php';
 
@@ -65,30 +65,24 @@ class ApiConstants {
   // Chat
   static String get chatSend => '$apiBase/chat/add.php';
   static String get chatGet => '$apiBase/chat/get.php';
-
-  // Call Queue
-  static String get queueCallOffer => '$apiBase/call/queue_offer.php';
-  static String get updateCallStatus => '$apiBase/call/update_status.php';
-  static String get getPendingCalls => '$apiBase/call/get_pending.php';
-  static String get callHistory => '$apiBase/call/history.php';
-
+  
   // Firebase/Notifications
   static String get firebase => '$apiBase/firebase.php';
 
   // Activity
   static String get updateActivity => '$apiBase/update_activity.php';
-
+  
   // Location
   static String get friendsLocations => '$apiBase/location/friends_locations.php';
   static String get updateLocationSettings => '$apiBase/location/update_settings.php';
-
+  
   // Video Feed
   static String get videoFeed => '$apiBase/video/feed.php';
-
+  
   // Admin
   static String get adminUsers => '$apiBase/admin/users.php';
   static String get adminReports => '$apiBase/admin/reports.php';
-
+  
   // API Key for unrestricted access (bypasses bot protection)
   static const String apiKey = 'DP4HOA9PYSUAPFP1SHEMHNPJ0S6QZF3X';
 }
@@ -102,7 +96,7 @@ class StorageKeys {
 /// Shared cache manager for avatars - ensures all widgets use the same cache
 class AvatarCacheManager {
   static CacheManager? _instance;
-
+  
   static CacheManager get instance {
     _instance ??= CacheManager(
       Config(
@@ -115,7 +109,7 @@ class AvatarCacheManager {
     );
     return _instance!;
   }
-
+  
   /// Clear the avatar cache (call when user logs out or avatars are updated)
   static Future<void> clearCache() async {
     await _instance?.emptyCache();
@@ -126,7 +120,7 @@ class AvatarCacheManager {
 class UrlHelper {
   // Store login timestamp for cache-busting (changes on every login)
   static int? _loginTimestamp;
-
+  
   // Headers for image requests (prevents 403 errors from server security)
   static const Map<String, String> imageHeaders = {
     'User-Agent': 'Mozilla/5.0 (Linux; Android 10; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.120 Mobile Safari/537.36 Skybyn-App/1.0',
@@ -134,12 +128,12 @@ class UrlHelper {
     'Accept': 'image/webp,image/apng,image/*,*/*;q=0.8',
     'Accept-Language': 'en-US,en;q=0.9',
   };
-
+  
   /// Set the login timestamp for cache-busting
   static void setLoginTimestamp(int timestamp) {
     _loginTimestamp = timestamp;
   }
-
+  
   /// Convert a URL to use the appropriate base URL
   /// This is useful for images and other resources that may have hardcoded production URLs
   /// For avatar URLs, adds cache-busting parameter to ensure fresh images are loaded
@@ -148,13 +142,13 @@ class UrlHelper {
     if (url.isEmpty) {
       return url;
     }
-
+    
     try {
       final uri = Uri.tryParse(url);
       if (uri == null) {
         return url;
       }
-
+      
       // Add cache-busting if needed
       // Only use login timestamp - never use current time to ensure stable caching
       if (addCacheBust && (url.contains('avatar') || url.contains('logo_faded_clean.png') || url.contains('logo.png'))) {
@@ -174,7 +168,7 @@ class UrlHelper {
       // If URL parsing fails, return original URL
       return url;
     }
-
+    
     // Return URL as-is if no changes needed
     return url;
   }
