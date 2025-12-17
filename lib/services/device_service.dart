@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:device_info_plus/device_info_plus.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 
@@ -9,18 +10,12 @@ class DeviceService {
   DeviceService._internal();
 
   static const String _deviceIdKey = 'device_id';
-<<<<<<< HEAD
-=======
   static const String _secureDeviceIdKey = 'secure_device_id';
   static const FlutterSecureStorage _secureStorage = FlutterSecureStorage(
     aOptions: AndroidOptions(
       encryptedSharedPreferences: true,
     ),
   );
-<<<<<<< HEAD
->>>>>>> parent of 6049610 (Fix FCM token registration, device ID generation, and background notifications)
-=======
->>>>>>> parent of 6049610 (Fix FCM token registration, device ID generation, and background notifications)
 
   Future<Map<String, dynamic>> getDeviceInfo() async {
     final deviceInfoPlugin = DeviceInfoPlugin();
@@ -82,14 +77,6 @@ class DeviceService {
 
   Future<String> getDeviceId() async {
     try {
-<<<<<<< HEAD
-      final prefs = await SharedPreferences.getInstance();
-      String? deviceId = prefs.getString(_deviceIdKey);
-      if (deviceId == null) {
-        deviceId = const Uuid().v4();
-        await prefs.setString(_deviceIdKey, deviceId);
-      }
-=======
       // Step 1: Try to get from secure storage first (persists across app reinstalls on iOS)
       String? deviceId = await _secureStorage.read(key: _secureDeviceIdKey);
       if (deviceId != null && deviceId.isNotEmpty) {
@@ -137,10 +124,6 @@ class DeviceService {
       deviceId = const Uuid().v4();
       await _secureStorage.write(key: _secureDeviceIdKey, value: deviceId);
       await prefs.setString(_deviceIdKey, deviceId);
-<<<<<<< HEAD
->>>>>>> parent of 6049610 (Fix FCM token registration, device ID generation, and background notifications)
-=======
->>>>>>> parent of 6049610 (Fix FCM token registration, device ID generation, and background notifications)
       return deviceId;
     } catch (e) {
       return const Uuid().v4(); // Fallback to new UUID if there's an error
