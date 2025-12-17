@@ -297,13 +297,9 @@ class FirebaseMessagingService {
       // This will fail on iOS if APN is not configured
       await _getFCMToken();
 
-      // Register FCM token immediately (even without user login)
-      // This ensures device is registered in database with hardware ID
-      // User ID will be added when user logs in
-      if (_fcmToken != null) {
-        // Register anonymously first (without user ID)
-        await registerFCMTokenAnonymously();
-      }
+      // Note: FCM token registration requires a logged-in user
+      // Token registration will happen after login via sendFCMTokenToServer()
+      // Also check and update token if app version changed
 
       // Set up message handlers
       await _setupMessageHandlers();
@@ -390,22 +386,13 @@ class FirebaseMessagingService {
       String? userIdString = _prefs?.getString('userID') ?? _prefs?.getString(StorageKeys.userId);
       int? userId;
       
-      // If not provided, try from SharedPreferences first (faster, available immediately after login)
-      if (finalUserId == null || finalUserId == 0) {
-        await _initPrefs();
-        // Try both 'userID' (from login response) and 'user_id' (from StorageKeys)
-        String? userIdString = _prefs?.getString('userID') ?? _prefs?.getString(StorageKeys.userId);
-        
-        if (userIdString != null && userIdString.isNotEmpty) {
-          finalUserId = int.tryParse(userIdString);
-          if (finalUserId != null && finalUserId > 0) {
-            print('📱 [FCM] Got user ID from SharedPreferences: $finalUserId');
-          } else {
-            finalUserId = null;
-          }
+      if (userIdString!.isNotEmpty) {
+        userId = int.tryParse(userIdString);
+        if (userId != null && userId > 0) {
+          print('📱 [FCM] Got user ID from SharedPreferences: $userId');
+        } else {
+          userId = null;
         }
-      } else {
-        print('📱 [FCM] Using provided user ID: $finalUserId');
       }
       
       // If not found in SharedPreferences, try to get from user profile (with retries)
@@ -420,8 +407,8 @@ class FirebaseMessagingService {
           if (user != null && user.id.isNotEmpty) {
             final parsedUserId = int.tryParse(user.id);
             if (parsedUserId != null && parsedUserId > 0) {
-              finalUserId = parsedUserId;
-              print('📱 [FCM] Got user ID from user profile: $finalUserId');
+              userId = parsedUserId;
+              print('📱 [FCM] Got user ID from user profile: $userId');
               break;
             }
           }
@@ -444,49 +431,29 @@ class FirebaseMessagingService {
       final deviceService = DeviceService();
       final deviceInfo = await deviceService.getDeviceInfo();
 
-      // Build request body - include userID only if available
-      final requestBody = <String, String>{
-        'fcmToken': _fcmToken!,
-        'deviceId': deviceInfo['id'] ?? deviceInfo['deviceId'] ?? '',
-        'platform': deviceInfo['platform'] ?? 'Unknown',
-        'model': deviceInfo['model'] ?? 'Unknown'
-      };
-      
-      // Add user ID if available
-      if (finalUserId != null && finalUserId > 0) {
-        requestBody['userID'] = finalUserId.toString();
-        print('📱 [FCM] Registering token for user ID: $finalUserId');
-      } else {
-        print('⚠️ [FCM] WARNING: User ID not available! Registering token anonymously (user ID will be 0)');
-        print('⚠️ [FCM] This should not happen after login. Check if user ID is stored in SharedPreferences.');
-      }
-
-      // Send to token API endpoint (with or without user ID)
+      // Send to token API endpoint with user ID
       try {
-        // Log the exact request body being sent
-        print('📱 [FCM] Sending token registration request:');
-        print('📱 [FCM]   - userID: ${requestBody['userID'] ?? 'NOT PROVIDED'}');
-        print('📱 [FCM]   - deviceId: ${requestBody['deviceId']}');
-        print('📱 [FCM]   - platform: ${requestBody['platform']}');
-        print('📱 [FCM]   - model: ${requestBody['model']}');
-        print('📱 [FCM]   - fcmToken: ${_fcmToken?.substring(0, 20)}...');
+        final requestBody = {
+          'userID': userId.toString(),
+          'fcmToken': _fcmToken!,
+          'deviceId': deviceInfo['id'] ?? deviceInfo['deviceId'] ?? '',
+          'platform': deviceInfo['platform'] ?? 'Unknown',
+          'model': deviceInfo['model'] ?? 'Unknown'
+        };
+        
+        print('📱 [FCM] Sending token registration request: userID=${requestBody['userID']}, deviceId=${requestBody['deviceId']}');
         
         final response = await http.post(
           Uri.parse(ApiConstants.token),
           body: requestBody
         );
 
-        print('📱 [FCM] Token registration response: statusCode=${response.statusCode}');
-        print('📱 [FCM] Response body: ${response.body}');
+        print('📱 [FCM] Token registration response: statusCode=${response.statusCode}, body=${response.body}');
 
         if (response.statusCode == 200) {
           final data = json.decode(response.body);
           if (data['responseCode'] == '1' || data['responseCode'] == 1) {
-            if (finalUserId != null && finalUserId > 0) {
-              print('✅ [FCM] Token registered successfully for user $finalUserId');
-            } else {
-              print('✅ [FCM] Token registered successfully (anonymous)');
-            }
+            print('✅ [FCM] Token registered successfully for user $userId');
             
             // Update stored app version after successful registration
             try {
@@ -639,32 +606,19 @@ class FirebaseMessagingService {
           try {
             final authService = AuthService();
             final currentUserId = await authService.getStoredUserId();
-            if (currentUserId != null && sender.isNotEmpty) {
+            if (currentUserId != null) {
               final friendService = FriendService();
               final friends = await friendService.fetchFriendsForUser(userId: currentUserId);
-              Friend friend;
-              try {
-                friend = friends.firstWhere(
-                  (f) => f.id == sender,
-                  orElse: () => Friend(
-                    id: sender,
-                    username: sender,
-                    nickname: '',
-                    avatar: '',
-                    online: false,
-                  ),
-                );
-              } catch (e) {
-                // If firstWhere fails (e.g., empty list), create default friend
-                _logChat('FCM Foreground Chat', '⚠️ Failed to find friend, using default: $e');
-                friend = Friend(
+              final friend = friends.firstWhere(
+                (f) => f.id == sender,
+                orElse: () => Friend(
                   id: sender,
                   username: sender,
                   nickname: '',
                   avatar: '',
                   online: false,
-                );
-              }
+                ),
+              );
               
               inAppNotificationService.showChatNotification(
                 friend: friend,
@@ -713,14 +667,6 @@ class FirebaseMessagingService {
         } catch (e) {
           _logChat('FCM Foreground', '❌ Failed to show system notification for type $type: $e');
         }
-      }
-      } catch (e, stackTrace) {
-        // Catch any unhandled exceptions in the message handler to prevent app crashes
-        _logChat('FCM Foreground', '❌ CRITICAL: Unhandled exception in onMessage handler: $e');
-        _logChat('FCM Foreground', '   Stack trace: $stackTrace');
-        _logChat('FCM Foreground', '   Message data: ${message.data}');
-        _logChat('FCM Foreground', '   Notification: ${message.notification?.title} - ${message.notification?.body}');
-        // Don't rethrow - prevent app crash
       }
     });
 
