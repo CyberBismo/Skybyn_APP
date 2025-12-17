@@ -47,7 +47,6 @@ import 'services/friend_service.dart';
 import 'services/chat_message_count_service.dart';
 import 'services/navigation_service.dart';
 import 'services/location_service.dart';
-import 'services/device_service.dart';
 import 'config/constants.dart';
 // Widgets and Models
 import 'widgets/incoming_call_notification.dart';
@@ -58,36 +57,29 @@ import 'services/firebase_messaging_service.dart' show firebaseMessagingBackgrou
 import 'package:firebase_messaging/firebase_messaging.dart';
 
 Future<void> main() async {
-  // Suppress all logging except [SKYBYN] prefixed logs
+  // Gate all print calls behind a debug flag using Zone
+  // Logging enabled for debugging FCM token
   const bool enableLogging = false;
-  // Only show critical errors (not all Flutter errors)
-  final bool enableErrorLogging = false; // Set to true if you want to see Flutter errors
+  // Always enable error logging on iOS for debugging
+  final bool enableErrorLogging = Platform.isIOS || enableLogging;
 
   runZonedGuarded(
     () async {
       // Ensure Flutter is initialized first
       WidgetsFlutterBinding.ensureInitialized();
 
-      // Suppress Flutter's debug print (touch events, keyboard events, etc.)
-      debugPrint = (String? message, {int? wrapWidth}) {
-        // Only allow [SKYBYN] prefixed logs
-        if (message != null && message.contains('[SKYBYN]')) {
-          print(message);
-        }
-        // Suppress all other debug prints
-      };
-
-      // Set up Flutter error handler - only log critical errors
+      // Set up Flutter error handler to log all errors
       FlutterError.onError = (FlutterErrorDetails details) {
-        // Only log errors if explicitly enabled
         if (enableErrorLogging) {
           FlutterError.presentError(details);
-          print('[SKYBYN] ⚠️ FLUTTER ERROR');
-          print('[SKYBYN] Exception: ${details.exception}');
-          print('[SKYBYN] Library: ${details.library}');
-          print('[SKYBYN] Stack: ${details.stack}');
+          print('═══════════════════════════════════════════════════════════════');
+          print('FLUTTER ERROR');
+          print('═══════════════════════════════════════════════════════════════');
+          print('Exception: ${details.exception}');
+          print('Library: ${details.library}');
+          print('Stack: ${details.stack}');
+          print('═══════════════════════════════════════════════════════════════');
         }
-        // Suppress all other Flutter errors
       };
 
       // Set preferred orientations to portrait only
@@ -117,35 +109,42 @@ Future<void> main() async {
       // Must be at top level, not inside a class or method
       try {
         FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
-        // Suppress Firebase initialization logs
+        if (enableErrorLogging) {
+          print('✅ [FCM] Background message handler registered at top level');
+        }
       } catch (e) {
         // Handler may already be registered (e.g., during hot reload) - that's okay
-        // Suppress error logs
+        if (enableErrorLogging) {
+          print('⚠️ [FCM] Background handler registration: $e');
+        }
       }
 
       // Initialize Firebase BEFORE running the app (needed for FCM push notifications)
-      await _initializeFirebase(false).catchError((error) {
-        // Suppress Firebase initialization errors
+      await _initializeFirebase(enableErrorLogging).catchError((error) {
+        if (enableErrorLogging) {
+          print('Firebase initialization error: $error');
+        }
       });
 
       // Run the app after Firebase and translations are loaded
       runApp(ChangeNotifierProvider.value(value: themeService, child: const MyApp()));
     },
     (error, stack) {
-      // Only log zone errors if explicitly enabled
       if (enableErrorLogging) {
-        print('[SKYBYN] ⚠️ ZONE ERROR (Uncaught Exception)');
-        print('[SKYBYN] Error: $error');
-        print('[SKYBYN] Stack: $stack');
+        print('═══════════════════════════════════════════════════════════════');
+        print('ZONE ERROR (Uncaught Exception)');
+        print('═══════════════════════════════════════════════════════════════');
+        print('Error: $error');
+        print('Stack: $stack');
+        print('═══════════════════════════════════════════════════════════════');
       }
     },
     zoneSpecification: ZoneSpecification(
       print: (self, parent, zone, line) {
-        // Only allow logs with [SKYBYN] prefix - suppress everything else
-        if (line.contains('[SKYBYN]')) {
+        // Always allow logs with [SKYBYN] prefix or when enableLogging is true
+        if (enableLogging || line.contains('[SKYBYN]')) {
           parent.print(zone, line);
         }
-        // Suppress all other print statements (touch events, keyboard events, etc.)
       },
     ),
   );
@@ -159,9 +158,12 @@ Future<void> _initializeFirebase(bool enableErrorLogging) async {
       try {
         await Firebase.initializeApp();
       } catch (e) {
-        // Suppress Firebase initialization errors
+        if (enableErrorLogging) {
+          print('Firebase Core initialization error: $e');
+        }
         rethrow; // Re-throw to be caught by outer catch
       }
+    } else {
     }
 
     // Skip Firebase Messaging on iOS - it requires APN configuration which is not set up
@@ -177,11 +179,21 @@ Future<void> _initializeFirebase(bool enableErrorLogging) async {
       // Token is already registered on app start in initialize() method
       // If user is logged in, it will be updated with user ID in auth_service.dart after login
     } catch (e) {
-      // Suppress Firebase Messaging initialization errors
+      if (enableErrorLogging) {
+        print('Firebase Messaging initialization error: $e');
+      }
     }
   } catch (e, stackTrace) {
-    // Suppress Firebase initialization errors - continue without Firebase
-    // App will still work
+    // Print detailed error
+    if (enableErrorLogging) {
+      print('═══════════════════════════════════════════════════════════════');
+      print('FIREBASE INITIALIZATION ERROR');
+      print('═══════════════════════════════════════════════════════════════');
+      print('Error: $e');
+      print('Stack: $stackTrace');
+      print('═══════════════════════════════════════════════════════════════');
+    }
+    // Continue without Firebase - app will still work
   }
 }
 
@@ -288,9 +300,6 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
 
   Future<void> _initializeServices() async {
     try {
-      // Log device ID and user ID on app start
-      _logDeviceAndUserId();
-      
       // Initialize notification and Firebase services in parallel (non-blocking)
       await Future.wait([
         _notificationService.initialize(),
@@ -343,32 +352,6 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         });
       }
     } catch (e) {
-    }
-  }
-
-  /// Log device ID and user ID to console on app start
-  Future<void> _logDeviceAndUserId() async {
-    try {
-      final deviceService = DeviceService();
-      final deviceId = await deviceService.getDeviceId();
-      
-      final authService = AuthService();
-      final userId = await authService.getStoredUserId();
-      
-      print('[SKYBYN] 📱 App Start - Device ID: $deviceId');
-      print('[SKYBYN] 👤 App Start - User ID: ${userId ?? "Not logged in"}');
-      
-      // Also check what's in the database for this device
-      if (userId != null && userId.isNotEmpty) {
-        final userIdInt = int.tryParse(userId);
-        if (userIdInt != null && userIdInt > 0) {
-          print('[SKYBYN] 🔍 Checking device registration in database...');
-          // The device should be registered with this user ID after login
-          // If it shows user ID 0 in database, the update after login may have failed
-        }
-      }
-    } catch (e) {
-      print('[SKYBYN] ⚠️ Failed to log device/user ID: $e');
     }
   }
 

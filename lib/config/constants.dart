@@ -63,11 +63,8 @@ class ApiConstants {
   static String get iosDownload => '$appBase/ios/skybyn.ipa';
 
   // Chat
-  static String get chatSend => '$apiBase/chat/add.php';
+  static String get chatSend => '$apiBase/chat/send.php';
   static String get chatGet => '$apiBase/chat/get.php';
-  
-  // Firebase/Notifications
-  static String get firebase => '$apiBase/firebase.php';
 
   // Activity
   static String get updateActivity => '$apiBase/update_activity.php';
