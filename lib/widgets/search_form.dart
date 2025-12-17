@@ -8,7 +8,6 @@ import '../services/translation_service.dart';
 import '../services/auth_service.dart';
 import '../screens/profile_screen.dart';
 import '../config/constants.dart';
-import '../config/constants.dart' show UrlHelper, AvatarCacheManager;
 
 /// Centralized styling for the SearchForm widget
 class SearchFormStyles {
@@ -304,8 +303,7 @@ class SearchFormState extends State<SearchForm> with SingleTickerProviderStateMi
                       width: 50,
                       height: 50,
                       fit: BoxFit.cover,
-                      httpHeaders: UrlHelper.imageHeaders,
-                      cacheManager: AvatarCacheManager.instance,
+                      httpHeaders: const {},
                       placeholder: (context, url) => Container(
                         width: 50,
                         height: 50,

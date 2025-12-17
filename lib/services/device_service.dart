@@ -16,10 +16,6 @@ class DeviceService {
       encryptedSharedPreferences: true,
     ),
   );
-  
-  // Use a consistent storage key prefix that doesn't depend on application ID
-  // This ensures the same device ID is used in both debug and release builds
-  static String _getStorageKey(String key) => 'skybyn_device_$key';
 
   Future<Map<String, dynamic>> getDeviceInfo() async {
     final deviceInfoPlugin = DeviceInfoPlugin();
@@ -43,7 +39,7 @@ class DeviceService {
           'brand': androidInfo.brand,
           'hardware': androidInfo.hardware,
           'product': androidInfo.product,
-          'androidId': androidInfo.id, // Android ID - stable hardware identifier
+          'androidId': androidInfo.id, // Keep Android ID separate
           'isPhysicalDevice': androidInfo.isPhysicalDevice,
         });
       } else if (Platform.isIOS) {
@@ -82,11 +78,11 @@ class DeviceService {
   Future<String> getDeviceId() async {
     try {
       // Step 1: Try to get from secure storage first (persists across app reinstalls on iOS)
-      // Use consistent key prefix to ensure same storage in debug and release builds
-      String? deviceId = await _secureStorage.read(key: _getStorageKey(_secureDeviceIdKey));
+      String? deviceId = await _secureStorage.read(key: _secureDeviceIdKey);
       if (deviceId != null && deviceId.isNotEmpty) {
-        // Note: We don't cache in SharedPreferences anymore - secure storage is fast enough
-        // and caching creates unnecessary duplication. Secure storage is the source of truth.
+        // Cache in SharedPreferences for faster access
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString(_deviceIdKey, deviceId);
         return deviceId;
       }
       
@@ -95,48 +91,39 @@ class DeviceService {
       deviceId = prefs.getString(_deviceIdKey);
       if (deviceId != null && deviceId.isNotEmpty) {
         // Migrate to secure storage for future reinstalls
-        await _secureStorage.write(key: _getStorageKey(_secureDeviceIdKey), value: deviceId);
+        await _secureStorage.write(key: _secureDeviceIdKey, value: deviceId);
         return deviceId;
       }
       
-      // Step 3: Generate from hardware ID (persists across reinstalls and factory resets)
+      // Step 3: Generate from hardware ID (persists across reinstalls)
       final deviceInfoPlugin = DeviceInfoPlugin();
       String? hardwareId;
       
       if (Platform.isAndroid) {
         final androidInfo = await deviceInfoPlugin.androidInfo;
-        
-        // Use Android ID as hardware identifier
-        // Android ID is a stable hardware identifier that:
-        // - Persists across app reinstalls
-        // - Is unique per device
-        // - Only changes on factory reset (which is acceptable)
-        // - Doesn't require special permissions
-        // Note: Serial number and IMEI are not available in device_info_plus without special permissions
-        hardwareId = androidInfo.id;
+        hardwareId = androidInfo.id; // Android ID - persists unless factory reset
       } else if (Platform.isIOS) {
         final iosInfo = await deviceInfoPlugin.iosInfo;
-        // identifierForVendor is the most stable identifier on iOS
-        // It persists across app reinstalls and only changes if all apps from vendor are uninstalled
-        hardwareId = iosInfo.identifierForVendor;
+        hardwareId = iosInfo.identifierForVendor; // Persists across app reinstalls
       }
       
       // If we have a hardware ID, use it (with platform prefix for uniqueness)
-      if (hardwareId != null && hardwareId.isNotEmpty && hardwareId != 'unknown') {
+      if (hardwareId != null && hardwareId.isNotEmpty) {
         deviceId = Platform.isAndroid 
             ? 'android_$hardwareId' 
             : 'ios_$hardwareId';
         
-        // Store in secure storage (survives reinstall) - this is the source of truth
-        await _secureStorage.write(key: _getStorageKey(_secureDeviceIdKey), value: deviceId);
+        // Store in both secure storage (survives reinstall) and SharedPreferences (fast access)
+        await _secureStorage.write(key: _secureDeviceIdKey, value: deviceId);
+        await prefs.setString(_deviceIdKey, deviceId);
         
         return deviceId;
       }
       
       // Step 4: Last resort - Generate new UUID (should rarely happen)
-      // This should only occur if hardware identifiers are unavailable
       deviceId = const Uuid().v4();
-      await _secureStorage.write(key: _getStorageKey(_secureDeviceIdKey), value: deviceId);
+      await _secureStorage.write(key: _secureDeviceIdKey, value: deviceId);
+      await prefs.setString(_deviceIdKey, deviceId);
       return deviceId;
     } catch (e) {
       // Final fallback if everything fails

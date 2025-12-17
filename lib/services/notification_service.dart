@@ -46,7 +46,12 @@ class NotificationService {
 
       await _initializeLocalNotifications();
 
-      // Don't request permissions on initialization - will be requested on login
+      // Request permissions after initialization
+      if (Platform.isIOS) {
+        await requestIOSPermissions();
+      } else if (Platform.isAndroid) {
+        await requestAndroidPermissions();
+      }
     } catch (e) {
     }
   }
@@ -55,18 +60,17 @@ class NotificationService {
     // Android initialization settings
     const AndroidInitializationSettings initializationSettingsAndroid = AndroidInitializationSettings('@mipmap/launcher_icon');
 
-      // iOS initialization settings - updated for better iOS support
-      // Don't request permissions during initialization - will be requested on login
-      const DarwinInitializationSettings initializationSettingsIOS = DarwinInitializationSettings(
-        requestAlertPermission: false, // Don't request on initialization
-        requestBadgePermission: false, // Don't request on initialization
-        requestSoundPermission: false, // Don't request on initialization
-        defaultPresentAlert: true,
-        defaultPresentBadge: true,
-        defaultPresentSound: true,
-        // defaultPresentBanner: true, // Removed, managed by defaultPresentAlert
-        // defaultPresentList: true, // Removed, managed by defaultPresentAlert
-      );
+    // iOS initialization settings - updated for better iOS support
+    const DarwinInitializationSettings initializationSettingsIOS = DarwinInitializationSettings(
+      requestAlertPermission: true, // Request alert permission during initialization
+      requestBadgePermission: true, // Request badge permission during initialization
+      requestSoundPermission: true, // Request sound permission during initialization
+      defaultPresentAlert: true,
+      defaultPresentBadge: true,
+      defaultPresentSound: true,
+      // defaultPresentBanner: true, // Removed, managed by defaultPresentAlert
+      // defaultPresentList: true, // Removed, managed by defaultPresentAlert
+    );
 
     const InitializationSettings initializationSettings = InitializationSettings(
       android: initializationSettingsAndroid,
@@ -773,9 +777,9 @@ class NotificationService {
     }
   }
 
-  /// Check if notification permission was previously denied
-  Future<bool> wasPermissionDenied() async {
+  Future<bool> requestPermissions() async {
     try {
+<<<<<<< HEAD
       final prefs = await SharedPreferences.getInstance();
       final denied = prefs.getBool('notification_permission_denied') ?? false;
       return denied;
@@ -833,27 +837,17 @@ class NotificationService {
 
       bool granted = false;
 
+=======
+>>>>>>> parent of 6049610 (Fix FCM token registration, device ID generation, and background notifications)
       if (Platform.isIOS) {
         await requestIOSPermissions();
-        granted = await hasNotificationPermission();
+        return true;
       } else if (Platform.isAndroid) {
         await requestAndroidPermissions();
-        granted = await hasNotificationPermission();
+        return true;
       }
-
-      // Store denied flag if permission was not granted
-      final prefs = await SharedPreferences.getInstance();
-      if (!granted) {
-        await prefs.setBool('notification_permission_denied', true);
-        print('❌ [Notifications] Permission denied');
-      } else {
-        await prefs.setBool('notification_permission_denied', false);
-        print('✅ [Notifications] Permission granted');
-      }
-
-      return granted;
+      return false;
     } catch (e) {
-      print('❌ [Notifications] Error requesting permission: $e');
       return false;
     }
   }

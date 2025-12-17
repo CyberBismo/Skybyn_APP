@@ -5,7 +5,6 @@ import 'dart:async';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../services/auth_service.dart';
 import '../config/constants.dart';
-import '../config/constants.dart' show UrlHelper, AvatarCacheManager;
 import '../widgets/search_form.dart';
 import '../screens/profile_screen.dart';
 
@@ -207,8 +206,7 @@ class _GlobalSearchOverlayState extends State<GlobalSearchOverlay> {
                       width: 60,
                       height: 60,
                       fit: BoxFit.cover,
-                      httpHeaders: UrlHelper.imageHeaders,
-                      cacheManager: AvatarCacheManager.instance,
+                      httpHeaders: const {},
                       placeholder: (context, url) => Container(
                         width: 60,
                         height: 60,

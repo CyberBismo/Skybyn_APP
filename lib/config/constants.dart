@@ -1,4 +1,3 @@
-import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 
 class ApiConstants {
   // Production URLs
@@ -58,9 +57,7 @@ class ApiConstants {
   static String get deleteAllNotifications => '$apiBase/notification/delete_all.php';
 
   // Updates
-  static String get appUpdate => '$appBase';
-  static String get androidDownload => '$appBase/android/skybyn.apk';
-  static String get iosDownload => '$appBase/ios/skybyn.ipa';
+  static String get appUpdate => '$apiBase/app_update.php';
 
   // Chat
   static String get chatSend => '$apiBase/chat/add.php';
@@ -99,6 +96,7 @@ class StorageKeys {
   static const String username = 'username';
 }
 
+<<<<<<< HEAD
 /// Shared cache manager for avatars - ensures all widgets use the same cache
 class AvatarCacheManager {
   static CacheManager? _instance;
@@ -140,14 +138,17 @@ class UrlHelper {
     _loginTimestamp = timestamp;
   }
 
+=======
+/// Utility class for URL conversion
+class UrlHelper {
+>>>>>>> parent of 6049610 (Fix FCM token registration, device ID generation, and background notifications)
   /// Convert a URL to use the appropriate base URL
   /// This is useful for images and other resources that may have hardcoded production URLs
-  /// For avatar URLs, adds cache-busting parameter to ensure fresh images are loaded
-  /// IMPORTANT: Only uses login timestamp (never current time) to ensure stable caching across rebuilds
-  static String convertUrl(String url, {bool addCacheBust = true}) {
+  static String convertUrl(String url) {
     if (url.isEmpty) {
       return url;
     }
+<<<<<<< HEAD
 
     try {
       final uri = Uri.tryParse(url);
@@ -176,6 +177,10 @@ class UrlHelper {
     }
 
     // Return URL as-is if no changes needed
+=======
+    
+    // Return URL as-is (production URLs)
+>>>>>>> parent of 6049610 (Fix FCM token registration, device ID generation, and background notifications)
     return url;
   }
 }
