@@ -182,12 +182,11 @@ class _ChatListModalState extends State<ChatListModal> {
     // Load last message for each friend
     for (var friend in _friends) {
       try {
-        // Chat message loading removed - UI only
-        // final messages = await _chatService.getMessages(
-        //   friendId: friend.id,
-        //   limit: 1,
-        // );
-        final messages = <Message>[]; // Empty list - chat disabled
+        // Fetch only the last message (limit: 1)
+        final messages = await _chatService.getMessages(
+          friendId: friend.id,
+          limit: 1,
+        );
         
         if (mounted && messages.isNotEmpty) {
           setState(() {
