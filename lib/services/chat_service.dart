@@ -186,6 +186,7 @@ class ChatService {
       // Encrypt the message for API
       final encryptedContent = await _encryptMessage(content);
 
+<<<<<<< HEAD
       // Register chat_offline callback to send Firebase notification when recipient is offline
       // Only register once to avoid overwriting
       if (!_chatOfflineCallbackRegistered) {
@@ -248,6 +249,20 @@ class ChatService {
         return optimisticMessage;
       } catch (e) {
         rethrow;
+=======
+      final url = ApiConstants.chatSend;
+      // Build headers with optional protection cookie and API key
+      final headers = <String, String>{
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Accept': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest', // Helps bypass some bot protection
+        'X-API-Key': ApiConstants.apiKey, // API key for unrestricted access
+      };
+      
+      // Add protection cookie if we have one
+      if (_protectionCookie != null) {
+        headers['Cookie'] = _protectionCookie!;
+>>>>>>> parent of 0b04990 (Fixed real-time chatting)
       }
       
       // Build body map to ensure all parameters are strings
@@ -356,6 +371,7 @@ class ChatService {
       rethrow;
     }
   }
+<<<<<<< HEAD
   
   /// Send Firebase notification when recipient is offline
   Future<void> _sendFirebaseNotificationForOfflineUser({
@@ -466,6 +482,8 @@ class ChatService {
       // Silently fail - message delivery via WebSocket is more important
     }
   }
+=======
+>>>>>>> parent of 0b04990 (Fixed real-time chatting)
 
   /// Get messages between current user and another user
   /// Returns messages ordered oldest to newest (for UI display)

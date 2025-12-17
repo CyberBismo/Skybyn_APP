@@ -779,6 +779,7 @@ class NotificationService {
 
   Future<bool> requestPermissions() async {
     try {
+<<<<<<< HEAD
       final prefs = await SharedPreferences.getInstance();
       final denied = prefs.getBool('notification_permission_denied') ?? false;
       return denied;
@@ -836,6 +837,8 @@ class NotificationService {
 
       bool granted = false;
 
+=======
+>>>>>>> parent of 6049610 (Fix FCM token registration, device ID generation, and background notifications)
       if (Platform.isIOS) {
         await requestIOSPermissions();
         return true;
