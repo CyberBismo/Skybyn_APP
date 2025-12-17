@@ -116,7 +116,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
-
+    
     switch (state) {
       case AppLifecycleState.resumed:
         // App is in foreground - resume timers
@@ -244,11 +244,11 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
   /// Start periodic message checking as fallback if WebSocket is not connected
   void _startPeriodicMessageCheck() {
     _messageCheckTimer?.cancel();
-
+    
     // Check every 3 seconds if WebSocket is not connected
     _messageCheckTimer = Timer.periodic(const Duration(seconds: 3), (_) async {
       if (!mounted) return;
-
+      
       // Only poll if WebSocket is not connected
       if (!_webSocketService.isConnected) {
         await _checkForNewMessages();
@@ -259,19 +259,19 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
   /// Check for new messages using get.php API (fallback when WebSocket is not connected)
   Future<void> _checkForNewMessages() async {
     if (_currentUserId == null || _isLoading) return;
-
+    
     try {
       // Get the latest message ID and timestamp to detect new messages
       final lastMessageId = _messages.isNotEmpty ? _messages.last.id : null;
-      final lastMessageDate = _messages.isNotEmpty
-          ? _messages.last.date.millisecondsSinceEpoch ~/ 1000
+      final lastMessageDate = _messages.isNotEmpty 
+          ? _messages.last.date.millisecondsSinceEpoch ~/ 1000 
           : 0;
-
+      
       // Fetch messages from API
       final messages = await _chatService.getMessages(
         friendId: widget.friend.id,
       );
-
+      
       if (mounted && messages.isNotEmpty) {
         // Find new messages (messages we don't have yet)
         final newMessages = <Message>[];
@@ -281,7 +281,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
             // We've reached the last message we have, stop checking
             break;
           }
-
+          
           // Check if we already have this message
           if (!_messages.any((m) => m.id == msg.id)) {
             // Check if it's newer than our last message
@@ -291,7 +291,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
             }
           }
         }
-
+        
         if (newMessages.isNotEmpty) {
           setState(() {
             // Add new messages
@@ -299,7 +299,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
             // Sort messages by date
             _messages.sort((a, b) => a.date.compareTo(b.date));
           });
-
+          
           // Scroll to bottom to show new messages
           WidgetsBinding.instance.addPostFrameCallback((_) {
             _scrollToBottom();
@@ -329,8 +329,8 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
           if (lastActiveValue != null) {
             if (lastActiveValue is int) {
               // If it's a large number (milliseconds), convert to seconds
-              lastActive = lastActiveValue > 10000000000
-                  ? lastActiveValue ~/ 1000
+              lastActive = lastActiveValue > 10000000000 
+                  ? lastActiveValue ~/ 1000 
                   : lastActiveValue;
             } else if (lastActiveValue is String) {
               final parsed = int.tryParse(lastActiveValue);
@@ -339,7 +339,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
               }
             }
           }
-
+          
           final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
           final twoMinutesAgo = now - 120; // 2 minutes = 120 seconds
           final isOnline = lastActive != null && lastActive >= twoMinutesAgo;
@@ -416,22 +416,17 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
     if (_webSocketChatMessageCallback != null) {
       _webSocketService.removeChatMessageCallback(_webSocketChatMessageCallback!);
     }
-
+    
     // Register callback to receive chat messages
     _webSocketChatMessageCallback = (String messageId, String fromUserId, String toUserId, String messageContent) {
-      if (!mounted || _currentUserId == null) return;
-
-      // Only handle messages between current user and this friend
-      // This prevents processing messages from other conversations
-      final isMessageForThisChat =
-        (fromUserId == _currentUserId && toUserId == widget.friend.id) ||  // We sent to friend
-        (fromUserId == widget.friend.id && toUserId == _currentUserId);    // Friend sent to us
-
-      if (isMessageForThisChat) {
+      if (!mounted) return;
+      
+      // Only handle messages for this friend
+      if (toUserId == widget.friend.id || fromUserId == widget.friend.id) {
         _handleIncomingChatMessage(messageId, fromUserId, toUserId, messageContent);
       }
     };
-
+    
     _webSocketService.registerChatMessageCallback(_webSocketChatMessageCallback!);
   }
 
@@ -439,7 +434,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
   // void _addMessageIfNotExists(Message message) {
   //   // Removed
   // }
-
+  
   // Chat status logic removed - UI only
   // bool _isStatusMoreAdvanced(MessageStatus newStatus, MessageStatus oldStatus) {
   //   // Removed
@@ -448,32 +443,18 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
   /// Handle incoming chat message from WebSocket
   void _handleIncomingChatMessage(String messageId, String fromUserId, String toUserId, String messageContent) {
     if (!mounted || _currentUserId == null) return;
-
-    // Check if message already exists by ID (prevent duplicates)
+    
+    // Check if message already exists (prevent duplicates)
     if (_messages.any((m) => m.id == messageId)) {
       return;
     }
-
-    // Check for duplicate based on content, sender, and recent timestamp (prevent race condition duplicates)
-    // This handles the case where chat_sent arrives before optimistic message is added
-    final now = DateTime.now();
-    final isDuplicateByContent = _messages.any((m) =>
-      m.content == messageContent &&
-      m.from == fromUserId &&
-      m.to == toUserId &&
-      now.difference(m.date).inSeconds.abs() < 5 // Within 5 seconds
-    );
-
-    if (isDuplicateByContent) {
-      return;
-    }
-
+    
     try {
       // Parse date if available, otherwise use current time
       DateTime messageDate = DateTime.now();
-
+      
       final isFromMe = fromUserId == _currentUserId;
-
+      
       // If this is an incoming message (not from me), try to store it in database
       // This is a workaround for bot protection blocking sender's storage attempt
       if (!isFromMe && messageId.startsWith('temp_')) {
@@ -481,19 +462,19 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
           // Continue anyway - message is displayed via WebSocket
         });
       }
-
+      
       // If message has temp ID, fetch real ID from API
       if (messageId.startsWith('temp_') || messageId.isEmpty) {
         // Fetch message ID from API by getting latest messages
         _fetchMessageIdFromAPI(fromUserId, messageContent, messageDate).then((realMessageId) {
           if (realMessageId != null && mounted) {
             // Update message with real ID
-            final messageIndex = _messages.indexWhere((m) =>
-              m.content == messageContent &&
+            final messageIndex = _messages.indexWhere((m) => 
+              m.content == messageContent && 
               m.from == fromUserId &&
               (m.id == messageId || m.id.startsWith('temp_'))
             );
-
+            
             if (messageIndex != -1) {
               setState(() {
                 _messages[messageIndex] = Message(
@@ -520,12 +501,12 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
                 isFromMe: isFromMe,
                 status: MessageStatus.sent,
               );
-
+              
               setState(() {
                 _messages.add(message);
                 _messages.sort((a, b) => a.date.compareTo(b.date));
               });
-
+              
               WidgetsBinding.instance.addPostFrameCallback((_) {
                 _scrollToBottom();
               });
@@ -538,16 +519,16 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
         });
         return;
       }
-
+      
       // If this is a confirmation for a message we sent (chat_sent), update the optimistic message
       if (isFromMe && !messageId.startsWith('temp_')) {
         // Find optimistic message with same content and update it
-        final tempIndex = _messages.indexWhere((m) =>
-          m.content == messageContent &&
-          m.isFromMe &&
+        final tempIndex = _messages.indexWhere((m) => 
+          m.content == messageContent && 
+          m.isFromMe && 
           (m.status == MessageStatus.sending || m.id.startsWith('temp_'))
         );
-
+        
         if (tempIndex != -1) {
           // Update existing optimistic message with real ID
           setState(() {
@@ -566,7 +547,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
           return; // Don't add duplicate
         }
       }
-
+      
       // Create message object for new incoming message with real ID
       final message = Message(
         id: messageId,
@@ -578,13 +559,13 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
         isFromMe: isFromMe,
         status: MessageStatus.sent,
       );
-
+      
       setState(() {
         _messages.add(message);
         // Sort messages by date
         _messages.sort((a, b) => a.date.compareTo(b.date));
       });
-
+      
       // Scroll to bottom to show new message
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _scrollToBottom();
@@ -593,7 +574,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
       // Silently fail
     }
   }
-
+  
   /// Fetch message ID from API by matching content and sender
   Future<String?> _fetchMessageIdFromAPI(String fromUserId, String messageContent, DateTime messageDate) async {
     try {
@@ -601,13 +582,13 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
       final messages = await _chatService.getMessages(
         friendId: fromUserId,
       );
-
+      
       // Find message matching content and sender, within last 30 seconds
       final now = DateTime.now();
       for (final msg in messages) {
         final timeDiff = now.difference(msg.date).inSeconds;
-        if (msg.content == messageContent &&
-            msg.from == fromUserId &&
+        if (msg.content == messageContent && 
+            msg.from == fromUserId && 
             timeDiff <= 30) {
           return msg.id;
         }
@@ -617,7 +598,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
     }
     return null;
   }
-
+  
   /// Add message with temp ID (fallback if API fails)
   void _addMessageWithTempId(String messageId, String fromUserId, String toUserId, String messageContent, DateTime messageDate, bool isFromMe) {
     final message = Message(
@@ -630,17 +611,17 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
       isFromMe: isFromMe,
       status: MessageStatus.sent,
     );
-
+    
     setState(() {
       _messages.add(message);
       _messages.sort((a, b) => a.date.compareTo(b.date));
     });
-
+    
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _scrollToBottom();
     });
   }
-
+  
   /// Handle chat offline notification - send FCM notification to recipient
   Future<void> _handleChatOffline(String fromUserId, String toUserId, String message) async {
     try {
@@ -649,17 +630,17 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
       final user = await authService.getStoredUserProfile();
       final senderUsername = user?.username ?? 'Someone';
       final senderAvatar = user?.avatar ?? '';
-
+      
       // Get session token and user ID for authentication
       final prefs = await SharedPreferences.getInstance();
       final sessionToken = prefs.getString('sessionToken');
       final currentUserId = prefs.getString('userID') ?? prefs.getString(StorageKeys.userId);
-
+      
       if (sessionToken == null || currentUserId == null) {
         // Session not available - cannot send notification
         return;
       }
-
+      
       // Build avatar URL if provided
       String? avatarUrl;
       if (senderAvatar.isNotEmpty && !senderAvatar.startsWith('http')) {
@@ -668,7 +649,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
       } else if (senderAvatar.isNotEmpty) {
         avatarUrl = senderAvatar;
       }
-
+      
       // Call firebase.php API to send notification
       // Use simple http.post() like token.php does (no custom client, minimal headers)
       final url = ApiConstants.firebase;
@@ -694,13 +675,13 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
           }),
         },
       ).timeout(const Duration(seconds: 10));
-
+      
       if (response.statusCode == 200) {
         final responseData = json.decode(response.body);
         // Check both responseCode (like token.php) and status field
         final responseCode = responseData['responseCode'] ?? responseData['status'];
         final isSuccess = responseCode == '1' || responseCode == 'success' || responseCode == 'ok';
-
+        
         if (isSuccess) {
           debugPrint('[SKYBYN] ✅ [Chat] FCM notification sent successfully to user: $toUserId');
           if (responseData['messageId'] != null) {
@@ -723,7 +704,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
       debugPrint('[SKYBYN] ❌ [Chat] Error sending FCM notification: $e');
     }
   }
-
+  
   /// Store incoming message in database (called when recipient receives message via WebSocket)
   /// This is a workaround for bot protection blocking sender's storage attempt
   Future<void> _storeIncomingMessageInDatabase(String fromUserId, String toUserId, String message) async {
@@ -738,7 +719,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
           'message': message,
         },
       ).timeout(const Duration(seconds: 10));
-
+      
       // Response handled silently
     } catch (e) {
       // Don't throw - message is already displayed via WebSocket
@@ -829,7 +810,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
     } catch (e) {
       // Restore message text on error
       _messageController.text = message;
-
+      
       if (mounted) {
         // Show error to user
         ScaffoldMessenger.of(context).showSnackBar(
@@ -935,7 +916,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
     final friendDisplayName = widget.friend.nickname.isNotEmpty
         ? widget.friend.nickname
         : widget.friend.username;
-
+    
     // Listen to keyboard changes and scroll to bottom when keyboard appears
     final keyboardHeight = MediaQuery.of(context).viewInsets.bottom;
     if (keyboardHeight > 0 && _messageFocusNode.hasFocus) {
@@ -1591,7 +1572,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
   /// Show message options when long-pressed
   void _showMessageOptions(BuildContext context, Message message) {
     _closeMessageOptions(); // Close any existing options
-
+    
     _selectedMessage = message;
     final screenWidth = MediaQuery.of(context).size.width;
     final screenHeight = MediaQuery.of(context).size.height;
@@ -1721,10 +1702,10 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
 
   Future<void> _editMessage(Message message) async {
     _closeMessageOptions();
-
+    
     // Show edit dialog
     final TextEditingController editController = TextEditingController(text: message.content);
-
+    
     final result = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
@@ -1795,7 +1776,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
                 );
               }
             });
-
+            
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
@@ -1843,7 +1824,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
 
   Future<void> _deleteMessage(Message message) async {
     _closeMessageOptions();
-
+    
     // Show confirmation dialog
     final confirm = await showDialog<bool>(
       context: context,
@@ -1891,7 +1872,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
             setState(() {
               _messages.removeWhere((m) => m.id == message.id);
             });
-
+            
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
@@ -2123,7 +2104,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
       setState(() {
         _messages.clear();
       });
-
+      
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -2259,28 +2240,28 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
       }
     }
   }
-
+  
   /// Get formatted last active status string
   String _getLastActiveStatus() {
     if (_friendLastActive == null) {
       return _friendOnline ? 'Online' : 'Offline';
     }
-
+    
     final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
     final twoMinutesAgo = now - 120; // 2 minutes = 120 seconds
     final oneHourAgo = now - 3600; // 1 hour = 3600 seconds
-
+    
     if (_friendLastActive! >= twoMinutesAgo) {
       return 'Online';
     }
-
+    
     // If last activity was more than 1 hour ago, show "Offline"
     if (_friendLastActive! < oneHourAgo) {
       return 'Offline';
     }
-
+    
     final secondsAgo = now - _friendLastActive!;
-
+    
     if (secondsAgo < 60) {
       return 'Last active ${secondsAgo}s ago';
     } else {
@@ -2289,3 +2270,4 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
     }
   }
 }
+

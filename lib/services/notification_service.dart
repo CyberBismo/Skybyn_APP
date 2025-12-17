@@ -89,13 +89,13 @@ class NotificationService {
   Future<void> _createIOSNotificationCategories() async {
     if (Platform.isIOS) {
       try {
-        final IOSFlutterLocalNotificationsPlugin? iOSImplementation =
+        final IOSFlutterLocalNotificationsPlugin? iOSImplementation = 
             _localNotifications.resolvePlatformSpecificImplementation<IOSFlutterLocalNotificationsPlugin>();
-
+        
         if (iOSImplementation != null) {
           // Create category for incoming calls with answer/decline actions
           await iOSImplementation.requestPermissions();
-
+          
           // Note: iOS action buttons are configured through UNNotificationCategory
           // This needs to be done in native iOS code or through a plugin
           // For now, the categoryIdentifier will be set, but actions need native setup
@@ -109,7 +109,7 @@ class NotificationService {
     // Handle notification tap and action buttons
     final payload = response.payload;
     final action = response.actionId;
-
+    
     // Handle call notification actions
     if (action != null && (action == 'answer' || action == 'decline')) {
       _handleCallNotificationAction(action, payload);
@@ -149,7 +149,7 @@ class NotificationService {
     // This is a static method that can be called from background
     final payload = response.payload;
     final action = response.actionId;
-
+    
     // Handle call notification actions
     if (action != null && (action == 'answer' || action == 'decline')) {
       // Parse payload to get call data
@@ -167,7 +167,7 @@ class NotificationService {
     if (payload == null || !payload.startsWith('{')) {
       return;
     }
-
+    
     try {
       final Map<String, dynamic> data = json.decode(payload);
       _handleCallNotificationActionStatic(action, data);
@@ -178,11 +178,11 @@ class NotificationService {
   static void _handleCallNotificationActionStatic(String action, Map<String, dynamic> data) {
     final sender = data['sender']?.toString();
     final callType = data['callType']?.toString() ?? 'video';
-
+    
     if (sender == null) {
       return;
     }
-
+    
     if (action == 'answer') {
       // When user answers, the app should open and WebSocket will handle the call
       // The call offer should still be available when app opens
@@ -261,7 +261,7 @@ class NotificationService {
   void _handleCallNotificationTap(Map<String, dynamic> data) {
     final sender = data['sender']?.toString();
     final callType = data['callType']?.toString() ?? 'video';
-
+    
     if (sender == null) {
       return;
     }
@@ -494,7 +494,7 @@ class NotificationService {
           }
         }
       }
-
+      
       // Use appropriate channel based on notification type
       if (isAppUpdate) {
         channelId = _appUpdatesChannelId;
@@ -513,7 +513,7 @@ class NotificationService {
       List<AndroidNotificationAction>? actions;
       bool ongoing = false;
       bool autoCancel = true;
-
+      
       if (isAppUpdate) {
         channelName = 'App Updates';
         channelDescription = 'App update notifications and new version alerts';
@@ -548,7 +548,7 @@ class NotificationService {
         channelDescription = 'Important system notifications from administrators';
         importance = Importance.max;
       }
-
+      
       final AndroidNotificationDetails androidPlatformChannelSpecifics = AndroidNotificationDetails(
         channelId,
         channelName,
@@ -575,7 +575,7 @@ class NotificationService {
       // iOS notification details
       // For iOS, we need to use categoryIdentifier for action buttons
       final String? categoryIdentifier = isCall ? 'INCOMING_CALL' : null;
-
+      
       final DarwinNotificationDetails iOSPlatformChannelSpecifics = DarwinNotificationDetails(
         presentAlert: true,
         presentBadge: true,
@@ -606,7 +606,7 @@ class NotificationService {
         // Check if we can get pending notifications to verify it was created
         final pendingNotifications = await _localNotifications.pendingNotificationRequests();
       }
-
+      
       // Auto-dismiss app update and update_check notifications after 3 seconds
       // Check both isAppUpdate flag and also check payload directly as fallback
       bool shouldAutoDismiss = isAppUpdate;
@@ -626,23 +626,23 @@ class NotificationService {
           }
         }
       }
-
+      
       // Also check title as a fallback (in case payload is missing or incorrect)
       if (!shouldAutoDismiss) {
         final titleLower = title.toLowerCase();
-        if (titleLower.contains('update check') ||
+        if (titleLower.contains('update check') || 
             titleLower.contains('app update') ||
             titleLower == 'update check') {
           shouldAutoDismiss = true;
         }
       }
-
+      
       if (shouldAutoDismiss) {
         Timer(const Duration(seconds: 3), () {
           cancelNotification(notificationId);
         });
       }
-
+      
       return notificationId;
     } catch (e) {
       rethrow;
@@ -832,7 +832,7 @@ class NotificationService {
       }
 
       bool granted = false;
-
+      
       if (Platform.isIOS) {
         await requestIOSPermissions();
         granted = await hasNotificationPermission();
