@@ -23,10 +23,14 @@ import '../services/friend_service.dart';
 import '../services/post_service.dart';
 import '../services/location_service.dart';
 import '../services/notification_sound_service.dart';
+import '../services/notification_service.dart';
+import '../services/firebase_messaging_service.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import '../widgets/translated_text.dart';
 import '../widgets/update_dialog.dart';
 import '../utils/translation_keys.dart';
 import '../config/constants.dart';
+import '../config/constants.dart' show UrlHelper, AvatarCacheManager;
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -53,6 +57,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   String _selectedNotificationSound = 'default';
   List<Map<String, String>> _availableSounds = [];
   bool _isLoadingSounds = false;
+  bool _isCheckingNotificationPermission = false;
   String? _customSoundFileName;
   final NotificationSoundService _notificationSoundService = NotificationSoundService();
 
@@ -132,6 +137,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _loadBiometricSetting();
     _loadLocationSettings();
     _loadNotificationSoundSettings();
+    _checkNotificationPermissionStatus();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       setState(() {
         _selectedPinOption = _getPinOptionFromValue(user?.pinV);
@@ -212,6 +218,32 @@ class _SettingsScreenState extends State<SettingsScreen> {
       }
     } catch (e) {
       // Silently handle errors
+    }
+  }
+
+  Future<void> _checkNotificationPermissionStatus() async {
+    try {
+      final notificationService = NotificationService();
+      final firebaseService = FirebaseMessagingService();
+      
+      // Check if permissions are granted
+      final hasLocalPermission = await notificationService.hasNotificationPermission();
+      final fcmPermissionStatus = firebaseService.isInitialized 
+          ? await firebaseService.getPermissionStatus()
+          : null;
+      
+      final isAuthorized = hasLocalPermission || 
+          (fcmPermissionStatus != null && 
+           (fcmPermissionStatus == AuthorizationStatus.authorized || 
+            fcmPermissionStatus == AuthorizationStatus.provisional));
+      
+      if (mounted) {
+        setState(() {
+          notificationsEnabled = isAuthorized;
+        });
+      }
+    } catch (e) {
+      // Silently fail
     }
   }
 
@@ -896,7 +928,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               : CachedNetworkImage(
                                   imageUrl: wallpaperUrl,
                                   fit: BoxFit.cover,
-                                  httpHeaders: const {},
+                                  httpHeaders: UrlHelper.imageHeaders,
                                   placeholder: (context, url) => Image.asset(
                                     'assets/images/background.png',
                                     fit: BoxFit.cover,
@@ -1013,7 +1045,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                               width: 100,
                                               height: 100,
                                               fit: BoxFit.cover,
-                                              httpHeaders: const {},
+                                              httpHeaders: UrlHelper.imageHeaders,
+                                              cacheManager: AvatarCacheManager.instance,
                                               placeholder: (context, url) => Image.asset(
                                                 'assets/images/icon.png',
                                                 width: 100,
@@ -1668,14 +1701,79 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         style: TextStyle(color: AppColors.getTextColor(context)),
                       ),
                       value: notificationsEnabled,
-                      onChanged: (bool value) async {
-                        setState(() {
-                          notificationsEnabled = value;
-                        });
-                        // Note: Notifications preference is stored locally
-                        // If you want to sync with server, implement API call here
+                      onChanged: _isCheckingNotificationPermission ? null : (bool value) async {
+                        if (value) {
+                          // User wants to enable notifications - request permissions
+                          setState(() {
+                            _isCheckingNotificationPermission = true;
+                          });
+                          
+                          try {
+                            final notificationService = NotificationService();
+                            final firebaseService = FirebaseMessagingService();
+                            
+                            // Request permissions (force = true to allow re-requesting if previously denied)
+                            bool granted = false;
+                            
+                            if (firebaseService.isInitialized) {
+                              granted = await firebaseService.requestPermissions(force: true);
+                            }
+                            
+                            if (!granted) {
+                              granted = await notificationService.requestPermissions(force: true);
+                            }
+                            
+                            if (mounted) {
+                              setState(() {
+                                notificationsEnabled = granted;
+                                _isCheckingNotificationPermission = false;
+                              });
+                              
+                              if (!granted) {
+                                // Show message that user needs to enable in settings
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: TranslatedText(
+                                      TranslationKeys.notificationPermissionDenied,
+                                      style: const TextStyle(color: Colors.white),
+                                    ),
+                                    backgroundColor: Colors.orange,
+                                    duration: const Duration(seconds: 3),
+                                  ),
+                                );
+                              }
+                            }
+                          } catch (e) {
+                            if (mounted) {
+                              setState(() {
+                                _isCheckingNotificationPermission = false;
+                              });
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text('Error requesting notification permission: $e'),
+                                  backgroundColor: Colors.red,
+                                ),
+                              );
+                            }
+                          }
+                        } else {
+                          // User wants to disable notifications - just update UI
+                          // Note: We can't actually disable system permissions, but we can stop showing notifications
+                          setState(() {
+                            notificationsEnabled = false;
+                          });
+                        }
                       },
                       activeThumbColor: Colors.blue,
+                      subtitle: _isCheckingNotificationPermission
+                          ? TranslatedText(
+                              TranslationKeys.checkingPermission,
+                              style: TextStyle(
+                                color: AppColors.getSecondaryTextColor(context),
+                                fontSize: 12,
+                              ),
+                            )
+                          : null,
                     ),
                     SwitchListTile(
                       title: TranslatedText(

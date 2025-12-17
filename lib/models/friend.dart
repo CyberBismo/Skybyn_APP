@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../config/constants.dart';
+import 'dart:developer' as developer;
 
 class Friend {
   final String id;
@@ -35,7 +36,12 @@ class Friend {
   }
 
   factory Friend.fromJson(Map<String, dynamic> json) {
-    String avatarUrl = (json['avatar'] ?? json['profileImage'] ?? '').toString();
+    String avatarUrl = (json['avatar'] ?? json['profileImage'] ?? '').toString().trim();
+    
+    // Debug: Log raw avatar URL from JSON
+    if (avatarUrl.isNotEmpty) {
+      developer.log('📸 [Friend] Raw avatar from JSON: "$avatarUrl"', name: 'Friend Model');
+    }
     
     // If avatar is a relative path, make it absolute using the web base
     if (avatarUrl.isNotEmpty && !avatarUrl.startsWith('http')) {
@@ -44,6 +50,11 @@ class Friend {
       } else {
         avatarUrl = '${ApiConstants.webBase}/$avatarUrl';
       }
+      developer.log('📸 [Friend] Converted relative path to: "$avatarUrl"', name: 'Friend Model');
+    } else if (avatarUrl.isNotEmpty) {
+      developer.log('📸 [Friend] Using absolute URL as-is: "$avatarUrl"', name: 'Friend Model');
+    } else {
+      developer.log('📸 [Friend] Avatar URL is empty', name: 'Friend Model');
     }
     
     // Parse last_active timestamp (can be in seconds or milliseconds)

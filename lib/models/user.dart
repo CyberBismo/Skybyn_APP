@@ -1,3 +1,6 @@
+import '../config/constants.dart';
+import 'dart:developer' as developer;
+
 class User {
   final String id;
   final String username;
@@ -68,6 +71,47 @@ class User {
   });
 
   factory User.fromJson(Map<String, dynamic> json) {
+    // Process avatar URL - ensure it's absolute
+    String avatarUrl = (json['avatar'] ?? '').toString().trim();
+    
+    // Debug: Log raw avatar URL from JSON
+    if (avatarUrl.isNotEmpty) {
+      developer.log('📸 [User] Raw avatar from JSON: "$avatarUrl"', name: 'User Model');
+    }
+    
+    // API already returns full URLs (https://skybyn.com/...), but handle edge cases:
+    // - If avatar is empty, API returns default logo URL
+    // - If avatar is a relative path (starts with /), make it absolute
+    // - If avatar doesn't start with http, it might be a relative path
+    if (avatarUrl.isNotEmpty) {
+      if (!avatarUrl.startsWith('http')) {
+        // Relative path - make it absolute
+        if (avatarUrl.startsWith('/')) {
+          avatarUrl = '${ApiConstants.webBase}$avatarUrl';
+        } else {
+          avatarUrl = '${ApiConstants.webBase}/$avatarUrl';
+        }
+        developer.log('📸 [User] Converted relative path to: "$avatarUrl"', name: 'User Model');
+      } else {
+        developer.log('📸 [User] Using absolute URL as-is: "$avatarUrl"', name: 'User Model');
+      }
+      // If avatar URL is already full (starts with http), use it as-is
+    } else {
+      developer.log('📸 [User] Avatar URL is empty', name: 'User Model');
+    }
+    // If avatar is empty, API should have returned default, but if not, leave empty
+    // (UI will handle showing default icon)
+    
+    // Process wallpaper URL - ensure it's absolute
+    String wallpaperUrl = (json['wallpaper'] ?? '').toString().trim();
+    if (wallpaperUrl.isNotEmpty && !wallpaperUrl.startsWith('http')) {
+      if (wallpaperUrl.startsWith('/')) {
+        wallpaperUrl = '${ApiConstants.webBase}$wallpaperUrl';
+      } else {
+        wallpaperUrl = '${ApiConstants.webBase}/$wallpaperUrl';
+      }
+    }
+    
     return User(
       id: json['id']?.toString() ?? json['userID']?.toString() ?? '',
       username: json['username']?.toString() ?? '',
@@ -83,7 +127,7 @@ class User {
       lname: json['lname']?.toString() ?? '',
       title: json['title']?.toString() ?? '',
       nickname: json['nickname']?.toString() ?? '',
-      avatar: json['avatar']?.toString() ?? '',
+      avatar: avatarUrl,
       bio: json['bio']?.toString() ?? '',
       color: json['color']?.toString() ?? '',
       rank: json['rank']?.toString() ?? '',
@@ -97,7 +141,7 @@ class User {
       reset: json['reset']?.toString() ?? '',
       online: json['online']?.toString() ?? '',
       relationship: json['relationship']?.toString() ?? '',
-      wallpaper: json['wallpaper']?.toString() ?? '',
+      wallpaper: wallpaperUrl,
       wallpaperMargin: json['wallpaper_margin']?.toString() ?? '',
       avatarMargin: json['avatar_margin']?.toString() ?? '',
       language: json['language']?.toString(),

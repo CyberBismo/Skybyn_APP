@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:ui';
 import 'dart:async';
+import 'dart:developer' as developer;
 import 'package:cached_network_image/cached_network_image.dart';
 import '../services/friend_service.dart';
 import '../services/auth_service.dart';
@@ -11,6 +12,7 @@ import '../screens/profile_screen.dart';
 import '../services/translation_service.dart';
 import 'find_friends_widget.dart';
 import '../config/constants.dart';
+import '../config/constants.dart' show UrlHelper, AvatarCacheManager;
 
 class RightPanel extends StatefulWidget {
   const RightPanel({super.key});
@@ -115,9 +117,11 @@ class _RightPanelState extends State<RightPanel> {
       return;
     }
 
-    // Load cached data first, then update if changes detected
+    // Force refresh friends to ensure fresh avatars are loaded
+    // Load cached data first for fast display, then update if changes detected
     final friends = await _friendService.fetchFriendsForUser(
       userId: userId,
+      forceRefresh: true, // Force refresh to get latest avatars
       onUpdated: (updatedFriends) {
         // Update UI when friends list changes in background
         if (mounted) {
@@ -275,16 +279,26 @@ class _RightPanelState extends State<RightPanel> {
                                           child: friend.avatar.isNotEmpty
                                               ? ClipOval(
                                                   child: CachedNetworkImage(
+                                                    key: ValueKey('${friend.id}_${friend.avatar}'), // Stable key
                                                     imageUrl: UrlHelper.convertUrl(friend.avatar),
                                                     width: 44,
                                                     height: 44,
                                                     fit: BoxFit.cover,
-                                                    httpHeaders: const {},
+                                                    httpHeaders: UrlHelper.imageHeaders,
+                                                    cacheManager: AvatarCacheManager.instance, // Use shared cache manager
+                                                    fadeInDuration: Duration.zero, // Disable fade to prevent flickering
+                                                    fadeOutDuration: Duration.zero,
+                                                    memCacheWidth: 88, // Cache at 2x resolution
+                                                    memCacheHeight: 88,
                                                     placeholder: (context, url) => Container(
+                                                      width: 44,
+                                                      height: 44,
                                                       color: Colors.white.withOpacity(0.1),
                                                     ),
                                                     errorWidget: (context, url, error) {
-                                                      // Handle all errors including 404 (HttpExceptionWithStatus)
+                                                      developer.log('❌ [Friend Avatar] Failed to load friend avatar', name: 'RightPanel');
+                                                      developer.log('❌ [Friend Avatar] URL: $url', name: 'RightPanel');
+                                                      developer.log('❌ [Friend Avatar] Error: $error', name: 'RightPanel', error: error);
                                                       return const Icon(
                                                         Icons.person,
                                                         color: Colors.white,

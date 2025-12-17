@@ -32,7 +32,7 @@ class FriendService {
 
       // If no cache or force refresh, fetch from API
       return await _fetchAndUpdateFriends(userId);
-    } catch (e) {
+    } catch (e, stackTrace) {
       // If API fails, try to return cached data as fallback
       final cachedFriends = await _loadFromCache();
       return cachedFriends;
@@ -55,11 +55,13 @@ class FriendService {
 
       if (response.statusCode == 200) {
         final dynamic data = json.decode(response.body);
+        
         if (data is List) {
           final List<Map<String, dynamic>> list = data
               .whereType<Map<String, dynamic>>()
               .where((m) => (m['responseCode']?.toString() ?? '1') == '1')
               .toList();
+          
           final friends = list.map(Friend.fromJson).toList();
           
           // Check if content has changed
@@ -68,7 +70,6 @@ class FriendService {
           if (hasChanged) {
             // Only update cache if content has changed
             await _saveToCache(friends);
-          } else {
           }
           
           return friends;
@@ -161,6 +162,7 @@ class FriendService {
               .whereType<Map<String, dynamic>>()
               .where((m) => (m['responseCode']?.toString() ?? '1') == '1')
               .toList();
+          
           final friends = list.map(Friend.fromJson).toList();
           
           // Check if content has changed
@@ -232,7 +234,8 @@ class FriendService {
       await prefs.setString(_cacheKey, jsonString);
       await prefs.setInt(_cacheTimestampKey, DateTime.now().millisecondsSinceEpoch);
       await prefs.setString(_cacheHashKey, hash);
-    } catch (e) {
+    } catch (e, stackTrace) {
+      // Silently fail
     }
   }
 
@@ -248,17 +251,21 @@ class FriendService {
       
       // Only check expiry if cache is very old (fallback mechanism)
       final cacheAge = DateTime.now().millisecondsSinceEpoch - timestamp;
+      
       if (cacheAge > _cacheExpiry.inMilliseconds) {
         // Cache is expired, but we'll still try to load it as fallback
         // The API fetch will update it if needed
       }
 
       final friendsJson = prefs.getString(_cacheKey);
-      if (friendsJson == null) return [];
+      if (friendsJson == null) {
+        return [];
+      }
 
       final List<dynamic> decoded = jsonDecode(friendsJson);
-      return decoded.map((item) => Friend.fromJson(item as Map<String, dynamic>)).toList();
-    } catch (e) {
+      final friends = decoded.map((item) => Friend.fromJson(item as Map<String, dynamic>)).toList();
+      return friends;
+    } catch (e, stackTrace) {
       return [];
     }
   }

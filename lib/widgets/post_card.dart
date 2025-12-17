@@ -13,6 +13,7 @@ import '../services/websocket_service.dart';
 import '../screens/create_post_screen.dart';
 import '../widgets/app_colors.dart';
 import '../config/constants.dart';
+import '../config/constants.dart' show UrlHelper, AvatarCacheManager;
 import '../utils/translation_keys.dart';
 import '../widgets/translated_text.dart';
 import '../services/translation_service.dart';
@@ -796,7 +797,8 @@ class _PostCardState extends State<PostCard> {
           width: PostCardStyles.avatarSize,
           height: PostCardStyles.avatarSize,
           fit: BoxFit.cover,
-          httpHeaders: const {},
+          httpHeaders: UrlHelper.imageHeaders,
+          cacheManager: AvatarCacheManager.instance,
           placeholder: (context, url) => Image.asset(
               'assets/images/icon.png',
               width: PostCardStyles.avatarSize,

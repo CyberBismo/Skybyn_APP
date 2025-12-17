@@ -6,6 +6,7 @@ import '../services/theme_service.dart';
 import 'unified_menu.dart';
 import 'app_colors.dart';
 import '../config/constants.dart';
+import '../config/constants.dart' show UrlHelper, AvatarCacheManager;
 import '../screens/profile_screen.dart';
 
 /// Centralized styling for the CommentCard widget
@@ -204,7 +205,8 @@ class CommentCard extends StatelessWidget {
         width: CommentCardStyles.avatarSize,
         height: CommentCardStyles.avatarSize,
         fit: BoxFit.cover,
-        httpHeaders: const {},
+        httpHeaders: UrlHelper.imageHeaders,
+        cacheManager: AvatarCacheManager.instance,
         placeholder: (context, url) => Image.asset(
             'assets/images/icon.png',
             width: CommentCardStyles.avatarSize,
