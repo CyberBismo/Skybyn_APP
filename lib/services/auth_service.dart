@@ -123,7 +123,6 @@ class AuthService {
           await _prefs?.setString(userIdKey, data['userID'].toString());
           await _prefs?.setString(usernameKey, username);
 
-<<<<<<< HEAD
           // Store session token if provided
           if (data['sessionToken'] != null) {
             await _prefs?.setString('sessionToken', data['sessionToken'].toString());
@@ -139,12 +138,9 @@ class AuthService {
             print('⚠️ [Auth] Failed to clear cached profile: $e');
           }
 
-=======
->>>>>>> parent of 6049610 (Fix FCM token registration, device ID generation, and background notifications)
           // Try to fetch user profile, but don't fail login if it fails
           try {
             await fetchUserProfile(username);
-<<<<<<< HEAD
             developer.log('📸 [Auth] fetchUserProfile completed successfully', name: 'Auth');
             print('📸 [Auth] fetchUserProfile completed successfully');
           } catch (e, stackTrace) {
@@ -212,9 +208,6 @@ class AuthService {
           } catch (e) {
             print('❌ [Auth] Failed to request notification permissions after login: $e');
             // Don't fail login if permission request fails
-=======
-          } catch (e) {
->>>>>>> parent of 6049610 (Fix FCM token registration, device ID generation, and background notifications)
           }
 
           // Subscribe to user-specific topics after successful login
@@ -282,7 +275,6 @@ class AuthService {
         () => _client.post(Uri.parse(ApiConstants.profile), body: requestBody),
         operationName: 'fetchUserProfile',
       );
-<<<<<<< HEAD
 
       developer.log('📸 [Auth] Profile API response status: ${response.statusCode}', name: 'Auth');
       final responseBodyPreview = response.body.length > 500 ? '${response.body.substring(0, 500)}...' : response.body;
@@ -307,16 +299,6 @@ class AuthService {
           developer.log('📸 [Auth] Processed avatar URL: "${user.avatar}"', name: 'Auth');
           print('📸 [Auth] Processed avatar URL: "${user.avatar}"');
 
-=======
-      
-      if (response.statusCode == 200) {
-        final data = _safeJsonDecode(response.body);
-        if (data['responseCode'] == '1') {
-          // Manually add the userID to the map before creating the User object
-          data['id'] = userId.toString(); // Ensure it's a string
-          final user = User.fromJson(data);
-          
->>>>>>> parent of 6049610 (Fix FCM token registration, device ID generation, and background notifications)
           // Initialize cached online status from user profile
           if (user.online.isNotEmpty) {
             _lastKnownOnlineStatus = user.online == '1' || user.online.toLowerCase() == 'true';

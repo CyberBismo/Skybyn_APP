@@ -96,7 +96,6 @@ class StorageKeys {
   static const String username = 'username';
 }
 
-<<<<<<< HEAD
 /// Shared cache manager for avatars - ensures all widgets use the same cache
 class AvatarCacheManager {
   static CacheManager? _instance;
@@ -138,17 +137,12 @@ class UrlHelper {
     _loginTimestamp = timestamp;
   }
 
-=======
-/// Utility class for URL conversion
-class UrlHelper {
->>>>>>> parent of 6049610 (Fix FCM token registration, device ID generation, and background notifications)
   /// Convert a URL to use the appropriate base URL
   /// This is useful for images and other resources that may have hardcoded production URLs
   static String convertUrl(String url) {
     if (url.isEmpty) {
       return url;
     }
-<<<<<<< HEAD
 
     try {
       final uri = Uri.tryParse(url);
@@ -177,10 +171,6 @@ class UrlHelper {
     }
 
     // Return URL as-is if no changes needed
-=======
-    
-    // Return URL as-is (production URLs)
->>>>>>> parent of 6049610 (Fix FCM token registration, device ID generation, and background notifications)
     return url;
   }
 }
