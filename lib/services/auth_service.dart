@@ -1,12 +1,10 @@
 import 'dart:convert';
 import 'dart:io';
 import 'dart:async';
-import 'dart:developer' as developer;
 import 'package:http/http.dart' as http;
 import 'package:http/io_client.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
-import 'package:flutter/painting.dart';
 import '../models/user.dart';
 import 'device_service.dart';
 import 'firebase_messaging_service.dart';
@@ -18,11 +16,8 @@ import 'chat_message_count_service.dart';
 import 'post_service.dart';
 import 'friend_service.dart';
 import 'chat_service.dart';
-import 'notification_service.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../config/constants.dart';
-import '../config/constants.dart' show UrlHelper, AvatarCacheManager;
-import '../widgets/unified_menu.dart';
 
 class AuthService {
   static String get baseUrl => ApiConstants.apiBase;
@@ -74,9 +69,6 @@ class AuthService {
   }
 
   Future<Map<String, dynamic>> login(String username, String password) async {
-    // TEST LOG - This should always appear
-    print('🔵 [AUTH LOGIN START] Username: $username');
-    developer.log('🔵 [AUTH LOGIN START] Username: $username', name: 'Auth');
     try {
       // Ensure HTTP client is initialized
       _httpClient ??= _createHttpClient();
@@ -131,89 +123,10 @@ class AuthService {
           await _prefs?.setString(userIdKey, data['userID'].toString());
           await _prefs?.setString(usernameKey, username);
 
-          // Clear old user profile cache before fetching fresh data
-          // This ensures we get the latest avatar and profile data with correct URLs
-          try {
-            await initPrefs();
-            await _prefs?.remove(userProfileKey);
-            print('✅ [Auth] Cleared cached user profile to fetch fresh data');
-          } catch (e) {
-            print('⚠️ [Auth] Failed to clear cached profile: $e');
-          }
-          
           // Try to fetch user profile, but don't fail login if it fails
-          // Force refresh to ensure we get the latest avatar and profile data
           try {
-            developer.log('📸 [Auth] Starting fetchUserProfile after login', name: 'Auth');
-            print('📸 [Auth] Starting fetchUserProfile after login');
             await fetchUserProfile(username);
-            developer.log('📸 [Auth] fetchUserProfile completed successfully', name: 'Auth');
-            print('📸 [Auth] fetchUserProfile completed successfully');
-          } catch (e, stackTrace) {
-            developer.log('❌ [Auth] fetchUserProfile failed: $e', name: 'Auth', error: e, stackTrace: stackTrace);
-            // If fetch fails, try again after a short delay
-            Future.delayed(const Duration(seconds: 1), () async {
-              try {
-                developer.log('📸 [Auth] Retrying fetchUserProfile after delay', name: 'Auth');
-                await fetchUserProfile(username);
-                developer.log('📸 [Auth] fetchUserProfile retry completed successfully', name: 'Auth');
-              } catch (e2, stackTrace2) {
-                developer.log('❌ [Auth] fetchUserProfile retry failed: $e2', name: 'Auth', error: e2, stackTrace: stackTrace2);
-                // Silently fail - profile will be fetched when needed
-              }
-            });
-          }
-          
-          // Clear friends cache on login to ensure fresh data with correct avatars
-          try {
-            final friendService = FriendService();
-            await friendService.clearCache();
           } catch (e) {
-            // Silently fail - friends will be fetched fresh anyway
-          }
-          
-          // Clear image cache on login to ensure fresh avatars are loaded
-          try {
-            await AvatarCacheManager.clearCache();
-            developer.log('✅ [Auth] Cleared avatar cache to ensure fresh avatars', name: 'Auth');
-            print('[SKYBYN] ✅ [Auth] Cleared avatar cache to ensure fresh avatars');
-          } catch (e) {
-            developer.log('⚠️ [Auth] Failed to clear image cache: $e', name: 'Auth');
-            print('[SKYBYN] ⚠️ [Auth] Failed to clear image cache: $e');
-          }
-          
-          // Set login timestamp for cache-busting (ensures avatars refresh on every login)
-          try {
-            final loginTimestamp = DateTime.now().millisecondsSinceEpoch;
-            UrlHelper.setLoginTimestamp(loginTimestamp);
-            developer.log('✅ [Auth] Set login timestamp for cache-busting: $loginTimestamp', name: 'Auth');
-            print('[SKYBYN] ✅ [Auth] Set login timestamp for cache-busting: $loginTimestamp');
-          } catch (e) {
-            developer.log('⚠️ [Auth] Failed to set login timestamp: $e', name: 'Auth');
-            print('[SKYBYN] ⚠️ [Auth] Failed to set login timestamp: $e');
-          }
-
-          // Request notification permissions after successful login (if not previously denied)
-          try {
-            final firebaseService = FirebaseMessagingService();
-            final notificationService = NotificationService();
-            
-            // Request Firebase messaging permissions
-            if (firebaseService.isInitialized) {
-              final wasDenied = await firebaseService.wasPermissionDenied();
-              if (!wasDenied) {
-                await firebaseService.requestPermissions();
-              }
-            }
-            
-            // Request local notification permissions
-            final wasDeniedLocal = await notificationService.wasPermissionDenied();
-            if (!wasDeniedLocal) {
-              await notificationService.requestPermissions();
-            }
-          } catch (e) {
-            print('❌ [Auth] Failed to request notification permissions after login: $e');
-            // Don't fail login if permission request fails
           }
 
           // Subscribe to user-specific topics after successful login
@@ -224,31 +137,12 @@ class AuthService {
           }
 
           // Register/update FCM token with user ID after successful login
-          // Use cached user ID from SharedPreferences to ensure consistency
           try {
             final firebaseService = FirebaseMessagingService();
             if (firebaseService.isInitialized) {
-              // Retrieve user ID from cache (already stored above)
-              await initPrefs();
-              final cachedUserIdString = _prefs?.getString(userIdKey);
-              if (cachedUserIdString != null && cachedUserIdString.isNotEmpty) {
-                final userId = int.tryParse(cachedUserIdString);
-                if (userId != null && userId > 0) {
-                  print('📱 [Auth] Registering FCM token after login with cached user ID: $userId');
-                  await firebaseService.sendFCMTokenToServer(userId: userId);
-                  print('📱 [Auth] FCM token registration completed');
-                } else {
-                  print('⚠️ [Auth] Invalid cached user ID: $cachedUserIdString');
-                }
-              } else {
-                print('⚠️ [Auth] Cached user ID not found, using login response user ID');
-                // Fallback to login response if cache not available
-                final userId = int.tryParse(data['userID'].toString());
-                if (userId != null && userId > 0) {
-                  await firebaseService.sendFCMTokenToServer(userId: userId);
-                  print('📱 [Auth] FCM token registration completed (using login response)');
-                }
-              }
+              print('📱 [Auth] Registering FCM token after login...');
+              await firebaseService.sendFCMTokenToServer();
+              print('📱 [Auth] FCM token registration completed');
             } else {
               print('⚠️ [Auth] FCM service not initialized, cannot register token');
             }
@@ -279,9 +173,7 @@ class AuthService {
 
   Future<User?> fetchUserProfile(String username) async {
     try {
-      developer.log('📸 [Auth] fetchUserProfile called for username: $username', name: 'Auth');
       final userId = await getStoredUserId();
-      developer.log('📸 [Auth] User ID from storage: $userId', name: 'Auth');
       final requestBody = <String, String>{'userID': userId!};
 
       // Get FCM token if available
@@ -298,34 +190,17 @@ class AuthService {
       } catch (e) {
       }
 
-      developer.log('📸 [Auth] Sending profile request to API', name: 'Auth');
       final response = await _retryHttpRequest(
         () => _client.post(Uri.parse(ApiConstants.profile), body: requestBody),
         operationName: 'fetchUserProfile',
       );
       
-      developer.log('📸 [Auth] Profile API response status: ${response.statusCode}', name: 'Auth');
-      final responseBodyPreview = response.body.length > 500 ? '${response.body.substring(0, 500)}...' : response.body;
-      developer.log('📸 [Auth] Profile API response body: $responseBodyPreview', name: 'Auth');
-      print('📸 [Auth] Profile API response status: ${response.statusCode}');
-      print('📸 [Auth] Profile API response body preview: $responseBodyPreview');
-      
       if (response.statusCode == 200) {
         final data = _safeJsonDecode(response.body);
         if (data['responseCode'] == '1') {
-          // Debug: Log raw avatar URL from API
-          final rawAvatar = data['avatar']?.toString() ?? '';
-          developer.log('📸 [Auth] Raw avatar from API: "$rawAvatar"', name: 'Auth');
-          print('📸 [Auth] Raw avatar from API: "$rawAvatar"');
-          
           // Manually add the userID to the map before creating the User object
           data['id'] = userId.toString(); // Ensure it's a string
-          
           final user = User.fromJson(data);
-          
-          // Debug: Log processed avatar URL
-          developer.log('📸 [Auth] Processed avatar URL: "${user.avatar}"', name: 'Auth');
-          print('📸 [Auth] Processed avatar URL: "${user.avatar}"');
           
           // Initialize cached online status from user profile
           if (user.online.isNotEmpty) {
@@ -335,7 +210,6 @@ class AuthService {
           // Store user profile locally
           await initPrefs();
           await _prefs?.setString(userProfileKey, json.encode(user.toJson()));
-          developer.log('📸 [Auth] User profile stored in cache with avatar: "${user.avatar}"', name: 'Auth');
           return user;
         } else {
           final message = data['message'] ?? 'Unknown error';
@@ -392,8 +266,6 @@ class AuthService {
   }
 
   Future<void> logout() async {
-    // Clear unified menu cache
-    UnifiedMenu.clearUserProfileCache();
     // Cancel background activity updates on logout
     try {
       await BackgroundActivityService.cancel();
@@ -435,15 +307,10 @@ class AuthService {
 
     try {
       // Clear friends cache
-      developer.log('📸 [Auth] Clearing friends cache on logout', name: 'Auth');
-      print('📸 [Auth] Clearing friends cache on logout');
       final friendService = FriendService();
       await friendService.clearCache();
-      developer.log('✅ [Auth] Friends cache cleared successfully on logout', name: 'Auth');
-      print('✅ [Auth] Friends cache cleared successfully on logout');
     } catch (e) {
-      developer.log('⚠️ [Auth] Failed to clear friends cache on logout: $e', name: 'Auth');
-      print('⚠️ [Auth] Failed to clear friends cache on logout: $e');
+      // Silently fail
     }
 
     try {
@@ -470,14 +337,9 @@ class AuthService {
 
     try {
       // Clear image cache (CachedNetworkImage uses flutter_cache_manager)
-      developer.log('📸 [Auth] Clearing image cache on logout', name: 'Auth');
-      print('📸 [Auth] Clearing image cache on logout');
-      await AvatarCacheManager.clearCache();
-      developer.log('✅ [Auth] Avatar cache cleared successfully on logout', name: 'Auth');
-      print('✅ [Auth] Avatar cache cleared successfully on logout');
+      await DefaultCacheManager().emptyCache();
     } catch (e) {
-      developer.log('⚠️ [Auth] Failed to clear image cache on logout: $e', name: 'Auth');
-      print('⚠️ [Auth] Failed to clear image cache on logout: $e');
+      // Silently fail
     }
 
     // Clear all SharedPreferences data (user-specific)
@@ -937,4 +799,3 @@ class AuthService {
     }
   }
 }
-

@@ -1,4 +1,3 @@
-import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 
 class ApiConstants {
   // Production URLs
@@ -58,9 +57,7 @@ class ApiConstants {
   static String get deleteAllNotifications => '$apiBase/notification/delete_all.php';
 
   // Updates
-  static String get appUpdate => '$appBase';
-  static String get androidDownload => '$appBase/android/skybyn.apk';
-  static String get iosDownload => '$appBase/ios/skybyn.ipa';
+  static String get appUpdate => '$apiBase/app_update.php';
 
   // Chat
   static String get chatSend => '$apiBase/chat/send.php';
@@ -90,83 +87,16 @@ class StorageKeys {
   static const String username = 'username';
 }
 
-/// Shared cache manager for avatars - ensures all widgets use the same cache
-class AvatarCacheManager {
-  static CacheManager? _instance;
-  
-  static CacheManager get instance {
-    _instance ??= CacheManager(
-      Config(
-        'avatarCache',
-        stalePeriod: const Duration(days: 30), // Keep avatars cached for 30 days
-        maxNrOfCacheObjects: 1000, // Cache up to 1000 avatars
-        repo: JsonCacheInfoRepository(databaseName: 'avatarCache.db'),
-        fileService: HttpFileService(),
-      ),
-    );
-    return _instance!;
-  }
-  
-  /// Clear the avatar cache (call when user logs out or avatars are updated)
-  static Future<void> clearCache() async {
-    await _instance?.emptyCache();
-  }
-}
-
 /// Utility class for URL conversion
 class UrlHelper {
-  // Store login timestamp for cache-busting (changes on every login)
-  static int? _loginTimestamp;
-  
-  // Headers for image requests (prevents 403 errors from server security)
-  static const Map<String, String> imageHeaders = {
-    'User-Agent': 'Mozilla/5.0 (Linux; Android 10; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.120 Mobile Safari/537.36 Skybyn-App/1.0',
-    'Referer': 'https://skybyn.com/',
-    'Accept': 'image/webp,image/apng,image/*,*/*;q=0.8',
-    'Accept-Language': 'en-US,en;q=0.9',
-  };
-  
-  /// Set the login timestamp for cache-busting
-  static void setLoginTimestamp(int timestamp) {
-    _loginTimestamp = timestamp;
-  }
-  
   /// Convert a URL to use the appropriate base URL
   /// This is useful for images and other resources that may have hardcoded production URLs
-  /// For avatar URLs, adds cache-busting parameter to ensure fresh images are loaded
-  /// IMPORTANT: Only uses login timestamp (never current time) to ensure stable caching across rebuilds
-  static String convertUrl(String url, {bool addCacheBust = true}) {
+  static String convertUrl(String url) {
     if (url.isEmpty) {
       return url;
     }
     
-    try {
-      final uri = Uri.tryParse(url);
-      if (uri == null) {
-        return url;
-      }
-      
-      // Add cache-busting if needed
-      // Only use login timestamp - never use current time to ensure stable caching
-      if (addCacheBust && (url.contains('avatar') || url.contains('logo_faded_clean.png') || url.contains('logo.png'))) {
-        // Only add cache-busting if we have a login timestamp
-        // This ensures the URL is stable across rebuilds (same login = same URL = same cache)
-        if (_loginTimestamp != null) {
-          final queryParams = Map<String, String>.from(uri.queryParameters);
-          queryParams['v'] = _loginTimestamp.toString();
-          final finalUrl = uri.replace(queryParameters: queryParams).toString();
-          return finalUrl;
-        }
-        // If no login timestamp, return URL without cache-busting to ensure stability
-        return url;
-      }
-    } catch (e) {
-      print('[SKYBYN] ⚠️ [UrlHelper] Failed to parse URL: "$url" - $e');
-      // If URL parsing fails, return original URL
-      return url;
-    }
-    
-    // Return URL as-is if no changes needed
+    // Return URL as-is (production URLs)
     return url;
   }
 }

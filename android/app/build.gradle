@@ -56,9 +56,8 @@ android {
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_11
         targetCompatibility JavaVersion.VERSION_11
-        // Enable core library desugaring (required by flutter_local_notifications)
-        // Even though minSdk is 26+, some dependencies require desugaring
-        coreLibraryDesugaringEnabled true
+        // Desugaring not needed for minSdk 26+ (Android 8.0+)
+        coreLibraryDesugaringEnabled false
     }
 
     kotlinOptions {
@@ -231,8 +230,8 @@ dependencies {
     // Play Core library for Flutter deferred components (referenced by Flutter engine)
     // This is required to prevent R8 errors when minifyEnabled is true
     implementation 'com.google.android.play:core:1.10.3'
-    // Core library desugaring (required by flutter_local_notifications)
-    coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.1.4'
+    // Desugaring not needed for minSdk 26+ (Android 8.0+)
+    // coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.1.4'
     // WebSocket support for background service
     implementation 'com.squareup.okhttp3:okhttp:4.12.0'
 } 

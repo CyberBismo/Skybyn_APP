@@ -13,7 +13,6 @@ import '../services/auth_service.dart';
 import '../services/post_service.dart';
 import 'create_post_screen.dart';
 import '../config/constants.dart';
-import '../config/constants.dart' show UrlHelper, AvatarCacheManager;
 import '../utils/translation_keys.dart';
 import '../widgets/translated_text.dart';
 import '../services/translation_service.dart';
@@ -1183,20 +1182,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                         ? CachedNetworkImage(
                                             imageUrl: UrlHelper.convertUrl(avatarUrl),
                                             fit: BoxFit.cover,
-                                            httpHeaders: UrlHelper.imageHeaders,
-                                            cacheManager: AvatarCacheManager.instance,
+                                            httpHeaders: const {},
                                             placeholder: (context, url) => Image.asset(
                                                 'assets/images/icon.png',
                                                 fit: BoxFit.cover),
                                             errorWidget: (context, url, error) {
                                               // Handle all errors including 404 (HttpExceptionWithStatus)
-                                              print('[SKYBYN] ❌ [Profile Avatar] Failed to load profile avatar');
-                                              print('[SKYBYN] ❌ [Profile Avatar] URL: $url');
-                                              print('[SKYBYN] ❌ [Profile Avatar] Error: $error');
-                                              print('[SKYBYN] ❌ [Profile Avatar] Error type: ${error.runtimeType}');
-                                              if (error is Exception) {
-                                                print('[SKYBYN] ❌ [Profile Avatar] Exception: ${error.toString()}');
-                                              }
                                               return Image.asset(
                                                 'assets/images/icon.png',
                                                 fit: BoxFit.cover,

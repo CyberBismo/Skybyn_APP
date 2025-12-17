@@ -260,8 +260,6 @@ class TranslationKeys {
   static const String dark = 'dark';
   static const String alwaysUseDarkTheme = 'always_use_dark_theme';
   static const String enableNotifications = 'enable_notifications';
-  static const String notificationPermissionDenied = 'notification_permission_denied';
-  static const String checkingPermission = 'checking_permission';
   static const String privateProfile = 'private_profile';
   static const String biometricLock = 'biometric_lock';
   static const String notificationSound = 'notification_sound';

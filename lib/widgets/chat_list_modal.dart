@@ -14,7 +14,6 @@ import '../utils/translation_keys.dart';
 import '../widgets/translated_text.dart';
 import '../services/translation_service.dart';
 import '../config/constants.dart';
-import '../config/constants.dart' show UrlHelper, AvatarCacheManager;
 
 class ChatListModal extends StatefulWidget {
   const ChatListModal({super.key});
@@ -294,8 +293,7 @@ class _ChatListModalState extends State<ChatListModal> {
                                                 width: 44,
                                                 height: 44,
                                                 fit: BoxFit.cover,
-                                                httpHeaders: UrlHelper.imageHeaders,
-                                                cacheManager: AvatarCacheManager.instance,
+                                                httpHeaders: const {},
                                                 placeholder: (context, url) => Image.asset(
                                                   'assets/images/icon.png',
                                                   width: 44,

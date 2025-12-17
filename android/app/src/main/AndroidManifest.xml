@@ -79,8 +79,13 @@
             </intent-filter>
         </activity>
         
-        <!-- Firebase Messaging Service is auto-registered by firebase_messaging plugin -->
-        <!-- No need to explicitly declare it in the manifest for firebase_messaging 16.x+ -->
+        <service
+            android:name="io.flutter.plugins.firebasemessaging.FlutterFirebaseMessagingService"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
 
         <!-- UCropActivity for image_cropper plugin -->
         <activity
