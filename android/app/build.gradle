@@ -176,6 +176,11 @@ flutter {
     source '../..'
 }
 
+task updateFlutterDependencies(type: Exec) {
+    workingDir '../../'
+    commandLine 'E:/htdocs/skybyn/app/flutter_project/Skybyn_APP/flutter/bin/flutter.bat', 'pub', 'get'
+}
+
 // Disable test tasks that cause path resolution issues
 tasks.whenTaskAdded { task ->
     if (task.name.contains('generateReleaseUnitTestConfig') ||
