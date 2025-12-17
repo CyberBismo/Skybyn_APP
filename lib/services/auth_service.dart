@@ -130,11 +130,6 @@ class AuthService {
           // Convert userID to string to avoid type mismatch
           await _prefs?.setString(userIdKey, data['userID'].toString());
           await _prefs?.setString(usernameKey, username);
-          
-          // Store session token if provided
-          if (data['sessionToken'] != null) {
-            await _prefs?.setString('sessionToken', data['sessionToken'].toString());
-          }
 
           // Clear old user profile cache before fetching fresh data
           // This ensures we get the latest avatar and profile data with correct URLs
@@ -486,7 +481,6 @@ class AuthService {
     }
 
     // Clear all SharedPreferences data (user-specific)
-    await _prefs?.remove('sessionToken'); // Clear session token
     await initPrefs();
     final keys = _prefs?.getKeys() ?? {};
     
