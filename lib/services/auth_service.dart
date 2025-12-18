@@ -123,10 +123,15 @@ class AuthService {
           await _prefs?.setString(userIdKey, data['userID'].toString());
           await _prefs?.setString(usernameKey, username);
 
-          // Try to fetch user profile, but don't fail login if it fails
+          // Try to fetch user profile, if it fails, the login will now also fail.
           try {
-            await fetchUserProfile(username);
+            final user = await fetchUserProfile(username);
+            if (user == null) {
+              throw Exception('Failed to fetch user profile after login. The profile data is null.');
+            }
           } catch (e) {
+            // Re-throw to be caught by the main try-catch, which will return the error to the UI
+            rethrow;
           }
 
           // Subscribe to user-specific topics after successful login
