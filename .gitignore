@@ -2,3 +2,7 @@
 /.dart_tool
 /android
 .flutter-plugins-dependencies
+/docs
+/android
+/linux
+/macos
