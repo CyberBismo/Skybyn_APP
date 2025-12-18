@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/io_client.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -123,15 +124,10 @@ class AuthService {
           await _prefs?.setString(userIdKey, data['userID'].toString());
           await _prefs?.setString(usernameKey, username);
 
-          // Try to fetch user profile, if it fails, the login will now also fail.
+          // Try to fetch user profile, but don't fail login if it fails
           try {
-            final user = await fetchUserProfile(username);
-            if (user == null) {
-              throw Exception('Failed to fetch user profile after login. The profile data is null.');
-            }
+            await fetchUserProfile(username);
           } catch (e) {
-            // Re-throw to be caught by the main try-catch, which will return the error to the UI
-            rethrow;
           }
 
           // Subscribe to user-specific topics after successful login
@@ -548,10 +544,25 @@ class AuthService {
   }) async {
     int attempt = 0;
     Duration delay = initialDelay;
-    
+
     while (attempt < maxRetries) {
       try {
+        final requestInstance = request();
+        if (requestInstance is http.Request) {
+          if (kDebugMode) {
+            print('API Request ($operationName): ${requestInstance.method} ${requestInstance.url}');
+            if (requestInstance.body.isNotEmpty) {
+              print('Request Body: ${requestInstance.body}');
+            }
+          }
+        }
+        
         final response = await request();
+        if (kDebugMode) {
+          print('API Response ($operationName): ${response.statusCode}');
+          print('Response Body: ${response.body}');
+        }
+
         // Don't retry on successful responses (2xx) or client errors (4xx)
         if (response.statusCode < 500) {
           return response;
@@ -654,7 +665,7 @@ class AuthService {
         maxRetries: 2, // Fewer retries for online status (less critical)
       );
 
-      if (response.statusCode == 200) {
+      if (response.statusCode == 2.0) {
         final data = json.decode(response.body);
         if (data['responseCode'] == '1') {
           _lastKnownOnlineStatus = isOnline; // Update cached status
