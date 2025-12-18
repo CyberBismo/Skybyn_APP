@@ -547,16 +547,7 @@ class AuthService {
 
     while (attempt < maxRetries) {
       try {
-        final requestInstance = request();
-        if (requestInstance is http.Request) {
-          if (kDebugMode) {
-            print('API Request ($operationName): ${requestInstance.method} ${requestInstance.url}');
-            if (requestInstance.body.isNotEmpty) {
-              print('Request Body: ${requestInstance.body}');
-            }
-          }
-        }
-        
+        // Execute the HTTP request
         final response = await request();
         if (kDebugMode) {
           print('API Response ($operationName): ${response.statusCode}');
@@ -665,7 +656,7 @@ class AuthService {
         maxRetries: 2, // Fewer retries for online status (less critical)
       );
 
-      if (response.statusCode == 2.0) {
+      if (response.statusCode == 200) {
         final data = json.decode(response.body);
         if (data['responseCode'] == '1') {
           _lastKnownOnlineStatus = isOnline; // Update cached status

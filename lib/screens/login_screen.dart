@@ -9,6 +9,7 @@ import '../widgets/app_colors.dart';
 import '../widgets/translated_text.dart';
 import '../utils/translation_keys.dart';
 import '../services/translation_service.dart';
+import '../services/navigation_service.dart';
 import 'home_screen.dart';
 import 'register_screen.dart';
 import 'forgot_password_screen.dart';
@@ -88,6 +89,9 @@ class _LoginScreenState extends State<LoginScreen> {
             }
           } catch (e) {
           }
+
+          // Mark home as the last route so app restarts into the logged-in experience
+          await NavigationService.saveLastRoute('/home');
 
           Navigator.of(context).pushReplacement(
             MaterialPageRoute(builder: (context) => const HomeScreen()),

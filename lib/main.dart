@@ -1323,25 +1323,25 @@ class __InitialScreenState extends State<_InitialScreen> with TickerProviderStat
 
       if (mounted) {
         if (userId != null) {
-          if (userProfile != null) {
-            // Restore last screen or default to home
-            await _navigateToLastScreen();
-            return;
-          } else {
-            // Try to fetch the profile again
+          // If we have a stored user ID, treat the user as logged in
+          // and try to refresh the profile in the background.
+          if (userProfile == null) {
             try {
               final username = await _authService.getStoredUsername();
               if (username != null) {
-                final profile = await _authService.fetchUserProfile(username).timeout(const Duration(seconds: 5));
-                if (profile != null && mounted) {
-                  // Restore last screen or default to home
-                  await _navigateToLastScreen();
-                  return;
-                }
+                // Best-effort profile refresh; failures should NOT log the user out
+                await _authService
+                    .fetchUserProfile(username)
+                    .timeout(const Duration(seconds: 5));
               }
             } catch (e) {
+              // Ignore errors here – we'll still navigate to the last screen
             }
           }
+
+          // Restore last screen or default to home
+          await _navigateToLastScreen();
+          return;
         }
         // Navigate to login if we reach here
         if (mounted) {
