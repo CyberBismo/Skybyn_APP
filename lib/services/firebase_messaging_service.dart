@@ -52,8 +52,16 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
     // Debug mode check removed to ensure notifications work during development
 
     // Check if Firebase is already initialized
-    if (Firebase.apps.isEmpty) {
-      await Firebase.initializeApp();
+    // Gracefully handle Firebase unavailability
+    try {
+      if (Firebase.apps.isEmpty) {
+        await Firebase.initializeApp();
+      }
+    } catch (e) {
+      // Firebase is unavailable - log but continue
+      developer.log('⚠️ [FCM Background] Firebase Core unavailable: $e', name: 'FCM Background Handler');
+      developer.log('⚠️ [FCM Background] App will continue to function normally', name: 'FCM Background Handler');
+      // Continue - notification may still be shown by system
     }
     
     // Initialize NotificationService in background isolate
@@ -65,7 +73,7 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
       await notificationService.initialize();
     } catch (e) {
       // If initialization fails (e.g., app is terminated), FCM will still show the notification automatically
-      developer.log('NotificationService initialization failed in background: $e', name: 'FCM Background Handler');
+      developer.log('⚠️ [FCM Background] NotificationService initialization failed: $e', name: 'FCM Background Handler');
       // Continue - FCM will show the notification from the notification field
     }
     
@@ -240,8 +248,19 @@ class FirebaseMessagingService {
     try {
       // Ensure Firebase Core is initialized first
       if (Firebase.apps.isEmpty) {
-        throw Exception('Firebase Core must be initialized before Firebase Messaging');
+        // Try to initialize Firebase Core if not already done
+        try {
+          await Firebase.initializeApp();
+          _logChat('FCM Init', '✅ Firebase Core initialized');
+        } catch (e) {
+          _logChat('FCM Init', '⚠️ Firebase Core initialization failed: $e');
+          _logChat('FCM Init', '⚠️ App will continue without push notifications');
+          _messaging = null;
+          _isInitialized = false;
+          return; // Exit gracefully - app will work without Firebase
+        }
       }
+      
       // On iOS, check if APN is configured before proceeding
       if (Platform.isIOS) {
         try {
@@ -251,11 +270,21 @@ class FirebaseMessagingService {
           // Reset messaging instance and fail gracefully
           _messaging = null;
           _isInitialized = false;
-          rethrow;
+          _logChat('FCM Init', '⚠️ Firebase Messaging unavailable on iOS: $e');
+          _logChat('FCM Init', '⚠️ App will continue without push notifications');
+          return; // Exit gracefully - app will work without Firebase
         }
       } else {
-        // Android - initialize normally
-        _messaging = FirebaseMessaging.instance;
+        // Android - initialize normally with error handling
+        try {
+          _messaging = FirebaseMessaging.instance;
+        } catch (e) {
+          _messaging = null;
+          _isInitialized = false;
+          _logChat('FCM Init', '⚠️ Firebase Messaging unavailable: $e');
+          _logChat('FCM Init', '⚠️ App will continue without push notifications');
+          return; // Exit gracefully - app will work without Firebase
+        }
       }
 
       // Set background message handler - only register once to prevent duplicate isolate warning
@@ -293,9 +322,16 @@ class FirebaseMessagingService {
       // Request permissions
       await _requestPermissions();
 
-      // Get FCM token
-      // This will fail on iOS if APN is not configured
-      await _getFCMToken();
+      // Get FCM token (gracefully handles Firebase Installations Service unavailability)
+      // This will fail on iOS if APN is not configured, or if Firebase Installations Service is unavailable
+      try {
+        await _getFCMToken();
+      } catch (e) {
+        // FCM token retrieval failure is non-critical - app can still function
+        _logChat('FCM Init', '⚠️ FCM token retrieval failed: $e');
+        _logChat('FCM Init', '⚠️ App will continue without FCM token (push notifications unavailable)');
+        // Don't rethrow - continue initialization
+      }
 
       // Note: FCM token registration requires a logged-in user
       // Token registration will happen after login via sendFCMTokenToServer()
@@ -305,21 +341,33 @@ class FirebaseMessagingService {
       await _setupMessageHandlers();
       
       // Check if app version changed and update FCM token if needed
-      await _checkAndUpdateTokenAfterAppUpdate();
+      try {
+        await _checkAndUpdateTokenAfterAppUpdate();
+      } catch (e) {
+        // Token update check failure is non-critical
+        _logChat('FCM Init', '⚠️ Token update check failed: $e');
+      }
 
-      // Auto-subscribe to default topics
-      await autoSubscribeToTopics();
+      // Auto-subscribe to default topics (gracefully handles Firebase unavailability)
+      try {
+        await autoSubscribeToTopics();
+      } catch (e) {
+        // Topic subscription failures are non-critical - log and continue
+        _logChat('FCM Init', '⚠️ Topic subscription failed: $e');
+        _logChat('FCM Init', '⚠️ App will continue without topic subscriptions');
+      }
       
       // Mark as initialized only after everything succeeds
       _isInitialized = true;
       _logChat('FCM Init', '✅ Firebase Messaging initialized successfully');
-    } catch (e) {
-      if (Platform.isIOS) {
-      } else {
-      }
+    } catch (e, stackTrace) {
+      // Firebase is unavailable - log error but don't crash the app
+      _logChat('FCM Init', '⚠️ Firebase Messaging initialization failed: $e');
+      _logChat('FCM Init', '⚠️ App will continue to function normally without push notifications');
       // Reset messaging instance on failure
       _messaging = null;
       _isInitialized = false;
+      // Don't rethrow - allow app to continue without Firebase
     }
   }
 
@@ -357,13 +405,27 @@ class FirebaseMessagingService {
       _fcmToken = await _messaging!.getToken();
       
       if (_fcmToken != null) {
+        _logChat('FCM Token', '✅ FCM token retrieved successfully');
       } else {
+        _logChat('FCM Token', '⚠️ FCM token is null');
       }
 
       // Store token locally (not in Firestore)
       await _storeFCMTokenLocally();
     } catch (e) {
+      // Firebase Installations Service (FIS) errors are common when Firebase is unavailable
+      // Check if it's a FIS error specifically
+      final errorStr = e.toString().toLowerCase();
+      if (errorStr.contains('firebase installations') || 
+          errorStr.contains('fis_auth_error') ||
+          errorStr.contains('installations service is unavailable')) {
+        _logChat('FCM Token', '⚠️ Firebase Installations Service unavailable: $e');
+        _logChat('FCM Token', '⚠️ App will continue without push notifications');
+      } else {
+        _logChat('FCM Token', '⚠️ Failed to get FCM token: $e');
+      }
       _fcmToken = null;
+      // Don't rethrow - allow app to continue without FCM token
     }
   }
 
@@ -372,8 +434,16 @@ class FirebaseMessagingService {
 
   /// Send FCM token to server to register in devices table (with user ID)
   /// Also updates the stored app version after successful registration
+  /// Gracefully handles Firebase unavailability - app continues to work without push notifications
   Future<void> sendFCMTokenToServer() async {
     try {
+      // Check if Firebase is available
+      if (!_isInitialized || _messaging == null) {
+        print('⚠️ [FCM] Firebase Messaging not available - skipping token registration');
+        print('⚠️ [FCM] App will continue to function normally without push notifications');
+        return; // Exit gracefully
+      }
+      
       if (_fcmToken == null) {
         print('⚠️ [FCM] Cannot register token: FCM token is null');
         return;
@@ -472,14 +542,14 @@ class FirebaseMessagingService {
           print('❌ [FCM] Token registration HTTP error: ${response.statusCode} - ${response.body}');
         }
       } catch (e) {
-        print('❌ [FCM] Token registration exception: $e');
-        // Don't silently fail - log the error so we can debug
-        rethrow;
+        print('⚠️ [FCM] Token registration exception: $e');
+        print('⚠️ [FCM] App will continue to function normally without push notifications');
+        // Don't rethrow - allow app to continue without Firebase token registration
       }
     } catch (e) {
-      print('❌ [FCM] sendFCMTokenToServer error: $e');
-      // Re-throw so caller can handle it
-      rethrow;
+      print('⚠️ [FCM] sendFCMTokenToServer error: $e');
+      print('⚠️ [FCM] App will continue to function normally without push notifications');
+      // Don't rethrow - allow app to continue without Firebase token registration
     }
   }
 
@@ -876,9 +946,11 @@ class FirebaseMessagingService {
   }
 
   /// Subscribe to a topic
+  /// Returns false if subscription fails (e.g., Firebase unavailable)
   Future<bool> subscribeToTopic(String topic) async {
     try {
       if (_messaging == null) {
+        _logChat('FCM Topic', '⚠️ Cannot subscribe to topic "$topic": Firebase Messaging not initialized');
         return false;
       }
       
@@ -886,8 +958,20 @@ class FirebaseMessagingService {
       if (!_subscribedTopics.contains(topic)) {
         _subscribedTopics.add(topic);
       }
+      _logChat('FCM Topic', '✅ Subscribed to topic: $topic');
       return true;
     } catch (e) {
+      // Check if it's a Firebase Installations Service (FIS) error
+      final errorStr = e.toString().toLowerCase();
+      if (errorStr.contains('firebase installations') || 
+          errorStr.contains('fis_auth_error') ||
+          errorStr.contains('installations service is unavailable') ||
+          errorStr.contains('failed to sync topics')) {
+        _logChat('FCM Topic', '⚠️ Firebase Installations Service unavailable - cannot subscribe to topic "$topic"');
+        _logChat('FCM Topic', '⚠️ App will continue without topic subscriptions');
+      } else {
+        _logChat('FCM Topic', '⚠️ Failed to subscribe to topic "$topic": $e');
+      }
       return false;
     }
   }
@@ -908,22 +992,51 @@ class FirebaseMessagingService {
   }
 
   /// Auto-subscribe to default topics on app launch/login
+  /// Gracefully handles Firebase unavailability
   Future<void> autoSubscribeToTopics() async {
     try {
+      if (!_isInitialized || _messaging == null) {
+        _logChat('FCM Topics', '⚠️ Firebase Messaging not available - skipping topic subscriptions');
+        return;
+      }
+      
       // Default topics for all users
       final defaultTopics = [
         'all', // All users
         'app_updates', // App update notifications
         'general', // General announcements
       ];
+      
+      int successCount = 0;
+      int failCount = 0;
+      
       for (final topic in defaultTopics) {
         final success = await subscribeToTopic(topic);
-        if (!success) {
+        if (success) {
+          successCount++;
+        } else {
+          failCount++;
         }
         // Small delay to avoid overwhelming the service
         await Future.delayed(const Duration(milliseconds: 100));
       }
+      
+      if (failCount > 0) {
+        _logChat('FCM Topics', '⚠️ Failed to subscribe to $failCount/$defaultTopics.length topics (Firebase may be unavailable)');
+      } else {
+        _logChat('FCM Topics', '✅ Successfully subscribed to all default topics');
+      }
     } catch (e) {
+      final errorStr = e.toString().toLowerCase();
+      if (errorStr.contains('firebase installations') || 
+          errorStr.contains('fis_auth_error') ||
+          errorStr.contains('installations service is unavailable')) {
+        _logChat('FCM Topics', '⚠️ Firebase Installations Service unavailable - skipping topic subscriptions');
+        _logChat('FCM Topics', '⚠️ App will continue without topic subscriptions');
+      } else {
+        _logChat('FCM Topics', '⚠️ Error subscribing to default topics: $e');
+      }
+      // Don't rethrow - allow app to continue without topic subscriptions
     }
   }
 
@@ -934,10 +1047,17 @@ class FirebaseMessagingService {
   }
 
   /// Subscribe to user-specific topics based on user data
+  /// Gracefully handles Firebase unavailability
   Future<void> subscribeToUserTopics() async {
     try {
+      if (!_isInitialized || _messaging == null) {
+        _logChat('FCM User Topics', '⚠️ Firebase Messaging not available - skipping user topic subscriptions');
+        return;
+      }
+      
       final user = await _authService.getStoredUserProfile();
       if (user == null) {
+        _logChat('FCM User Topics', '⚠️ User not logged in - skipping user topic subscriptions');
         return;
       }
 
@@ -947,13 +1067,36 @@ class FirebaseMessagingService {
         'rank_${user.rank}', // Rank-based notifications
         'status_${user.online}', // Online status notifications
       ];
+      
+      int successCount = 0;
+      int failCount = 0;
+      
       for (final topic in userTopics) {
         final success = await subscribeToTopic(topic);
-        if (!success) {
+        if (success) {
+          successCount++;
+        } else {
+          failCount++;
         }
         await Future.delayed(const Duration(milliseconds: 100));
       }
+      
+      if (failCount > 0) {
+        _logChat('FCM User Topics', '⚠️ Failed to subscribe to $failCount/${userTopics.length} user topics (Firebase may be unavailable)');
+      } else {
+        _logChat('FCM User Topics', '✅ Successfully subscribed to all user topics');
+      }
     } catch (e) {
+      final errorStr = e.toString().toLowerCase();
+      if (errorStr.contains('firebase installations') || 
+          errorStr.contains('fis_auth_error') ||
+          errorStr.contains('installations service is unavailable')) {
+        _logChat('FCM User Topics', '⚠️ Firebase Installations Service unavailable - skipping user topic subscriptions');
+        _logChat('FCM User Topics', '⚠️ App will continue without user topic subscriptions');
+      } else {
+        _logChat('FCM User Topics', '⚠️ Error subscribing to user topics: $e');
+      }
+      // Don't rethrow - allow app to continue without topic subscriptions
     }
   }
 

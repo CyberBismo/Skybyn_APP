@@ -43,6 +43,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   final GlobalKey _notificationButtonKey = GlobalKey();
   String? _friendshipStatus; // 'none', 'sent', 'received', 'friends', 'blocked'
   bool _isSendingRequest = false;
+  String? _errorMessage; // Store error message to show in popup
 
   @override
   void initState() {
@@ -53,7 +54,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Future<void> _loadProfile() async {
     try {
-      setState(() => isLoading = true);
+      setState(() {
+        isLoading = true;
+        _errorMessage = null; // Clear previous error
+      });
       final authService = AuthService();
       currentUserId = await authService.getStoredUserId();
       String? userId = widget.userId;
@@ -67,24 +71,50 @@ class _ProfileScreenState extends State<ProfileScreen> {
       // Store the userId we're using to fetch the profile
       profileUserId = userId;
       
+      // Create default userData structure with available info
+      Map<String, dynamic> defaultUserData = {
+        'id': userId ?? '',
+        'userID': userId ?? '',
+        'username': username ?? 'Unknown User',
+        'avatar': '',
+        'wallpaper': '',
+        'online': '0',
+      };
+      
       final profile = await authService.fetchAnyUserProfile(
         userId: userId,
         username: username,
       );
       
       setState(() {
-        userData = profile?.toJson();
-        // Ensure userData has the id field set
-        if (userData != null && (userData!['id'] == null || userData!['id'].toString().isEmpty)) {
-          if (profileUserId != null) {
-            userData!['id'] = profileUserId;
-            userData!['userID'] = profileUserId; // Also set for compatibility
+        if (profile != null) {
+          userData = profile.toJson();
+          // Ensure userData has the id field set
+          if (userData!['id'] == null || userData!['id'].toString().isEmpty) {
+            if (profileUserId != null) {
+              userData!['id'] = profileUserId;
+              userData!['userID'] = profileUserId; // Also set for compatibility
+            }
           }
+          _errorMessage = null; // Clear any previous error
+        } else {
+          // Use default data if profile fetch failed
+          userData = defaultUserData;
+          _errorMessage = 'Failed to load profile data. Please try again.';
         }
         isLoading = false;
       });
 
-      // Load user posts after profile is loaded
+      // Show error popup if profile fetch failed (after widget rebuilds)
+      if (_errorMessage != null) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            _showErrorPopup(_errorMessage!);
+          }
+        });
+      }
+
+      // Load user posts after profile is loaded (even if profile fetch failed)
       if (userData != null) {
         _loadUserPosts();
         // Check friendship status if viewing another user's profile
@@ -93,11 +123,80 @@ class _ProfileScreenState extends State<ProfileScreen> {
         }
       }
     } catch (e) {
+      // On error, use default userData and show error in popup
+      final errorMsg = e.toString();
       setState(() {
         isLoading = false;
-        userData = null;
+        // Create default userData with available info
+        userData = {
+          'id': profileUserId ?? widget.userId ?? '',
+          'userID': profileUserId ?? widget.userId ?? '',
+          'username': widget.username ?? 'Unknown User',
+          'avatar': '',
+          'wallpaper': '',
+          'online': '0',
+        };
+        _errorMessage = errorMsg;
       });
+      
+      // Show error popup after widget rebuilds
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _showErrorPopup(errorMsg);
+        }
+      });
+      
+      // Still try to load posts (they might work even if profile failed)
+      if (userData != null) {
+        _loadUserPosts();
+      }
     }
+  }
+  
+  void _showErrorPopup(String message) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          backgroundColor: Colors.grey[900],
+          title: Row(
+            children: [
+              const Icon(Icons.error_outline, color: Colors.red, size: 24),
+              const SizedBox(width: 8),
+              const Text(
+                'Error',
+                style: TextStyle(color: Colors.white),
+              ),
+            ],
+          ),
+          content: Text(
+            message,
+            style: const TextStyle(color: Colors.white70),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+              child: const Text(
+                'OK',
+                style: TextStyle(color: Colors.white),
+              ),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                _loadProfile(); // Retry loading
+              },
+              child: const Text(
+                'Retry',
+                style: TextStyle(color: Colors.blue),
+              ),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   Future<void> _loadUserPosts() async {
@@ -285,7 +384,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 username: userData!['username']?.toString() ?? '',
                 nickname: userData!['nickname']?.toString() ?? userData!['username']?.toString() ?? '',
                 avatar: userData!['avatar']?.toString() ?? '',
-                online: userData!['online'] == 1 || userData!['online'] == true,
+                online: userData!['online'] == '1' || userData!['online'] == 1 || userData!['online'] == true || userData!['online'] == 'true',
               );
               Navigator.push(
                 context,
@@ -1112,7 +1211,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
               ],
             )
-          else if (userData != null)
+          else
+            // Always show profile UI, even if there was an error
             RefreshIndicator(
               onRefresh: _refreshProfile,
               color: Colors.white,
@@ -1210,7 +1310,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           child: Column(
                             children: [
                               Text(
-                                userData!['username'] ?? '',
+                                userData?['username'] ?? 'Unknown User',
                                 style: TextStyle(
                                   fontSize: 24,
                                   fontWeight: FontWeight.bold,
@@ -1219,7 +1319,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               ),
                               const SizedBox(height: 6),
                               Text(
-                                '@${userData!['username']}',
+                                '@${userData?['username'] ?? 'unknown'}',
                                 style: TextStyle(
                                   fontSize: 16,
                                   color: AppColors.getSecondaryTextColor(context),
@@ -1243,7 +1343,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   // Action buttons navigation (outside Stack to ensure they're clickable)
                   if (profileUserId != null && 
                       currentUserId != null && 
-                      profileUserId != currentUserId)
+                      profileUserId != currentUserId &&
+                      userData != null)
                     SliverToBoxAdapter(
                       child: Padding(
                         padding: const EdgeInsets.only(top: 16, bottom: 16),
@@ -1251,7 +1352,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ),
                     ),
                   // --- Post Feed ---
-                  if (isLoadingPosts)
+                  // Show skeleton loader if loading posts OR if there was an error loading profile
+                  if (isLoadingPosts || _errorMessage != null)
                     SliverToBoxAdapter(
                       child: Column(
                         children: [
@@ -1309,51 +1411,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                 ],
               ),
-            )
-          else
-            // Show error/empty state when profile failed to load
-            CustomScrollView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              slivers: [
-                SliverToBoxAdapter(
-                  child: SizedBox(
-                    height: appBarHeight + MediaQuery.of(context).padding.top,
-                  ),
-                ),
-                SliverFillRemaining(
-                  hasScrollBody: false,
-                  child: Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.error_outline,
-                          size: 64,
-                          color: Colors.white.withOpacity(0.7),
-                        ),
-                        const SizedBox(height: 16),
-                        TranslatedText(
-                          TranslationKeys.errorOccurred,
-                          style: TextStyle(
-                            color: Colors.white.withOpacity(0.9),
-                            fontSize: 18,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        TextButton(
-                          onPressed: () {
-                            _loadProfile();
-                          },
-                          child: const TranslatedText(
-                            TranslationKeys.tryAgain,
-                            style: TextStyle(color: Colors.white),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
             ),
           // Global search overlay
           GlobalSearchOverlay(

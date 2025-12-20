@@ -157,17 +157,23 @@ Future<void> _initializeFirebase(bool enableErrorLogging) async {
     if (Firebase.apps.isEmpty) {
       try {
         await Firebase.initializeApp();
+        if (enableErrorLogging) {
+          print('✅ [Firebase] Firebase Core initialized successfully');
+        }
       } catch (e) {
         if (enableErrorLogging) {
-          print('Firebase Core initialization error: $e');
+          print('⚠️ [Firebase] Firebase Core initialization failed: $e');
+          print('⚠️ [Firebase] App will continue to function normally without push notifications');
         }
-        rethrow; // Re-throw to be caught by outer catch
+        return; // Exit gracefully - app will work without Firebase
       }
-    } else {
     }
 
     // Skip Firebase Messaging on iOS - it requires APN configuration which is not set up
     if (Platform.isIOS) {
+      if (enableErrorLogging) {
+        print('ℹ️ [Firebase] Skipping Firebase Messaging on iOS (APN not configured)');
+      }
       return;
     }
 
@@ -178,13 +184,18 @@ Future<void> _initializeFirebase(bool enableErrorLogging) async {
 
       // Token is already registered on app start in initialize() method
       // If user is logged in, it will be updated with user ID in auth_service.dart after login
+      if (enableErrorLogging) {
+        print('✅ [Firebase] Firebase Messaging initialized successfully');
+      }
     } catch (e) {
       if (enableErrorLogging) {
-        print('Firebase Messaging initialization error: $e');
+        print('⚠️ [Firebase] Firebase Messaging initialization error: $e');
+        print('⚠️ [Firebase] App will continue to function normally without push notifications');
       }
+      // Don't rethrow - allow app to continue without Firebase Messaging
     }
   } catch (e, stackTrace) {
-    // Print detailed error
+    // Print detailed error but don't crash the app
     if (enableErrorLogging) {
       print('═══════════════════════════════════════════════════════════════');
       print('FIREBASE INITIALIZATION ERROR');
@@ -192,6 +203,7 @@ Future<void> _initializeFirebase(bool enableErrorLogging) async {
       print('Error: $e');
       print('Stack: $stackTrace');
       print('═══════════════════════════════════════════════════════════════');
+      print('⚠️ [Firebase] App will continue to function normally without push notifications');
     }
     // Continue without Firebase - app will still work
   }
