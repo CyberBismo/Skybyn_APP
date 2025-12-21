@@ -70,9 +70,14 @@ dependencies:
   video_player: ^2.8.2
   youtube_player_flutter: ^9.1.0
   webview_flutter: ^4.4.2
+  record: ^5.2.1
+  just_audio: ^0.9.46
 dev_dependencies:
   flutter_test:
     sdk: flutter
+
+dependency_overrides:
+  record_linux: ^1.2.1
 flutter_icons:
   android: true
   ios: true

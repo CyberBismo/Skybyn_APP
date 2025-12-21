@@ -174,20 +174,20 @@ class BackgroundService : Service() {
                 // Channel doesn't exist, that's fine
             }
             
-            // Create channel with IMPORTANCE_LOW (IMPORTANCE_NONE doesn't work on all devices)
-            // Set to minimal visibility
+            // Create channel with IMPORTANCE_LOW to show in background activity list
+            // IMPORTANCE_LOW allows the notification to appear in background activity
+            // but doesn't make sound or vibrate
             val channel = NotificationChannel(
                 CHANNEL_ID,
                 CHANNEL_NAME,
                 NotificationManager.IMPORTANCE_LOW
             ).apply {
-                description = "Keeps Skybyn running in background"
+                description = "Keeps Skybyn running in background for WebSocket communication"
                 setShowBadge(false)
                 setSound(null, null)
                 enableVibration(false)
                 enableLights(false)
-                lockscreenVisibility = Notification.VISIBILITY_SECRET
-                // Try to minimize appearance
+                lockscreenVisibility = Notification.VISIBILITY_PUBLIC
                 setBypassDnd(false)
             }
             
@@ -205,22 +205,20 @@ class BackgroundService : Service() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        // Create minimal notification required for foreground service
-        // On some devices IMPORTANCE_NONE still shows, so we make it as minimal as possible
+        // Create notification for foreground service
+        // This notification will appear in background activity list
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setSmallIcon(android.R.drawable.ic_menu_info_details) // Use system icon instead of app icon
-            .setContentIntent(pendingIntent)
-            .setSilent(true)
-            .setPriority(NotificationCompat.PRIORITY_MIN)
-            .setVisibility(NotificationCompat.VISIBILITY_SECRET)
-            .setOngoing(false)
-            .setAutoCancel(false) // Don't auto-cancel to avoid flickering
-            .setShowWhen(false)
-            .setContentTitle("")
+            .setSmallIcon(R.drawable.notification_icon) // Use app notification icon
+            .setContentTitle("Skybyn")
             .setContentText("")
-            .setSubText(null)
-            .setTicker(null)
-            .setStyle(NotificationCompat.BigTextStyle().bigText("")) // Empty style
+            .setContentIntent(pendingIntent)
+            .setSilent(true) // No sound
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setVisibility(NotificationCompat.VISIBILITY_SECRET)
+            .setOngoing(false) // Auto-hide it
+            .setAutoCancel(true) // Auto-cancel
+            .setShowWhen(false) // Don't show timestamp
+            .setCategory(NotificationCompat.CATEGORY_SERVICE)
             .build()
     }
     
@@ -249,7 +247,7 @@ class BackgroundService : Service() {
         // Start WebSocket connection
         connectWebSocket()
         
-        // Schedule periodic task to keep service alive
+        // Schedule periodic task to keep service alive and perform background checks
         executor?.scheduleAtFixedRate({
             try {
                 // Check WebSocket connection health
@@ -257,10 +255,36 @@ class BackgroundService : Service() {
                     Log.d("BackgroundService", "WebSocket disconnected, attempting reconnect...")
                     connectWebSocket()
                 }
+                
+                // Perform background checks
+                performBackgroundChecks()
             } catch (e: Exception) {
                 Log.e("BackgroundService", "Error in background task: ${e.message}")
             }
         }, 0, 60, TimeUnit.SECONDS) // Run every 60 seconds
+    }
+    
+    /// Perform background checks (activity updates, connection health, etc.)
+    private fun performBackgroundChecks() {
+        try {
+            // Check internet connectivity
+            val hasInternet = isInternetAvailable()
+            if (!hasInternet) {
+                Log.d("BackgroundService", "No internet connection available")
+                return
+            }
+            
+            // WebSocket connection health is already checked above
+            // Additional background checks can be added here:
+            // - Check for app updates
+            // - Sync pending messages
+            // - Update user activity status
+            // - Check for new notifications
+            
+            Log.d("BackgroundService", "Background checks completed")
+        } catch (e: Exception) {
+            Log.e("BackgroundService", "Error performing background checks: ${e.message}")
+        }
     }
     
     private fun connectWebSocket() {
@@ -400,11 +424,35 @@ class BackgroundService : Service() {
                 }
                 "new_post" -> {
                     Log.d("BackgroundService", "New post notification received")
-                    // Could show notification here if needed
+                    val postId = message.optString("id", "")
+                    if (postId.isNotEmpty()) {
+                        showNotification("New Post", "Someone posted something new", "new_post")
+                    }
                 }
                 "new_comment" -> {
                     Log.d("BackgroundService", "New comment notification received")
-                    // Could show notification here if needed
+                    val commentId = message.optString("cid", "")
+                    if (commentId.isNotEmpty()) {
+                        showNotification("New Comment", "Someone commented on a post", "new_comment")
+                    }
+                }
+                "chat" -> {
+                    // Handle chat messages in background
+                    val fromUserId = message.optString("from", "")
+                    val messageContent = message.optString("message", "")
+                    if (fromUserId.isNotEmpty() && messageContent.isNotEmpty()) {
+                        Log.d("BackgroundService", "Chat message received in background from user: $fromUserId")
+                        // Show notification for chat messages
+                        showNotification("New Message", messageContent.take(50), "chat")
+                    }
+                }
+                "notification" -> {
+                    // Handle generic notifications
+                    val title = message.optString("title", "Notification")
+                    val body = message.optString("message", message.optString("body", ""))
+                    if (body.isNotEmpty()) {
+                        showNotification(title, body, "notification")
+                    }
                 }
                 "ping" -> {
                     Log.d("BackgroundService", "Ping received, sending pong")

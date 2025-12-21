@@ -6,6 +6,10 @@ class Message {
   final DateTime date;
   final bool viewed;
   final bool isFromMe;
+  final String? attachmentType; // 'image', 'video', 'audio', 'voice', 'file'
+  final String? attachmentUrl;
+  final String? attachmentName;
+  final int? attachmentSize; // in bytes
 
   Message({
     required this.id,
@@ -15,6 +19,10 @@ class Message {
     required this.date,
     this.viewed = false,
     required this.isFromMe,
+    this.attachmentType,
+    this.attachmentUrl,
+    this.attachmentName,
+    this.attachmentSize,
   });
 
   factory Message.fromJson(Map<String, dynamic> json, String currentUserId) {
@@ -45,6 +53,10 @@ class Message {
       date: parseDate(json['date']),
       viewed: json['viewed'] == 1 || json['viewed'] == true,
       isFromMe: json['from']?.toString() == currentUserId,
+      attachmentType: json['attachment_type']?.toString(),
+      attachmentUrl: json['attachment_url']?.toString(),
+      attachmentName: json['attachment_name']?.toString(),
+      attachmentSize: json['attachment_size'] != null ? int.tryParse(json['attachment_size'].toString()) : null,
     );
   }
 
@@ -56,6 +68,10 @@ class Message {
       'content': content,
       'date': date.millisecondsSinceEpoch,
       'viewed': viewed ? 1 : 0,
+      'attachment_type': attachmentType,
+      'attachment_url': attachmentUrl,
+      'attachment_name': attachmentName,
+      'attachment_size': attachmentSize,
     };
   }
 }

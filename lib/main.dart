@@ -43,6 +43,7 @@ import 'services/translation_service.dart';
 import 'services/background_update_scheduler.dart';
 import 'services/background_activity_service.dart';
 import 'services/call_service.dart';
+import 'services/foreground_service.dart';
 import 'services/friend_service.dart';
 import 'services/chat_message_count_service.dart';
 import 'services/navigation_service.dart';
@@ -251,6 +252,15 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
 
     // Initialize services in the background
     _initializeServices();
+    
+    // Start foreground service after app is fully loaded and in foreground
+    // Android 12+ requires app to be in foreground to start foreground service
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      // Delay slightly to ensure app is fully in foreground
+      Future.delayed(const Duration(milliseconds: 500), () {
+        ForegroundService.start();
+      });
+    });
   }
   
   /// Initialize deep link handling
@@ -324,6 +334,9 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       
       // Initialize background activity service (updates activity even when app is closed)
       await BackgroundActivityService.initialize();
+      
+      // Don't start foreground service here - Android 12+ blocks foreground services
+      // started from background. We'll start it when app is in foreground.
       
       // Set up call callbacks for incoming calls via WebSocket
       _setupCallHandlers();
@@ -567,9 +580,14 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
     
+    // Manage foreground service based on app lifecycle
     switch (state) {
       case AppLifecycleState.resumed:
-        // App is in foreground - ensure Firebase and WebSocket are connected
+        // App is in foreground - start foreground service here (Android 12+ requirement)
+        // Foreground services can only be started when app is in foreground
+        ForegroundService.start();
+        
+        // Ensure Firebase and WebSocket are connected
         // Reconnect Firebase if not connected (it may have been disconnected in background)
         if (!_firebaseRealtimeService.isConnected) {
           _firebaseRealtimeService.connect();
@@ -595,6 +613,8 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       case AppLifecycleState.detached:
         // App is being terminated - disconnect Firebase
         _firebaseRealtimeService.disconnect();
+        // Foreground service will continue running even after app is terminated
+        // It will maintain WebSocket connection and perform background checks
         // Online status is now calculated from last_active, no need to update
         break;
     }

@@ -10,6 +10,7 @@ import '../config/constants.dart';
 import 'auth_service.dart';
 import 'websocket_service.dart';
 import 'package:crypto/crypto.dart';
+import 'dart:developer' as developer;
 
 class ChatService {
   static const String _cacheKeyPrefix = 'cached_messages_';
@@ -57,11 +58,25 @@ class ChatService {
     String toUserId,
     String content,
   ) async {
+    // Log raw response for debugging
+    print('[SKYBYN] 📥 [Chat Service] API Response received');
+    print('[SKYBYN]    Status Code: ${response.statusCode}');
+    print('[SKYBYN]    Response Body Length: ${response.body.length}');
+    if (response.body.length < 500) {
+      print('[SKYBYN]    Response Body: ${response.body}');
+    } else {
+      print('[SKYBYN]    Response Body (first 500 chars): ${response.body.substring(0, 500)}...');
+    }
+    
     // Try to parse response body regardless of status code
     Map<String, dynamic>? responseData;
     try {
       responseData = json.decode(response.body) as Map<String, dynamic>?;
+      if (responseData != null) {
+        print('[SKYBYN]    Parsed JSON: responseCode=${responseData['responseCode']}, messageId=${responseData['messageId']}, message=${responseData['message']}');
+      }
     } catch (e) {
+      print('[SKYBYN]    ❌ JSON Parse Error: $e');
       // If we can't parse JSON and it's not HTML, it might be an error
       if (response.statusCode != 200) {
         throw Exception('Invalid response from server. Please try again.');
@@ -71,9 +86,12 @@ class ChatService {
     if (response.statusCode == 200) {
       if (responseData != null) {
         if (responseData['responseCode'] == 1 && responseData['messageId'] != null) {
+          final messageId = responseData['messageId'].toString();
+          print('[SKYBYN]    ✅ Message stored successfully in database');
+          print('[SKYBYN]    ✅ Message ID: $messageId');
           // Create message object
           return Message(
-            id: responseData['messageId'].toString(),
+            id: messageId,
             from: userId,
             to: toUserId,
             content: content,
@@ -83,23 +101,29 @@ class ChatService {
           );
         }
         // Server returned 200 but with error in response body
+        print('[SKYBYN]    ❌ Server returned 200 but responseCode is not 1 or messageId is missing');
         throw Exception(responseData['message'] ?? 'Failed to send message');
       }
+      print('[SKYBYN]    ❌ Response data is null');
       throw Exception('Invalid response format from server');
     }
     
     // Handle non-200 status codes
+    print('[SKYBYN]    ❌ HTTP Error ${response.statusCode}');
     // Check if response body contains error message
     if (responseData != null && responseData.containsKey('message')) {
       final errorMessage = responseData['message'] as String?;
+      print('[SKYBYN]    Error Message: $errorMessage');
       // Handle 409 Conflict specifically (duplicate message)
       if (response.statusCode == 409) {
         // For 409, the message might have been sent already (duplicate)
         // Check if response contains messageId (message was sent)
         if (responseData.containsKey('messageId') && responseData['messageId'] != null) {
+          final messageId = responseData['messageId'].toString();
+          print('[SKYBYN]    ⚠️ Conflict (409) but messageId found: $messageId - treating as success');
           // Message was sent, return it as success
           return Message(
-            id: responseData['messageId'].toString(),
+            id: messageId,
             from: userId,
             to: toUserId,
             content: content,
@@ -109,6 +133,7 @@ class ChatService {
           );
         }
         // No messageId - message may have been sent but we can't confirm
+        print('[SKYBYN]    ⚠️ Conflict (409) but no messageId - message may have been sent already');
         throw Exception(errorMessage ?? 'Message may have been sent already');
       }
       
@@ -124,6 +149,7 @@ class ChatService {
     } else if (response.statusCode >= 500) {
       statusMessage = 'Server error. Please try again later.';
     }
+    print('[SKYBYN]    ❌ Throwing exception: $statusMessage');
     throw Exception(statusMessage);
   }
 
@@ -564,6 +590,85 @@ class ChatService {
       return [];
     } catch (e) {
       return [];
+    }
+  }
+
+  /// Mark messages as read
+  /// Can mark all messages from a friend, or specific message IDs
+  Future<bool> markMessagesAsRead({
+    String? friendId,
+    List<String>? messageIDs,
+  }) async {
+    try {
+      final userId = await _authService.getStoredUserId();
+      if (userId == null) {
+        throw Exception('User not logged in');
+      }
+
+      if (friendId == null && (messageIDs == null || messageIDs.isEmpty)) {
+        throw Exception('Either friendId or messageIDs must be provided');
+      }
+
+      final url = ApiConstants.chatRead;
+      final headers = <String, String>{
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Accept': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest',
+        'X-API-Key': ApiConstants.apiKey,
+      };
+
+      final bodyMap = <String, String>{
+        'userID': userId.toString(),
+        'api_key': ApiConstants.apiKey,
+      };
+
+      if (messageIDs != null && messageIDs.isNotEmpty) {
+        bodyMap['messageIDs'] = messageIDs.join(',');
+      } else if (friendId != null) {
+        bodyMap['friendID'] = friendId;
+      }
+
+      final response = await _retryHttpRequest(
+        () async {
+          return await _client.post(
+            Uri.parse(url),
+            body: bodyMap,
+            headers: headers,
+            encoding: utf8,
+          );
+        },
+        maxRetries: 1, // Only retry once for read operations
+      );
+
+      print('[SKYBYN] 📥 [Chat Service] Mark Read API Response received');
+      print('[SKYBYN]    Status Code: ${response.statusCode}');
+      developer.log('📥 [Chat Service] Mark Read API Response received', name: 'Chat API');
+      developer.log('   Status Code: ${response.statusCode}', name: 'Chat API');
+
+      if (response.statusCode == 200) {
+        final responseData = json.decode(response.body) as Map<String, dynamic>?;
+        if (responseData != null) {
+          print('[SKYBYN]    Response: ${responseData['responseCode'] == 1 ? 'Success' : 'Failed'}');
+          developer.log('   Response: ${responseData['responseCode'] == 1 ? 'Success' : 'Failed'}', name: 'Chat API');
+          
+          if (responseData['responseCode'] == 1) {
+            final affectedRows = responseData['affectedRows'] ?? 0;
+            print('[SKYBYN]    ✅ Marked $affectedRows message(s) as read in database');
+            developer.log('   ✅ Marked $affectedRows message(s) as read in database', name: 'Chat API');
+            return true;
+          }
+          throw Exception(responseData['message'] ?? 'Failed to mark messages as read');
+        }
+        throw Exception('Invalid response format');
+      }
+
+      print('[SKYBYN]    ❌ HTTP Error ${response.statusCode}');
+      developer.log('   ❌ HTTP Error ${response.statusCode}', name: 'Chat API');
+      throw Exception('Failed to mark messages as read: ${response.statusCode}');
+    } catch (e) {
+      print('[SKYBYN] ❌ [Chat Service] Error marking messages as read: $e');
+      developer.log('❌ [Chat Service] Error marking messages as read: $e', name: 'Chat API');
+      return false; // Don't throw, just return false - read status is not critical
     }
   }
 

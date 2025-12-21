@@ -46,12 +46,8 @@ class NotificationService {
 
       await _initializeLocalNotifications();
 
-      // Request permissions after initialization
-      if (Platform.isIOS) {
-        await requestIOSPermissions();
-      } else if (Platform.isAndroid) {
-        await requestAndroidPermissions();
-      }
+      // Don't request permissions here - they will be requested after login
+      // This prevents asking for permissions before user is logged in
     } catch (e) {
     }
   }
@@ -97,8 +93,8 @@ class NotificationService {
             _localNotifications.resolvePlatformSpecificImplementation<IOSFlutterLocalNotificationsPlugin>();
         
         if (iOSImplementation != null) {
-          // Create category for incoming calls with answer/decline actions
-          await iOSImplementation.requestPermissions();
+          // Don't request permissions here - they will be requested after login
+          // This prevents asking for permissions before user is logged in
           
           // Note: iOS action buttons are configured through UNNotificationCategory
           // This needs to be done in native iOS code or through a plugin

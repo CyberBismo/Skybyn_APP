@@ -3,6 +3,7 @@ import 'dart:ui';
 import 'dart:async';
 import '../services/auth_service.dart';
 import '../services/notification_service.dart';
+import '../services/firebase_messaging_service.dart';
 import 'dart:io';
 import '../widgets/background_gradient.dart';
 import '../widgets/app_colors.dart';
@@ -61,10 +62,14 @@ class _LoginScreenState extends State<LoginScreen> {
 
       if (response['responseCode'] == '1') {
         if (mounted) {
-          // Show login success notification
+          // Request notification permissions after successful login
           try {
             final notificationService = NotificationService();
+            final firebaseMessagingService = FirebaseMessagingService();
+            
+            // Request permissions for both services
             await notificationService.requestPermissions();
+            await firebaseMessagingService.requestPermissions();
 
             // Check if notifications are enabled
             final isEnabled = await notificationService.areNotificationsEnabled();

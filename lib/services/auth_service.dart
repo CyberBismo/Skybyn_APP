@@ -414,26 +414,49 @@ class AuthService {
         operationName: 'fetchAnyUserProfile',
       );
       
+      // Log HTTP response details
+      print('[SKYBYN] 📡 [Profile API] HTTP Response received');
+      print('[SKYBYN]    Status Code: ${response.statusCode}');
+      print('[SKYBYN]    Response Body Length: ${response.body.length}');
+      print('[SKYBYN]    Response Body (first 500 chars): ${response.body.length > 500 ? response.body.substring(0, 500) + "..." : response.body}');
+      
       if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        if (data['responseCode'] == '1') {
-          // Ensure the user ID is set in the response data
-          // The API might return it as 'userID' or 'id', but User.fromJson expects it
-          if (targetUserId != null) {
-            data['id'] = targetUserId.toString();
-            data['userID'] = targetUserId.toString(); // Also set userID for compatibility
-          } else if (data['userID'] != null) {
-            // If we used username, extract userID from response
-            data['id'] = data['userID'].toString();
-          } else if (data['id'] != null) {
-            // If id exists, also set userID for compatibility
-            data['userID'] = data['id'].toString();
+        try {
+          final data = json.decode(response.body);
+          print('[SKYBYN]    Parsed JSON: responseCode=${data['responseCode']}, message=${data['message'] ?? 'N/A'}');
+          
+          if (data['responseCode'] == '1') {
+            // Ensure the user ID is set in the response data
+            // The API might return it as 'userID' or 'id', but User.fromJson expects it
+            if (targetUserId != null) {
+              data['id'] = targetUserId.toString();
+              data['userID'] = targetUserId.toString(); // Also set userID for compatibility
+            } else if (data['userID'] != null) {
+              // If we used username, extract userID from response
+              data['id'] = data['userID'].toString();
+            } else if (data['id'] != null) {
+              // If id exists, also set userID for compatibility
+              data['userID'] = data['id'].toString();
+            }
+            
+            print('[SKYBYN]    ✅ [Profile API] Successfully parsed profile data');
+            return User.fromJson(data);
+          } else {
+            print('[SKYBYN]    ❌ [Profile API] responseCode is not "1": ${data['responseCode']}');
+            print('[SKYBYN]    ❌ [Profile API] Error message: ${data['message'] ?? 'No message'}');
           }
-          return User.fromJson(data);
+        } catch (e) {
+          print('[SKYBYN]    ❌ [Profile API] JSON decode error: $e');
+          print('[SKYBYN]    ❌ [Profile API] Raw response: ${response.body}');
         }
+      } else {
+        print('[SKYBYN]    ❌ [Profile API] HTTP status code is not 200: ${response.statusCode}');
+        print('[SKYBYN]    ❌ [Profile API] Response body: ${response.body}');
       }
       return null;
-    } catch (e) {
+    } catch (e, stackTrace) {
+      print('[SKYBYN]    ❌ [Profile API] Exception: $e');
+      print('[SKYBYN]    ❌ [Profile API] Stack trace: $stackTrace');
       return null;
     }
   }

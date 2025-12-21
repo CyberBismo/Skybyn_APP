@@ -1,8 +1,10 @@
 import 'dart:convert';
+import 'dart:developer' as developer;
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:http/http.dart' as http;
 import '../models/post.dart';
+import '../models/user.dart';
 import '../widgets/background_gradient.dart';
 import '../widgets/post_card.dart';
 import '../widgets/header.dart';
@@ -71,6 +73,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
       // Store the userId we're using to fetch the profile
       profileUserId = userId;
       
+      // Check if viewing own profile
+      final isOwnProfile = userId != null && currentUserId != null && userId == currentUserId;
+      
       // Create default userData structure with available info
       Map<String, dynamic> defaultUserData = {
         'id': userId ?? '',
@@ -81,10 +86,116 @@ class _ProfileScreenState extends State<ProfileScreen> {
         'online': '0',
       };
       
-      final profile = await authService.fetchAnyUserProfile(
+      User? profile;
+      
+      // If viewing own profile, try to load from cache first (works offline)
+      if (isOwnProfile) {
+        print('[SKYBYN] 📦 [Profile] Loading own profile - checking cache first');
+        developer.log('📦 [Profile] Loading own profile - checking cache first', name: 'Profile API');
+        
+        try {
+          final cachedProfile = await authService.getStoredUserProfile();
+          if (cachedProfile != null) {
+            print('[SKYBYN] ✅ [Profile] Using cached profile data (offline support)');
+            developer.log('✅ [Profile] Using cached profile data (offline support)', name: 'Profile API');
+            profile = cachedProfile;
+            
+            // Update UI immediately with cached data
+            setState(() {
+              if (profile != null) {
+                userData = profile.toJson();
+                // Ensure userData has the id field set
+                if (userData!['id'] == null || userData!['id'].toString().isEmpty) {
+                  if (profileUserId != null) {
+                    userData!['id'] = profileUserId;
+                    userData!['userID'] = profileUserId;
+                  }
+                }
+              }
+              isLoading = false;
+              _errorMessage = null;
+            });
+            
+            // Try to refresh from API in background (non-blocking)
+            // This keeps the cache updated but doesn't block the UI
+            _refreshProfileFromAPI(authService, userId, username).catchError((e) {
+              // Silently fail - we already have cached data
+              print('[SKYBYN] ⚠️ [Profile] Background refresh failed (using cached data): $e');
+            });
+            
+            // Load posts and return early (we have the profile data)
+            if (userData != null) {
+              _loadUserPosts();
+            }
+            return; // Exit early - we have cached data
+          } else {
+            print('[SKYBYN] ⚠️ [Profile] No cached profile found, fetching from API');
+            developer.log('⚠️ [Profile] No cached profile found, fetching from API', name: 'Profile API');
+          }
+        } catch (e) {
+          print('[SKYBYN] ⚠️ [Profile] Error loading cached profile: $e');
+          developer.log('⚠️ [Profile] Error loading cached profile: $e', name: 'Profile API');
+          // Continue to API fetch if cache fails
+        }
+      }
+      
+      // If not own profile, or cache failed, or no cache available - fetch from API
+      // Log API request details
+      final apiUrl = ApiConstants.profile;
+      final requestParams = <String, String>{};
+      if (userId != null) {
+        requestParams['userID'] = userId;
+      } else if (username != null) {
+        requestParams['username'] = username;
+      }
+      
+      print('[SKYBYN] ═══════════════════════════════════════════════════════');
+      print('[SKYBYN] 📤 [Profile] Sending request to API');
+      print('[SKYBYN]    URL: $apiUrl');
+      print('[SKYBYN]    Parameters: ${jsonEncode(requestParams)}');
+      print('[SKYBYN]    Method: POST');
+      if (isOwnProfile) {
+        print('[SKYBYN]    Note: Refreshing own profile from API (cache was missing)');
+      }
+      developer.log('📤 [Profile] Sending request to API', name: 'Profile API');
+      developer.log('   URL: $apiUrl', name: 'Profile API');
+      developer.log('   Parameters: ${jsonEncode(requestParams)}', name: 'Profile API');
+      developer.log('   Method: POST', name: 'Profile API');
+      
+      profile = await authService.fetchAnyUserProfile(
         userId: userId,
         username: username,
       );
+      
+      // Log API response
+      if (profile != null) {
+        final profileJson = profile.toJson();
+        print('[SKYBYN] 📥 [Profile] API Response received');
+        print('[SKYBYN]    Status: Success');
+        print('[SKYBYN]    User ID: ${profileJson['id'] ?? profileJson['userID']}');
+        print('[SKYBYN]    Username: ${profileJson['username']}');
+        print('[SKYBYN]    Has Avatar: ${profileJson['avatar'] != null && profileJson['avatar'].toString().isNotEmpty}');
+        print('[SKYBYN]    Has Wallpaper: ${profileJson['wallpaper'] != null && profileJson['wallpaper'].toString().isNotEmpty}');
+        print('[SKYBYN]    Online: ${profileJson['online']}');
+        print('[SKYBYN]    Full Response: ${jsonEncode(profileJson)}');
+        developer.log('📥 [Profile] API Response received', name: 'Profile API');
+        developer.log('   Status: Success', name: 'Profile API');
+        developer.log('   User ID: ${profileJson['id'] ?? profileJson['userID']}', name: 'Profile API');
+        developer.log('   Username: ${profileJson['username']}', name: 'Profile API');
+        developer.log('   Has Avatar: ${profileJson['avatar'] != null && profileJson['avatar'].toString().isNotEmpty}', name: 'Profile API');
+        developer.log('   Has Wallpaper: ${profileJson['wallpaper'] != null && profileJson['wallpaper'].toString().isNotEmpty}', name: 'Profile API');
+        developer.log('   Online: ${profileJson['online']}', name: 'Profile API');
+        developer.log('   Full Response: ${jsonEncode(profileJson)}', name: 'Profile API');
+      } else {
+        print('[SKYBYN] 📥 [Profile] API Response received');
+        print('[SKYBYN]    Status: Failed (null response)');
+        print('[SKYBYN]    Error: Profile data is null');
+        developer.log('📥 [Profile] API Response received', name: 'Profile API');
+        developer.log('   Status: Failed (null response)', name: 'Profile API');
+        developer.log('   Error: Profile data is null', name: 'Profile API');
+      }
+      print('[SKYBYN] ═══════════════════════════════════════════════════════');
+      developer.log('═══════════════════════════════════════════════════════', name: 'Profile API');
       
       setState(() {
         if (profile != null) {
@@ -125,6 +236,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
     } catch (e) {
       // On error, use default userData and show error in popup
       final errorMsg = e.toString();
+      print('[SKYBYN] ❌ [Profile] Error loading profile: $errorMsg');
+      developer.log('❌ [Profile] Error loading profile: $errorMsg', name: 'Profile API');
+      
       setState(() {
         isLoading = false;
         // Create default userData with available info
@@ -150,6 +264,54 @@ class _ProfileScreenState extends State<ProfileScreen> {
       if (userData != null) {
         _loadUserPosts();
       }
+    }
+  }
+  
+  /// Refresh profile from API in background (non-blocking)
+  /// Used to update cache when viewing own profile
+  Future<void> _refreshProfileFromAPI(AuthService authService, String? userId, String? username) async {
+    try {
+      final requestParams = <String, String>{};
+      if (userId != null) {
+        requestParams['userID'] = userId;
+      } else if (username != null) {
+        requestParams['username'] = username;
+      }
+      
+      print('[SKYBYN] 🔄 [Profile] Background refresh: Fetching from API');
+      developer.log('🔄 [Profile] Background refresh: Fetching from API', name: 'Profile API');
+      
+      final profile = await authService.fetchAnyUserProfile(
+        userId: userId,
+        username: username,
+      );
+      
+      if (profile != null && mounted) {
+        print('[SKYBYN] ✅ [Profile] Background refresh: Profile updated');
+        developer.log('✅ [Profile] Background refresh: Profile updated', name: 'Profile API');
+        
+        // Update UI with fresh data if still viewing the same profile
+        if (profileUserId == userId) {
+          setState(() {
+            userData = profile.toJson();
+            // Ensure userData has the id field set
+            if (userData!['id'] == null || userData!['id'].toString().isEmpty) {
+              if (profileUserId != null) {
+                userData!['id'] = profileUserId;
+                userData!['userID'] = profileUserId;
+              }
+            }
+            _errorMessage = null;
+          });
+        }
+      } else {
+        print('[SKYBYN] ⚠️ [Profile] Background refresh: Failed (keeping cached data)');
+        developer.log('⚠️ [Profile] Background refresh: Failed (keeping cached data)', name: 'Profile API');
+      }
+    } catch (e) {
+      print('[SKYBYN] ⚠️ [Profile] Background refresh error: $e');
+      developer.log('⚠️ [Profile] Background refresh error: $e', name: 'Profile API');
+      // Silently fail - we already have cached data displayed
     }
   }
   
@@ -208,6 +370,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         userData!['userID']?.toString() ?? 
                         profileUserId?.toString();
     if (targetUserId == null || targetUserId.isEmpty) {
+      print('[SKYBYN] ⚠️ [Profile Posts] Cannot load posts: targetUserId is null or empty');
+      developer.log('⚠️ [Profile Posts] Cannot load posts: targetUserId is null or empty', name: 'Profile Posts API');
       setState(() {
         userPosts = [];
         isLoadingPosts = false;
@@ -216,6 +380,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
     
     setState(() => isLoadingPosts = true);
+    
+    // Log API request details
+    final apiUrl = ApiConstants.userTimeline;
+    final requestParams = {
+      'userID': targetUserId,
+      if (currentUserId != null) 'currentUserId': currentUserId!,
+    };
+    
+    print('[SKYBYN] ═══════════════════════════════════════════════════════');
+    print('[SKYBYN] 📤 [Profile Posts] Sending request to API');
+    print('[SKYBYN]    URL: $apiUrl');
+    print('[SKYBYN]    Parameters: ${jsonEncode(requestParams)}');
+    print('[SKYBYN]    Method: POST');
+    developer.log('📤 [Profile Posts] Sending request to API', name: 'Profile Posts API');
+    developer.log('   URL: $apiUrl', name: 'Profile Posts API');
+    developer.log('   Parameters: ${jsonEncode(requestParams)}', name: 'Profile Posts API');
+    developer.log('   Method: POST', name: 'Profile Posts API');
+    
     try {
       final postService = PostService();
       // Fetch posts for the specific user whose profile is being viewed
@@ -223,10 +405,31 @@ class _ProfileScreenState extends State<ProfileScreen> {
         userId: targetUserId ?? '',
         currentUserId: currentUserId,
       );
+      
+      // Log API response
+      print('[SKYBYN] 📥 [Profile Posts] API Response received');
+      print('[SKYBYN]    Status: Success');
+      print('[SKYBYN]    Posts Count: ${posts.length}');
+      if (posts.isNotEmpty) {
+        print('[SKYBYN]    First Post ID: ${posts.first.id}');
+        print('[SKYBYN]    First Post User: ${posts.first.userId}');
+        print('[SKYBYN]    First Post Content Preview: ${posts.first.content.length > 50 ? posts.first.content.substring(0, 50) + "..." : posts.first.content}');
+      }
+      developer.log('📥 [Profile Posts] API Response received', name: 'Profile Posts API');
+      developer.log('   Status: Success', name: 'Profile Posts API');
+      developer.log('   Posts Count: ${posts.length}', name: 'Profile Posts API');
+      if (posts.isNotEmpty) {
+        developer.log('   First Post ID: ${posts.first.id}', name: 'Profile Posts API');
+        developer.log('   First Post User: ${posts.first.userId}', name: 'Profile Posts API');
+        developer.log('   First Post Content Preview: ${posts.first.content.length > 50 ? posts.first.content.substring(0, 50) + "..." : posts.first.content}', name: 'Profile Posts API');
+      }
+      
       // The API endpoint (user-timeline.php) should already filter by user
       // Trust the API response, but log for debugging
       for (final post in posts) {
         if (post.userId != null && post.userId != targetUserId) {
+          print('[SKYBYN] ⚠️ [Profile Posts] Post ${post.id} belongs to different user (${post.userId} vs $targetUserId)');
+          developer.log('⚠️ [Profile Posts] Post ${post.id} belongs to different user (${post.userId} vs $targetUserId)', name: 'Profile Posts API');
         }
       }
       
@@ -235,7 +438,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
         userPosts = posts;
         isLoadingPosts = false;
       });
+      
+      print('[SKYBYN] ═══════════════════════════════════════════════════════');
+      developer.log('═══════════════════════════════════════════════════════', name: 'Profile Posts API');
     } catch (e) {
+      print('[SKYBYN] ❌ [Profile Posts] Error loading posts: $e');
+      developer.log('❌ [Profile Posts] Error loading posts: $e', name: 'Profile Posts API');
       setState(() {
         userPosts = [];
         isLoadingPosts = false;

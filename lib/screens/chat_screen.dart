@@ -1,7 +1,18 @@
 import 'package:flutter/material.dart';
 import 'dart:ui';
+import 'dart:developer' as developer;
+import 'dart:math' as math;
+import 'dart:async';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:record/record.dart';
+import 'package:just_audio/just_audio.dart';
+import 'package:path_provider/path_provider.dart';
+import 'dart:io';
+import 'package:http/http.dart' as http;
+import 'package:path/path.dart' as path;
 import '../widgets/header.dart';
 import '../widgets/background_gradient.dart';
 import '../widgets/global_search_overlay.dart';
@@ -19,11 +30,11 @@ import '../widgets/translated_text.dart';
 import '../services/translation_service.dart';
 import 'package:timeago/timeago.dart' as timeago;
 import 'dart:convert';
-import 'dart:async';
 import 'package:http/http.dart' as http;
 import 'profile_screen.dart';
 import 'call_screen.dart';
 import '../config/constants.dart';
+import '../config/constants.dart' show UrlHelper;
 import '../widgets/chat_list_modal.dart';
 import '../widgets/app_colors.dart';
 import '../services/chat_message_count_service.dart';
@@ -58,6 +69,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
   Timer? _onlineStatusTimer;
   bool _friendOnline = false;
   int? _friendLastActive;
+  bool _isFirstOnlineStatusCheck = true; // Track if this is the first check
   bool _showSearchForm = false;
   bool _hasMoreMessages = true;
   final FocusNode _messageFocusNode = FocusNode();
@@ -65,6 +77,17 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
   Timer? _typingTimer;
   Timer? _typingStopTimer;
   Timer? _messageCheckTimer; // Periodic check for new messages
+  String? _chatStatusMessage; // Message to display at top of chat box
+  bool _chatStatusMessageIsError = false; // Whether the message is an error (red) or success (green)
+  
+  // File attachment and voice recording
+  final AudioRecorder _audioRecorder = AudioRecorder();
+  bool _isRecording = false;
+  String? _recordingPath;
+  Timer? _recordingTimer;
+  int _recordingDuration = 0;
+  double _audioLevel = 0.0; // Audio amplitude level (0.0 to 1.0)
+  StreamSubscription<Amplitude>? _amplitudeSubscription;
   late AnimationController _typingAnimationController;
   late Animation<double> _typingAnimation;
   // Store subscription for cleanup (Firestore disabled - using WebSocket instead)
@@ -79,6 +102,14 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
   // Message options overlay
   OverlayEntry? _messageOptionsOverlay;
   Message? _selectedMessage;
+  // Microphone button key for positioning visualizer
+  final GlobalKey _microphoneButtonKey = GlobalKey();
+  // Attachment menu visibility
+  bool _showAttachmentMenu = false;
+  // Selected file for preview before sending
+  File? _selectedFile;
+  String? _selectedFileType;
+  String? _selectedFileName;
 
   @override
   void initState() {
@@ -139,7 +170,11 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
   }
 
   @override
+  @override
   void dispose() {
+    _recordingTimer?.cancel();
+    _audioRecorder.dispose();
+    super.dispose();
     WidgetsBinding.instance.removeObserver(this);
     // Clear the current open chat when leaving the screen
     if (_chatMessageCountService.currentOpenChatFriendId == widget.friend.id) {
@@ -154,7 +189,10 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
     _typingTimer?.cancel();
     _typingStopTimer?.cancel();
     _messageCheckTimer?.cancel();
+    _recordingTimer?.cancel();
+    _amplitudeSubscription?.cancel();
     _typingAnimationController.dispose();
+    _audioRecorder.dispose();
     // Send typing stop when leaving screen
       if (_firebaseRealtimeService.isConnected && _currentUserId != null) {
         _firebaseRealtimeService.sendTypingStop(widget.friend.id);
@@ -333,19 +371,60 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
   }
 
   Future<void> _checkFriendOnlineStatus() async {
+    // Check if widget is still mounted before proceeding
+    if (!mounted) return;
+    
+    // Store friend ID locally to avoid accessing widget after disposal
+    final friendId = widget.friend.id;
+    
+    if (!mounted) return; // Double check after accessing widget
+    
     try {
+      final apiUrl = ApiConstants.profile;
+      final requestParams = {'userID': friendId};
+      
+      // Only log the first check or if there's an error/status change
+      final shouldLog = _isFirstOnlineStatusCheck;
+      
+      if (shouldLog) {
+        print('[SKYBYN] 📤 [Chat] Checking friend online status');
+        print('[SKYBYN]    URL: $apiUrl');
+        print('[SKYBYN]    Parameters: ${jsonEncode(requestParams)}');
+        developer.log('📤 [Chat] Checking friend online status', name: 'Chat API');
+        developer.log('   URL: $apiUrl', name: 'Chat API');
+        developer.log('   Parameters: ${jsonEncode(requestParams)}', name: 'Chat API');
+      }
+      
       final response = await http.post(
-        Uri.parse(ApiConstants.profile),
-        body: {'userID': widget.friend.id},
+        Uri.parse(apiUrl),
+        body: requestParams,
       ).timeout(const Duration(seconds: 5));
+
+      // Check if widget is still mounted after async operation
+      if (!mounted) return;
+
+      if (shouldLog) {
+        print('[SKYBYN] 📥 [Chat] Online Status API Response received');
+        print('[SKYBYN]    Status Code: ${response.statusCode}');
+        developer.log('📥 [Chat] Online Status API Response received', name: 'Chat API');
+        developer.log('   Status Code: ${response.statusCode}', name: 'Chat API');
+      }
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         if (data is Map && data['responseCode'] == '1') {
+          if (shouldLog) {
+            print('[SKYBYN]    Response: Success');
+            developer.log('   Response: Success', name: 'Chat API');
+          }
           // Check last_active timestamp
           // Online: last_active <= 2 minutes
           // Away: last_active > 2 minutes (shown as offline in UI)
           final lastActiveValue = data['last_active'];
+          if (shouldLog) {
+            print('[SKYBYN]    Last Active (raw): $lastActiveValue');
+            developer.log('   Last Active (raw): $lastActiveValue', name: 'Chat API');
+          }
           int? lastActive;
           if (lastActiveValue != null) {
             if (lastActiveValue is int) {
@@ -364,6 +443,15 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
           final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
           final twoMinutesAgo = now - 120; // 2 minutes = 120 seconds
           final isOnline = lastActive != null && lastActive >= twoMinutesAgo;
+          
+          // Check if status changed
+          final statusChanged = _friendOnline != isOnline;
+          
+          // Log if first check, status changed, or if logging is enabled
+          if (shouldLog || statusChanged) {
+            print('[SKYBYN]    Online Status: ${isOnline ? "Online" : "Offline"}${statusChanged ? " (Changed)" : ""}');
+            developer.log('   Online Status: ${isOnline ? "Online" : "Offline"}${statusChanged ? " (Changed)" : ""}', name: 'Chat API');
+          }
 
           if (mounted) {
             setState(() {
@@ -371,12 +459,29 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
               _friendLastActive = lastActive;
             });
           }
+          
+          // Mark first check as complete
+          if (_isFirstOnlineStatusCheck) {
+            _isFirstOnlineStatusCheck = false;
+          }
+        } else {
+          // Always log errors
+          print('[SKYBYN]    Response: Failed - responseCode is not "1"');
+          developer.log('   Response: Failed - responseCode is not "1"', name: 'Chat API');
         }
+      } else {
+        // Always log errors
+        print('[SKYBYN]    Response: HTTP Error ${response.statusCode}');
+        developer.log('   Response: HTTP Error ${response.statusCode}', name: 'Chat API');
       }
     } catch (e) {
+      // Check if widget is still mounted before logging
+      if (!mounted) return;
+      
+      // Always log errors
+      print('[SKYBYN] ❌ [Chat] Error checking online status: $e');
+      developer.log('❌ [Chat] Error checking online status: $e', name: 'Chat API');
       // Silently fail - don't spam errors for online status checks
-      if (mounted) {
-      }
     }
   }
 
@@ -385,10 +490,61 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
       _isLoading = true;
     });
 
+    // Log API request
+    final apiUrl = ApiConstants.chatGet;
+    final requestParams = {
+      'friendID': widget.friend.id,
+    };
+    
+    print('[SKYBYN] ═══════════════════════════════════════════════════════');
+    print('[SKYBYN] 📤 [Chat] Loading messages from API');
+    print('[SKYBYN]    URL: $apiUrl');
+    print('[SKYBYN]    Parameters: ${jsonEncode(requestParams)}');
+    print('[SKYBYN]    Method: POST');
+    developer.log('📤 [Chat] Loading messages from API', name: 'Chat API');
+    developer.log('   URL: $apiUrl', name: 'Chat API');
+    developer.log('   Parameters: ${jsonEncode(requestParams)}', name: 'Chat API');
+    developer.log('   Method: POST', name: 'Chat API');
+
     try {
       final messages = await _chatService.getMessages(
         friendId: widget.friend.id,
       );
+      
+      // Log API response
+      print('[SKYBYN] 📥 [Chat] Messages API Response received');
+      print('[SKYBYN]    Status: Success');
+      print('[SKYBYN]    Messages Count: ${messages.length}');
+      if (messages.isNotEmpty) {
+        print('[SKYBYN]    First Message ID: ${messages.first.id}');
+        print('[SKYBYN]    Last Message ID: ${messages.last.id}');
+        print('[SKYBYN]    First Message Preview: ${messages.first.content.length > 50 ? messages.first.content.substring(0, 50) + "..." : messages.first.content}');
+        // Count messages with attachments
+        final messagesWithAttachments = messages.where((m) => m.attachmentUrl != null && m.attachmentType != null).length;
+        print('[SKYBYN]    Messages with attachments: $messagesWithAttachments');
+        
+        // Log all messages to check attachment data
+        for (var i = 0; i < messages.length; i++) {
+          final msg = messages[i];
+          print('[SKYBYN]    Message $i: id=${msg.id}, hasAttachment=${msg.attachmentUrl != null && msg.attachmentType != null}');
+          if (msg.attachmentUrl != null || msg.attachmentType != null) {
+            print('[SKYBYN]      - attachmentType: ${msg.attachmentType}');
+            print('[SKYBYN]      - attachmentUrl: ${msg.attachmentUrl}');
+            print('[SKYBYN]      - attachmentName: ${msg.attachmentName}');
+            print('[SKYBYN]      - attachmentSize: ${msg.attachmentSize}');
+          }
+        }
+      }
+      developer.log('📥 [Chat] Messages API Response received', name: 'Chat API');
+      developer.log('   Status: Success', name: 'Chat API');
+      developer.log('   Messages Count: ${messages.length}', name: 'Chat API');
+      if (messages.isNotEmpty) {
+        developer.log('   First Message ID: ${messages.first.id}', name: 'Chat API');
+        developer.log('   Last Message ID: ${messages.last.id}', name: 'Chat API');
+      }
+      print('[SKYBYN] ═══════════════════════════════════════════════════════');
+      developer.log('═══════════════════════════════════════════════════════', name: 'Chat API');
+      
       if (mounted) {
         setState(() {
           // Messages are already sorted oldest to newest from service
@@ -399,8 +555,13 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
         });
         // Scroll to bottom when initially loading messages
         _scrollToBottom();
+        
+        // Mark all unread messages from this friend as read
+        _markMessagesAsRead();
       }
     } catch (e) {
+      print('[SKYBYN] ❌ [Chat] Error loading messages: $e');
+      developer.log('❌ [Chat] Error loading messages: $e', name: 'Chat API');
       if (mounted) {
         setState(() {
           _isLoading = false;
@@ -548,7 +709,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
   /// This method is thread-safe and checks for duplicates by message ID
   void _addMessageIfNotExists(Message message) {
     // Double-check for duplicates - check both by ID and by content+timestamp to be extra safe
-    final existingById = _messages.indexWhere((m) => m.id == message.id);
+    final existingById = _messages.indexWhere((m) => m.id == message.id && message.id.isNotEmpty);
     if (existingById != -1) {
       debugPrint('🟢 [ChatScreen] Message ${message.id} already exists (by ID), skipping duplicate');
       return;
@@ -556,7 +717,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
     
     // Additional check: if message ID is empty or invalid, check by content and timestamp
     // This prevents duplicates from messages with missing IDs
-    if (message.id.isEmpty) {
+    if (message.id.isEmpty || message.id.startsWith('temp_')) {
       final existingByContent = _messages.indexWhere((m) => 
         m.content == message.content && 
         m.from == message.from && 
@@ -577,6 +738,53 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
     debugPrint('🟢 [ChatScreen] Message ${message.id} added. Total: ${_messages.length}');
   }
 
+  /// Update an existing message (e.g., replace temp ID with real ID)
+  void _updateMessage(String oldId, Message newMessage) {
+    final index = _messages.indexWhere((m) => m.id == oldId);
+    if (index != -1) {
+      setState(() {
+        _messages[index] = newMessage;
+        _messages.sort((a, b) => a.date.compareTo(b.date));
+      });
+      debugPrint('🟢 [ChatScreen] Message updated from $oldId to ${newMessage.id}');
+    } else {
+      debugPrint('🟢 [ChatScreen] Message with ID $oldId not found for update');
+    }
+  }
+
+  /// Find and update a temporary message by content and timestamp
+  /// Returns true if message was updated, false if not found
+  bool _updateTempMessageByContent(String realId, String fromUserId, String toUserId, String content, DateTime date) {
+    // Find message with matching content, from, to, and recent timestamp (within 5 seconds)
+    final index = _messages.indexWhere((m) => 
+      (m.id.isEmpty || m.id.startsWith('temp_')) &&
+      m.content == content &&
+      m.from == fromUserId &&
+      m.to == toUserId &&
+      m.date.difference(date).inSeconds.abs() < 5
+    );
+    
+    if (index != -1) {
+      final oldMessage = _messages[index];
+      final updatedMessage = Message(
+        id: realId,
+        from: fromUserId,
+        to: toUserId,
+        content: content,
+        date: date,
+        viewed: oldMessage.viewed,
+        isFromMe: oldMessage.isFromMe,
+      );
+      setState(() {
+        _messages[index] = updatedMessage;
+        _messages.sort((a, b) => a.date.compareTo(b.date));
+      });
+      debugPrint('🟢 [ChatScreen] Temp message updated with real ID: $realId');
+      return true;
+    }
+    return false;
+  }
+
   void _handleIncomingChatMessage(String messageId, String fromUserId, String toUserId, String message) {
     debugPrint('🟢 [ChatScreen] _handleIncomingChatMessage: id=$messageId, from=$fromUserId, to=$toUserId');
     
@@ -595,10 +803,27 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
       return; // Not for this chat
     }
     
-    // If we're the sender, check if message already exists (sent from another device)
+    final messageDate = DateTime.now();
+    
+    // If we're the sender, this might be our own message coming back via WebSocket
+    // Check if we have a temporary message that matches this content
     if (fromUserId == _currentUserId) {
-      // Check if message already exists with this ID
-      final existingMessageIndex = _messages.indexWhere((m) => m.id == messageId);
+      // First, check if we have a temp message with matching content
+      final tempUpdated = _updateTempMessageByContent(
+        messageId,
+        fromUserId,
+        toUserId,
+        message,
+        messageDate,
+      );
+      
+      if (tempUpdated) {
+        debugPrint('🟢 [ChatScreen] Updated temp message with real ID: $messageId');
+        return; // Message updated, no need to add
+      }
+      
+      // Check if message already exists with this ID (not a temp message)
+      final existingMessageIndex = _messages.indexWhere((m) => m.id == messageId && !m.id.startsWith('temp_'));
       if (existingMessageIndex != -1) {
         // Message already exists, don't add duplicate
         debugPrint('🟢 [ChatScreen] Message from self already exists, skipping');
@@ -613,7 +838,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
         from: fromUserId,
         to: toUserId,
         content: message,
-        date: DateTime.now(),
+        date: messageDate,
         viewed: false,
         isFromMe: true,
       );
@@ -626,7 +851,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
     }
     
     // We're the recipient - check if message already exists
-    final existingMessageIndex = _messages.indexWhere((m) => m.id == messageId);
+    final existingMessageIndex = _messages.indexWhere((m) => m.id == messageId && !m.id.startsWith('temp_'));
     debugPrint('🟢 [ChatScreen] Message already exists? ${existingMessageIndex != -1} (index: $existingMessageIndex)');
     
     if (existingMessageIndex == -1) {
@@ -637,7 +862,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
         from: fromUserId,
         to: toUserId,
         content: message,
-        date: DateTime.now(),
+        date: messageDate,
         viewed: false,
         isFromMe: false,
       );
@@ -646,6 +871,10 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
         _addMessageIfNotExists(newMessage);
         // Always scroll to bottom for new messages
         _scrollToBottom();
+        // Mark the new message as read if it's from the friend
+        if (!newMessage.isFromMe) {
+          _markMessagesAsRead();
+        }
       } else {
         debugPrint('🟢 [ChatScreen] Widget not mounted, cannot add message');
       }
@@ -666,6 +895,66 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
     });
   }
 
+  /// Mark messages as read when they are displayed
+  /// This is called when messages are loaded or when new messages arrive
+  Future<void> _markMessagesAsRead() async {
+    if (_currentUserId == null) {
+      return; // Can't mark as read without user ID
+    }
+
+    // Get all unread messages from this friend (messages sent to current user)
+    final unreadMessages = _messages.where((m) => 
+      !m.isFromMe && 
+      !m.viewed && 
+      m.from == widget.friend.id
+    ).toList();
+
+    if (unreadMessages.isEmpty) {
+      return; // No unread messages
+    }
+
+    print('[SKYBYN] 📤 [Chat] Marking ${unreadMessages.length} message(s) as read');
+    developer.log('📤 [Chat] Marking ${unreadMessages.length} message(s) as read', name: 'Chat API');
+    developer.log('   Friend ID: ${widget.friend.id}', name: 'Chat API');
+
+    // Mark all unread messages from this friend as read
+    // Use friendId approach for efficiency (marks all at once)
+    try {
+      final success = await _chatService.markMessagesAsRead(
+        friendId: widget.friend.id,
+      );
+      
+      if (success && mounted) {
+        // Update local message state to reflect read status
+        setState(() {
+          for (final message in unreadMessages) {
+            final index = _messages.indexWhere((m) => m.id == message.id);
+            if (index != -1) {
+              _messages[index] = Message(
+                id: message.id,
+                from: message.from,
+                to: message.to,
+                content: message.content,
+                date: message.date,
+                viewed: true, // Mark as viewed
+                isFromMe: message.isFromMe,
+              );
+            }
+          }
+        });
+        print('[SKYBYN] ✅ Successfully marked ${unreadMessages.length} message(s) as read');
+        developer.log('✅ Successfully marked ${unreadMessages.length} message(s) as read', name: 'Chat API');
+      } else {
+        print('[SKYBYN] ⚠️ Failed to mark messages as read (API returned false)');
+        developer.log('⚠️ Failed to mark messages as read (API returned false)', name: 'Chat API');
+      }
+    } catch (e) {
+      // Non-critical error - don't show to user
+      print('[SKYBYN] ⚠️ Failed to mark messages as read: $e');
+      developer.log('⚠️ Failed to mark messages as read: $e', name: 'Chat API');
+    }
+  }
+
   void _openChatListModal(BuildContext context) {
     showModalBottomSheet(
       context: context,
@@ -680,6 +969,16 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
     if (message.isEmpty || _isSending) {
       return;
     }
+    
+    // Ensure we have current user ID
+    if (_currentUserId == null) {
+      await _loadUserId();
+      if (_currentUserId == null) {
+        // Still no user ID, can't send message
+        return;
+      }
+    }
+    
     setState(() {
       _isSending = true;
     });
@@ -704,13 +1003,162 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
       }
       _typingTimer?.cancel();
 
-      // Send message via API
-      final sentMessage = await _chatService.sendMessage(
-        toUserId: widget.friend.id,
+      // Generate temporary ID for optimistic UI
+      final tempId = 'temp_${DateTime.now().millisecondsSinceEpoch}_${_currentUserId!}';
+      final messageDate = DateTime.now();
+      
+      // Create temporary message and add to UI immediately (optimistic UI)
+      final tempMessage = Message(
+        id: tempId,
+        from: _currentUserId ?? '',
+        to: widget.friend.id,
         content: message,
+        date: messageDate,
+        viewed: false,
+        isFromMe: true,
       );
+      
+      // Add message to UI immediately
+      if (mounted) {
+        _addMessageIfNotExists(tempMessage);
+        _scrollToBottom();
+      }
 
-      // Reset _isSending IMMEDIATELY after API call succeeds (before WebSocket/Firebase)
+      // Log API request
+      final apiUrl = ApiConstants.chatSend;
+      final requestParams = {
+        'toUserId': widget.friend.id,
+        'content': message.length > 50 ? message.substring(0, 50) + '...' : message,
+      };
+      
+      print('[SKYBYN] ═══════════════════════════════════════════════════════');
+      print('[SKYBYN] 📤 [Chat] Sending message to API');
+      print('[SKYBYN]    URL: $apiUrl');
+      print('[SKYBYN]    To User ID: ${widget.friend.id}');
+      print('[SKYBYN]    Message Length: ${message.length}');
+      print('[SKYBYN]    Message Preview: ${message.length > 50 ? message.substring(0, 50) + "..." : message}');
+      print('[SKYBYN]    Temp ID: $tempId');
+      print('[SKYBYN]    Method: POST');
+      developer.log('📤 [Chat] Sending message to API', name: 'Chat API');
+      developer.log('   URL: $apiUrl', name: 'Chat API');
+      developer.log('   To User ID: ${widget.friend.id}', name: 'Chat API');
+      developer.log('   Message Length: ${message.length}', name: 'Chat API');
+      developer.log('   Temp ID: $tempId', name: 'Chat API');
+      developer.log('   Method: POST', name: 'Chat API');
+      
+      // Track if message was successfully sent
+      bool messageSentSuccessfully = false;
+      Message? sentMessage;
+      
+      try {
+        // Send message via API
+        sentMessage = await _chatService.sendMessage(
+          toUserId: widget.friend.id,
+          content: message,
+        );
+        
+        // Log API response
+        if (sentMessage != null) {
+          messageSentSuccessfully = true;
+          print('[SKYBYN] 📥 [Chat] Send Message API Response received');
+          print('[SKYBYN]    Status: Success');
+          print('[SKYBYN]    Message ID: ${sentMessage.id}');
+          print('[SKYBYN]    From: ${sentMessage.from}');
+          print('[SKYBYN]    To: ${sentMessage.to}');
+          developer.log('📥 [Chat] Send Message API Response received', name: 'Chat API');
+          developer.log('   Status: Success', name: 'Chat API');
+          developer.log('   Message ID: ${sentMessage.id}', name: 'Chat API');
+          developer.log('   From: ${sentMessage.from}', name: 'Chat API');
+          developer.log('   To: ${sentMessage.to}', name: 'Chat API');
+        } else {
+          print('[SKYBYN] 📥 [Chat] Send Message API Response received');
+          print('[SKYBYN]    Status: Failed (null response)');
+          developer.log('📥 [Chat] Send Message API Response received', name: 'Chat API');
+          developer.log('   Status: Failed (null response)', name: 'Chat API');
+        }
+        print('[SKYBYN] ═══════════════════════════════════════════════════════');
+        developer.log('═══════════════════════════════════════════════════════', name: 'Chat API');
+      } catch (e) {
+        // Only show error if message was NOT successfully sent
+        if (!messageSentSuccessfully) {
+          // Extract error message (remove "Exception: " prefix if present)
+          String errorMessage = e.toString();
+          if (errorMessage.startsWith('Exception: ')) {
+            errorMessage = errorMessage.substring(11);
+          }
+          // Handle 409 Conflict - message may have been sent already
+          // Check for various forms of conflict/duplicate messages
+          final lowerError = errorMessage.toLowerCase();
+          final isConflict = lowerError.contains('409') || 
+              lowerError.contains('conflict') || 
+              lowerError.contains('already been sent') || 
+              errorMessage.contains('may have been sent') ||
+              lowerError.contains('duplicate') ||
+              lowerError.contains('already sent');
+          if (isConflict) {
+            // Message might have been sent - try to refresh messages
+            _refreshMessages();
+            
+        // Show a less alarming message (orange instead of red)
+        if (mounted) {
+          setState(() {
+            _chatStatusMessage = 'Message may have been sent already. Refreshing...';
+            _chatStatusMessageIsError = false; // Use green/orange color
+          });
+          
+          // Auto-dismiss after 3 seconds
+          Future.delayed(const Duration(seconds: 3), () {
+            if (mounted) {
+              setState(() {
+                _chatStatusMessage = null;
+              });
+            }
+          });
+        }
+            // Reset _isSending before returning (finally will also reset it, but this ensures it's reset immediately)
+            if (mounted) {
+              setState(() {
+                _isSending = false;
+              });
+            }
+            return;
+          }
+          
+          // Provide user-friendly error messages
+          String userFriendlyMessage = errorMessage;
+          if (lowerError.contains('500') || lowerError.contains('server error')) {
+            userFriendlyMessage = 'Server error. Please try again in a moment.';
+          } else if (lowerError.contains('timeout') || lowerError.contains('connection')) {
+            userFriendlyMessage = 'Connection timeout. Please check your internet and try again.';
+          } else if (lowerError.contains('network') || lowerError.contains('unreachable')) {
+            userFriendlyMessage = 'Network error. Please check your connection and try again.';
+          }
+          
+          // Show error message at top of chat box
+          if (mounted) {
+            setState(() {
+              _chatStatusMessage = userFriendlyMessage;
+              _chatStatusMessageIsError = true;
+            });
+            
+            // Auto-dismiss after 4 seconds
+            Future.delayed(const Duration(seconds: 4), () {
+              if (mounted) {
+                setState(() {
+                  _chatStatusMessage = null;
+                });
+              }
+            });
+          }
+        } else {
+          // Message was sent successfully, but there was an error after (e.g., WebSocket/Firebase)
+          // Don't show error to user - message was successfully saved
+          print('[SKYBYN] ⚠️ [Chat] Message sent successfully, but error occurred after: $e');
+          developer.log('⚠️ [Chat] Message sent successfully, but error occurred after: $e', name: 'Chat API');
+        }
+      }
+
+      // Reset _isSending IMMEDIATELY after API call (before WebSocket/Firebase)
       // This ensures the button is enabled even if WebSocket/Firebase calls hang
       if (mounted) {
         setState(() {
@@ -719,11 +1167,8 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
       }
 
       if (sentMessage != null && mounted) {
-        // Add message to UI (check for duplicates first - might have been added via WebSocket already)
-        // Use the helper method which checks for duplicates by ID
-        _addMessageIfNotExists(sentMessage);
-        // Scroll to bottom to show the sent message
-        _scrollToBottom();
+        // Update the temporary message with the real message ID from API
+        _updateMessage(tempId, sentMessage);
         
         // Keep keyboard open by maintaining focus
         if (_messageFocusNode.hasFocus) {
@@ -737,7 +1182,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
         // Send message via both WebSocket and Firebase for real-time delivery
         // WebSocket: For immediate delivery when recipient's app is running
         // Firebase: For delivery when app is in background (triggers push notification)
-        // NOTE: These are fire-and-forget - don't block on them
+        // NOTE: These are fire-and-forget - don't block on them and don't show errors
         try {
           // Send via WebSocket (non-blocking)
           if (_webSocketService.isConnected) {
@@ -755,128 +1200,116 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
               targetUserId: widget.friend.id,
               content: message,
             ).catchError((e) {
+              // Silently fail - message was already saved via HTTP API
+              print('[SKYBYN] ⚠️ [Chat] Firebase notification failed (non-critical): $e');
             });
           }
         } catch (e) {
           // Don't fail the send - message was already saved via HTTP API
+          // Don't show error to user - message was successfully sent
+          print('[SKYBYN] ⚠️ [Chat] WebSocket/Firebase error (non-critical, message sent): $e');
         }
       } else {
-        // sentMessage is null or not mounted - reset sending state
+        // sentMessage is null - API call failed
+        // Remove the temporary message from UI
         if (mounted) {
           setState(() {
+            _messages.removeWhere((m) => m.id == tempId);
             _isSending = false;
           });
+          // Only show error if we haven't already shown one in the catch block
+          if (!messageSentSuccessfully) {
+            setState(() {
+              _chatStatusMessage = 'Failed to send message. Please try again.';
+              _chatStatusMessageIsError = true;
+            });
+            
+            // Auto-dismiss after 4 seconds
+            Future.delayed(const Duration(seconds: 4), () {
+              if (mounted) {
+                setState(() {
+                  _chatStatusMessage = null;
+                });
+              }
+            });
+          }
         }
-      }
-    } catch (e) {
-      // Extract error message (remove "Exception: " prefix if present)
-      String errorMessage = e.toString();
-      if (errorMessage.startsWith('Exception: ')) {
-        errorMessage = errorMessage.substring(11);
-      }
-      // Handle 409 Conflict - message may have been sent already
-      // Check for various forms of conflict/duplicate messages
-      final lowerError = errorMessage.toLowerCase();
-      final isConflict = lowerError.contains('409') || 
-          lowerError.contains('conflict') || 
-          lowerError.contains('already been sent') || 
-          lowerError.contains('may have been sent') ||
-          lowerError.contains('duplicate') ||
-          lowerError.contains('already sent');
-      if (isConflict) {
-        // Message might have been sent - try to refresh messages
-        _refreshMessages();
-        
-        // Show a less alarming message (orange instead of red)
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Message may have been sent already. Refreshing...'),
-              backgroundColor: Colors.orange,
-              duration: Duration(seconds: 2),
-            ),
-          );
-        }
-        // Reset _isSending before returning (finally will also reset it, but this ensures it's reset immediately)
-        if (mounted) {
-          setState(() {
-            _isSending = false;
-          });
-        }
-        return;
-      }
-      
-      // Provide user-friendly error messages
-      String userFriendlyMessage = errorMessage;
-      if (lowerError.contains('500') || lowerError.contains('server error')) {
-        userFriendlyMessage = 'Server error. Please try again in a moment.';
-      } else if (lowerError.contains('timeout') || lowerError.contains('connection')) {
-        userFriendlyMessage = 'Connection timeout. Please check your internet and try again.';
-      } else if (lowerError.contains('network') || lowerError.contains('unreachable')) {
-        userFriendlyMessage = 'Network error. Please check your connection and try again.';
-      }
-      
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(userFriendlyMessage),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 4),
-          ),
-        );
       }
     } finally {
       if (mounted) {
         setState(() {
           _isSending = false;
         });
-      } else {
       }
     }
   }
 
   Future<void> _refreshMessages() async {
     try {
+      print('[SKYBYN] 🔄 [Chat] Refreshing messages');
+      developer.log('🔄 [Chat] Refreshing messages', name: 'Chat API');
+      
+      // Clear cache to force fresh fetch
+      await _chatService.clearCache(widget.friend.id);
+      
+      // Reload messages from API
       final messages = await _chatService.getMessages(
         friendId: widget.friend.id,
       );
+      
       if (mounted) {
-        // Only update if we have new messages - check for duplicates by ID
-        final currentMessageIds = _messages.map((m) => m.id).toSet();
-        final newMessages = messages.where((m) => !currentMessageIds.contains(m.id)).toList();
+        setState(() {
+          // Replace all messages with fresh data from API
+          _messages = messages;
+          _messages.sort((a, b) => a.date.compareTo(b.date));
+        });
         
-        if (newMessages.isNotEmpty) {
-          // Double-check for duplicates before adding (prevent race conditions)
-          final existingIds = _messages.map((m) => m.id).toSet();
-          final trulyNewMessages = newMessages.where((m) => !existingIds.contains(m.id)).toList();
+        // Scroll to bottom to show latest messages
+        _scrollToBottom();
+        
+        // Mark messages as read
+        _markMessagesAsRead();
+        
+        print('[SKYBYN] ✅ [Chat] Messages refreshed: ${messages.length} message(s)');
+        developer.log('✅ [Chat] Messages refreshed: ${messages.length} message(s)', name: 'Chat API');
+        
+        // Show success message at top of chat box
+        if (mounted) {
+          setState(() {
+            _chatStatusMessage = 'Refreshed ${messages.length} message(s)';
+            _chatStatusMessageIsError = false;
+          });
           
-          if (trulyNewMessages.isNotEmpty) {
-            // Check if user is near bottom before updating
-            final wasNearBottom = _scrollController.hasClients 
-                ? _scrollController.position.pixels >= 
-                  _scrollController.position.maxScrollExtent - 200
-                : true;
-            
-            setState(() {
-              // Merge new messages with existing ones, avoiding duplicates
-              final existingIds = _messages.map((m) => m.id).toSet();
-              final messagesToAdd = trulyNewMessages.where((m) => !existingIds.contains(m.id)).toList();
-              if (messagesToAdd.isNotEmpty) {
-                _messages.addAll(messagesToAdd);
-                _messages.sort((a, b) => a.date.compareTo(b.date));
-              }
-            });
-            
-            // Only scroll to bottom if user was already near the bottom
-            // This prevents interrupting user if they're reading older messages
-            if (wasNearBottom) {
-              _scrollToBottom();
+          // Auto-dismiss after 3 seconds
+          Future.delayed(const Duration(seconds: 3), () {
+            if (mounted) {
+              setState(() {
+                _chatStatusMessage = null;
+              });
             }
-          }
+          });
         }
       }
     } catch (e) {
-      // Silently fail - don't spam errors
+      print('[SKYBYN] ❌ [Chat] Error refreshing messages: $e');
+      developer.log('❌ [Chat] Error refreshing messages: $e', name: 'Chat API');
+      
+      // Show error message at top of chat box
+      if (mounted) {
+        setState(() {
+          _chatStatusMessage = 'Failed to refresh messages';
+          _chatStatusMessageIsError = true;
+        });
+        
+        // Auto-dismiss after 4 seconds
+        Future.delayed(const Duration(seconds: 4), () {
+          if (mounted) {
+            setState(() {
+              _chatStatusMessage = null;
+            });
+          }
+        });
+      }
     }
   }
 
@@ -1082,35 +1515,45 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
                                 radius: 24,
                                 backgroundColor: Colors.white.withOpacity(0.2),
                                 child: widget.friend.avatar.isNotEmpty
-                                    ? ClipOval(
+                                    ? ClipRRect(
+                                        borderRadius: BorderRadius.circular(24),
                                         child: CachedNetworkImage(
                                           imageUrl: UrlHelper.convertUrl(widget.friend.avatar),
                                           width: 48,
                                           height: 48,
                                           fit: BoxFit.cover,
                                           httpHeaders: const {},
-                                          placeholder: (context, url) => Image.asset(
-                                            'assets/images/icon.png',
-                                            width: 48,
-                                            height: 48,
-                                            fit: BoxFit.cover,
-                                          ),
-                                          errorWidget: (context, url, error) {
-                                            // Handle all errors including 404 (HttpExceptionWithStatus)
-                                            return Image.asset(
+                                          placeholder: (context, url) => ClipRRect(
+                                            borderRadius: BorderRadius.circular(24),
+                                            child: Image.asset(
                                               'assets/images/icon.png',
                                               width: 48,
                                               height: 48,
                                               fit: BoxFit.cover,
+                                            ),
+                                          ),
+                                          errorWidget: (context, url, error) {
+                                            // Handle all errors including 404 (HttpExceptionWithStatus)
+                                            return ClipRRect(
+                                              borderRadius: BorderRadius.circular(24),
+                                              child: Image.asset(
+                                                'assets/images/icon.png',
+                                                width: 48,
+                                                height: 48,
+                                                fit: BoxFit.cover,
+                                              ),
                                             );
                                           },
                                         ),
                                       )
-                                    : Image.asset(
-                                        'assets/images/icon.png',
-                                        width: 48,
-                                        height: 48,
-                                        fit: BoxFit.cover,
+                                    : ClipRRect(
+                                        borderRadius: BorderRadius.circular(24),
+                                        child: Image.asset(
+                                          'assets/images/icon.png',
+                                          width: 48,
+                                          height: 48,
+                                          fit: BoxFit.cover,
+                                        ),
                                       ),
                               ),
                               const SizedBox(width: 12),
@@ -1306,6 +1749,42 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
                                     )
                                   : Column(
                                       children: [
+                                        // Status message banner at top of chat
+                                        if (_chatStatusMessage != null)
+                                          Container(
+                                            width: double.infinity,
+                                            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                            decoration: BoxDecoration(
+                                              color: _chatStatusMessageIsError 
+                                                  ? Colors.red.withOpacity(0.8)
+                                                  : Colors.green.withOpacity(0.8),
+                                              borderRadius: BorderRadius.circular(8),
+                                            ),
+                                            child: Row(
+                                              children: [
+                                                Expanded(
+                                                  child: Text(
+                                                    _chatStatusMessage!,
+                                                    style: const TextStyle(
+                                                      color: Colors.white,
+                                                      fontSize: 14,
+                                                    ),
+                                                  ),
+                                                ),
+                                                IconButton(
+                                                  icon: const Icon(Icons.close, color: Colors.white, size: 20),
+                                                  onPressed: () {
+                                                    setState(() {
+                                                      _chatStatusMessage = null;
+                                                    });
+                                                  },
+                                                  padding: EdgeInsets.zero,
+                                                  constraints: const BoxConstraints(),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
                                         Expanded(
                                           child: RefreshIndicator(
                                             onRefresh: _refreshMessages,
@@ -1434,6 +1913,29 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
                               ),
                             ),
                             const SizedBox(width: 8),
+                            // Attachment button (only show if rank > 5)
+                            if ((_userRank ?? 0) > 5)
+                              Padding(
+                                padding: const EdgeInsets.only(right: 4),
+                                child: Container(
+                                  width: 40,
+                                  height: 40,
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withOpacity(0.2),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: IconButton(
+                                    onPressed: _showAttachmentOptions,
+                                    icon: Icon(
+                                      _showAttachmentMenu ? Icons.close : Icons.attach_file,
+                                      color: Colors.white,
+                                      size: 20,
+                                    ),
+                                    padding: EdgeInsets.zero,
+                                  ),
+                                ),
+                              ),
+                            const SizedBox(width: 8),
                             Expanded(
                               child: TextField(
                                 controller: _messageController,
@@ -1463,6 +1965,47 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
                                 },
                               ),
                             ),
+                            const SizedBox(width: 8),
+                            // Voice message button (long press to record) - only show if rank > 5
+                            if ((_userRank ?? 0) > 5)
+                              GestureDetector(
+                                key: _microphoneButtonKey,
+                                onLongPressStart: (details) {
+                                  _startVoiceRecording();
+                                },
+                                onLongPressEnd: (details) {
+                                  // Check if should cancel based on drag position
+                                  final shouldCancel = _shouldCancelRecording;
+                                  _stopVoiceRecording(cancel: shouldCancel);
+                                },
+                                onLongPressMoveUpdate: (details) {
+                                  // Check if user dragged up (cancel gesture)
+                                  final dragThreshold = 50.0; // pixels
+                                  final shouldCancel = details.localPosition.dy < -dragThreshold;
+                                  setState(() {
+                                    _shouldCancelRecording = shouldCancel;
+                                  });
+                                },
+                                child: Padding(
+                                  padding: const EdgeInsets.only(right: 4),
+                                  child: Container(
+                                    width: 40,
+                                    height: 40,
+                                    decoration: BoxDecoration(
+                                      color: _isRecording 
+                                          ? Colors.red.withOpacity(0.8)
+                                          : Colors.white.withOpacity(0.2),
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: Icon(
+                                      _isRecording ? Icons.mic : Icons.mic_none,
+                                      color: Colors.white,
+                                      size: 20,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            const SizedBox(width: 8),
                             Padding(
                               padding: const EdgeInsets.only(right: 4),
                               child: Container(
@@ -1492,7 +2035,242 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
               ],
             ),
           ),
+          // Selected file preview (shown above input area)
+          if (_selectedFile != null)
+            _buildFilePreview(),
+          // Attachment options menu (shown above input area)
+          _buildAttachmentMenu(),
+          // Audio visualizer (shown above microphone button when recording) - on top of everything
+          if (_isRecording)
+            _buildAudioVisualizerOverlay(),
         ],
+      ),
+    );
+  }
+
+  /// Build attachment widget based on type
+  Widget _buildAttachmentWidget(Message message) {
+    if (message.attachmentUrl == null || message.attachmentType == null) {
+      return const SizedBox.shrink();
+    }
+
+    // Ensure URL is properly formatted with base URL if needed
+    final fullUrl = UrlHelper.convertUrl(message.attachmentUrl!);
+    
+    // Debug logging for attachment display
+    print('[SKYBYN] 📎 [Chat] Building attachment widget: type=${message.attachmentType}, url=$fullUrl, name=${message.attachmentName}');
+
+    switch (message.attachmentType) {
+      case 'image':
+        return GestureDetector(
+          onTap: () {
+            // Show full screen image
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (context) => Scaffold(
+                  backgroundColor: Colors.black,
+                  appBar: AppBar(
+                    backgroundColor: Colors.black,
+                    iconTheme: const IconThemeData(color: Colors.white),
+                  ),
+                  body: Center(
+                    child: CachedNetworkImage(
+                      imageUrl: fullUrl,
+                      fit: BoxFit.contain,
+                      httpHeaders: const {},
+                    ),
+                  ),
+                ),
+              ),
+            );
+          },
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: CachedNetworkImage(
+              imageUrl: fullUrl,
+              width: 250,
+              height: 250,
+              fit: BoxFit.cover,
+              httpHeaders: const {},
+              placeholder: (context, url) => Container(
+                width: 250,
+                height: 250,
+                color: Colors.grey.withOpacity(0.3),
+                child: const Center(
+                  child: CircularProgressIndicator(color: Colors.white),
+                ),
+              ),
+              errorWidget: (context, url, error) => Container(
+                width: 250,
+                height: 250,
+                color: Colors.grey.withOpacity(0.3),
+                child: const Icon(Icons.broken_image, color: Colors.white70),
+              ),
+            ),
+          ),
+        );
+
+      case 'video':
+        return Container(
+          width: 250,
+          height: 200,
+          decoration: BoxDecoration(
+            color: Colors.black.withOpacity(0.3),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: CachedNetworkImage(
+                  imageUrl: fullUrl,
+                  width: 250,
+                  height: 200,
+                  fit: BoxFit.cover,
+                  httpHeaders: const {},
+                  errorWidget: (context, url, error) => Container(
+                    width: 250,
+                    height: 200,
+                    color: Colors.grey.withOpacity(0.3),
+                  ),
+                ),
+              ),
+              const Icon(Icons.play_circle_filled, color: Colors.white, size: 48),
+              if (message.attachmentName != null)
+                Positioned(
+                  bottom: 8,
+                  left: 8,
+                  right: 8,
+                  child: Text(
+                    message.attachmentName!,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+            ],
+          ),
+        );
+
+      case 'audio':
+      case 'voice':
+        return _buildAudioPlayer(fullUrl, message.attachmentType == 'voice');
+
+      case 'file':
+        return Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Row(
+            children: [
+              const Icon(Icons.insert_drive_file, color: Colors.white, size: 32),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (message.attachmentName != null)
+                      Text(
+                        message.attachmentName!,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    if (message.attachmentSize != null)
+                      Text(
+                        _formatFileSize(message.attachmentSize!),
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.7),
+                          fontSize: 12,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.download, color: Colors.white),
+                onPressed: () {
+                  // Open file URL
+                  // You can use url_launcher or download the file
+                },
+              ),
+            ],
+          ),
+        );
+
+      default:
+        return const SizedBox.shrink();
+    }
+  }
+
+  /// Format file size
+  String _formatFileSize(int bytes) {
+    if (bytes < 1024) return '$bytes B';
+    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
+    return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+  }
+
+  /// Build audio player widget
+  Widget _buildAudioPlayer(String audioUrl, bool isVoice) {
+    return _AudioPlayerWidget(audioUrl: audioUrl, isVoice: isVoice);
+  }
+
+  /// Build audio visualizer overlay positioned above microphone button
+  Widget _buildAudioVisualizerOverlay() {
+    // Use simpler positioning - fixed position above input area
+    return Positioned(
+      bottom: 150, // Above the input area
+      right: 55, // Aligned with microphone button area
+      child: _buildVisualizerCircle(),
+    );
+  }
+
+  /// Build the circular visualizer container
+  Widget _buildVisualizerCircle() {
+    // Rebuild when audio level changes by using it in the widget tree
+    // Use a key based on audio level to force rebuild when it changes significantly
+    return Material(
+      color: Colors.transparent,
+      elevation: 10, // Ensure it's above other elements
+      child: Container(
+        width: 80,
+        height: 80,
+        decoration: BoxDecoration(
+          color: Colors.black.withOpacity(0.95),
+          shape: BoxShape.circle,
+          border: Border.all(
+            color: _shouldCancelRecording 
+                ? Colors.orange.withOpacity(0.9)
+                : Colors.red.withOpacity(0.9),
+            width: 2.5,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: (_shouldCancelRecording ? Colors.orange : Colors.red).withOpacity(0.6),
+              blurRadius: 20,
+              spreadRadius: 4,
+            ),
+          ],
+        ),
+        child: ClipOval(
+          child: Container(
+            padding: const EdgeInsets.all(8),
+            alignment: Alignment.center,
+            child: _AudioVisualizerWidget(
+              audioLevel: _audioLevel,
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -1534,31 +2312,41 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
                 radius: 16,
                 backgroundColor: Colors.white.withOpacity(0.2),
                 child: widget.friend.avatar.isNotEmpty
-                    ? ClipOval(
+                    ? ClipRRect(
+                        borderRadius: BorderRadius.circular(16),
                         child: CachedNetworkImage(
                           imageUrl: UrlHelper.convertUrl(widget.friend.avatar),
                           width: 32,
                           height: 32,
                           fit: BoxFit.cover,
-                          placeholder: (context, url) => Image.asset(
-                            'assets/images/icon.png',
-                            width: 32,
-                            height: 32,
-                            fit: BoxFit.cover,
+                          placeholder: (context, url) => ClipRRect(
+                            borderRadius: BorderRadius.circular(16),
+                            child: Image.asset(
+                              'assets/images/icon.png',
+                              width: 32,
+                              height: 32,
+                              fit: BoxFit.cover,
+                            ),
                           ),
-                          errorWidget: (context, url, error) => Image.asset(
-                            'assets/images/icon.png',
-                            width: 32,
-                            height: 32,
-                            fit: BoxFit.cover,
+                          errorWidget: (context, url, error) => ClipRRect(
+                            borderRadius: BorderRadius.circular(16),
+                            child: Image.asset(
+                              'assets/images/icon.png',
+                              width: 32,
+                              height: 32,
+                              fit: BoxFit.cover,
+                            ),
                           ),
                         ),
                       )
-                    : Image.asset(
-                        'assets/images/icon.png',
-                        width: 32,
-                        height: 32,
-                        fit: BoxFit.cover,
+                    : ClipRRect(
+                        borderRadius: BorderRadius.circular(16),
+                        child: Image.asset(
+                          'assets/images/icon.png',
+                          width: 32,
+                          height: 32,
+                          fit: BoxFit.cover,
+                        ),
                       ),
               ),
               const SizedBox(width: 8),
@@ -1580,14 +2368,21 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      message.content,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 15,
-                        decoration: TextDecoration.none,
+                    // Display attachment if exists
+                    if (message.attachmentType != null && message.attachmentUrl != null) ...[
+                      _buildAttachmentWidget(message),
+                      if (message.content.isNotEmpty) const SizedBox(height: 8),
+                    ],
+                    // Display text content if exists
+                    if (message.content.isNotEmpty)
+                      Text(
+                        message.content,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 15,
+                          decoration: TextDecoration.none,
+                        ),
                       ),
-                    ),
                     const SizedBox(height: 4),
                     Text(
                       timeAgo,
@@ -1610,36 +2405,46 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
                   future: _authService.getStoredUserProfile().then((u) => u?.avatar),
                   builder: (context, snapshot) {
                     if (snapshot.hasData && snapshot.data != null && snapshot.data!.isNotEmpty) {
-                      return ClipOval(
+                      return ClipRRect(
+                        borderRadius: BorderRadius.circular(16),
                         child: CachedNetworkImage(
                           imageUrl: UrlHelper.convertUrl(snapshot.data!),
                           width: 32,
                           height: 32,
                           fit: BoxFit.cover,
                           httpHeaders: const {},
-                          placeholder: (context, url) => Image.asset(
-                            'assets/images/icon.png',
-                            width: 32,
-                            height: 32,
-                            fit: BoxFit.cover,
-                          ),
-                          errorWidget: (context, url, error) {
-                            // Handle all errors including 404 (HttpExceptionWithStatus)
-                            return Image.asset(
+                          placeholder: (context, url) => ClipRRect(
+                            borderRadius: BorderRadius.circular(16),
+                            child: Image.asset(
                               'assets/images/icon.png',
                               width: 32,
                               height: 32,
                               fit: BoxFit.cover,
+                            ),
+                          ),
+                          errorWidget: (context, url, error) {
+                            // Handle all errors including 404 (HttpExceptionWithStatus)
+                            return ClipRRect(
+                              borderRadius: BorderRadius.circular(16),
+                              child: Image.asset(
+                                'assets/images/icon.png',
+                                width: 32,
+                                height: 32,
+                                fit: BoxFit.cover,
+                              ),
                             );
                           },
                         ),
                       );
                     }
-                    return Image.asset(
-                      'assets/images/icon.png',
-                      width: 32,
-                      height: 32,
-                      fit: BoxFit.cover,
+                    return ClipRRect(
+                      borderRadius: BorderRadius.circular(16),
+                      child: Image.asset(
+                        'assets/images/icon.png',
+                        width: 32,
+                        height: 32,
+                        fit: BoxFit.cover,
+                      ),
                     );
                   },
                 ),
@@ -1840,8 +2645,27 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
 
     if (result != null && result.isNotEmpty && result != message.content && _currentUserId != null) {
       try {
+        final apiUrl = '${ApiConstants.apiBase}/message/edit.php';
+        final requestParams = {
+          'userID': _currentUserId!,
+          'friendID': widget.friend.id,
+          'messageID': message.id,
+          'content': result.length > 50 ? result.substring(0, 50) + '...' : result,
+        };
+        
+        print('[SKYBYN] ═══════════════════════════════════════════════════════');
+        print('[SKYBYN] 📤 [Chat] Editing message via API');
+        print('[SKYBYN]    URL: $apiUrl');
+        print('[SKYBYN]    Message ID: ${message.id}');
+        print('[SKYBYN]    New Content Length: ${result.length}');
+        print('[SKYBYN]    Method: POST');
+        developer.log('📤 [Chat] Editing message via API', name: 'Chat API');
+        developer.log('   URL: $apiUrl', name: 'Chat API');
+        developer.log('   Message ID: ${message.id}', name: 'Chat API');
+        developer.log('   New Content Length: ${result.length}', name: 'Chat API');
+        
         final response = await http.post(
-          Uri.parse('${ApiConstants.apiBase}/message/edit.php'),
+          Uri.parse(apiUrl),
           body: {
             'userID': _currentUserId!,
             'friendID': widget.friend.id,
@@ -1852,10 +2676,18 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
             'Content-Type': 'application/x-www-form-urlencoded',
           },
         ).timeout(const Duration(seconds: 10));
+        
+        print('[SKYBYN] 📥 [Chat] Edit Message API Response received');
+        print('[SKYBYN]    Status Code: ${response.statusCode}');
+        developer.log('📥 [Chat] Edit Message API Response received', name: 'Chat API');
+        developer.log('   Status Code: ${response.statusCode}', name: 'Chat API');
 
         if (response.statusCode == 200) {
           final data = json.decode(response.body);
           if (data['responseCode'] == 1) {
+            print('[SKYBYN]    Response: Success');
+            developer.log('   Response: Success', name: 'Chat API');
+            
             // Update message in list
             setState(() {
               final index = _messages.indexWhere((m) => m.id == message.id);
@@ -1872,46 +2704,85 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
               }
             });
             
+            // Show success message at top of chat box
             if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Message updated'),
-                  backgroundColor: Colors.green,
-                  duration: Duration(seconds: 2),
-                ),
-              );
+              setState(() {
+                _chatStatusMessage = 'Message updated';
+                _chatStatusMessageIsError = false;
+              });
+              
+              // Auto-dismiss after 2 seconds
+              Future.delayed(const Duration(seconds: 2), () {
+                if (mounted) {
+                  setState(() {
+                    _chatStatusMessage = null;
+                  });
+                }
+              });
             }
           } else {
+            print('[SKYBYN]    Response: Failed - ${data['message'] ?? 'Unknown error'}');
+            developer.log('   Response: Failed - ${data['message'] ?? 'Unknown error'}', name: 'Chat API');
+            
+            // Show error message at top of chat box
             if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(data['message'] ?? 'Failed to update message'),
-                  backgroundColor: Colors.red,
-                  duration: const Duration(seconds: 2),
-                ),
-              );
+              setState(() {
+                _chatStatusMessage = data['message'] ?? 'Failed to update message';
+                _chatStatusMessageIsError = true;
+              });
+              
+              // Auto-dismiss after 3 seconds
+              Future.delayed(const Duration(seconds: 3), () {
+                if (mounted) {
+                  setState(() {
+                    _chatStatusMessage = null;
+                  });
+                }
+              });
             }
           }
         } else {
+          print('[SKYBYN]    Response: HTTP Error ${response.statusCode}');
+          developer.log('   Response: HTTP Error ${response.statusCode}', name: 'Chat API');
+          
+          // Show error message at top of chat box
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Failed to update message'),
-                backgroundColor: Colors.red,
-                duration: Duration(seconds: 2),
-              ),
-            );
+            setState(() {
+              _chatStatusMessage = 'Failed to update message';
+              _chatStatusMessageIsError = true;
+            });
+            
+            // Auto-dismiss after 3 seconds
+            Future.delayed(const Duration(seconds: 3), () {
+              if (mounted) {
+                setState(() {
+                  _chatStatusMessage = null;
+                });
+              }
+            });
           }
         }
+        print('[SKYBYN] ═══════════════════════════════════════════════════════');
+        developer.log('═══════════════════════════════════════════════════════', name: 'Chat API');
       } catch (e) {
+        print('[SKYBYN] ❌ [Chat] Error editing message: $e');
+        developer.log('❌ [Chat] Error editing message: $e', name: 'Chat API');
+        
+        // Show error message at top of chat box
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Error: $e'),
-              backgroundColor: Colors.red,
-              duration: const Duration(seconds: 2),
-            ),
-          );
+          setState(() {
+            _chatStatusMessage = 'Error: $e';
+            _chatStatusMessageIsError = true;
+          });
+          
+          // Auto-dismiss after 3 seconds
+          Future.delayed(const Duration(seconds: 3), () {
+            if (mounted) {
+              setState(() {
+                _chatStatusMessage = null;
+              });
+            }
+          });
         }
       }
     }
@@ -1948,66 +2819,126 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
 
     if (confirm == true && _currentUserId != null) {
       try {
+        final apiUrl = '${ApiConstants.apiBase}/message/delete.php';
+        final requestParams = {
+          'userID': _currentUserId!,
+          'friendID': widget.friend.id,
+          'messageID': message.id,
+        };
+        
+        print('[SKYBYN] ═══════════════════════════════════════════════════════');
+        print('[SKYBYN] 📤 [Chat] Deleting message via API');
+        print('[SKYBYN]    URL: $apiUrl');
+        print('[SKYBYN]    Message ID: ${message.id}');
+        print('[SKYBYN]    Method: POST');
+        developer.log('📤 [Chat] Deleting message via API', name: 'Chat API');
+        developer.log('   URL: $apiUrl', name: 'Chat API');
+        developer.log('   Message ID: ${message.id}', name: 'Chat API');
+        developer.log('   Method: POST', name: 'Chat API');
+        
         final response = await http.post(
-          Uri.parse('${ApiConstants.apiBase}/message/delete.php'),
-          body: {
-            'userID': _currentUserId!,
-            'friendID': widget.friend.id,
-            'messageID': message.id,
-          },
+          Uri.parse(apiUrl),
+          body: requestParams,
           headers: {
             'Content-Type': 'application/x-www-form-urlencoded',
           },
         ).timeout(const Duration(seconds: 10));
+        
+        print('[SKYBYN] 📥 [Chat] Delete Message API Response received');
+        print('[SKYBYN]    Status Code: ${response.statusCode}');
+        developer.log('📥 [Chat] Delete Message API Response received', name: 'Chat API');
+        developer.log('   Status Code: ${response.statusCode}', name: 'Chat API');
 
         if (response.statusCode == 200) {
           final data = json.decode(response.body);
           if (data['responseCode'] == 1) {
+            print('[SKYBYN]    Response: Success');
+            developer.log('   Response: Success', name: 'Chat API');
+            
             // Remove message from list
             setState(() {
               _messages.removeWhere((m) => m.id == message.id);
             });
             
+            // Show success message at top of chat box
             if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Message deleted'),
-                  backgroundColor: Colors.green,
-                  duration: Duration(seconds: 2),
-                ),
-              );
+              setState(() {
+                _chatStatusMessage = 'Message deleted';
+                _chatStatusMessageIsError = false;
+              });
+              
+              // Auto-dismiss after 2 seconds
+              Future.delayed(const Duration(seconds: 2), () {
+                if (mounted) {
+                  setState(() {
+                    _chatStatusMessage = null;
+                  });
+                }
+              });
             }
           } else {
+            print('[SKYBYN]    Response: Failed - ${data['message'] ?? 'Unknown error'}');
+            developer.log('   Response: Failed - ${data['message'] ?? 'Unknown error'}', name: 'Chat API');
+            
+            // Show error message at top of chat box
             if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(data['message'] ?? 'Failed to delete message'),
-                  backgroundColor: Colors.red,
-                  duration: const Duration(seconds: 2),
-                ),
-              );
+              setState(() {
+                _chatStatusMessage = data['message'] ?? 'Failed to delete message';
+                _chatStatusMessageIsError = true;
+              });
+              
+              // Auto-dismiss after 3 seconds
+              Future.delayed(const Duration(seconds: 3), () {
+                if (mounted) {
+                  setState(() {
+                    _chatStatusMessage = null;
+                  });
+                }
+              });
             }
           }
         } else {
+          print('[SKYBYN]    Response: HTTP Error ${response.statusCode}');
+          developer.log('   Response: HTTP Error ${response.statusCode}', name: 'Chat API');
+          
+          // Show error message at top of chat box
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Failed to delete message'),
-                backgroundColor: Colors.red,
-                duration: Duration(seconds: 2),
-              ),
-            );
+            setState(() {
+              _chatStatusMessage = 'Failed to delete message';
+              _chatStatusMessageIsError = true;
+            });
+            
+            // Auto-dismiss after 3 seconds
+            Future.delayed(const Duration(seconds: 3), () {
+              if (mounted) {
+                setState(() {
+                  _chatStatusMessage = null;
+                });
+              }
+            });
           }
         }
+        print('[SKYBYN] ═══════════════════════════════════════════════════════');
+        developer.log('═══════════════════════════════════════════════════════', name: 'Chat API');
       } catch (e) {
+        print('[SKYBYN] ❌ [Chat] Error deleting message: $e');
+        developer.log('❌ [Chat] Error deleting message: $e', name: 'Chat API');
+        
+        // Show error message at top of chat box
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Error: $e'),
-              backgroundColor: Colors.red,
-              duration: const Duration(seconds: 2),
-            ),
-          );
+          setState(() {
+            _chatStatusMessage = 'Error: $e';
+            _chatStatusMessageIsError = true;
+          });
+          
+          // Auto-dismiss after 3 seconds
+          Future.delayed(const Duration(seconds: 3), () {
+            if (mounted) {
+              setState(() {
+                _chatStatusMessage = null;
+              });
+            }
+          });
         }
       }
     }
@@ -2074,11 +3005,11 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
                             ),
                             _buildMenuItem(
                               context,
-                              icon: Icons.delete_outline,
-                              text: TranslationKeys.clearChatHistory,
+                              icon: Icons.refresh,
+                              text: 'Refresh Messages',
                               onTap: () {
                                 _closeMenu();
-                                _showClearChatConfirmation();
+                                _refreshMessages();
                               },
                             ),
                             Divider(
@@ -2162,63 +3093,6 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
     );
   }
 
-  /// Show confirmation dialog for clearing chat
-  void _showClearChatConfirmation() {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: const TranslatedText(TranslationKeys.clearChatHistoryTitle),
-          content: const TranslatedText(TranslationKeys.clearChatHistoryMessage),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const TranslatedText(TranslationKeys.cancel),
-            ),
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-                _clearChatHistory();
-              },
-              child: const TranslatedText(
-                TranslationKeys.clearChatHistoryButton,
-                style: TextStyle(color: Colors.red),
-              ),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  /// Clear chat history
-  Future<void> _clearChatHistory() async {
-    try {
-      // TODO: Implement API call to clear chat history
-      // For now, just clear local messages
-      setState(() {
-        _messages.clear();
-      });
-      
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: TranslatedText(TranslationKeys.chatHistoryCleared),
-            duration: Duration(seconds: 2),
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: TranslatedText(TranslationKeys.errorClearingChat),
-            duration: Duration(seconds: 3),
-          ),
-        );
-      }
-    }
-  }
 
   /// Show confirmation dialog for blocking user
   void _showBlockConfirmation() {
@@ -2363,6 +3237,1010 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
       final minutes = secondsAgo ~/ 60;
       return 'Last active ${minutes}m ago';
     }
+  }
+
+  /// Show attachment options menu
+  void _showAttachmentOptions() {
+    setState(() {
+      _showAttachmentMenu = !_showAttachmentMenu;
+    });
+  }
+
+  /// Build attachment options menu (horizontal circular buttons)
+  Widget _buildAttachmentMenu() {
+    if (!_showAttachmentMenu) return const SizedBox.shrink();
+
+    final keyboardHeight = MediaQuery.of(context).viewInsets.bottom;
+
+    return Positioned(
+      bottom: keyboardHeight > 0 ? 55 : 103, // Above the input area if the keyboard is shown
+      left: 0,
+      right: 0,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          color: Colors.transparent,
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          children: [
+            _buildAttachmentOption(
+              icon: Icons.image,
+              label: 'Photo',
+              onTap: () {
+                setState(() {
+                  _showAttachmentMenu = false;
+                });
+                _pickImage(ImageSource.gallery);
+              },
+            ),
+            _buildAttachmentOption(
+              icon: Icons.camera_alt,
+              label: 'Camera',
+              onTap: () {
+                setState(() {
+                  _showAttachmentMenu = false;
+                });
+                _pickImage(ImageSource.camera);
+              },
+            ),
+            _buildAttachmentOption(
+              icon: Icons.videocam,
+              label: 'Video',
+              onTap: () {
+                setState(() {
+                  _showAttachmentMenu = false;
+                });
+                _pickVideo();
+              },
+            ),
+            _buildAttachmentOption(
+              icon: Icons.insert_drive_file,
+              label: 'File',
+              onTap: () {
+                setState(() {
+                  _showAttachmentMenu = false;
+                });
+                _pickFile();
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Build individual attachment option button (circular)
+  Widget _buildAttachmentOption({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 56,
+            height: 56,
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.15),
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: Colors.white.withOpacity(0.3),
+                width: 1.5,
+              ),
+            ),
+            child: Icon(
+              icon,
+              color: Colors.white,
+              size: 28,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            label,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Build file preview widget (shown when file is selected)
+  Widget _buildFilePreview() {
+    if (_selectedFile == null || _selectedFileType == null) {
+      return const SizedBox.shrink();
+    }
+
+    return Positioned(
+      bottom: 80, // Above the input area
+      left: 0,
+      right: 0,
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 16),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.black.withOpacity(0.95),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: Colors.white.withOpacity(0.2),
+            width: 1,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.3),
+              blurRadius: 10,
+              spreadRadius: 2,
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            // Preview thumbnail
+            if (_selectedFileType == 'image')
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: Image.file(
+                  _selectedFile!,
+                  width: 60,
+                  height: 60,
+                  fit: BoxFit.cover,
+                ),
+              )
+            else if (_selectedFileType == 'video')
+              Container(
+                width: 60,
+                height: 60,
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(
+                  Icons.videocam,
+                  color: Colors.white,
+                  size: 30,
+                ),
+              )
+            else
+              Container(
+                width: 60,
+                height: 60,
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(
+                  Icons.insert_drive_file,
+                  color: Colors.white,
+                  size: 30,
+                ),
+              ),
+            const SizedBox(width: 12),
+            // File info
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    _selectedFileType == 'image'
+                        ? 'Image selected'
+                        : _selectedFileType == 'video'
+                            ? 'Video selected'
+                            : 'File selected',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  if (_selectedFileName != null)
+                    Text(
+                      _selectedFileName!,
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.7),
+                        fontSize: 12,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                ],
+              ),
+            ),
+            // Cancel button
+            IconButton(
+              onPressed: () {
+                setState(() {
+                  _selectedFile = null;
+                  _selectedFileType = null;
+                  _selectedFileName = null;
+                });
+              },
+              icon: const Icon(
+                Icons.close,
+                color: Colors.white,
+                size: 20,
+              ),
+            ),
+            // Send button
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: Colors.green.withOpacity(0.8),
+                shape: BoxShape.circle,
+              ),
+              child: IconButton(
+                onPressed: () async {
+                  if (_selectedFile != null && _selectedFileType != null) {
+                    final file = _selectedFile!;
+                    final type = _selectedFileType!;
+                    final fileName = _selectedFileName ?? 'file';
+                    
+                    // Clear selection
+                    setState(() {
+                      _selectedFile = null;
+                      _selectedFileType = null;
+                      _selectedFileName = null;
+                    });
+                    
+                    // Upload and send
+                    await _uploadAndSendFile(file, type, fileName);
+                  }
+                },
+                icon: const Icon(
+                  Icons.send,
+                  color: Colors.white,
+                  size: 20,
+                ),
+                padding: EdgeInsets.zero,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Pick image from gallery or camera
+  Future<void> _pickImage(ImageSource source) async {
+    try {
+      final ImagePicker picker = ImagePicker();
+      final XFile? image = await picker.pickImage(source: source, imageQuality: 85);
+      
+      if (image != null) {
+        setState(() {
+          _selectedFile = File(image.path);
+          _selectedFileType = 'image';
+          _selectedFileName = path.basename(image.path);
+          _showAttachmentMenu = false;
+        });
+      }
+    } catch (e) {
+      print('[SKYBYN] ❌ [Chat] Error picking image: $e');
+      if (mounted) {
+        setState(() {
+          _chatStatusMessage = 'Failed to pick image';
+          _chatStatusMessageIsError = true;
+        });
+        Future.delayed(const Duration(seconds: 3), () {
+          if (mounted) {
+            setState(() {
+              _chatStatusMessage = null;
+            });
+          }
+        });
+      }
+    }
+  }
+
+  /// Pick video
+  Future<void> _pickVideo() async {
+    try {
+      final ImagePicker picker = ImagePicker();
+      final XFile? video = await picker.pickVideo(source: ImageSource.gallery);
+      
+      if (video != null) {
+        setState(() {
+          _selectedFile = File(video.path);
+          _selectedFileType = 'video';
+          _selectedFileName = path.basename(video.path);
+          _showAttachmentMenu = false;
+        });
+      }
+    } catch (e) {
+      print('[SKYBYN] ❌ [Chat] Error picking video: $e');
+      if (mounted) {
+        setState(() {
+          _chatStatusMessage = 'Failed to pick video';
+          _chatStatusMessageIsError = true;
+        });
+        Future.delayed(const Duration(seconds: 3), () {
+          if (mounted) {
+            setState(() {
+              _chatStatusMessage = null;
+            });
+          }
+        });
+      }
+    }
+  }
+
+  /// Pick file
+  Future<void> _pickFile() async {
+    try {
+      FilePickerResult? result = await FilePicker.platform.pickFiles(
+        type: FileType.any,
+      );
+      
+      if (result != null && result.files.single.path != null) {
+        setState(() {
+          _selectedFile = File(result.files.single.path!);
+          _selectedFileType = 'file';
+          _selectedFileName = result.files.single.name;
+          _showAttachmentMenu = false;
+        });
+      }
+    } catch (e) {
+      print('[SKYBYN] ❌ [Chat] Error picking file: $e');
+      if (mounted) {
+        setState(() {
+          _chatStatusMessage = 'Failed to pick file';
+          _chatStatusMessageIsError = true;
+        });
+        Future.delayed(const Duration(seconds: 3), () {
+          if (mounted) {
+            setState(() {
+              _chatStatusMessage = null;
+            });
+          }
+        });
+      }
+    }
+  }
+
+  /// Start voice recording
+  Future<void> _startVoiceRecording() async {
+    if (_isRecording) return; // Already recording
+    
+    try {
+      // Request microphone permission
+      final status = await Permission.microphone.request();
+      if (!status.isGranted) {
+        if (mounted) {
+          setState(() {
+            _chatStatusMessage = 'Microphone permission is required';
+            _chatStatusMessageIsError = true;
+          });
+          Future.delayed(const Duration(seconds: 3), () {
+            if (mounted) {
+              setState(() {
+                _chatStatusMessage = null;
+              });
+            }
+          });
+        }
+        return;
+      }
+
+      // Get temporary directory for recording
+      final directory = await getTemporaryDirectory();
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      _recordingPath = '${directory.path}/voice_$timestamp.m4a';
+
+      // Start recording
+      await _audioRecorder.start(
+        const RecordConfig(
+          encoder: AudioEncoder.aacLc,
+          bitRate: 128000,
+          sampleRate: 44100,
+        ),
+        path: _recordingPath!,
+      );
+
+      setState(() {
+        _isRecording = true;
+        _recordingDuration = 0;
+        _audioLevel = 0.0;
+      });
+
+      // Start listening to audio amplitude for visualization
+      try {
+        _amplitudeSubscription = _audioRecorder.onAmplitudeChanged(
+          const Duration(milliseconds: 50), // Update more frequently for smoother visualization
+        ).listen((amplitude) {
+          if (mounted && _isRecording) {
+            // Amplitude object has 'current' and 'max' properties in dB
+            // Values are typically negative: -160 (silence) to 0 (loud)
+            // Use the current amplitude for real-time visualization
+            final currentDb = amplitude.current;
+            
+            // Normalize: map from dB range to 0.0-1.0
+            // Typical voice range: -60dB (quiet) to -20dB (loud speaking)
+            // We'll use a wider range for better responsiveness: -80dB to -10dB
+            const minDb = -80.0; // Very quiet threshold
+            const maxDb = -10.0;  // Loud speaking threshold
+            
+            // Clamp the input value first
+            final clampedDb = currentDb.clamp(minDb, maxDb);
+            // Normalize: (value - min) / (max - min)
+            final normalizedLevel = ((clampedDb - minDb) / (maxDb - minDb)).clamp(0.0, 1.0);
+            
+            // Apply minimal smoothing for maximum responsiveness
+            // Use exponential moving average: 20% old, 80% new for very fast response
+            final smoothedLevel = (_audioLevel * 0.2 + normalizedLevel * 0.8);
+            
+            // Always update to ensure real-time visualization
+            if (mounted) {
+              setState(() {
+                _audioLevel = smoothedLevel;
+              });
+            }
+          }
+        });
+      } catch (e) {
+        // If amplitude monitoring is not available, use a simulated wave
+        print('[SKYBYN] ⚠️ [Chat] Amplitude monitoring not available: $e');
+        // Start a timer to simulate audio levels with more variation
+        Timer.periodic(const Duration(milliseconds: 50), (timer) {
+          if (!_isRecording) {
+            timer.cancel();
+            return;
+          }
+          if (mounted) {
+            // Simulate audio level with wave pattern and randomness
+            final time = DateTime.now().millisecondsSinceEpoch / 1000.0;
+            final wave = (math.sin(time * 2) + 1) / 2;
+            final random = math.Random().nextDouble() * 0.3;
+            final simulatedLevel = (wave * 0.4 + random * 0.6 + 0.2).clamp(0.0, 1.0);
+            setState(() {
+              _audioLevel = (_audioLevel * 0.4 + simulatedLevel * 0.6);
+            });
+          }
+        });
+      }
+
+      // Start timer to update duration
+      _recordingTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+        if (mounted) {
+          setState(() {
+            _recordingDuration++;
+          });
+        }
+      });
+
+      // Visualizer is shown via _buildAudioVisualizerOverlay() in the Stack
+    } catch (e) {
+      print('[SKYBYN] ❌ [Chat] Error starting recording: $e');
+      if (mounted) {
+        setState(() {
+          _isRecording = false;
+          _chatStatusMessage = 'Failed to start recording';
+          _chatStatusMessageIsError = true;
+        });
+        Future.delayed(const Duration(seconds: 3), () {
+          if (mounted) {
+            setState(() {
+              _chatStatusMessage = null;
+            });
+          }
+        });
+      }
+    }
+  }
+
+  bool _shouldCancelRecording = false;
+
+  /// Format duration in seconds to MM:SS
+  String _formatDuration(int seconds) {
+    final minutes = seconds ~/ 60;
+    final secs = seconds % 60;
+    return '${minutes.toString().padLeft(2, '0')}:${secs.toString().padLeft(2, '0')}';
+  }
+
+  /// Stop voice recording
+  Future<void> _stopVoiceRecording({required bool cancel}) async {
+    try {
+      _recordingTimer?.cancel();
+      _recordingTimer = null;
+      _amplitudeSubscription?.cancel();
+      _amplitudeSubscription = null;
+
+      if (_isRecording) {
+        final path = await _audioRecorder.stop();
+        setState(() {
+          _isRecording = false;
+          _recordingDuration = 0;
+          _audioLevel = 0.0;
+        });
+
+        if (!cancel && path != null && File(path).existsSync()) {
+          // Only send if recording was at least 1 second
+          if (_recordingDuration >= 1) {
+            await _uploadAndSendFile(
+              File(path),
+              'voice',
+              'voice_${DateTime.now().millisecondsSinceEpoch}.m4a',
+            );
+          } else {
+            // Too short, delete it
+            File(path).deleteSync();
+            if (mounted) {
+              setState(() {
+                _chatStatusMessage = 'Recording too short';
+                _chatStatusMessageIsError = true;
+              });
+              Future.delayed(const Duration(seconds: 2), () {
+                if (mounted) {
+                  setState(() {
+                    _chatStatusMessage = null;
+                  });
+                }
+              });
+            }
+          }
+        } else if (path != null && File(path).existsSync()) {
+          // Delete cancelled recording
+          File(path).deleteSync();
+        }
+      }
+    } catch (e) {
+      print('[SKYBYN] ❌ [Chat] Error stopping recording: $e');
+      if (mounted) {
+        setState(() {
+          _isRecording = false;
+        });
+      }
+    }
+  }
+
+  /// Upload file and send message
+  Future<void> _uploadAndSendFile(File file, String type, String fileName) async {
+    if (_currentUserId == null) return;
+
+    try {
+      setState(() {
+        _isSending = true;
+      });
+
+      print('[SKYBYN] 📤 [Chat] Uploading file: $fileName, type: $type');
+
+      // Upload file
+      final uploadUrl = '${ApiConstants.apiBase}/chat/upload.php';
+      final request = http.MultipartRequest('POST', Uri.parse(uploadUrl));
+      
+      request.fields['userID'] = _currentUserId!;
+      request.fields['to'] = widget.friend.id;
+      request.fields['type'] = type;
+      
+      request.files.add(
+        await http.MultipartFile.fromPath('file', file.path, filename: fileName),
+      );
+
+      final streamedResponse = await request.send();
+      final response = await http.Response.fromStream(streamedResponse);
+
+      if (response.statusCode == 200) {
+        print('[SKYBYN] 📥 [Chat] Upload response received');
+        print('[SKYBYN]    Response body: ${response.body}');
+        final data = json.decode(response.body);
+        print('[SKYBYN]    Parsed data: $data');
+        print('[SKYBYN]    responseCode: ${data['responseCode']}, type: ${data['responseCode'].runtimeType}');
+        
+        // Check for success (responseCode can be 1, "1", or true)
+        final responseCode = data['responseCode'];
+        final isSuccess = responseCode == 1 || responseCode == '1' || responseCode == true;
+        
+        if (isSuccess) {
+          // APIResponse::sendSuccess merges data directly into response, not under 'data' key
+          final fileUrl = (data['fileUrl'] ?? data['data']?['fileUrl']) as String?;
+          final messageId = (data['messageId'] ?? data['data']?['messageId']) as int?;
+          
+          if (fileUrl == null) {
+            throw Exception('File URL not found in response');
+          }
+
+          print('[SKYBYN] ✅ [Chat] File uploaded: $fileUrl');
+
+          // Create message with attachment
+          final tempId = 'temp_${DateTime.now().millisecondsSinceEpoch}_${_currentUserId!}';
+          final tempMessage = Message(
+            id: tempId,
+            from: _currentUserId!,
+            to: widget.friend.id,
+            content: type == 'voice' ? '🎤 Voice message' : '',
+            date: DateTime.now(),
+            isFromMe: true,
+            attachmentType: type,
+            attachmentUrl: fileUrl,
+            attachmentName: fileName,
+            attachmentSize: await file.length(),
+          );
+
+          setState(() {
+            _messages.add(tempMessage);
+          });
+
+          _scrollToBottom();
+
+          // If messageId is returned, update the temp message
+          if (messageId != null) {
+            final sentMessage = Message(
+              id: messageId.toString(),
+              from: _currentUserId!,
+              to: widget.friend.id,
+              content: tempMessage.content,
+              date: tempMessage.date,
+              isFromMe: true,
+              attachmentType: type,
+              attachmentUrl: fileUrl,
+              attachmentName: fileName,
+              attachmentSize: tempMessage.attachmentSize,
+            );
+            _updateMessage(tempId, sentMessage);
+          }
+
+          // Send via WebSocket
+          try {
+            // WebSocket sendChatMessage requires messageId, targetUserId, and content
+            // For file attachments, we'll send a text message indicating the attachment
+            final tempMessageId = 'temp_${DateTime.now().millisecondsSinceEpoch}';
+            _webSocketService.sendChatMessage(
+              messageId: tempMessageId,
+              targetUserId: widget.friend.id,
+              content: type == 'voice' ? '🎤 Voice message' : (tempMessage.content.isNotEmpty ? tempMessage.content : '📎 File'),
+            );
+          } catch (e) {
+            print('[SKYBYN] ⚠️ [Chat] WebSocket send failed (non-critical): $e');
+          }
+
+          // Mark messages as read
+          _markMessagesAsRead();
+          
+          // Clear selected file
+          setState(() {
+            _selectedFile = null;
+            _selectedFileType = null;
+            _selectedFileName = null;
+            _isSending = false;
+          });
+        } else {
+          // Log the actual response for debugging
+          print('[SKYBYN] ❌ [Chat] Upload failed - responseCode: ${data['responseCode']}, message: ${data['message']}');
+          throw Exception(data['message'] ?? 'Upload failed');
+        }
+      } else {
+        throw Exception('Upload failed with status ${response.statusCode}');
+      }
+    } catch (e) {
+      print('[SKYBYN] ❌ [Chat] Error uploading file: $e');
+      if (mounted) {
+        setState(() {
+          _chatStatusMessage = 'Failed to send file';
+          _chatStatusMessageIsError = true;
+        });
+        Future.delayed(const Duration(seconds: 3), () {
+          if (mounted) {
+            setState(() {
+              _chatStatusMessage = null;
+            });
+          }
+        });
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSending = false;
+        });
+      }
+    }
+  }
+}
+
+/// Audio player widget for voice messages and audio files
+class _AudioPlayerWidget extends StatefulWidget {
+  final String audioUrl;
+  final bool isVoice;
+
+  const _AudioPlayerWidget({
+    required this.audioUrl,
+    required this.isVoice,
+  });
+
+  @override
+  State<_AudioPlayerWidget> createState() => _AudioPlayerWidgetState();
+}
+
+class _AudioPlayerWidgetState extends State<_AudioPlayerWidget> {
+  final AudioPlayer _audioPlayer = AudioPlayer();
+  bool _isPlaying = false;
+  bool _isLoading = false;
+  Duration _duration = Duration.zero;
+  Duration _position = Duration.zero;
+
+  @override
+  void initState() {
+    super.initState();
+    _initPlayer();
+  }
+
+  Future<void> _initPlayer() async {
+    try {
+      await _audioPlayer.setUrl(widget.audioUrl);
+      _audioPlayer.durationStream.listen((duration) {
+        if (duration != null) {
+          setState(() {
+            _duration = duration;
+          });
+        }
+      });
+      _audioPlayer.positionStream.listen((position) {
+        setState(() {
+          _position = position;
+        });
+      });
+      _audioPlayer.playerStateStream.listen((state) {
+        if (state.processingState == ProcessingState.completed) {
+          setState(() {
+            _isPlaying = false;
+            _position = Duration.zero;
+          });
+        }
+      });
+    } catch (e) {
+      print('[SKYBYN] ❌ [Chat] Error initializing audio player: $e');
+    }
+  }
+
+  Future<void> _togglePlayPause() async {
+    try {
+      if (_isPlaying) {
+        await _audioPlayer.pause();
+        setState(() {
+          _isPlaying = false;
+        });
+      } else {
+        setState(() {
+          _isLoading = true;
+        });
+        await _audioPlayer.play();
+        setState(() {
+          _isPlaying = true;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      print('[SKYBYN] ❌ [Chat] Error toggling playback: $e');
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  String _formatDuration(Duration duration) {
+    String twoDigits(int n) => n.toString().padLeft(2, '0');
+    final minutes = twoDigits(duration.inMinutes.remainder(60));
+    final seconds = twoDigits(duration.inSeconds.remainder(60));
+    return '$minutes:$seconds';
+  }
+
+  @override
+  void dispose() {
+    _audioPlayer.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        children: [
+          IconButton(
+            icon: _isLoading
+                ? const SizedBox(
+                    width: 24,
+                    height: 24,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  )
+                : Icon(
+                    _isPlaying ? Icons.pause : Icons.play_arrow,
+                    color: Colors.white,
+                  ),
+            onPressed: _togglePlayPause,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(
+                      widget.isVoice ? Icons.mic : Icons.music_note,
+                      color: Colors.white,
+                      size: 16,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      widget.isVoice ? 'Voice message' : 'Audio file',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    Text(
+                      _formatDuration(_position),
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.7),
+                        fontSize: 11,
+                      ),
+                    ),
+                    Expanded(
+                      child: SliderTheme(
+                        data: SliderTheme.of(context).copyWith(
+                          activeTrackColor: Colors.white,
+                          inactiveTrackColor: Colors.white.withOpacity(0.3),
+                          thumbColor: Colors.white,
+                          thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
+                          trackHeight: 2,
+                        ),
+                        child: Slider(
+                          value: _duration.inMilliseconds > 0
+                              ? _position.inMilliseconds.toDouble()
+                              : 0.0,
+                          max: _duration.inMilliseconds > 0
+                              ? _duration.inMilliseconds.toDouble()
+                              : 1.0,
+                          onChanged: (value) {
+                            _audioPlayer.seek(Duration(milliseconds: value.toInt()));
+                          },
+                        ),
+                      ),
+                    ),
+                    Text(
+                      _formatDuration(_duration),
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.7),
+                        fontSize: 11,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Audio visualizer widget that shows audio waveform
+class _AudioVisualizerWidget extends StatefulWidget {
+  final double audioLevel; // 0.0 to 1.0
+
+  const _AudioVisualizerWidget({
+    super.key,
+    required this.audioLevel,
+  });
+
+  @override
+  State<_AudioVisualizerWidget> createState() => _AudioVisualizerWidgetState();
+}
+
+class _AudioVisualizerWidgetState extends State<_AudioVisualizerWidget> with SingleTickerProviderStateMixin {
+  late AnimationController _animationController;
+  double _animationOffset = 0.0;
+  double _previousAudioLevel = 0.0;
+
+  @override
+  void initState() {
+    super.initState();
+    _animationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 100), // Faster animation for real-time feel
+    )..repeat();
+    
+    _animationController.addListener(() {
+      setState(() {
+        _animationOffset = _animationController.value * 2 * math.pi;
+      });
+    });
+  }
+
+  @override
+  void didUpdateWidget(_AudioVisualizerWidget oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Update previous level when widget updates
+    _previousAudioLevel = oldWidget.audioLevel;
+    // Force rebuild when audio level changes significantly
+    if ((widget.audioLevel - oldWidget.audioLevel).abs() > 0.001) {
+      setState(() {});
+    }
+  }
+
+  @override
+  void dispose() {
+    _animationController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Create animated bars based on real-time audio level
+    final barCount = 12;
+    final bars = List.generate(barCount, (index) {
+      // Base position for each bar (0.0 to 1.0)
+      final position = index / barCount;
+      
+      // Each bar responds differently based on its position to create a wave effect
+      final barPhase = position * 2 * math.pi;
+      
+      // Create a subtle rotating wave pattern for visual interest
+      final waveOffset = (math.sin(barPhase + _animationOffset) + 1) / 2; // 0 to 1
+      
+      // Primary driver: actual audio level from microphone
+      // Each bar gets a different response based on position to create variation
+      // Use a sine wave pattern so bars peak at different times
+      final barVariation = (math.sin(barPhase * 2 + _animationOffset * 0.5) + 1) / 2; // 0 to 1
+      
+      // Combine: 80% actual audio level, 20% position-based variation for wave effect
+      // This makes bars respond to voice but with a dynamic wave pattern
+      final audioModulated = widget.audioLevel * (0.6 + barVariation * 0.4);
+      final combinedLevel = (audioModulated * 0.8 + waveOffset * 0.2).clamp(0.0, 1.0);
+      
+      // Calculate height - directly responsive to audio
+      final minHeight = 4.0;
+      final maxHeight = 30.0;
+      final height = minHeight + (combinedLevel * (maxHeight - minHeight));
+      
+      // Color intensity based on audio level (brighter when louder)
+      final baseOpacity = 0.4;
+      final colorIntensity = (baseOpacity + (widget.audioLevel * 0.6)).clamp(0.3, 1.0);
+      
+      return AnimatedContainer(
+        duration: const Duration(milliseconds: 50), // Faster updates for responsiveness
+        curve: Curves.easeOut,
+        width: 2.5,
+        height: height,
+        margin: const EdgeInsets.symmetric(horizontal: 0.5),
+        decoration: BoxDecoration(
+          color: Colors.red.withOpacity(colorIntensity),
+          borderRadius: BorderRadius.circular(1.5),
+        ),
+      );
+    });
+
+    return SizedBox(
+      width: 60,
+      height: 60,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        mainAxisSize: MainAxisSize.min,
+        children: bars,
+      ),
+    );
   }
 }
 

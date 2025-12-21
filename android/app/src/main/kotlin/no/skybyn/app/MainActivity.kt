@@ -171,13 +171,38 @@ class MainActivity: FlutterActivity() {
     }
 
     private fun startBackgroundService() {
-        val serviceIntent = Intent(this, BackgroundService::class.java)
-        // Use startForegroundService on Android 8.0+ for long-running services
-        // The service will handle making the notification invisible
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            startForegroundService(serviceIntent)
-        } else {
-            startService(serviceIntent)
+        try {
+            val serviceIntent = Intent(this, BackgroundService::class.java)
+            // Use startForegroundService on Android 8.0+ for long-running services
+            // Android 12+ (API 31+) requires app to be in foreground to start foreground service
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    // Android 12+ - only start if app is in foreground
+                    // Check if we have a visible activity
+                    if (isTaskRoot || hasWindowFocus()) {
+                        startForegroundService(serviceIntent)
+                    } else {
+                        // If not in foreground, try regular startService (will fail but won't crash)
+                        // The service will be started when app comes to foreground
+                        android.util.Log.w("MainActivity", "Cannot start foreground service - app not in foreground")
+                    }
+                } else {
+                    // Android 8.0-11 - can start foreground service normally
+                    startForegroundService(serviceIntent)
+                }
+            } else {
+                // Android 7.1 and below - use regular startService
+                startService(serviceIntent)
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("MainActivity", "Error starting background service: ${e.message}")
+            // If foreground service start fails, try regular service (may not work on Android 12+)
+            try {
+                val serviceIntent = Intent(this, BackgroundService::class.java)
+                startService(serviceIntent)
+            } catch (e2: Exception) {
+                android.util.Log.e("MainActivity", "Error starting regular service: ${e2.message}")
+            }
         }
     }
 

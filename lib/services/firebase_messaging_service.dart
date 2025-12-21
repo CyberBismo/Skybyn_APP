@@ -319,8 +319,9 @@ class FirebaseMessagingService {
         }
       }
 
-      // Request permissions
-      await _requestPermissions();
+      // Don't request permissions here - they will be requested after login
+      // This prevents asking for permissions before user is logged in
+      // Permissions will be requested via requestPermissions() method after login
 
       // Get FCM token (gracefully handles Firebase Installations Service unavailability)
       // This will fail on iOS if APN is not configured, or if Firebase Installations Service is unavailable
@@ -371,6 +372,11 @@ class FirebaseMessagingService {
     }
   }
 
+  /// Request notification permissions (public method to be called after login)
+  Future<void> requestPermissions() async {
+    await _requestPermissions();
+  }
+
   Future<void> _requestPermissions() async {
     try {
       if (_messaging == null) {
@@ -388,11 +394,22 @@ class FirebaseMessagingService {
       );
       
       if (settings.authorizationStatus == AuthorizationStatus.authorized) {
+        _logChat('FCM Permissions', '✅ Notification permissions granted');
+        // Get FCM token after permissions are granted
+        try {
+          await _getFCMToken();
+        } catch (e) {
+          _logChat('FCM Permissions', '⚠️ Failed to get FCM token after permission grant: $e');
+        }
       } else if (settings.authorizationStatus == AuthorizationStatus.denied) {
+        _logChat('FCM Permissions', '❌ Notification permissions denied');
       } else if (settings.authorizationStatus == AuthorizationStatus.notDetermined) {
+        _logChat('FCM Permissions', '⏳ Notification permissions not determined');
       } else if (settings.authorizationStatus == AuthorizationStatus.provisional) {
+        _logChat('FCM Permissions', '⏳ Notification permissions provisional');
       }
     } catch (e) {
+      _logChat('FCM Permissions', '❌ Error requesting permissions: $e');
     }
   }
 
