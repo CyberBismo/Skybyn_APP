@@ -1270,8 +1270,7 @@ class WebSocketService {
 
       _isInitialized = false;
 
-      // Log final metrics
-      _logConnectionQuality();
+      // Log final metrics (method removed)
     } catch (e) {
       _updateConnectionMetrics('error');
     }

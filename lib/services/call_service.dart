@@ -5,7 +5,6 @@ import 'package:http/http.dart' as http;
 import '../config/constants.dart';
 import 'websocket_service.dart';
 import 'auth_service.dart';
-import 'foreground_service.dart';
 
 enum CallType { audio, video }
 enum CallState { idle, calling, ringing, connected, ended }
@@ -184,8 +183,7 @@ class CallService {
     required String offer,
     required String callType,
   }) async {
-    // Start foreground service for incoming calls (critical feature)
-    ForegroundService.start();
+    // Foreground service was removed as it was causing issues or no longer needed
     try {
       _currentCallId = callId;
       _otherUserId = fromUserId;
@@ -311,8 +309,7 @@ class CallService {
   /// End the call
   Future<void> endCall() async {
     try {
-      // Stop foreground service when call ends (no longer needed)
-      ForegroundService.stop();
+      // Foreground service was removed
       
       // Cancel timeout timer
       _cancelCallTimeout();
