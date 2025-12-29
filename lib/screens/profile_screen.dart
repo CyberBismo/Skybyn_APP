@@ -434,8 +434,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
       }
       
       // Use all posts from API - the endpoint is user-specific
+      // Patch posts with known user data if missing
+      final patchedPosts = posts.map((post) {
+        // Only patch if author is missing/unknown or if we want to enforce consistency
+        if (post.author == 'Unknown User' || post.author.isEmpty) {
+          return post.copyWith(
+            author: userData?['username']?.toString() ?? post.author,
+            avatar: userData?['avatar']?.toString() ?? post.avatar,
+            userId: targetUserId,
+          );
+        }
+        return post;
+      }).toList();
+
       setState(() {
-        userPosts = posts;
+        userPosts = patchedPosts;
         isLoadingPosts = false;
       });
       

@@ -5,20 +5,20 @@ import 'package:http/http.dart' as http;
 import 'package:http/io_client.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 import '../models/message.dart';
 import '../config/constants.dart';
 import 'auth_service.dart';
 import 'websocket_service.dart';
+import 'local_message_database.dart';
 import 'package:crypto/crypto.dart';
 import 'dart:developer' as developer;
 
 class ChatService {
-  static const String _cacheKeyPrefix = 'cached_messages_';
-  static const String _cacheTimestampPrefix = 'cached_messages_timestamp_';
-  static const Duration _cacheExpiry = Duration(minutes: 2);
-
   final AuthService _authService = AuthService();
   final WebSocketService _webSocketService = WebSocketService();
+  final LocalMessageDatabase _localDb = LocalMessageDatabase();
+  final Connectivity _connectivity = Connectivity();
   
   // Store protection cookie to bypass bot challenges
   static String? _protectionCookie;
@@ -85,7 +85,8 @@ class ChatService {
 
     if (response.statusCode == 200) {
       if (responseData != null) {
-        if (responseData['responseCode'] == 1 && responseData['messageId'] != null) {
+        final responseCode = responseData['responseCode'];
+        if ((responseCode == 1 || responseCode == '1') && responseData['messageId'] != null) {
           final messageId = responseData['messageId'].toString();
           print('[SKYBYN]    ✅ Message stored successfully in database');
           print('[SKYBYN]    ✅ Message ID: $messageId');
@@ -187,13 +188,22 @@ class ChatService {
     return message;
   }
 
-  /// Send a message
-  /// Step 1: Send via WebSocket for real-time delivery
-  /// Step 2: Store in database via API (runs in parallel)
+  /// Send a message (offline-first approach)
+  /// Step 1: Save to local database immediately (optimistic UI)
+  /// Step 2: Try to send via API
+  /// Step 3: If offline/fails, add to offline queue for retry
   Future<Message?> sendMessage({
     required String toUserId,
     required String content,
+    String? attachmentType,
+    String? attachmentPath,
+    String? attachmentName,
+    int? attachmentSize,
   }) async {
+    // Declare variables outside try block for use in catch block
+    String? tempId;
+    Message? optimisticMessage;
+    
     try {
       final userId = await _authService.getStoredUserId();
       if (userId == null) {
@@ -205,7 +215,47 @@ class ChatService {
         throw Exception('Missing required parameters: userId=${userId.isEmpty ? "empty" : "ok"}, toUserId=${toUserId.isEmpty ? "empty" : "ok"}, message=${content.isEmpty ? "empty" : "ok"}');
       }
 
-      // Store message in database via API
+      // Generate temporary ID for optimistic UI
+      tempId = 'temp_${DateTime.now().millisecondsSinceEpoch}_${toUserId}';
+      
+      // Create optimistic message (will be updated with real ID when synced)
+      optimisticMessage = Message(
+        id: tempId,
+        from: userId,
+        to: toUserId,
+        content: content,
+        date: DateTime.now(),
+        viewed: false,
+        isFromMe: true,
+        attachmentType: attachmentType,
+        attachmentUrl: attachmentPath,
+        attachmentName: attachmentName,
+        attachmentSize: attachmentSize,
+      );
+
+      // Step 1: Save to local database immediately (offline-first)
+      await _localDb.saveMessage(optimisticMessage, synced: false);
+      developer.log('Message saved locally: $tempId', name: 'ChatService');
+
+      // Step 2: Check connectivity and try to send
+      final connectivityResult = await _connectivity.checkConnectivity();
+      final isOnline = connectivityResult != ConnectivityResult.none;
+
+      if (!isOnline) {
+        // Offline - add to queue for later sync
+        await _localDb.addToOfflineQueue(
+          toUserId: toUserId,
+          content: content,
+          attachmentType: attachmentType,
+          attachmentPath: attachmentPath,
+          attachmentName: attachmentName,
+          attachmentSize: attachmentSize,
+        );
+        developer.log('Device offline - message queued: $tempId', name: 'ChatService');
+        return optimisticMessage; // Return optimistic message
+      }
+
+      // Online - try to send via API
       // Encrypt the message for API
       final encryptedContent = await _encryptMessage(content);
 
@@ -324,14 +374,52 @@ class ChatService {
       
       // Process normal response
       // The API call stores the message in the database
-      return await _processSendMessageResponse(response, userId, toUserId, content);
+      final sentMessage = await _processSendMessageResponse(response, userId, toUserId, content);
+      
+      if (sentMessage != null) {
+        // Step 3: Update local database with real message ID and mark as synced
+        await _localDb.saveMessage(sentMessage, synced: true);
+        
+        // Remove old optimistic message if it exists
+        try {
+          await _localDb.removeFromOfflineQueue(tempId);
+        } catch (e) {
+          // Ignore if not in queue
+        }
+        
+        developer.log('Message synced successfully: ${sentMessage.id}', name: 'ChatService');
+        return sentMessage;
+      }
+      
+      // If send failed, message is already in local DB and queue
+      return optimisticMessage;
     } catch (e) {
-      rethrow;
+      // Send failed - ensure message is in offline queue
+      if (tempId != null) {
+        try {
+          await _localDb.addToOfflineQueue(
+            toUserId: toUserId,
+            content: content,
+            attachmentType: attachmentType,
+            attachmentPath: attachmentPath,
+            attachmentName: attachmentName,
+            attachmentSize: attachmentSize,
+          );
+          developer.log('Send failed - message queued for retry: $tempId', name: 'ChatService');
+        } catch (queueError) {
+          developer.log('Error adding to offline queue: $queueError', name: 'ChatService');
+        }
+      }
+      
+      // Return optimistic message even on error (offline-first)
+      // If optimistic message wasn't created, return null
+      return optimisticMessage;
     }
   }
 
-  /// Get messages between current user and another user
+  /// Get messages between current user and another user (offline-first)
   /// Returns messages ordered oldest to newest (for UI display)
+  /// Uses local database first, then syncs with server in background
   Future<List<Message>> getMessages({
     required String friendId,
     int? limit,
@@ -343,47 +431,74 @@ class ChatService {
         throw Exception('User not logged in');
       }
 
-      // Try to load from cache first (only for initial load, offset 0)
-      if (offset == null || offset == 0) {
-        final cachedMessages = await _loadMessagesFromCache(friendId, userId);
-        if (cachedMessages.isNotEmpty) {
-          // Refresh in background
-          _refreshMessagesInBackground(friendId, userId);
-          return cachedMessages;
-        }
-      }
+      // Step 1: Load from local database immediately (offline-first)
+      final localMessages = await _localDb.getMessages(
+        friendId,
+        userId,
+        limit: limit ?? 100,
+        offset: offset ?? 0,
+      );
 
-      // If no cache, fetch from API
-      final messages = await _fetchMessagesFromAPI(friendId, userId, limit, offset);
+      // Step 2: Sync with server in background (incremental sync)
+      _syncMessagesInBackground(friendId, userId);
 
-      // API returns newest first (DESC), reverse to oldest first for UI
-      // Also sort by date to ensure correct order (in case dates are not sequential)
-      final reversedMessages = messages.reversed.toList();
-      reversedMessages.sort((a, b) => a.date.compareTo(b.date));
-
-      // Cache the messages (only for initial load)
-      if ((offset == null || offset == 0) && reversedMessages.isNotEmpty) {
-        await _saveMessagesToCache(friendId, reversedMessages);
-      }
-
-      return reversedMessages;
+      // Return local messages immediately (even if empty)
+      return localMessages;
     } catch (e) {
-      // If API fails, try to return cached data as fallback (only for initial load)
-      if (offset == null || offset == 0) {
-        final userId = await _authService.getStoredUserId();
-        if (userId != null) {
-          final cachedMessages = await _loadMessagesFromCache(friendId, userId);
-          if (cachedMessages.isNotEmpty) {
-          }
-          return cachedMessages;
-        }
-      }
+      developer.log('Error getting messages: $e', name: 'ChatService');
+      // Return empty list on error (better than crashing)
       return [];
+    }
+  }
+
+  /// Sync messages with server in background (incremental sync)
+  Future<void> _syncMessagesInBackground(String friendId, String userId) async {
+    try {
+      // Get last sync timestamp for incremental sync
+      final lastSyncTimestamp = await _localDb.getLastSyncTimestamp(friendId);
+      
+      // Fetch only new messages from API (incremental sync)
+      final newMessages = await _fetchMessagesFromAPI(
+        friendId,
+        userId,
+        100, // limit
+        null, // offset
+        lastSyncTimestamp, // sinceTimestamp (positional parameter)
+      );
+
+      if (newMessages.isNotEmpty) {
+        // Save new messages to local database with conflict resolution
+        // Server wins - if message exists locally, update with server data
+        int latestTimestamp = 0;
+        String? latestMessageId;
+        
+        for (final message in newMessages) {
+          // Save message (will replace if exists - server wins)
+          await _localDb.saveMessage(message, synced: true);
+          final messageTimestamp = message.date.millisecondsSinceEpoch;
+          if (messageTimestamp > latestTimestamp) {
+            latestTimestamp = messageTimestamp;
+            latestMessageId = message.id;
+          }
+        }
+
+        // Update last sync timestamp
+        await _localDb.updateLastSyncTimestamp(friendId, latestTimestamp, latestMessageId);
+        
+        developer.log('Synced ${newMessages.length} new messages for $friendId', name: 'ChatService');
+      } else {
+        // No new messages - update sync timestamp to current time to prevent unnecessary API calls
+        await _localDb.updateLastSyncTimestamp(friendId, DateTime.now().millisecondsSinceEpoch, null);
+      }
+    } catch (e) {
+      developer.log('Error syncing messages in background: $e', name: 'ChatService');
+      // Don't throw - background sync failures shouldn't block UI
     }
   }
 
   /// Load older messages (for pagination when scrolling up)
   /// Returns messages ordered oldest to newest
+  /// Uses local database first, then fetches from API if needed
   Future<List<Message>> loadOlderMessages({
     required String friendId,
     required int currentMessageCount,
@@ -395,11 +510,26 @@ class ChatService {
         throw Exception('User not logged in');
       }
 
-      // Calculate offset based on current message count
-      final offset = currentMessageCount;
+      // Try to load from local database first
+      final localMessages = await _localDb.getMessages(
+        friendId,
+        userId,
+        limit: limit,
+        offset: currentMessageCount,
+      );
+
+      // If we have enough local messages, return them
+      if (localMessages.length >= limit) {
+        return localMessages;
+      }
 
       // Fetch older messages from API
-      final messages = await _fetchMessagesFromAPI(friendId, userId, limit, offset);
+      final messages = await _fetchMessagesFromAPI(friendId, userId, limit, currentMessageCount);
+
+      // Save fetched messages to local database
+      for (final message in messages) {
+        await _localDb.saveMessage(message, synced: true);
+      }
 
       // API returns newest first (DESC), reverse to oldest first for UI
       // Also sort by date to ensure correct order
@@ -407,6 +537,7 @@ class ChatService {
       reversedMessages.sort((a, b) => a.date.compareTo(b.date));
       return reversedMessages;
     } catch (e) {
+      developer.log('Error loading older messages: $e', name: 'ChatService');
       return [];
     }
   }
@@ -473,25 +604,33 @@ class ChatService {
     throw Exception('Retry logic error');
   }
 
-  /// Fetch messages from API
+  /// Fetch messages from API (supports incremental sync)
   Future<List<Message>> _fetchMessagesFromAPI(
     String friendId,
     String userId,
     int? limit,
-    int? offset,
-  ) async {
+    int? offset, [
+    int? sinceTimestamp,
+  ]) async {
     final url = ApiConstants.chatGet;
     
     try {
+      final bodyMap = <String, String>{
+        'userID': userId,
+        'friendID': friendId,
+        'limit': limit?.toString() ?? '50',
+        'offset': offset?.toString() ?? '0',
+      };
+      
+      // Add sinceTimestamp for incremental sync if provided
+      if (sinceTimestamp != null) {
+        bodyMap['since'] = sinceTimestamp.toString();
+      }
+      
       final response = await _retryHttpRequest(
         () => _client.post(
           Uri.parse(url),
-          body: {
-            'userID': userId,
-            'friend': friendId,
-            'limit': limit?.toString() ?? '50',
-            'offset': offset?.toString() ?? '0',
-          },
+          body: bodyMap,
           headers: {
             'Content-Type': 'application/x-www-form-urlencoded',
             'Accept': 'application/json',
@@ -534,62 +673,105 @@ class ChatService {
     }
   }
 
-  /// Refresh messages in background
+  /// Refresh messages in background (now uses local database)
   void _refreshMessagesInBackground(String friendId, String userId) {
-    Future.delayed(const Duration(milliseconds: 100), () async {
-      try {
-        final messages = await _fetchMessagesFromAPI(friendId, userId, null, null);
-        if (messages.isNotEmpty) {
-          await _saveMessagesToCache(friendId, messages);
-        }
-      } catch (e) {
-      }
-    });
+    // This is now handled by _syncMessagesInBackground which uses local database
+    _syncMessagesInBackground(friendId, userId);
   }
 
-  /// Save messages to cache
-  Future<void> _saveMessagesToCache(String friendId, List<Message> messages) async {
+  /// Process offline queue - send queued messages when online
+  Future<void> processOfflineQueue() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final messagesJson = messages.map((m) => m.toJson()).toList();
-      await prefs.setString(
-        '$_cacheKeyPrefix$friendId',
-        jsonEncode(messagesJson),
-      );
-      await prefs.setInt(
-        '$_cacheTimestampPrefix$friendId',
-        DateTime.now().millisecondsSinceEpoch,
-      );
-    } catch (e) {
-    }
-  }
+      final userId = await _authService.getStoredUserId();
+      if (userId == null) return;
 
-  /// Load messages from cache
-  Future<List<Message>> _loadMessagesFromCache(String friendId, String userId) async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final cacheKey = '$_cacheKeyPrefix$friendId';
-      final timestampKey = '$_cacheTimestampPrefix$friendId';
+      final connectivityResult = await _connectivity.checkConnectivity();
+      final isOnline = connectivityResult != ConnectivityResult.none;
+      if (!isOnline) return;
 
-      final messagesJson = prefs.getString(cacheKey);
-      final timestamp = prefs.getInt(timestampKey);
+      final queue = await _localDb.getOfflineQueue();
+      if (queue.isEmpty) return;
 
-      if (messagesJson != null && timestamp != null) {
-        final cacheAge = DateTime.now().millisecondsSinceEpoch - timestamp;
-        if (cacheAge < _cacheExpiry.inMilliseconds) {
-          final List<dynamic> data = json.decode(messagesJson);
-          final List<Message> messages = [];
-          for (final item in data) {
-            final messageMap = item as Map<String, dynamic>;
-            // Cached content is already decrypted
-            messages.add(Message.fromJson(messageMap, userId));
+      developer.log('Processing ${queue.length} messages from offline queue', name: 'ChatService');
+
+      for (final item in queue) {
+        try {
+          final tempId = item['temp_id'] as String;
+          final toUserId = item['to_user_id'] as String;
+          final content = item['content'] as String;
+          final retryCount = item['retry_count'] as int? ?? 0;
+
+          // Skip if retried too many times
+          if (retryCount >= 5) {
+            await _localDb.removeFromOfflineQueue(tempId);
+            continue;
           }
-          return messages;
+
+          // Try to send the message
+          final encryptedContent = await _encryptMessage(content);
+          final url = ApiConstants.chatSend;
+          final headers = <String, String>{
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'Accept': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest',
+            'X-API-Key': ApiConstants.apiKey,
+          };
+
+          final bodyMap = <String, String>{
+            'userID': userId.toString(),
+            'from': userId.toString(),
+            'to': toUserId.toString(),
+            'message': encryptedContent,
+            'api_key': ApiConstants.apiKey,
+          };
+
+          final response = await _client.post(
+            Uri.parse(url),
+            body: bodyMap,
+            headers: headers,
+            encoding: utf8,
+          ).timeout(const Duration(seconds: 15));
+
+          if (response.statusCode == 200) {
+            final responseData = json.decode(response.body) as Map<String, dynamic>?;
+            final responseCode = responseData?['responseCode'];
+            if (responseData != null && (responseCode == 1 || responseCode == '1') && responseData['messageId'] != null) {
+              final messageId = responseData['messageId'].toString();
+              
+              // Update local database with real message ID
+              final message = Message(
+                id: messageId,
+                from: userId,
+                to: toUserId,
+                content: content,
+                date: DateTime.fromMillisecondsSinceEpoch(item['created_at'] as int),
+                viewed: false,
+                isFromMe: true,
+                attachmentType: item['attachment_type'] as String?,
+                attachmentUrl: item['attachment_path'] as String?,
+                attachmentName: item['attachment_name'] as String?,
+                attachmentSize: item['attachment_size'] as int?,
+              );
+              
+              await _localDb.saveMessage(message, synced: true);
+              await _localDb.removeFromOfflineQueue(tempId);
+              
+              developer.log('Queued message sent successfully: $messageId', name: 'ChatService');
+            } else {
+              // Update retry count
+              await _localDb.updateOfflineQueueRetry(tempId, retryCount + 1);
+            }
+          } else {
+            // Update retry count
+            await _localDb.updateOfflineQueueRetry(tempId, retryCount + 1);
+          }
+        } catch (e) {
+          developer.log('Error processing queued message: $e', name: 'ChatService');
+          // Continue with next message
         }
       }
-      return [];
     } catch (e) {
-      return [];
+      developer.log('Error processing offline queue: $e', name: 'ChatService');
     }
   }
 
@@ -655,6 +837,22 @@ class ChatService {
             final affectedRows = responseData['affectedRows'] ?? 0;
             print('[SKYBYN]    ✅ Marked $affectedRows message(s) as read in database');
             developer.log('   ✅ Marked $affectedRows message(s) as read in database', name: 'Chat API');
+            
+            // Update local database
+            if (messageIDs != null && messageIDs.isNotEmpty) {
+              for (final messageId in messageIDs) {
+                await _localDb.markMessageAsViewed(messageId);
+              }
+            } else if (friendId != null) {
+              // Mark all messages from this friend as viewed in local DB
+              final messages = await _localDb.getMessages(friendId, userId ?? '');
+              for (final message in messages) {
+                if (!message.isFromMe && !message.viewed) {
+                  await _localDb.markMessageAsViewed(message.id);
+                }
+              }
+            }
+            
             return true;
           }
           throw Exception(responseData['message'] ?? 'Failed to mark messages as read');
@@ -675,10 +873,21 @@ class ChatService {
   /// Clear cache for a specific friend
   Future<void> clearCache(String friendId) async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.remove('$_cacheKeyPrefix$friendId');
-      await prefs.remove('$_cacheTimestampPrefix$friendId');
+      final userId = await _authService.getStoredUserId();
+      if (userId != null) {
+        await _localDb.deleteConversation(friendId, userId);
+      }
     } catch (e) {
+      developer.log('Error clearing cache: $e', name: 'ChatService');
+    }
+  }
+
+  /// Clear all local data (for logout)
+  Future<void> clearAll() async {
+    try {
+      await _localDb.clearAll();
+    } catch (e) {
+      developer.log('Error clearing all data: $e', name: 'ChatService');
     }
   }
 }

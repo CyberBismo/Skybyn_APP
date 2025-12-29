@@ -156,6 +156,14 @@ class MainActivity: FlutterActivity() {
             }
             
             startActivity(intent)
+            
+            // Close the app after a short delay to allow installer to open
+            // The installer will handle installation and the app will restart after completion
+            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                finishAffinity() // Close all activities
+                System.exit(0) // Exit the app
+            }, 500) // 500ms delay to ensure installer opens first
+            
             return true
         } catch (e: Exception) {
             e.printStackTrace()

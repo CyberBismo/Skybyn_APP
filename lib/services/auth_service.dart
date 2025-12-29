@@ -35,14 +35,8 @@ class AuthService {
   }
   
   static http.Client _createHttpClient() {
-    HttpClient httpClient;
-    
-    // Use default HttpClient with standard SSL validation
-    if (HttpOverrides.current != null) {
-      httpClient = HttpOverrides.current!.createHttpClient(null);
-    } else {
-      httpClient = HttpClient();
-    }
+    // Use default HttpClient with standard behavior
+    final httpClient = HttpClient();
     
     // Set user agent and timeouts
     httpClient.userAgent = 'Skybyn-App/1.0';
@@ -51,8 +45,7 @@ class AuthService {
     
     // Set auto-uncompress to handle compressed responses
     httpClient.autoUncompress = true;
-    final ioClient = IOClient(httpClient);
-    return ioClient;
+    return IOClient(httpClient);
   }
   // final fb_auth.FirebaseAuth _auth = fb_auth.FirebaseAuth.instance;
   
@@ -85,6 +78,7 @@ class AuthService {
         } else {
         }
       } catch (e) {
+        debugPrint('AuthService: Failed to get FCM token during login: $e');
       }
 
       // Get the client (should already be initialized above)
@@ -128,6 +122,7 @@ class AuthService {
           try {
             await fetchUserProfile(username);
           } catch (e) {
+            debugPrint('AuthService: Failed to fetch user profile after login: $e');
           }
 
           // Subscribe to user-specific topics after successful login
@@ -135,6 +130,7 @@ class AuthService {
             final firebaseService = FirebaseMessagingService();
             await firebaseService.subscribeToUserTopics();
           } catch (e) {
+            debugPrint('AuthService: Failed to subscribe to user topics after login: $e');
           }
 
           // Register/update FCM token with user ID after successful login

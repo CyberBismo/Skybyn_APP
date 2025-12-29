@@ -402,13 +402,16 @@ class AutoUpdateService {
         // Show download complete - ensure 100% progress
         await notificationService.showUpdateProgressNotification(
           title: 'Updating Skybyn',
-          status: 'Download complete!',
+          status: 'Download complete! Starting installation...',
           progress: 100,
         );
 
         // Call progress callback to notify download is complete
         onProgress?.call(100, 'Downloaded');
 
+        // Automatically start installation after download completes
+        // Note: This requires the caller to provide a BuildContext
+        // For now, we'll return true and let the caller handle installation
         return true;
       } else {
         client?.close();
@@ -633,10 +636,11 @@ class AutoUpdateService {
               // Ignore errors when deleting - file will be cleaned up on next update
             }
             
-            // Terminate the app immediately when installer is opened
-            final prefs = await SharedPreferences.getInstance();
-            await prefs.clear();
-            if (context.mounted) Phoenix.rebirth(context);
+            // Close the app when installer opens
+            // The installer will handle the installation, and the app will restart after installation
+            Future.delayed(const Duration(milliseconds: 500), () {
+              exit(0);
+            });
             return true;
           }
         } on PlatformException catch (e) {
@@ -688,10 +692,11 @@ class AutoUpdateService {
           // Ignore errors when deleting - file will be cleaned up on next update
         }
         
-        // Terminate the app immediately when installer is opened
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.clear();
-        if (context.mounted) Phoenix.rebirth(context);
+        // Close the app when installer opens
+        // The installer will handle the installation, and the app will restart after installation
+        Future.delayed(const Duration(milliseconds: 500), () {
+          exit(0);
+        });
         return true;
       } else if (result.type == ResultType.noAppToOpen) {
         await notificationService.showUpdateProgressNotification(

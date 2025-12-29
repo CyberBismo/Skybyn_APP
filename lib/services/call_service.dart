@@ -1,8 +1,11 @@
 import 'dart:async';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import '../config/constants.dart';
 import 'websocket_service.dart';
 import 'auth_service.dart';
+import 'foreground_service.dart';
 
 enum CallType { audio, video }
 enum CallState { idle, calling, ringing, connected, ended }
@@ -164,6 +167,9 @@ class CallService {
       _startCallTimeout();
       // Start connection check timer to ensure state updates when media arrives
       _startConnectionCheck();
+      
+      // Send push notification to wake up recipient (high priority)
+      _sendCallPushNotification(otherUserId, _currentCallId!, callType);
     } catch (e) {
       _stopConnectionCheck();
       _updateCallState(CallState.ended);
@@ -178,6 +184,8 @@ class CallService {
     required String offer,
     required String callType,
   }) async {
+    // Start foreground service for incoming calls (critical feature)
+    ForegroundService.start();
     try {
       _currentCallId = callId;
       _otherUserId = fromUserId;
@@ -303,6 +311,9 @@ class CallService {
   /// End the call
   Future<void> endCall() async {
     try {
+      // Stop foreground service when call ends (no longer needed)
+      ForegroundService.stop();
+      
       // Cancel timeout timer
       _cancelCallTimeout();
       // Stop connection check timer
@@ -364,14 +375,7 @@ class CallService {
             if ((videoTracks.isNotEmpty || audioTracks.isNotEmpty) && _remoteStream == null) {
               // Tracks exist but no stream - this means onTrack might not have fired
               // or event.streams was empty when it did fire
-              // Update state to connected since we have tracks
-              if (_callState != CallState.connected && _callState != CallState.ended) {
-                _updateCallState(CallState.connected);
-                _cancelCallTimeout();
-              }
-              
-              // Keep checking - onTrack might fire again with the stream
-              // The connection check timer will continue to run and check periodically
+              // We'll wait for an actual stream or PeerConnection state change
             }
           } catch (e) {
             // Ignore errors when checking transceivers
@@ -566,13 +570,9 @@ class CallService {
                   }
                 }
               }
-              // If we have tracks but no stream, update state to connected
-              // The connection check timer will continue to look for streams
-              if ((hasVideoTrack || hasAudioTrack) && _remoteStream == null && 
-                  _callState != CallState.connected && _callState != CallState.ended) {
-                _updateCallState(CallState.connected);
-                _cancelCallTimeout();
-              }
+              // If we have tracks but no stream, we'll wait for an actual stream
+              // or PeerConnection state change. The connection check timer 
+              // will continue to look for streams.
             });
           }
         });
@@ -770,6 +770,32 @@ class CallService {
       if (videoTrack != null) {
         await Helper.switchCamera(videoTrack);
       }
+    }
+  }
+
+  /// Send high-priority push notification to recipient to wake up the app
+  Future<void> _sendCallPushNotification(String targetUserId, String callId, CallType callType) async {
+    try {
+      final currentUserId = await _authService.getStoredUserId();
+      if (currentUserId == null) return;
+
+      final response = await http.post(
+        Uri.parse('${ApiConstants.apiBase}/call/send_call_notification.php'),
+        body: {
+          'user': targetUserId,
+          'from': currentUserId,
+          'callId': callId,
+          'callType': callType == CallType.video ? 'video' : 'audio',
+        },
+      ).timeout(const Duration(seconds: 5));
+
+      if (response.statusCode != 200) {
+        debugPrint('❌ [Call] Failed to send push notification: ${response.statusCode}');
+      } else {
+        debugPrint('✅ [Call] Push notification sent to recipient');
+      }
+    } catch (e) {
+      debugPrint('❌ [Call] Error sending push notification: $e');
     }
   }
 }

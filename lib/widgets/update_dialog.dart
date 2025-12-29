@@ -90,36 +90,34 @@ class _UpdateDialogState extends State<UpdateDialog> {
         throw Exception('Failed to download update');
       }
 
-      // Download complete - show 100% and "Downloaded" status
+      // Download complete - automatically proceed to installation
       if (mounted) {
         setState(() {
           _updateProgress = 1.0; // 100%
-          _updateStatus = 'Downloaded';
+          _updateStatus = 'Downloaded. Starting installation...';
         });
         
-        // Brief pause to show "Downloaded" status
-        await Future.delayed(const Duration(milliseconds: 500));
+        // Brief pause to show "Downloaded" status, then auto-install
+        await Future.delayed(const Duration(milliseconds: 800));
       }
 
-      // Transition to installing
+      // Automatically start installation after download
       if (mounted) {
         setState(() {
-          _updateStatus = 'Installing...';
-          // Keep progress at 100% during installation
+          _updateStatus = 'Opening installer...';
           _updateProgress = 1.0;
         });
       }
 
-      // Install the update with progress callback
+      // Install the update automatically
       final installSuccess = await AutoUpdateService.installUpdate(context,
         onProgress: (progress, status) {
           if (mounted) {
             setState(() {
-              // Keep at 100% during installation, just update status
               _updateProgress = 1.0;
               _updateStatus = status.contains('Installing') || status.contains('Opening') 
                   ? status 
-                  : 'Installing...';
+                  : 'Opening installer...';
             });
           }
         },
@@ -131,8 +129,11 @@ class _UpdateDialogState extends State<UpdateDialog> {
       // Cancel progress notification on success
       await AutoUpdateService.cancelUpdateProgressNotification();
 
-      // Terminate the app immediately when installer is opened
-      exit(0);
+      // Close the app when installer opens (installation will complete in background)
+      // The app will automatically restart after installation completes
+      if (mounted) {
+        exit(0);
+      }
     } catch (e) {
       // Cancel progress notification on error
       await AutoUpdateService.cancelUpdateProgressNotification();

@@ -1,45 +1,44 @@
 {
   "project_info": {
-    "project_number": "414894254672",
-    "project_id": "skybyn-mobile",
-    "storage_bucket": "skybyn-mobile.firebasestorage.app"
+    "project_number": "214777449741",
+    "firebase_url": "https://skybyn-default-rtdb.europe-west1.firebasedatabase.app",
+    "project_id": "skybyn",
+    "storage_bucket": "skybyn.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:414894254672:android:f00507564cf399599b3f55",
+        "mobilesdk_app_id": "1:214777449741:android:553e8bd29c48bfc5617444",
         "android_client_info": {
           "package_name": "no.skybyn.app"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "214777449741-8i8jf7ghir4vjm6c7k1ldsabmvkv71rg.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
-          "current_key": "AIzaSyD7CemVnuEXGgJP1J4hAGxcRvHM_ouRTuQ"
+          "current_key": "AIzaSyCivdTeGKJZlnE5SYjBr1RwyTqFPfb5cTo"
         }
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
-        }
-      }
-    },
-    {
-      "client_info": {
-        "mobilesdk_app_id": "1:414894254672:android:f00507564cf399599b3f55",
-        "android_client_info": {
-          "package_name": "no.skybyn.app.debug"
-        }
-      },
-      "oauth_client": [],
-      "api_key": [
-        {
-          "current_key": "AIzaSyD7CemVnuEXGgJP1J4hAGxcRvHM_ouRTuQ"
-        }
-      ],
-      "services": {
-        "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "214777449741-8i8jf7ghir4vjm6c7k1ldsabmvkv71rg.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "214777449741-at0un58r8pk03886fnhflgsdtehjtd2n.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "no.skybyn.app"
+              }
+            }
+          ]
         }
       }
     }

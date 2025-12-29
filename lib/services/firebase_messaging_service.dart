@@ -23,30 +23,17 @@ import 'dart:async';
 
 // Helper function to log chat events - always logs regardless of zone filters
 void _logChat(String prefix, String message) {
-  // Use developer.log which always logs, bypassing zone filters
+  // Use developer.log for tracing chat events
   developer.log(message, name: prefix);
-  // Also use debugPrint as backup
-  debugPrint('$prefix: $message');
 }
 
 // Handle background messages
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   try {
-    // Log ALL incoming Firebase background messages
-    final timestamp = DateTime.now().toIso8601String();
+    // Log basic info about incoming Firebase background message
     final type = message.data['type']?.toString();
-    final messageId = message.messageId ?? 'no-id';
-    
-    developer.log('═══════════════════════════════════════════════════════', name: 'FCM Background');
-    developer.log('📨 Background message received at $timestamp', name: 'FCM Background');
-    developer.log('   Message ID: $messageId', name: 'FCM Background');
-    developer.log('   Type: $type', name: 'FCM Background');
-    developer.log('   Notification title: ${message.notification?.title ?? "null"}', name: 'FCM Background');
-    developer.log('   Notification body: ${message.notification?.body ?? "null"}', name: 'FCM Background');
-    developer.log('   Full data: ${message.data}', name: 'FCM Background');
-    developer.log('   Has notification payload: ${message.notification != null}', name: 'FCM Background');
-    developer.log('═══════════════════════════════════════════════════════', name: 'FCM Background');
+    developer.log('📨 Background message: ID=${message.messageId}, Type=$type', name: 'FCM Background');
     
     // Process all messages, including in debug mode (for testing)
     // Debug mode check removed to ensure notifications work during development
@@ -423,6 +410,7 @@ class FirebaseMessagingService {
       
       if (_fcmToken != null) {
         _logChat('FCM Token', '✅ FCM token retrieved successfully');
+        print('🔥 FCM TOKEN: $_fcmToken'); // Log token for debugging
       } else {
         _logChat('FCM Token', '⚠️ FCM token is null');
       }

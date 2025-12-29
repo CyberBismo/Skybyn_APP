@@ -111,7 +111,7 @@ android {
     // This allows installing both versions simultaneously on the same device
     buildTypes {
         debug {
-            applicationIdSuffix ".debug"
+            // applicationIdSuffix ".debug"
             // Explicitly set debug signing
             signingConfig signingConfigs.debug
         }

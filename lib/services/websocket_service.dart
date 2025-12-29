@@ -8,22 +8,26 @@ import 'package:web_socket_channel/io.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/post.dart';
 import '../models/friend.dart';
+import '../models/message.dart';
+import '../models/user.dart';
 import 'auth_service.dart';
 import 'device_service.dart';
 import 'notification_service.dart';
 import 'notification_sound_service.dart';
 import 'friend_service.dart';
 import 'in_app_notification_service.dart';
+import 'local_message_database.dart';
 import '../main.dart';
+import '../config/constants.dart';
 
 // Helper function to log chat events - always logs regardless of zone filters
 void _logChat(String prefix, String message) {
-  // Use developer.log which always logs, bypassing zone filters
+  // Use developer.log for tracing chat events
   developer.log(message, name: prefix);
-  // Also use debugPrint as backup
-  debugPrint('$prefix: $message');
 }
 
 /// Unified WebSocket service that handles both real-time updates and background notifications
@@ -92,6 +96,7 @@ class WebSocketService {
   final NotificationSoundService _notificationSoundService = NotificationSoundService();
   final FriendService _friendService = FriendService();
   final InAppNotificationService _inAppNotificationService = InAppNotificationService();
+  final LocalMessageDatabase _localDb = LocalMessageDatabase();
 
   bool get isConnected => _isConnected;
   bool get isInitialized => _isInitialized;
@@ -141,10 +146,6 @@ class WebSocketService {
     }
   }
 
-  void _logConnectionQuality() {
-    final successRate = _connectionMetrics['totalConnections'] > 0 ? (_connectionMetrics['successfulConnections'] / _connectionMetrics['totalConnections'] * 100) : 0.0;
-
-  }
 
   // Message queuing and acknowledgment
   String _generateMessageId() {
@@ -854,6 +855,23 @@ class WebSocketService {
               final fromUserId = data['fromUserId']?.toString() ?? '';
               _onTypingStatus?.call(fromUserId, false);
               break;
+            case 'recipient_offline':
+              // Recipient is offline - send Firebase notification from sender's app
+              final toUserId = data['to']?.toString() ?? '';
+              final messageId = data['messageId']?.toString();
+              final message = data['message']?.toString() ?? '';
+              final fromName = data['fromName']?.toString();
+              
+              _logChat('WebSocket Recipient Offline', '📴 Recipient offline: to=$toUserId, messageId=$messageId');
+              
+              // Send Firebase notification to the recipient
+              _sendFirebaseNotificationToRecipient(
+                toUserId: toUserId,
+                messageId: messageId,
+                message: message,
+                fromName: fromName,
+              );
+              break;
             case 'online_status':
               final userId = data['userId']?.toString() ?? 
                             data['user_id']?.toString() ?? 
@@ -1467,6 +1485,111 @@ class WebSocketService {
       final hasNavigator = navigatorKey.currentState != null;
       _logChat('WebSocket Foreground Check', 'Exception checking lifecycle: $e, hasNavigator: $hasNavigator');
       return hasNavigator;
+    }
+  }
+
+  /// Send Firebase notification to recipient when they are offline
+  /// This is called when the WebSocket server notifies us that the recipient is not connected
+  Future<void> _sendFirebaseNotificationToRecipient({
+    required String toUserId,
+    String? messageId,
+    required String message,
+    String? fromName,
+  }) async {
+    try {
+      _logChat('WebSocket Firebase Notification', 'Sending Firebase notification to user $toUserId');
+      
+      // Get current user's profile to get avatar and username
+      final authService = AuthService();
+      final currentUserId = await authService.getStoredUserId();
+      if (currentUserId == null) {
+        _logChat('WebSocket Firebase Notification', 'Cannot send notification - current user ID is null');
+        return;
+      }
+      
+      // Get current user's profile (use cached if available, otherwise fetch)
+      User? currentUser;
+      try {
+        // Try to get from cache first
+        await authService.initPrefs();
+        final prefs = await SharedPreferences.getInstance();
+        final userProfileJson = prefs.getString('userProfile');
+        if (userProfileJson != null) {
+          final userData = json.decode(userProfileJson);
+          currentUser = User.fromJson(userData);
+        } else {
+          // Fetch from API if not cached
+          final username = await authService.getStoredUsername();
+          if (username != null) {
+            currentUser = await authService.fetchUserProfile(username);
+          }
+        }
+      } catch (e) {
+        _logChat('WebSocket Firebase Notification', 'Error getting user profile: $e');
+        // Continue with fallback values
+      }
+      
+      // Get sender name (prefer fromName from server, then nickname, then username)
+      String senderName;
+      if (fromName != null && fromName.isNotEmpty) {
+        senderName = fromName;
+      } else if (currentUser != null && currentUser.nickname.isNotEmpty) {
+        senderName = currentUser.nickname;
+      } else if (currentUser != null && currentUser.username.isNotEmpty) {
+        senderName = currentUser.username;
+      } else {
+        senderName = 'Someone';
+      }
+      
+      // Get sender avatar
+      String? senderAvatar;
+      if (currentUser?.avatar?.isNotEmpty == true) {
+        final userId = currentUser!.id;
+        senderAvatar = 'https://skybyn.no/uploads/avatars/$userId/${currentUser.avatar}';
+      }
+      
+      // Prepare message preview (first 100 chars)
+      final messagePreview = message.length > 100 ? '${message.substring(0, 100)}...' : message;
+      
+      // Send Firebase notification via API
+      final firebaseUrl = '${ApiConstants.apiBase}/firebase.php';
+      final firebaseData = {
+        'user': toUserId,
+        'title': senderName,
+        'body': messagePreview,
+        'type': 'chat',
+        'from': currentUserId,
+        'messageId': messageId ?? '',
+        'priority': 'normal',
+        'channel': 'chat',
+        if (senderAvatar != null) 'avatar': senderAvatar,
+      };
+      
+      _logChat('WebSocket Firebase Notification', 'Sending to Firebase API: $firebaseUrl');
+      _logChat('WebSocket Firebase Notification', 'Data: ${json.encode(firebaseData)}');
+      
+      final response = await http.post(
+        Uri.parse(firebaseUrl),
+        body: firebaseData,
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+      ).timeout(
+        const Duration(seconds: 5),
+        onTimeout: () {
+          _logChat('WebSocket Firebase Notification', 'Firebase API request timed out');
+          throw TimeoutException('Firebase API request timed out');
+        },
+      );
+      
+      if (response.statusCode == 200) {
+        _logChat('WebSocket Firebase Notification', '✅ Firebase notification sent successfully');
+      } else {
+        _logChat('WebSocket Firebase Notification', '❌ Firebase notification failed: ${response.statusCode} - ${response.body}');
+      }
+    } catch (e, stackTrace) {
+      _logChat('WebSocket Firebase Notification', '❌ Error sending Firebase notification: $e');
+      developer.log('Stack trace', name: 'WebSocket Firebase Notification', error: e, stackTrace: stackTrace);
     }
   }
 

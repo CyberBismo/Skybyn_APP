@@ -170,47 +170,50 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
   }
 
   @override
-  @override
   void dispose() {
-    _recordingTimer?.cancel();
-    _audioRecorder.dispose();
-    super.dispose();
-    WidgetsBinding.instance.removeObserver(this);
-    // Clear the current open chat when leaving the screen
-    if (_chatMessageCountService.currentOpenChatFriendId == widget.friend.id) {
-      _chatMessageCountService.setCurrentOpenChat(null);
-    }
-    _closeMenu();
-    _closeMessageOptions();
-    _messageFocusNode.dispose();
-    _messageController.dispose();
-    _scrollController.dispose();
+    // Cancel all timers first
     _onlineStatusTimer?.cancel();
     _typingTimer?.cancel();
     _typingStopTimer?.cancel();
     _messageCheckTimer?.cancel();
     _recordingTimer?.cancel();
-    _amplitudeSubscription?.cancel();
+    
+    // Dispose controllers and resources
     _typingAnimationController.dispose();
     _audioRecorder.dispose();
+    _messageFocusNode.dispose();
+    _messageController.dispose();
+    _scrollController.dispose();
+    
+    // Cleanup subscriptions and listeners
+    WidgetsBinding.instance.removeObserver(this);
+    _amplitudeSubscription?.cancel();
+    _onlineStatusSubscription?.cancel();
+    
+    // Clear the current open chat when leaving the screen
+    if (_chatMessageCountService.currentOpenChatFriendId == widget.friend.id) {
+      _chatMessageCountService.setCurrentOpenChat(null);
+    }
+    
     // Send typing stop when leaving screen
-      if (_firebaseRealtimeService.isConnected && _currentUserId != null) {
-        _firebaseRealtimeService.sendTypingStop(widget.friend.id);
-      }
-      // Cancel online status subscription when widget is disposed
-      _onlineStatusSubscription?.cancel();
-      // Remove WebSocket online status callback when widget is disposed
-      if (_webSocketOnlineStatusCallback != null) {
-        _webSocketService.removeOnlineStatusCallback(_webSocketOnlineStatusCallback!);
-        _webSocketOnlineStatusCallback = null;
-      }
-      // Remove WebSocket chat message callback when widget is disposed
-      if (_webSocketChatMessageCallback != null) {
-        _webSocketService.removeChatMessageCallback(_webSocketChatMessageCallback!);
-        _webSocketChatMessageCallback = null;
-      }
-      // Close menu if open
-      _closeMenu();
+    if (_firebaseRealtimeService.isConnected && _currentUserId != null) {
+      _firebaseRealtimeService.sendTypingStop(widget.friend.id);
+    }
+    
+    // Remove WebSocket callbacks
+    if (_webSocketOnlineStatusCallback != null) {
+      _webSocketService.removeOnlineStatusCallback(_webSocketOnlineStatusCallback!);
+      _webSocketOnlineStatusCallback = null;
+    }
+    if (_webSocketChatMessageCallback != null) {
+      _webSocketService.removeChatMessageCallback(_webSocketChatMessageCallback!);
+      _webSocketChatMessageCallback = null;
+    }
+    
+    // Close overlays
+    _closeMenu();
+    _closeMessageOptions();
+    
     super.dispose();
   }
 
@@ -1602,7 +1605,6 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           // Call button - only visible if rank > 3
-                          if (_userRank != null && _userRank! > 3) ...[
                             Container(
                               width: 44,
                               height: 44,
@@ -1680,7 +1682,6 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
                               ),
                             ),
                             const SizedBox(width: 12),
-                          ],
                           // More options button
                           GestureDetector(
                             key: _menuButtonKey,
@@ -1993,7 +1994,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
                                     height: 40,
                                     decoration: BoxDecoration(
                                       color: _isRecording 
-                                          ? Colors.red.withOpacity(0.8)
+                                          ? (_shouldCancelRecording ? Colors.orange.withOpacity(0.8) : Colors.green.withOpacity(0.8))
                                           : Colors.white.withOpacity(0.2),
                                       shape: BoxShape.circle,
                                     ),
@@ -2251,12 +2252,14 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
           border: Border.all(
             color: _shouldCancelRecording 
                 ? Colors.orange.withOpacity(0.9)
-                : Colors.red.withOpacity(0.9),
+                : (_isRecording ? Colors.green.withOpacity(0.9) : Colors.red.withOpacity(0.9)),
             width: 2.5,
           ),
           boxShadow: [
             BoxShadow(
-              color: (_shouldCancelRecording ? Colors.orange : Colors.red).withOpacity(0.6),
+              color: (_shouldCancelRecording 
+                  ? Colors.orange 
+                  : (_isRecording ? Colors.green : Colors.red)).withOpacity(0.6),
               blurRadius: 20,
               spreadRadius: 4,
             ),
@@ -2268,6 +2271,8 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
             alignment: Alignment.center,
             child: _AudioVisualizerWidget(
               audioLevel: _audioLevel,
+              isReadyToSend: _isRecording && !_shouldCancelRecording,
+              isCancelled: _shouldCancelRecording,
             ),
           ),
         ),
@@ -4138,10 +4143,14 @@ class _AudioPlayerWidgetState extends State<_AudioPlayerWidget> {
 /// Audio visualizer widget that shows audio waveform
 class _AudioVisualizerWidget extends StatefulWidget {
   final double audioLevel; // 0.0 to 1.0
+  final bool isReadyToSend;
+  final bool isCancelled;
 
   const _AudioVisualizerWidget({
     super.key,
     required this.audioLevel,
+    this.isReadyToSend = false,
+    this.isCancelled = false,
   });
 
   @override
@@ -4188,7 +4197,7 @@ class _AudioVisualizerWidgetState extends State<_AudioVisualizerWidget> with Sin
   @override
   Widget build(BuildContext context) {
     // Create animated bars based on real-time audio level
-    final barCount = 12;
+    final barCount = 20; // Increased for denser waveform
     final bars = List.generate(barCount, (index) {
       // Base position for each bar (0.0 to 1.0)
       final position = index / barCount;
@@ -4202,37 +4211,45 @@ class _AudioVisualizerWidgetState extends State<_AudioVisualizerWidget> with Sin
       // Primary driver: actual audio level from microphone
       // Each bar gets a different response based on position to create variation
       // Use a sine wave pattern so bars peak at different times
-      final barVariation = (math.sin(barPhase * 2 + _animationOffset * 0.5) + 1) / 2; // 0 to 1
+      final barVariation = (math.sin(barPhase * 3 + _animationOffset * 0.7) + 1) / 2; // 0 to 1
       
-      // Combine: 80% actual audio level, 20% position-based variation for wave effect
+      // Combine: 85% actual audio level, 15% position-based variation for wave effect
       // This makes bars respond to voice but with a dynamic wave pattern
-      final audioModulated = widget.audioLevel * (0.6 + barVariation * 0.4);
-      final combinedLevel = (audioModulated * 0.8 + waveOffset * 0.2).clamp(0.0, 1.0);
+      final audioModulated = widget.audioLevel * (0.5 + barVariation * 0.5);
+      final combinedLevel = (audioModulated * 0.85 + waveOffset * 0.15).clamp(0.0, 1.0);
       
       // Calculate height - directly responsive to audio
       final minHeight = 4.0;
-      final maxHeight = 30.0;
+      final maxHeight = 40.0; // Slightly taller for better visualization
       final height = minHeight + (combinedLevel * (maxHeight - minHeight));
       
       // Color intensity based on audio level (brighter when louder)
       final baseOpacity = 0.4;
       final colorIntensity = (baseOpacity + (widget.audioLevel * 0.6)).clamp(0.3, 1.0);
       
+      // Determine bar color
+      Color barColor = Colors.red;
+      if (widget.isCancelled) {
+        barColor = Colors.orange;
+      } else if (widget.isReadyToSend) {
+        barColor = Colors.green;
+      }
+
       return AnimatedContainer(
         duration: const Duration(milliseconds: 50), // Faster updates for responsiveness
         curve: Curves.easeOut,
-        width: 2.5,
+        width: 2.0, // Thinner bars for density
         height: height,
         margin: const EdgeInsets.symmetric(horizontal: 0.5),
         decoration: BoxDecoration(
-          color: Colors.red.withOpacity(colorIntensity),
-          borderRadius: BorderRadius.circular(1.5),
+          color: barColor.withOpacity(colorIntensity),
+          borderRadius: BorderRadius.circular(1.0),
         ),
       );
     });
 
     return SizedBox(
-      width: 60,
+      width: 70, // Slightly wider for more bars
       height: 60,
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,

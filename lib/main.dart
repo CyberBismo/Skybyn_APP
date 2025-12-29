@@ -43,11 +43,12 @@ import 'services/translation_service.dart';
 import 'services/background_update_scheduler.dart';
 import 'services/background_activity_service.dart';
 import 'services/call_service.dart';
-import 'services/foreground_service.dart';
+import 'services/message_sync_worker.dart';
 import 'services/friend_service.dart';
 import 'services/chat_message_count_service.dart';
 import 'services/navigation_service.dart';
 import 'services/location_service.dart';
+import 'services/chat_service.dart';
 import 'config/constants.dart';
 // Widgets and Models
 import 'widgets/incoming_call_notification.dart';
@@ -91,8 +92,6 @@ Future<void> main() async {
         SystemUiMode.edgeToEdge,
       );
 
-      // Initialize HTTP overrides to handle SSL certificates
-      HttpOverrides.global = MyHttpOverrides();
 
       // Initialize theme and translation services
       final themeService = ThemeService();
@@ -252,15 +251,6 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
 
     // Initialize services in the background
     _initializeServices();
-    
-    // Start foreground service after app is fully loaded and in foreground
-    // Android 12+ requires app to be in foreground to start foreground service
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      // Delay slightly to ensure app is fully in foreground
-      Future.delayed(const Duration(milliseconds: 500), () {
-        ForegroundService.start();
-      });
-    });
   }
   
   /// Initialize deep link handling
@@ -335,8 +325,17 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       // Initialize background activity service (updates activity even when app is closed)
       await BackgroundActivityService.initialize();
       
-      // Don't start foreground service here - Android 12+ blocks foreground services
-      // started from background. We'll start it when app is in foreground.
+      // Initialize WorkManager for periodic message sync (battery-efficient)
+      // WorkManager handles background tasks without requiring a foreground service notification
+      await MessageSyncWorker.initialize();
+      await MessageSyncWorker.registerPeriodicSync();
+      
+      // Note: Foreground service removed to avoid notification
+      // Background functionality is handled by:
+      // - WorkManager: Periodic message sync (every 15 minutes)
+      // - WebSocket: Active when app is in foreground
+      // - FCM: Push notifications when app is closed
+      // The app won't appear in background activity list, but no notification will show
       
       // Set up call callbacks for incoming calls via WebSocket
       _setupCallHandlers();
@@ -583,9 +582,9 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     // Manage foreground service based on app lifecycle
     switch (state) {
       case AppLifecycleState.resumed:
-        // App is in foreground - start foreground service here (Android 12+ requirement)
-        // Foreground services can only be started when app is in foreground
-        ForegroundService.start();
+        // App is in foreground - process offline queue immediately
+        final chatService = ChatService();
+        chatService.processOfflineQueue();
         
         // Ensure Firebase and WebSocket are connected
         // Reconnect Firebase if not connected (it may have been disconnected in background)
@@ -1442,13 +1441,3 @@ class __InitialScreenState extends State<_InitialScreen> with TickerProviderStat
   }
 }
 
-class MyHttpOverrides extends HttpOverrides {
-  @override
-  HttpClient createHttpClient(SecurityContext? context) {
-    final client = super.createHttpClient(context);
-    
-    // Use default SSL validation (secure)
-    
-    return client;
-  }
-}

@@ -13,6 +13,7 @@ import 'firebase_messaging_service.dart';
 import 'auto_update_service.dart';
 import 'background_update_scheduler.dart';
 import 'websocket_service.dart';
+import 'call_service.dart';
 import 'auth_service.dart';
 import 'friend_service.dart';
 import '../widgets/update_dialog.dart';
@@ -184,9 +185,8 @@ class NotificationService {
     }
     
     if (action == 'answer') {
-      // When user answers, the app should open and WebSocket will handle the call
-      // The call offer should still be available when app opens
-      // Navigation will be handled by the app's main navigation/routing
+      // When user answers, the app should open and navigate to call screen
+      NotificationService()._handleCallNotificationTap(data);
     } else if (action == 'decline') {
       // Send call_end message via WebSocket
       // Import WebSocketService to send decline message
@@ -259,14 +259,36 @@ class NotificationService {
   }
 
   void _handleCallNotificationTap(Map<String, dynamic> data) {
-    final sender = data['sender']?.toString();
-    final callType = data['callType']?.toString() ?? 'video';
+    final fromUserId = data['fromUserId']?.toString() ?? data['sender']?.toString();
+    final callTypeStr = data['callType']?.toString() ?? 'audio';
+    final fromName = data['fromName']?.toString() ?? 'Someone';
+    final fromAvatar = data['fromAvatar']?.toString() ?? '';
     
-    if (sender == null) {
+    if (fromUserId == null) {
       return;
     }
-    // TODO: Navigate to call screen
-    // This will need to be handled by the app's navigation system
+
+    final friend = Friend(
+      id: fromUserId,
+      username: fromName,
+      nickname: fromName,
+      avatar: fromAvatar,
+      online: true, // We assume they are online if they are calling
+    );
+
+    final callType = callTypeStr == 'video' ? CallType.video : CallType.audio;
+
+    final navigator = navigatorKey.currentState;
+    if (navigator != null) {
+      navigator.pushNamed(
+        '/call',
+        arguments: {
+          'friend': friend,
+          'callType': callType,
+          'isIncoming': true,
+        },
+      );
+    }
   }
 
   /// Trigger update check for app_update notifications

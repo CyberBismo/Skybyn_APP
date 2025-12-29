@@ -18,7 +18,6 @@ class ApiConstants {
   static String get sendEmailVerification => '$apiBase/sendEmailVerification.php';
   static String get verifyEmail => '$apiBase/verify_email.php';
   static String get register => '$apiBase/register.php';
-  static String get resetPassword => '$apiBase/reset.php';
   static String get token => '$apiBase/token.php';
 
   // Posts
