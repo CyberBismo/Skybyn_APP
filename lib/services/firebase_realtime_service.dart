@@ -4,6 +4,7 @@ import 'dart:async';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:firebase_database/firebase_database.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../models/post.dart';
 import 'auth_service.dart';
 import '../config/constants.dart';
@@ -27,6 +28,7 @@ class FirebaseRealtimeService {
   // Firestore disabled - using WebSocket for real-time features instead
   // final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseDatabase _database = FirebaseDatabase.instance;
+  final FirebaseAuth _auth = FirebaseAuth.instance;
   bool _isInitialized = false;
   bool _isConnected = false;
   String? _userId;
@@ -63,12 +65,78 @@ class FirebaseRealtimeService {
     }
 
     try {
+      // Get current logged-in user ID
+      final authService = AuthService();
+      final user = await authService.getStoredUserProfile();
+      
+      if (user == null || user.id.isEmpty) {
+        // No user logged in, cannot authenticate with Firebase securely
+        // We could try anonymous if needed, but for now just return
+        print('[SKYBYN] ⚠️ [Firebase] No user logged in, skipping init');
+        return;
+      }
+      
+      // Check if we are already signed in with the correct UID
+      final currentUser = _auth.currentUser;
+      if (currentUser != null && currentUser.uid == user.id) {
+         print('[SKYBYN] ℹ️ [Firebase] Session exists for ${currentUser.uid}, but forcing re-auth to ensure token validity.');
+         // We do NOT return here anymore, to fix the permission denied errors by forcing a fresh token
+         // _isInitialized = true;
+         // return;
+      } else if (currentUser != null) {
+         print('[SKYBYN] ℹ️ [Firebase] Signed in as different user (${currentUser.uid}) != (${user.id}). Signing out.');
+         await _auth.signOut();
+      }
+
+      // Fetch Custom Token from PHP Backend
+      print('[SKYBYN] 🔄 [Firebase] Fetching custom auth token for user ${user.id}...');
+      final response = await http.post(
+        Uri.parse(ApiConstants.authFirebase),
+        body: {'user_id': user.id}
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data['responseCode'] == 1 && data['token'] != null) {
+          String customToken = data['token'];
+          
+          // Sign in to Firebase with the custom token
+          await _auth.signInWithCustomToken(customToken);
+          print('[SKYBYN] ✅ [Firebase] Signed in with Custom Token as user ${user.id}');
+          _isInitialized = true;
+        } else {
+           print('[SKYBYN] ⚠️ [Firebase] Token generation failed: ${data['message']}');
+           // Fallback to anonymous if custom token fails (though unlikely to work if admin restricted)
+           await _signInAnonymously();
+        }
+      } else {
+         print('[SKYBYN] ⚠️ [Firebase] Token API error: ${response.statusCode}');
+         await _signInAnonymously();
+      }
+      
       // Generate session ID
       _sessionId = _generateSessionId();
       
-      _isInitialized = true;
     } catch (e) {
-      rethrow;
+      // Don't rethrow - allow app to function partially without Firebase
+      print('[SKYBYN] ⚠️ [Firebase] Realtime Service init error: $e');
+    }
+  }
+
+  Future<void> _signInAnonymously() async {
+    try {
+      if (_auth.currentUser == null) {
+        await _auth.signInAnonymously();
+        print('[SKYBYN] ✅ [Firebase] Signed in anonymously (Fallback)');
+      }
+    } catch (e) {
+      // Only log if it's NOT the admin-restricted error to reduce noise, 
+      // or log it as a specific warning that configuration is needed.
+      if (e.toString().contains('admin-restricted-operation')) {
+         print('[SKYBYN] ❌ [Firebase] Anonymous login disabled in Firebase Console.');
+      } else {
+         print('[SKYBYN] ⚠️ [Firebase] Anonymous sign-in failed: $e');
+      }
     }
   }
 
@@ -97,7 +165,7 @@ class FirebaseRealtimeService {
       _onOnlineStatusCallbacks.add(onOnlineStatus);
     }
 
-    // Ensure service is initialized
+    // Ensure service is initialized (including auth)
     if (!_isInitialized) {
       await initialize();
     }
@@ -182,8 +250,23 @@ class FirebaseRealtimeService {
   /// Set up chat message listener for a specific chat
   /// WebSocket is the primary method for real-time chat delivery
   /// This listener acts as a fallback when WebSocket is unavailable
-  void setupChatListener(String friendId, Function(String, String, String, String) onMessage) {
-    if (_userId == null) return;
+  Future<void> setupChatListener(String friendId, Function(String, String, String, String) onMessage) async {
+    // Ensure service is initialized and authenticated first
+    if (!_isInitialized) {
+      await initialize();
+    }
+    
+    // Ensure we have the user ID
+    if (_userId == null) {
+       final authService = AuthService();
+       final user = await authService.getStoredUserProfile();
+       _userId = user?.id;
+    }
+
+    if (_userId == null) {
+      print('[SKYBYN] ⚠️ [Firebase] Cannot setup chat listener: User ID is null');
+      return;
+    }
 
     _chatMessagesSubscription?.cancel();
     
@@ -199,34 +282,42 @@ class FirebaseRealtimeService {
     // If friendId is provided, we could filter client-side since RTDB doesn't support multiple query clauses easily
     // But for now, we'll listen to all and filter in the callback
     
-    _chatMessagesSubscription = query.onChildAdded.listen((event) {
-      final data = event.snapshot.value as Map<dynamic, dynamic>?;
-      if (data != null) {
-        final messageId = data['messageId']?.toString() ?? event.snapshot.key ?? '';
-        final fromUserId = data['fromUserId']?.toString() ?? '';
-        final toUserId = data['toUserId']?.toString() ?? '';
-        final message = data['message']?.toString() ?? '';
-        final type = data['type']?.toString() ?? '';
-        
-        // Filter by friendId if needed
-        if (friendId.isNotEmpty && fromUserId != friendId) {
-          return;
+    try {
+      _chatMessagesSubscription = query.onChildAdded.listen((event) {
+        final data = event.snapshot.value as Map<dynamic, dynamic>?;
+        if (data != null) {
+          final messageId = data['messageId']?.toString() ?? event.snapshot.key ?? '';
+          final fromUserId = data['fromUserId']?.toString() ?? '';
+          final toUserId = data['toUserId']?.toString() ?? '';
+          final message = data['message']?.toString() ?? '';
+          final type = data['type']?.toString() ?? '';
+          
+          // Filter by friendId if needed
+          if (friendId.isNotEmpty && fromUserId != friendId) {
+            return;
+          }
+          
+          // Only process chat messages
+          if (type == 'chat' || type.isEmpty) { // Handle legacy/missing type
+              if (message.isNotEmpty) {
+                onMessage(messageId, fromUserId, toUserId, message);
+                
+                // Remove notification after processing to prevent duplicates
+                // and keep the node clean
+                event.snapshot.ref.remove(); 
+              }
+          }
         }
-        
-        // Only process chat messages
-        if (type == 'chat' || type.isEmpty) { // Handle legacy/missing type
-             if (message.isNotEmpty) {
-               onMessage(messageId, fromUserId, toUserId, message);
-               
-               // Remove notification after processing to prevent duplicates
-               // and keep the node clean
-               event.snapshot.ref.remove(); 
-             }
+      }, onError: (error) {
+        // Ignore permission denied errors if they happen occasionally during auth transition
+        if (!error.toString().contains('permission-denied')) {
+           print('[SKYBYN] ⚠️ [Firebase] Chat listener error: $error');
         }
-      }
-    }, onError: (error) {
-      print('[SKYBYN] ⚠️ [Firebase] Chat listener error: $error');
-    });
+      });
+      print('[SKYBYN] ✅ [Firebase] Chat listener set up for user $_userId');
+    } catch (e) {
+      print('[SKYBYN] ⚠️ [Firebase] Failed to setup chat listener: $e');
+    }
   }
 
   /// Fetch post data from your API when notification is received

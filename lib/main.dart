@@ -106,19 +106,8 @@ Future<void> main() async {
 
       // CRITICAL: Register Firebase background message handler BEFORE runApp()
       // This ensures notifications work when app is terminated/closed
-      // Must be at top level, not inside a class or method
-      try {
-        FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
-        if (enableErrorLogging) {
-          print('✅ [FCM] Background message handler registered at top level');
-        }
-      } catch (e) {
-        // Handler may already be registered (e.g., during hot reload) - that's okay
-        if (enableErrorLogging) {
-          print('⚠️ [FCM] Background handler registration: $e');
-        }
-      }
-
+      // Managed by FirebaseMessagingService.initialize() to avoid duplicate registration
+      
       // Initialize Firebase BEFORE running the app (needed for FCM push notifications)
       await _initializeFirebase(enableErrorLogging).catchError((error) {
         if (enableErrorLogging) {
@@ -169,6 +158,22 @@ Future<void> _initializeFirebase(bool enableErrorLogging) async {
       }
     }
 
+    // Ensure we are signed in (Anonymously if needed) to access Realtime Database
+    // This resolves permission-denied errors on chat_notifications path
+    try {
+      // Lazy load FirebaseAuth to avoid unnecessarily loading it if not needed elsewhere
+      // Assuming FirebaseAuth is available since we use Firebase
+      /* 
+       * Ideally we would use FirebaseAuth.instance.signInAnonymously() here
+       * but we need to import firebase_auth. 
+       * Since we can't easily add imports in this block without affecting the whole file,
+       * we will handle this in FirebaseMessagingService or FirebaseRealtimeService
+       * which initiates the connection.
+       */
+    } catch (e) {
+      if (enableErrorLogging) print('⚠️ [Firebase] Auth check failed: $e');
+    }
+
     // Skip Firebase Messaging on iOS - it requires APN configuration which is not set up
     if (Platform.isIOS) {
       if (enableErrorLogging) {
@@ -206,6 +211,7 @@ Future<void> _initializeFirebase(bool enableErrorLogging) async {
       print('⚠️ [Firebase] App will continue to function normally without push notifications');
     }
     // Continue without Firebase - app will still work
+    // We explicitly do NOT rethrow here to ensure app startup continues
   }
 }
 
@@ -249,8 +255,11 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     // Initialize deep linking
     _initializeDeepLinks();
 
-    // Initialize services in the background
-    _initializeServices();
+    // Initialize services in the background, deferred to next frame
+    // to prevent blocking the UI thread during initial render (Fixes "Skipped XX frames")
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _initializeServices();
+    });
   }
   
   /// Initialize deep link handling
@@ -370,12 +379,14 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
 
       // Check for updates after a delay
       if (Platform.isAndroid) {
-        Future.delayed(const Duration(seconds: 5), () {
-      // Note: Context not available during app startup
-      // Updates will be checked when user manually checks or when context is available
-        });
+         // Defer update checks significantly to allow UI to settle
+         Future.delayed(const Duration(seconds: 5), () {
+          // Note: Context not available during app startup
+          // Updates will be checked when user manually checks or when context is available
+         });
       }
     } catch (e) {
+      // debugPrint('Service initialization error: $e');
     }
   }
 
@@ -506,6 +517,8 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     } catch (e) {
       // Silently fail - profile checks are not critical
       // If there's a network error, we don't want to log the user out
+      // If there's a network error, disable all activities that require network connection to work
+      //_disableActivities
     }
   }
 
@@ -566,7 +579,6 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    _serviceCheckTimer?.cancel(); // This can be removed if _serviceCheckTimer is not used elsewhere
     _activityUpdateTimer?.cancel();
     _webSocketConnectionCheckTimer?.cancel();
     _profileCheckTimer?.cancel();
@@ -652,14 +664,13 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   /// Connect WebSocket globally (works from any screen)
   /// This ensures WebSocket is always connected as long as the app is running
   void _connectWebSocketGlobally() {
-    _webSocketService.connect().catchError((error) {
-    });
+    _webSocketService.connect().catchError((error) {});
   }
 
   /// Set up global chat message listener to update badge count
   void _setupGlobalChatMessageListener() {
-    developer.log('Setting up global chat message listener', name: 'Main Chat Listener');
-    developer.log('   - WebSocket connected: ${_webSocketService.isConnected}', name: 'Main Chat Listener');
+    developer.log('[SKYBYN]    Setting up global chat message listener', name: 'Main Chat Listener');
+    developer.log('[SKYBYN]    - WebSocket connected: ${_webSocketService.isConnected}', name: 'Main Chat Listener');
     
     // Listen for chat messages via WebSocket to update badge count
     _webSocketService.connect(
@@ -746,13 +757,13 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
                   print('[SKYBYN] ⚠️ [Main Chat Listener] Failed to show notification: $e');
                 }
               } else {
-                print('[SKYBYN] ⏭️ [Main Chat Listener] App is in foreground (resumed) - skipping system notification (in-app notification will be shown)');
+                //print('[SKYBYN] ⏭️ [Main Chat Listener] App is in foreground (resumed) - skipping system notification (in-app notification will be shown)');
               }
             } else {
-              print('[SKYBYN] ⏭️ [Main Chat Listener] Skipping notification - chat screen is open for this friend');
+              //print('[SKYBYN] ⏭️ [Main Chat Listener] Skipping notification - chat screen is open for this friend');
             }
           } else {
-            print('[SKYBYN] ⏭️ [Main Chat Listener] Skipped (duplicate message)');
+            //print('[SKYBYN] ⏭️ [Main Chat Listener] Skipped (duplicate message)');
           }
         }
       },
@@ -852,13 +863,13 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
                   print('[SKYBYN] ⚠️ [Main Chat Listener] Failed to show notification: $e');
                 }
               } else {
-                print('[SKYBYN] ⏭️ [Main Chat Listener] App is in foreground (resumed) - skipping system notification (in-app notification will be shown, Firebase fallback)');
+                //print('[SKYBYN] ⏭️ [Main Chat Listener] App is in foreground (resumed) - skipping system notification (in-app notification will be shown, Firebase fallback)');
               }
             } else {
-              print('[SKYBYN] ⏭️ [Main Chat Listener] Skipping notification - chat screen is open for this friend');
+              //print('[SKYBYN] ⏭️ [Main Chat Listener] Skipping notification - chat screen is open for this friend');
             }
           } else {
-            print('[SKYBYN] ⏭️ [Main Chat Listener] Skipped (duplicate message)');
+            //print('[SKYBYN] ⏭️ [Main Chat Listener] Skipped (duplicate message)');
           }
         }
       },

@@ -560,7 +560,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
         _scrollToBottom();
         
         // Mark all unread messages from this friend as read
-        _markMessagesAsRead();
+        _chatService.markMessagesAsRead(friendId: widget.friend.id);
       }
     } catch (e) {
       print('[SKYBYN] ❌ [Chat] Error loading messages: $e');
@@ -758,14 +758,34 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
   /// Find and update a temporary message by content and timestamp
   /// Returns true if message was updated, false if not found
   bool _updateTempMessageByContent(String realId, String fromUserId, String toUserId, String content, DateTime date) {
-    // Find message with matching content, from, to, and recent timestamp (within 5 seconds)
-    final index = _messages.indexWhere((m) => 
-      (m.id.isEmpty || m.id.startsWith('temp_')) &&
-      m.content == content &&
-      m.from == fromUserId &&
-      m.to == toUserId &&
-      m.date.difference(date).inSeconds.abs() < 5
-    );
+    // Find message with matching content, from, to, and recent timestamp
+    final index = _messages.indexWhere((m) {
+      if (!m.id.startsWith('temp_')) return false;
+      if (m.from != fromUserId) return false;
+      if (m.to != toUserId) return false;
+      
+      // Timestamp check (increased tolerance to 10s)
+      if (m.date.difference(date).inSeconds.abs() > 10) return false;
+
+      // 1. Exact match
+      if (m.content == content) return true;
+
+      // 2. Normalize content (remove whitespace, newlines) for formatted match
+      // This handles server-side nl2br() or strip_tags()
+      final String localClean = m.content.replaceAll(RegExp(r'[\s\n\r]'), '');
+      final String remoteClean = content.replaceAll(RegExp(r'[\s\n\r]'), '');
+      
+      if (localClean == remoteClean) return true;
+
+      // 3. Truncated match (if remote content ends with ...)
+      if (content.endsWith('...')) {
+        final String prefix = content.substring(0, content.length - 3);
+        final String prefixClean = prefix.replaceAll(RegExp(r'[\s\n\r]'), '');
+        if (localClean.startsWith(prefixClean) && prefixClean.length > 5) return true; // match at least 5 chars
+      }
+      
+      return false;
+    });
     
     if (index != -1) {
       final oldMessage = _messages[index];
@@ -773,7 +793,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
         id: realId,
         from: fromUserId,
         to: toUserId,
-        content: content,
+        content: oldMessage.content, // Keep local content to preserve formatting and prevent truncation
         date: date,
         viewed: oldMessage.viewed,
         isFromMe: oldMessage.isFromMe,
@@ -782,7 +802,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
         _messages[index] = updatedMessage;
         _messages.sort((a, b) => a.date.compareTo(b.date));
       });
-      debugPrint('🟢 [ChatScreen] Temp message updated with real ID: $realId');
+      debugPrint('🟢 [ChatScreen] Temp message updated with real ID: $realId (fuzzy match)');
       return true;
     }
     return false;

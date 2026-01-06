@@ -18,7 +18,9 @@ class ApiConstants {
   static String get sendEmailVerification => '$apiBase/sendEmailVerification.php';
   static String get verifyEmail => '$apiBase/verify_email.php';
   static String get register => '$apiBase/register.php';
-  static String get token => '$apiBase/token.php';
+  static String get token => '$apiBase/firebase/registerFirebaseToken.php';
+  static String get checkDevice => '$apiBase/firebase/checkDevice.php';
+  static String get authFirebase => '$apiBase/firebase/getFirebaseToken.php';
 
   // Posts
   static String get timeline => '$apiBase/post/timeline.php';

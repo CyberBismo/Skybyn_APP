@@ -133,6 +133,7 @@ class _MapScreenState extends State<MapScreen> {
   @override
   void dispose() {
     _refreshTimer?.cancel();
+    _locationService.dispose();
     _mapController.dispose();
     super.dispose();
   }
@@ -226,6 +227,12 @@ class _MapScreenState extends State<MapScreen> {
         _locationPrivateMode = locationPrivateMode;
         _locationShareMode = locationShareMode;
       });
+
+      // Start live location tracking if enabled
+      if (_locationShareMode == 'live' && userId != null) {
+        print('Starting live location tracking...');
+        _locationService.startLiveLocationTracking(userId);
+      }
     }
 
     // Start getting location early (in parallel with other operations)

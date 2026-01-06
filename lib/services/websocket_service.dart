@@ -806,7 +806,7 @@ class WebSocketService {
               final messageId = data['id']?.toString() ?? '';
               final fromUserId = data['from']?.toString() ?? '';
               final toUserId = data['to']?.toString() ?? '';
-              final message = data['message']?.toString() ?? '';
+              final message = data['fullMessage']?.toString() ?? data['message']?.toString() ?? '';
               
               // Log chat message received
               _logChat('WebSocket Chat', '💬 Chat message received:');

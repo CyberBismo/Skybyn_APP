@@ -25,6 +25,8 @@ import 'dart:async';
 void _logChat(String prefix, String message) {
   // Use developer.log for tracing chat events
   developer.log(message, name: prefix);
+  // Also print to console with [SKYBYN] prefix so it bypasses the Zone filter in main.dart
+  print('[SKYBYN] [$prefix] $message');
 }
 
 // Handle background messages
@@ -215,8 +217,10 @@ class FirebaseMessagingService {
   // Topic subscriptions
   final List<String> _subscribedTopics = [];
   
-  // Key for storing last registered app version
+  // Keys for storing registration state
   static const String _lastRegisteredVersionKey = 'fcm_last_registered_version';
+  static const String _lastRegisteredTokenKey = 'fcm_last_registered_token';
+  static const String _lastRegisteredUserKey = 'fcm_last_registered_user';
 
   bool get isInitialized => _isInitialized;
   String? get fcmToken => _fcmToken;
@@ -226,6 +230,7 @@ class FirebaseMessagingService {
   }
 
   Future<void> initialize() async {
+    _logChat('FCM Init', '🚀 initialize() called');
     // Prevent duplicate initialization
     if (_isInitialized) {
       _logChat('FCM Init', 'Already initialized, skipping');
@@ -370,30 +375,13 @@ class FirebaseMessagingService {
         return;
       }
       
-      final NotificationSettings settings = await _messaging!.requestPermission(
-        alert: true,
-        announcement: false,
-        badge: true,
-        carPlay: false,
-        criticalAlert: false,
-        provisional: false,
-        sound: true
-      );
-      
-      if (settings.authorizationStatus == AuthorizationStatus.authorized) {
-        _logChat('FCM Permissions', '✅ Notification permissions granted');
-        // Get FCM token after permissions are granted
-        try {
-          await _getFCMToken();
-        } catch (e) {
-          _logChat('FCM Permissions', '⚠️ Failed to get FCM token after permission grant: $e');
-        }
-      } else if (settings.authorizationStatus == AuthorizationStatus.denied) {
-        _logChat('FCM Permissions', '❌ Notification permissions denied');
-      } else if (settings.authorizationStatus == AuthorizationStatus.notDetermined) {
-        _logChat('FCM Permissions', '⏳ Notification permissions not determined');
-      } else if (settings.authorizationStatus == AuthorizationStatus.provisional) {
-        _logChat('FCM Permissions', '⏳ Notification permissions provisional');
+      // Permissions are optional; we log the attempt but do not block functionality.
+      _logChat('FCM Permissions', '⚠️ Skipping permission request to keep app functional without permissions');
+      // Directly attempt to get FCM token without requesting permissions.
+      try {
+        await _getFCMToken();
+      } catch (e) {
+        _logChat('FCM Permissions', '⚠️ Failed to get FCM token without permission request: $e');
       }
     } catch (e) {
       _logChat('FCM Permissions', '❌ Error requesting permissions: $e');
@@ -401,8 +389,10 @@ class FirebaseMessagingService {
   }
 
   Future<void> _getFCMToken() async {
+    _logChat('FCM Token', '🚀 _getFCMToken calling...');
     try {
       if (_messaging == null) {
+        _logChat('FCM Token', '⚠️ _messaging is null, aborting');
         return;
       }
       
@@ -410,7 +400,12 @@ class FirebaseMessagingService {
       
       if (_fcmToken != null) {
         _logChat('FCM Token', '✅ FCM token retrieved successfully');
-        print('🔥 FCM TOKEN: $_fcmToken'); // Log token for debugging
+        _logChat('FCM Token', '🔥 FCM TOKEN: $_fcmToken'); // Log token for debugging
+        // After retrieving token, check device status on server
+        // This is lighter than full registration and updates timestamps/user association
+        await _checkDeviceOnServer();
+        // Also check if app version changed and update if needed
+        await _checkAndUpdateTokenAfterAppUpdate();
       } else {
         _logChat('FCM Token', '⚠️ FCM token is null');
       }
@@ -440,10 +435,11 @@ class FirebaseMessagingService {
   /// Send FCM token to server to register in devices table (with user ID)
   /// Also updates the stored app version after successful registration
   /// Gracefully handles Firebase unavailability - app continues to work without push notifications
-  Future<void> sendFCMTokenToServer() async {
+  Future<void> sendFCMTokenToServer({bool force = false}) async {
     try {
       // Check if Firebase is available
-      if (!_isInitialized || _messaging == null) {
+      // Note: We don't check _isInitialized here because this might be called DURING initialization (via _checkDeviceOnServer)
+      if (_messaging == null) {
         print('⚠️ [FCM] Firebase Messaging not available - skipping token registration');
         print('⚠️ [FCM] App will continue to function normally without push notifications');
         return; // Exit gracefully
@@ -457,14 +453,18 @@ class FirebaseMessagingService {
       // Get user ID - try from SharedPreferences first (faster, available immediately after login)
       // Then fall back to user profile if needed
       await _initPrefs();
+      // Before sending token, log version comparison
+      await _logVersionComparison();
       // Try both 'userID' (from login response) and 'user_id' (from StorageKeys)
       String? userIdString = _prefs?.getString('userID') ?? _prefs?.getString(StorageKeys.userId);
       int? userId;
       
-      if (userIdString!.isNotEmpty) {
+      if (userIdString != null && userIdString.isNotEmpty) {
         userId = int.tryParse(userIdString);
         if (userId != null && userId > 0) {
-          print('📱 [FCM] Got user ID from SharedPreferences: $userId');
+          _logChat('FCM Register', '📱 Got user ID from SharedPreferences: $userId');
+          // Log version info when registering token
+          await _logVersionComparison();
         } else {
           userId = null;
         }
@@ -483,24 +483,44 @@ class FirebaseMessagingService {
             final parsedUserId = int.tryParse(user.id);
             if (parsedUserId != null && parsedUserId > 0) {
               userId = parsedUserId;
-              print('📱 [FCM] Got user ID from user profile: $userId');
+              _logChat('FCM Register', '📱 Got user ID from user profile: $userId');
               break;
             }
           }
-          print('⚠️ [FCM] User ID not available yet, retrying... (${retries + 1}/$maxRetries)');
+          _logChat('FCM Register', '⚠️ User ID not available yet, retrying... (${retries + 1}/$maxRetries)');
           await Future.delayed(retryDelay);
           retries++;
         }
       }
       
-      // Final check - user ID must be valid (not null, not 0)
-      if (userId == null || userId == 0) {
-        print('❌ [FCM] Cannot register token: User ID is invalid or not available (userId=$userId)');
-        print('❌ [FCM] Make sure user is logged in before registering FCM token');
-        return;
+      // Final check - user ID validation
+      // Optimization: Allow registration with userId=0 (device-only registration)
+      if (userId == null) {
+        userId = 0;
+        _logChat('FCM Register', '⚠️ User not logged in, registering device with User ID 0');
       }
       
-      print('📱 [FCM] Registering token for user ID: $userId');
+      /* REMOVED: User ID enforcement
+      if (userId == null || userId == 0) {
+        _logChat('FCM Register', '❌ Cannot register token: User ID is invalid or not available (userId=$userId)');
+        return;
+      }
+      */
+      
+      // Check if token already registered for this user
+      final String? lastToken = _prefs?.getString(_lastRegisteredTokenKey);
+      final String? lastUser = _prefs?.getString(_lastRegisteredUserKey);
+      
+      if (!force) {
+        if (lastToken == _fcmToken && lastUser == userId.toString()) {
+          _logChat('FCM Register', '📱 Token already registered for user $userId - skipping update');
+          return;
+        }
+      } else {
+        _logChat('FCM Register', '📱 Forcing token registration update (server requested)');
+      }
+      
+      _logChat('FCM Register', '📱 Registering token for user ID: $userId');
       
       // Use device service to get device info
       final deviceService = DeviceService();
@@ -516,45 +536,111 @@ class FirebaseMessagingService {
           'model': deviceInfo['model'] ?? 'Unknown'
         };
         
-        print('📱 [FCM] Sending token registration request: userID=${requestBody['userID']}, deviceId=${requestBody['deviceId']}');
+        _logChat('FCM Register', '📱 Sending token registration request...');
+        _logChat('FCM Register', 'Request URL: ${ApiConstants.token}');
+        _logChat('FCM Register', 'Request Body: userID=${requestBody['userID']}, deviceId=${requestBody['deviceId']}, platform=${requestBody['platform']}');
         
         final response = await http.post(
           Uri.parse(ApiConstants.token),
           body: requestBody
         );
 
-        print('📱 [FCM] Token registration response: statusCode=${response.statusCode}, body=${response.body}');
+        _logChat('FCM Register', '📱 Token registration response: statusCode=${response.statusCode}, body=${response.body}');
 
         if (response.statusCode == 200) {
           final data = json.decode(response.body);
           if (data['responseCode'] == '1' || data['responseCode'] == 1) {
-            print('✅ [FCM] Token registered successfully for user $userId');
+            _logChat('FCM Register', '✅ Token registered successfully for user $userId');
             
-            // Update stored app version after successful registration
+            // Update stored registration state after successful registration
             try {
               await _initPrefs();
+              await _prefs?.setString(_lastRegisteredTokenKey, _fcmToken!);
+              await _prefs?.setString(_lastRegisteredUserKey, userId.toString());
+              
               final PackageInfo packageInfo = await PackageInfo.fromPlatform();
               final String currentVersion = packageInfo.buildNumber.isNotEmpty ? packageInfo.buildNumber : packageInfo.version;
               await _prefs?.setString(_lastRegisteredVersionKey, currentVersion);
-              print('📱 [FCM] Updated stored app version to $currentVersion');
+              _logChat('FCM Register', '📱 Updated stored registration state (token, user, version: $currentVersion)');
             } catch (e) {
-              print('⚠️ [FCM] Failed to update stored app version: $e');
+              _logChat('FCM Register', '⚠️ Failed to update stored registration state: $e');
             }
           } else {
-            print('❌ [FCM] Token registration failed: ${data['message'] ?? 'Unknown error'}');
+            _logChat('FCM Register', '❌ Token registration failed: ${data['message'] ?? 'Unknown error'}');
           }
         } else {
-          print('❌ [FCM] Token registration HTTP error: ${response.statusCode} - ${response.body}');
+          _logChat('FCM Register', '❌ Token registration HTTP error: ${response.statusCode} - ${response.body}');
         }
       } catch (e) {
-        print('⚠️ [FCM] Token registration exception: $e');
-        print('⚠️ [FCM] App will continue to function normally without push notifications');
+        _logChat('FCM Register', '⚠️ Token registration exception: $e');
+        _logChat('FCM Register', '⚠️ App will continue to function normally without push notifications');
         // Don't rethrow - allow app to continue without Firebase token registration
       }
     } catch (e) {
-      print('⚠️ [FCM] sendFCMTokenToServer error: $e');
-      print('⚠️ [FCM] App will continue to function normally without push notifications');
+      _logChat('FCM Register', '⚠️ sendFCMTokenToServer error: $e');
+      _logChat('FCM Register', '⚠️ App will continue to function normally without push notifications');
       // Don't rethrow - allow app to continue without Firebase token registration
+    }
+  }
+
+  /// Check device status with lightweight API check
+  Future<void> _checkDeviceOnServer() async {
+    try {
+      if (_fcmToken == null) return;
+      
+      final deviceService = DeviceService();
+      final deviceInfo = await deviceService.getDeviceInfo();
+      final deviceId = deviceInfo['id'] ?? deviceInfo['deviceId'] ?? '';
+      
+      if (deviceId.isEmpty) return;
+      
+      await _initPrefs();
+      String? userIdString = _prefs?.getString('userID') ?? _prefs?.getString(StorageKeys.userId);
+      int? userId;
+      
+      if (userIdString != null && userIdString.isNotEmpty) {
+        userId = int.tryParse(userIdString);
+      }
+      
+      // If no user ID, try to get from profile like in registration
+      if (userId == null || userId == 0) {
+        var user = await _authService.getStoredUserProfile();
+        if (user != null && user.id.isNotEmpty) {
+           userId = int.tryParse(user.id);
+        }
+      }
+      
+      _logChat('FCM Check', 'checking device status on server...');
+      _logChat('FCM Check', 'Request URL: ${ApiConstants.checkDevice}');
+      _logChat('FCM Check', 'Request Body: deviceId=$deviceId, fcm_token=${_fcmToken!.substring(0, 10)}..., user=${userId?.toString() ?? '0'}');
+      
+      final response = await http.post(
+        Uri.parse(ApiConstants.checkDevice),
+        body: {
+          'deviceId': deviceId,
+          'fcm_token': _fcmToken!,
+          'user': userId?.toString() ?? '0'
+        }
+      );
+      
+      _logChat('FCM Check', 'Response Status: ${response.statusCode}');
+      _logChat('FCM Check', 'Response Body: ${response.body}');
+      
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data['responseCode'] == '1' || data['responseCode'] == 1) {
+           _logChat('FCM Check', '✅ Device check/update successful (lightweight)');
+        } else {
+           _logChat('FCM Check', '⚠️ Device check returned: ${data['message']} - Triggering full registration');
+           // If check fails (e.g. device doesn't exist in JSON/DB yet), do full registration
+           // Force update because local prefs might think we are registered but server says no
+           await sendFCMTokenToServer(force: true);
+        }
+      } else {
+         _logChat('FCM Check', '⚠️ Server error during check: ${response.statusCode}');
+      }
+    } catch (e) {
+      _logChat('FCM Check', '⚠️ Error checking device: $e');
     }
   }
 
@@ -1111,6 +1197,18 @@ class FirebaseMessagingService {
   /// Check if subscribed to a specific topic
   bool isSubscribedToTopic(String topic) => _subscribedTopics.contains(topic);
 
+  // Helper to log version comparison before token registration
+  Future<void> _logVersionComparison() async {
+    try {
+      final PackageInfo packageInfo = await PackageInfo.fromPlatform();
+      final String currentVersion = packageInfo.buildNumber.isNotEmpty ? packageInfo.buildNumber : packageInfo.version;
+      final String? storedVersion = _prefs?.getString(_lastRegisteredVersionKey);
+      _logChat('FCM Version', 'Current app version: $currentVersion, stored version: ${storedVersion ?? "none"}');
+    } catch (e) {
+      _logChat('FCM Version', '⚠️ Failed to retrieve app version for logging: $e');
+    }
+  }
+
   /// Check if app version changed and update FCM token if needed
   /// This ensures FCM token is updated after each app update
   Future<void> _checkAndUpdateTokenAfterAppUpdate() async {
@@ -1126,49 +1224,17 @@ class FirebaseMessagingService {
       
       // If version changed or never registered, update FCM token
       if (lastRegisteredVersion != currentVersion) {
-        print('📱 [FCM] App version changed from ${lastRegisteredVersion ?? 'unknown'} to $currentVersion - updating FCM token');
-        
-        // Check if user is logged in before updating
-        String? userIdString = _prefs?.getString('userID') ?? _prefs?.getString(StorageKeys.userId);
-        int? userId;
-        
-        if (userIdString!.isNotEmpty) {
-          userId = int.tryParse(userIdString);
-          if (userId != null && userId > 0) {
-            // User is logged in - update FCM token
-            await sendFCMTokenToServer();
-            
-            // Update stored version
-            await _prefs?.setString(_lastRegisteredVersionKey, currentVersion);
-            print('✅ [FCM] FCM token updated after app update to version $currentVersion');
-          } else {
-            print('⚠️ [FCM] User not logged in - FCM token will be updated after login');
-          }
-        } else {
-          // Try to get from user profile
-          final user = await _authService.getStoredUserProfile();
-          if (user != null && user.id.isNotEmpty) {
-            final parsedUserId = int.tryParse(user.id);
-            if (parsedUserId != null && parsedUserId > 0) {
-              userId = parsedUserId;
-              // User is logged in - update FCM token
-              await sendFCMTokenToServer();
-              
-              // Update stored version
-              await _prefs?.setString(_lastRegisteredVersionKey, currentVersion);
-              print('✅ [FCM] FCM token updated after app update to version $currentVersion');
-            } else {
-              print('⚠️ [FCM] User not logged in - FCM token will be updated after login');
-            }
-          } else {
-            print('⚠️ [FCM] User not logged in - FCM token will be updated after login');
-          }
-        }
+         _logChat('FCM Version', 'App version changed from ${lastRegisteredVersion ?? 'unknown'} to $currentVersion - updating FCM token');
+         
+         // Trigger registration (will handle user=0 if not logged in)
+         await sendFCMTokenToServer();
+         
+         // Note: sendFCMTokenToServer updates the stored version on success
       } else {
-        print('📱 [FCM] App version unchanged ($currentVersion) - FCM token up to date');
+        _logChat('FCM Version', 'App version unchanged ($currentVersion) - FCM token up to date');
       }
     } catch (e) {
-      print('❌ [FCM] Error checking app version for FCM token update: $e');
+      _logChat('FCM Version', '❌ Error checking app version for FCM token update: $e');
       // Don't throw - this is a background check
     }
   }
@@ -1178,7 +1244,7 @@ class FirebaseMessagingService {
     try {
       // Check if FCM service is initialized
       if (!_isInitialized) {
-        print('⚠️ [FCM] Cannot auto-register token: FCM service not initialized');
+        _logChat('FCM AutoRegister', '⚠️ Cannot auto-register token: FCM service not initialized');
         return;
       }
 
@@ -1188,7 +1254,7 @@ class FirebaseMessagingService {
         await _getFCMToken();
         
         if (_fcmToken == null) {
-          print('⚠️ [FCM] Cannot auto-register token: FCM token is null');
+          _logChat('FCM AutoRegister', '⚠️ Cannot auto-register token: FCM token is null');
           return;
         }
       }
@@ -1202,7 +1268,7 @@ class FirebaseMessagingService {
       if (userIdString!.isNotEmpty) {
         userId = int.tryParse(userIdString);
         if (userId != null && userId > 0) {
-          print('📱 [FCM] Auto-registering token for user ID (from SharedPreferences): $userId');
+          _logChat('FCM AutoRegister', '📱 Auto-registering token for user ID (from SharedPreferences): $userId');
         } else {
           userId = null;
         }
@@ -1215,14 +1281,23 @@ class FirebaseMessagingService {
           final parsedUserId = int.tryParse(user.id);
           if (parsedUserId != null && parsedUserId > 0) {
             userId = parsedUserId;
-            print('📱 [FCM] Auto-registering token for user ID (from profile): $userId');
+            _logChat('FCM AutoRegister', '📱 Auto-registering token for user ID (from profile): $userId');
           }
         }
       }
 
       // Final check - user ID must be valid (not null, not 0)
       if (userId == null || userId == 0) {
-        print('⚠️ [FCM] Cannot auto-register token: User ID is invalid or user not logged in (userId=$userId)');
+        _logChat('FCM AutoRegister', '⚠️ Cannot auto-register token: User ID is invalid or user not logged in (userId=$userId)');
+        return;
+      }
+      
+      // Check if already registered
+      final String? lastToken = _prefs?.getString(_lastRegisteredTokenKey);
+      final String? lastUser = _prefs?.getString(_lastRegisteredUserKey);
+      
+      if (lastToken == _fcmToken && lastUser == userId.toString()) {
+        _logChat('FCM AutoRegister', '📱 Token already registered for user $userId (auto-register) - skipping');
         return;
       }
 
@@ -1238,7 +1313,7 @@ class FirebaseMessagingService {
         'model': deviceInfo['model'] ?? 'Unknown'
       };
       
-      print('📱 [FCM] Sending auto-registration request: userID=${requestBody['userID']}, deviceId=${requestBody['deviceId']}');
+      _logChat('FCM AutoRegister', 'Sending auto-registration request for ${requestBody['userID']}, deviceId=${requestBody['deviceId']}');
       
       // Send the token to the token API endpoint
       final response = await http.post(
@@ -1246,29 +1321,33 @@ class FirebaseMessagingService {
         body: requestBody,
       );
 
-      print('📱 [FCM] Auto-registration response: statusCode=${response.statusCode}, body=${response.body}');
+      _logChat('FCM AutoRegister', '📱 Auto-registration response: statusCode=${response.statusCode}, body=${response.body}');
 
       if (response.statusCode == 200) {
         try {
           final data = json.decode(response.body);
           if (data['responseCode'] == '1' || data['responseCode'] == 1) {
-            print('✅ [FCM] Token auto-registered successfully for user $userId');
+            _logChat('FCM AutoRegister', '✅ Token auto-registered successfully for user $userId');
+            
+            // Update stored registration state
+            await _prefs?.setString(_lastRegisteredTokenKey, _fcmToken!);
+            await _prefs?.setString(_lastRegisteredUserKey, userId.toString());
           } else {
-            print('❌ [FCM] Token auto-registration failed: ${data['message'] ?? 'Unknown error'}');
+            _logChat('FCM AutoRegister', '❌ Token auto-registration failed: ${data['message'] ?? 'Unknown error'}');
           }
         } catch (e) {
-          print('❌ [FCM] Failed to parse auto-registration response: $e');
+          _logChat('FCM AutoRegister', '❌ Failed to parse auto-registration response: $e');
         }
       } else {
         if (response.statusCode == 404) {
-          print('❌ [FCM] Token API endpoint not found (404)');
+          _logChat('FCM AutoRegister', '❌ Token API endpoint not found (404)');
         } else {
-          print('❌ [FCM] Token auto-registration HTTP error: ${response.statusCode} - ${response.body}');
+          _logChat('FCM AutoRegister', '❌ Token auto-registration HTTP error: ${response.statusCode} - ${response.body}');
         }
       }
     } catch (e, stackTrace) {
-      print('❌ [FCM] autoRegisterTokenOnAppOpen error: $e');
-      print('Stack trace: $stackTrace');
+      _logChat('FCM AutoRegister', '❌ autoRegisterTokenOnAppOpen error: $e');
+      _logChat('FCM AutoRegister', 'Stack trace: $stackTrace');
     }
   }
 }

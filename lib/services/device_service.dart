@@ -110,8 +110,8 @@ class DeviceService {
       // If we have a hardware ID, use it (with platform prefix for uniqueness)
       if (hardwareId != null && hardwareId.isNotEmpty) {
         deviceId = Platform.isAndroid 
-            ? 'android_$hardwareId' 
-            : 'ios_$hardwareId';
+            ? '$hardwareId' 
+            : '$hardwareId';
         
         // Store in both secure storage (survives reinstall) and SharedPreferences (fast access)
         await _secureStorage.write(key: _secureDeviceIdKey, value: deviceId);

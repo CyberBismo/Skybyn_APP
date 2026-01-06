@@ -684,6 +684,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     final translationService = TranslationService();
 
     if (!Platform.isAndroid) {
+      print('[App Update] Verification skipped: Not on Android');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(translationService.translate('auto_updates_only_android'))),
       );
@@ -692,21 +693,25 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
     // Prevent multiple dialogs from showing at once
     if (AutoUpdateService.isDialogShowing) {
+      print('[App Update] Update dialog is already showing - skipping check');
       return;
     }
 
     try {
+      print('[App Update] Checking for available updates...');
       final updateInfo = await AutoUpdateService.checkForUpdates();
 
       if (updateInfo != null && updateInfo.isAvailable) {
+        print('[App Update] Update available: version ${updateInfo.version}');
         // Show update dialog if not already showing
         if (mounted && !AutoUpdateService.isDialogShowing) {
           // Mark dialog as showing immediately to prevent duplicates
           AutoUpdateService.setDialogShowing(true);
           
-          // Get current version
+          // Get current version for logging
           final packageInfo = await PackageInfo.fromPlatform();
           final currentVersion = packageInfo.version;
+          print('[App Update] Current version: $currentVersion. Showing update dialog.');
           
           // Mark this version as shown (so we don't spam the user)
           await AutoUpdateService.markUpdateShownForVersion(updateInfo.version);
@@ -722,10 +727,12 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             ),
           ).then((_) {
             // Dialog closed, mark as not showing
+            print('[App Update] Update dialog closed');
             AutoUpdateService.setDialogShowing(false);
           });
         }
       } else {
+        print('[App Update] No updates available.');
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text(translationService.translate('no_updates_available'))),
@@ -733,6 +740,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         }
       }
     } catch (e) {
+      print('[App Update] Error checking for updates: $e');
       // Mark dialog as not showing on error
       AutoUpdateService.setDialogShowing(false);
       
