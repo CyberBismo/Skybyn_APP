@@ -113,6 +113,10 @@ class DeviceService {
   }
 
   bool _isValidUuid(String id) {
+    // Explicitly reject known non-unique hardware IDs or anything starting with typical hardware prefix
+    if (id.startsWith('BP2A')) return false;
+
+    // Validate UUID format (8-4-4-4-12 hex chars)
     return RegExp(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$', caseSensitive: false).hasMatch(id);
   }
 }
