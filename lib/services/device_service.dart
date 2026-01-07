@@ -77,56 +77,42 @@ class DeviceService {
 
   Future<String> getDeviceId() async {
     try {
-      // Step 1: Try to get from secure storage first (persists across app reinstalls on iOS)
+      // Step 1: Try to get from secure storage first
       String? deviceId = await _secureStorage.read(key: _secureDeviceIdKey);
-      if (deviceId != null && deviceId.isNotEmpty) {
+      
+      // Step 2: Validate if it's a proper UUID
+      if (deviceId != null && _isValidUuid(deviceId)) {
         // Cache in SharedPreferences for faster access
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString(_deviceIdKey, deviceId);
         return deviceId;
       }
       
-      // Step 2: Check SharedPreferences (for backward compatibility)
+      // Step 3: Check SharedPreferences (fallback)
       final prefs = await SharedPreferences.getInstance();
       deviceId = prefs.getString(_deviceIdKey);
-      if (deviceId != null && deviceId.isNotEmpty) {
-        // Migrate to secure storage for future reinstalls
+      
+      if (deviceId != null && _isValidUuid(deviceId)) {
+        // Migrate to secure storage
         await _secureStorage.write(key: _secureDeviceIdKey, value: deviceId);
         return deviceId;
       }
       
-      // Step 3: Generate from hardware ID (persists across reinstalls)
-      final deviceInfoPlugin = DeviceInfoPlugin();
-      String? hardwareId;
-      
-      if (Platform.isAndroid) {
-        final androidInfo = await deviceInfoPlugin.androidInfo;
-        hardwareId = androidInfo.id; // Android ID - persists unless factory reset
-      } else if (Platform.isIOS) {
-        final iosInfo = await deviceInfoPlugin.iosInfo;
-        hardwareId = iosInfo.identifierForVendor; // Persists across app reinstalls
-      }
-      
-      // If we have a hardware ID, use it (with platform prefix for uniqueness)
-      if (hardwareId != null && hardwareId.isNotEmpty) {
-        deviceId = Platform.isAndroid 
-            ? '$hardwareId' 
-            : '$hardwareId';
-        
-        // Store in both secure storage (survives reinstall) and SharedPreferences (fast access)
-        await _secureStorage.write(key: _secureDeviceIdKey, value: deviceId);
-        await prefs.setString(_deviceIdKey, deviceId);
-        
-        return deviceId;
-      }
-      
-      // Step 4: Last resort - Generate new UUID (should rarely happen)
+      // Step 4: Generate new UUID (Always use UUID v4 for uniqueness)
+      // We previously used hardware IDs but they proved non-unique on some android builds
       deviceId = const Uuid().v4();
+      
+      // Store in both secure storage and SharedPreferences
       await _secureStorage.write(key: _secureDeviceIdKey, value: deviceId);
       await prefs.setString(_deviceIdKey, deviceId);
+      
       return deviceId;
     } catch (e) {
-      return const Uuid().v4(); // Fallback to new UUID if there's an error
+      return const Uuid().v4(); // Fallback
     }
+  }
+
+  bool _isValidUuid(String id) {
+    return RegExp(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$', caseSensitive: false).hasMatch(id);
   }
 }
