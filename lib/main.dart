@@ -61,7 +61,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 Future<void> main() async {
   // Gate all print calls behind a debug flag using Zone
   // Logging enabled for debugging FCM token
-  const bool enableLogging = false;
+  const bool enableLogging = true;
   // Always enable error logging on iOS for debugging
   final bool enableErrorLogging = Platform.isIOS || enableLogging;
 
@@ -734,7 +734,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
                     orElse: () => Friend(
                       id: fromUserId,
                       username: fromUserId,
-                      nickname: fromUserId,
+                      nickname: '',
                       avatar: '',
                       online: false,
                     ),
@@ -801,7 +801,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
           print('[SKYBYN] ⏭️ [Main Chat Listener] Skipping - message from self (From: $fromUserId, Current: $currentUserId, Firebase)');
         } else {
           // Message is for current user and from someone else - process it
-          print('[SKYBYN] 🔵 [Main Chat Listener] Incrementing unread count for: $fromUserId (Firebase)');
+          print('[SKYBYN] 🔵 [Main Chat Listener] Incrementing unread count for: $fromUserId');
           // Increment unread count for this friend (with messageId and messageContent to prevent duplicates)
           final wasIncremented = await _chatMessageCountService.incrementUnreadCount(
             fromUserId, 
@@ -809,7 +809,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
             messageContent: message, // Pass message content for content-based deduplication
           );
           if (wasIncremented) {
-            print('[SKYBYN] ✅ [Main Chat Listener] Unread count incremented');
+            print('[SKYBYN] ✅ [Main Chat Listener] Unread count incremented (Firebase)');
             
             // Only show notification if chat screen for this friend is NOT currently open
             if (!_chatMessageCountService.isChatOpenForFriend(fromUserId)) {
@@ -818,19 +818,9 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
               final appLifecycleState = WidgetsBinding.instance.lifecycleState;
               final isAppInForeground = appLifecycleState == AppLifecycleState.resumed;
               
-              // Debug logging for lifecycle state (Firebase fallback)
-              print('[SKYBYN] 📱 [Main Chat Listener] App Lifecycle State (Firebase): $appLifecycleState');
-              print('[SKYBYN]    Is Foreground (resumed): $isAppInForeground');
-              print('[SKYBYN]    State breakdown:');
-              print('[SKYBYN]      - resumed: ${appLifecycleState == AppLifecycleState.resumed}');
-              print('[SKYBYN]      - paused: ${appLifecycleState == AppLifecycleState.paused}');
-              print('[SKYBYN]      - inactive: ${appLifecycleState == AppLifecycleState.inactive}');
-              print('[SKYBYN]      - hidden: ${appLifecycleState == AppLifecycleState.hidden}');
-              print('[SKYBYN]      - detached: ${appLifecycleState == AppLifecycleState.detached}');
-              
               if (!isAppInForeground) {
                 // App is in background or closed - show system notification
-                print('[SKYBYN] 🔔 [Main Chat Listener] App is NOT in foreground (Firebase) - will show system notification');
+                print('[SKYBYN] 🔔 [Main Chat Listener] App is NOT in foreground - will show system notification');
                 try {
                   // Get friend's name for notification
                   final friendService = FriendService();
@@ -840,7 +830,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
                     orElse: () => Friend(
                       id: fromUserId,
                       username: fromUserId,
-                      nickname: fromUserId,
+                      nickname: '',
                       avatar: '',
                       online: false,
                     ),
@@ -858,597 +848,267 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
                       'to': currentUserId,
                     }),
                   );
-                  print('[SKYBYN] ✅ [Main Chat Listener] System notification shown for message from $friendName (app in background, Firebase fallback)');
+                  print('[SKYBYN] ✅ [Main Chat Listener] System notification shown for message from $friendName (app in background)');
                 } catch (e) {
                   print('[SKYBYN] ⚠️ [Main Chat Listener] Failed to show notification: $e');
                 }
-              } else {
-                //print('[SKYBYN] ⏭️ [Main Chat Listener] App is in foreground (resumed) - skipping system notification (in-app notification will be shown, Firebase fallback)');
               }
-            } else {
-              //print('[SKYBYN] ⏭️ [Main Chat Listener] Skipping notification - chat screen is open for this friend');
             }
-          } else {
-            //print('[SKYBYN] ⏭️ [Main Chat Listener] Skipped (duplicate message)');
           }
         }
       },
     );
-    print('[SKYBYN] ✅ [Main Chat Listener] Firebase callback registered (fallback only)');
   }
 
-  /// Set up handler for incoming calls from FCM notifications
-  void _setupIncomingCallFromNotificationHandler() {
-    FirebaseMessagingService.setIncomingCallCallback((callId, fromUserId, callType) async {
-      // App was opened from a call notification
-      // Ensure WebSocket is connected so we can receive the call offer
-      if (!_webSocketService.isConnected) {
-        try {
-          await _webSocketService.connect().timeout(
-            const Duration(seconds: 5),
-            onTimeout: () {
-              // Timeout - show error
-              final context = navigatorKey.currentContext;
-              if (context != null) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Failed to connect. Please try again.'),
-                    backgroundColor: Colors.red,
+  /// Set up call handlers (callbacks for incoming calls via WebSocket)
+  void _setupCallHandlers() {
+    _webSocketService.onIncomingCall = (callId, fromUserId, callType) async {
+      print('[SKYBYN] 📞 [Main] Incoming call detected from WebSocket');
+      print('[SKYBYN]    CallId: $callId, From: $fromUserId, Type: $callType');
+      
+      // Store active call details
+      _activeCallId = callId;
+      
+      try {
+        // Fetch friend details (the caller)
+        final authService = AuthService();
+        final currentUserId = await authService.getStoredUserId();
+        
+        if (currentUserId != null) {
+          final friends = await _friendService.fetchFriendsForUser(userId: currentUserId);
+           final caller = friends.firstWhere(
+            (f) => f.id == fromUserId,
+            orElse: () => Friend(
+              id: fromUserId,
+              username: 'Unknown',
+              nickname: 'Unknown Caller',
+              avatar: '',
+              online: true,
+            ),
+          );
+          
+          _activeCallFriend = caller;
+          
+          if (mounted) {
+            // Show incoming call notification overlay
+            IncomingCallNotification.show(
+              context: context,
+              caller: caller,
+              callType: callType == 'video' ? CallType.video : CallType.audio,
+              onAccept: () {
+                // Navigate to call screen
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => CallScreen(
+                      friend: caller,
+                      roomId: callId,
+                      callType: callType == 'video' ? CallType.video : CallType.audio,
+                      isIncoming: true,
+                    ),
                   ),
                 );
-              }
-            },
-          );
-        } catch (e) {
-          // Connection failed - show error
-          final context = navigatorKey.currentContext;
-          if (context != null) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('Failed to connect: $e'),
-                backgroundColor: Colors.red,
-              ),
-            );
-          }
-          return;
-        }
-      }
-      
-      // Wait a moment for WebSocket to receive any pending call offers
-      // The server should resend the call offer when the user comes online
-      await Future.delayed(const Duration(milliseconds: 500));
-      
-      // Check if we already received the call offer via WebSocket
-      // If not, the caller should resend it when they see us come online
-      // For now, we'll wait for the WebSocket handler to receive it
-      // The call offer should arrive within a few seconds
-    });
-  }
-
-  /// Set up call handlers for incoming calls via WebSocket
-  void _setupCallHandlers() {
-    // Set up call callbacks directly on WebSocketService
-    // These will be used when WebSocket receives call signals
-    _webSocketService.setCallCallbacks(
-      onCallOffer: (callId, fromUserId, offer, callType) async {
-        // Check if app is in foreground
-        final isAppInForeground = WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed;
-        
-        if (isAppInForeground) {
-          // App is in foreground - show in-app notification
-          await _handleIncomingCallInForeground(callId, fromUserId, offer, callType);
-        } else {
-          // App is in background - Firebase notification should be sent by server
-          // But we can also handle it here if needed
-        }
-      },
-      onCallAnswer: (callId, answer) {
-        _callService.handleIncomingAnswer(answer);
-      },
-      onIceCandidate: (callId, candidate, sdpMid, sdpMLineIndex) {
-        _callService.handleIceCandidate(
-          candidate: candidate,
-          sdpMid: sdpMid,
-          sdpMLineIndex: sdpMLineIndex,
-        );
-      },
-      onCallEnd: (callId, fromUserId, targetUserId) async {
-        // Get current user ID to determine if this call_end is for us
-        final authService = AuthService();
-        final currentUserId = await authService.getStoredUserId();
-        if (currentUserId == null) return;
-        
-        // Check if this call_end is for the current user
-        // Either we're the target (someone ended a call to us) or we're the sender (we ended a call)
-        final isForCurrentUser = targetUserId == currentUserId || fromUserId == currentUserId;
-        
-        if (isForCurrentUser) {
-          // Check if we have an active call that matches
-          final activeOtherUserId = _callService.otherUserId;
-          final activeCallId = _callService.currentCallId;
-          
-          // Match by callId if available, otherwise match by user ID
-          final shouldEndCall = callId.isEmpty || 
-                                 activeCallId == callId ||
-                                 (activeOtherUserId != null && 
-                                  (activeOtherUserId == fromUserId || activeOtherUserId == targetUserId));
-          
-          if (shouldEndCall) {
-            // Clear active call tracking
-            if (mounted) {
-              setState(() {
                 _activeCallId = null;
                 _activeCallFriend = null;
-              });
-            }
-            // End the call in CallService
-            await _callService.endCall();
-          }
-        }
-      },
-      onCallError: (callId, targetUserId, errorMessage) async {
-        // Get current user ID
-        final authService = AuthService();
-        final currentUserId = await authService.getStoredUserId();
-        if (currentUserId == null) return;
-        
-        // Check if this error is for a call we initiated
-        final activeOtherUserId = _callService.otherUserId;
-        final activeCallId = _callService.currentCallId;
-        
-        if (activeCallId == callId || activeOtherUserId == targetUserId) {
-          // This error is for our active call
-          // End the call and show error message
-          await _callService.endCall();
-          
-          // Show error to user
-          if (mounted) {
-            final context = navigatorKey.currentContext;
-            if (context != null) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(errorMessage),
-                  duration: const Duration(seconds: 3),
-                ),
-              );
-            }
-          }
-          
-          // Clear active call tracking
-          if (mounted) {
-            setState(() {
-              _activeCallId = null;
-              _activeCallFriend = null;
-            });
-          }
-        }
-      },
-    );
-  }
-
-  /// Handle incoming call when app is in foreground
-  Future<void> _handleIncomingCallInForeground(
-    String callId,
-    String fromUserId,
-    String offer,
-    String callType,
-  ) async {
-    try {
-      // Get current user ID
-      final authService = AuthService();
-      final currentUserId = await authService.getStoredUserId();
-      if (currentUserId == null) {
-        return;
-      }
-
-      // Fetch friend information
-      final friends = await _friendService.fetchFriendsForUser(userId: currentUserId);
-      final friend = friends.firstWhere(
-        (f) => f.id == fromUserId,
-        orElse: () => Friend(
-          id: fromUserId,
-          username: fromUserId, // Fallback
-          nickname: '',
-          avatar: '',
-          online: false,
-        ),
-      );
-
-      // Store active call info
-      setState(() {
-        _activeCallId = callId;
-        _activeCallFriend = friend;
-      });
-
-      // Show in-app call notification
-      final context = navigatorKey.currentContext;
-      if (context != null) {
-        showDialog(
-          context: context,
-          barrierDismissible: false,
-          barrierColor: Colors.black.withOpacity(0.5),
-          builder: (dialogContext) => Center(
-            child: IncomingCallNotification(
-            callId: callId,
-            fromUserId: fromUserId,
-            fromUsername: friend.nickname.isNotEmpty ? friend.nickname : friend.username,
-            avatarUrl: friend.avatar,
-            callType: callType == 'video' ? CallType.video : CallType.audio,
-            onAccept: () async {
-              // Pop the dialog first
-              Navigator.of(dialogContext).pop();
-              
-              try {
-                // Handle the incoming offer
-                await _callService.handleIncomingOffer(
+              },
+              onDecline: () {
+                // Send decline message
+                _webSocketService.sendCallEnd(
                   callId: callId,
-                  fromUserId: fromUserId,
-                  offer: offer,
-                  callType: callType,
+                  targetUserId: fromUserId,
                 );
-
-                // Navigate to call screen only if call setup succeeded
-                // Use the same context that showed the dialog to ensure proper navigation stack
-                if (context.mounted && _callService.callState != CallState.ended) {
-                  // Wait a moment for dialog to fully close
-                  await Future.delayed(const Duration(milliseconds: 100));
-                  
-                  if (context.mounted) {
-                    Navigator.of(context, rootNavigator: false).push(
-                      MaterialPageRoute(
-                        builder: (newContext) => CallScreen(
-                          friend: friend,
-                          callType: callType == 'video' ? CallType.video : CallType.audio,
-                          isIncoming: true,
-                        ),
-                        // Don't use maintainState: false - it can cause navigation issues
-                        // The previous screen should remain in the stack
-                      ),
-                    );
-                  }
-                }
-              } catch (e) {
-                // Error already handled by CallService.onCallError
-                // Just clear the active call tracking
-                if (mounted) {
-                  setState(() {
-                    _activeCallId = null;
-                    _activeCallFriend = null;
-                  });
-                  
-                  // Show error dialog if call screen wasn't opened
-                  final errorContext = navigatorKey.currentContext;
-                  if (errorContext != null) {
-                    ScaffoldMessenger.of(errorContext).showSnackBar(
-                      SnackBar(
-                        content: Text('Failed to accept call: $e'),
-                        duration: const Duration(seconds: 5),
-                        backgroundColor: Colors.red,
-                      ),
-                    );
-                  }
-                }
-              }
-            },
-            onReject: () async {
-              Navigator.of(dialogContext).pop();
-              
-              // Reject the call
-              await _callService.rejectCall();
-              
-              // Clear active call tracking
-              setState(() {
                 _activeCallId = null;
                 _activeCallFriend = null;
-              });
-            },
-          ),
-        ),
-        );
+              },
+            );
+          } else {
+             // App is in background, show system notification
+             final callerName = caller.nickname.isNotEmpty ? caller.nickname : caller.username;
+             final isVideo = callType == 'video';
+             
+             await _notificationService.showNotification(
+               title: 'Incoming ${isVideo ? "Video" : "Voice"} Call',
+               body: '$callerName is calling you',
+               channelId: 'calls', // Use dedicated call channel
+               payload: jsonEncode({
+                 'type': 'call',
+                 'callId': callId,
+                 'fromUserId': fromUserId,
+                 'callType': callType,
+                 'fromName': callerName,
+                 'fromAvatar': caller.avatar,
+               }),
+             );
+          }
+        }
+      } catch (e) {
+        print('[SKYBYN] ❌ [Main] Error handling incoming call: $e');
       }
-    } catch (e) {
-    }
+    };
+    
+    _webSocketService.onCallEnded = (callId) {
+       print('[SKYBYN] 📞 [Main] Call ended: $callId');
+       if (_activeCallId == callId) {
+         _activeCallId = null;
+         _activeCallFriend = null;
+         IncomingCallNotification.hide();
+       }
+    };
   }
 
-
-  @override
-  Widget build(BuildContext context) {
-    // Web platform colors
-    const webLightPrimary = Color.fromRGBO(72, 198, 239, 1.0); // Light blue from web light mode
-    const webLightSecondary = Color.fromRGBO(111, 134, 214, 1.0); // Blue from web light mode
-    const webDarkPrimary = Color.fromRGBO(36, 59, 85, 1.0); // Dark blue from web dark mode
-    const webDarkSecondary = Color.fromRGBO(20, 30, 48, 1.0); // Almost black from web dark mode
-
-    return Consumer<ThemeService>(
-      builder: (context, themeService, child) {
-        // Set status bar to transparent so background shows through
-        SystemChrome.setSystemUIOverlayStyle(
-          const SystemUiOverlayStyle(
-            statusBarColor: Colors.transparent, // Transparent so background is visible
-            statusBarIconBrightness: Brightness.light, // Light icons (white)
-            statusBarBrightness: Brightness.dark, // For iOS compatibility
-            systemNavigationBarColor: Colors.transparent, // Also set navigation bar to transparent
-            systemNavigationBarIconBrightness: Brightness.light,
-          ),
-        );
-        
-        return MaterialApp(
-          navigatorKey: navigatorKey,
-          title: 'Skybyn',
-          theme: ThemeData(
-            brightness: Brightness.light,
-            primaryColor: webLightPrimary,
-            scaffoldBackgroundColor: webLightPrimary,
-            colorScheme: const ColorScheme.light(brightness: Brightness.light, primary: webLightPrimary, secondary: webLightSecondary, surface: webLightPrimary, onPrimary: Colors.white, onSecondary: Colors.white, onSurface: Colors.white),
-            textTheme: const TextTheme(
-              displayLarge: TextStyle(decoration: TextDecoration.none),
-              displayMedium: TextStyle(decoration: TextDecoration.none),
-              displaySmall: TextStyle(decoration: TextDecoration.none),
-              headlineLarge: TextStyle(decoration: TextDecoration.none),
-              headlineMedium: TextStyle(decoration: TextDecoration.none),
-              headlineSmall: TextStyle(decoration: TextDecoration.none),
-              titleLarge: TextStyle(decoration: TextDecoration.none),
-              titleMedium: TextStyle(decoration: TextDecoration.none),
-              titleSmall: TextStyle(decoration: TextDecoration.none),
-              bodyLarge: TextStyle(decoration: TextDecoration.none),
-              bodyMedium: TextStyle(decoration: TextDecoration.none),
-              bodySmall: TextStyle(decoration: TextDecoration.none),
-              labelLarge: TextStyle(decoration: TextDecoration.none),
-              labelMedium: TextStyle(decoration: TextDecoration.none),
-              labelSmall: TextStyle(decoration: TextDecoration.none),
-            ),
-            appBarTheme: const AppBarTheme(
-              backgroundColor: Colors.transparent,
-              elevation: 0,
-              iconTheme: IconThemeData(color: Colors.white),
-              actionsIconTheme: IconThemeData(color: Colors.white),
-              titleTextStyle: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold, decoration: TextDecoration.none),
-            ),
-            snackBarTheme: SnackBarThemeData(
-              backgroundColor: Colors.transparent,
-              contentTextStyle: const TextStyle(color: Colors.white, decoration: TextDecoration.none),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              behavior: SnackBarBehavior.fixed,
-              elevation: 0,
-            ),
-          ),
-          darkTheme: ThemeData(
-            brightness: Brightness.dark,
-            primaryColor: webDarkPrimary,
-            scaffoldBackgroundColor: webDarkPrimary,
-            colorScheme: const ColorScheme.dark(brightness: Brightness.dark, primary: webDarkPrimary, secondary: webDarkSecondary, surface: webDarkPrimary, onPrimary: Colors.white, onSecondary: Colors.white, onSurface: Colors.white),
-            textTheme: const TextTheme(
-              displayLarge: TextStyle(decoration: TextDecoration.none),
-              displayMedium: TextStyle(decoration: TextDecoration.none),
-              displaySmall: TextStyle(decoration: TextDecoration.none),
-              headlineLarge: TextStyle(decoration: TextDecoration.none),
-              headlineMedium: TextStyle(decoration: TextDecoration.none),
-              headlineSmall: TextStyle(decoration: TextDecoration.none),
-              titleLarge: TextStyle(decoration: TextDecoration.none),
-              titleMedium: TextStyle(decoration: TextDecoration.none),
-              titleSmall: TextStyle(decoration: TextDecoration.none),
-              bodyLarge: TextStyle(decoration: TextDecoration.none),
-              bodyMedium: TextStyle(decoration: TextDecoration.none),
-              bodySmall: TextStyle(decoration: TextDecoration.none),
-              labelLarge: TextStyle(decoration: TextDecoration.none),
-              labelMedium: TextStyle(decoration: TextDecoration.none),
-              labelSmall: TextStyle(decoration: TextDecoration.none),
-            ),
-            appBarTheme: const AppBarTheme(
-              backgroundColor: Colors.transparent,
-              elevation: 0,
-              iconTheme: IconThemeData(color: Colors.white),
-              actionsIconTheme: IconThemeData(color: Colors.white),
-              titleTextStyle: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold, decoration: TextDecoration.none),
-            ),
-          ),
-          themeMode: themeService.themeMode,
-          home: const _InitialScreen(),
-          onGenerateRoute: _generateRoute,
-          onUnknownRoute: (settings) {
-            return MaterialPageRoute(builder: (context) => const HomeScreen());
-          },
-          builder: (context, child) {
-            // Always disable clouds in the global BackgroundGradient
-            // Each screen (HomeScreen, MapScreen) manages its own clouds
-            return BackgroundGradient(
-              showClouds: false, // Always false - screens manage their own clouds
-              child: GestureDetector(
-                onTap: () {
-                  FocusService().unfocusAll();
-                },
-                behavior: HitTestBehavior.translucent,
-                child: AnimatedSwitcher(duration: const Duration(milliseconds: 300), child: child!),
+  /// Set up handler for incoming calls via Notification
+  void _setupIncomingCallFromNotificationHandler() {
+    FirebaseMessagingService.onIncomingCallFromNotification = (callId, fromUserId, callType) async {
+       print('[SKYBYN] 📞 [Main] Incoming call from Notification tap');
+       // Navigate to call screen via global navigator key
+       final context = navigatorKey.currentContext;
+       if (context != null) {
+          // Fetch friend details first
+          final authService = AuthService();
+          final currentUserId = await authService.getStoredUserId();
+          if (currentUserId != null) {
+            final friends = await _friendService.fetchFriendsForUser(userId: currentUserId);
+            final caller = friends.firstWhere(
+              (f) => f.id == fromUserId,
+              orElse: () => Friend(
+                id: fromUserId,
+                username: 'Unknown',
+                nickname: 'Unknown Caller',
+                avatar: '',
+                online: true,
               ),
             );
-          },
-        );
-      },
-    );
-  }
-  
-  /// Generate routes for named navigation
-  static Route<dynamic> _generateRoute(RouteSettings settings) {
-    // Save the route when navigating
-    NavigationService.saveLastRoute(settings.name ?? 'home');
-    
-    switch (settings.name) {
-      case '/':
-      case '/home':
-        return MaterialPageRoute(builder: (_) => const HomeScreen());
-      case '/login':
-        return MaterialPageRoute(builder: (_) => const LoginScreen());
-      case '/profile':
-        return MaterialPageRoute(builder: (_) => const ProfileScreen());
-      case '/settings':
-        return MaterialPageRoute(builder: (_) => const SettingsScreen());
-      case '/qr-scanner':
-        return MaterialPageRoute(builder: (_) => const QrScannerScreen());
-      case '/share':
-        return MaterialPageRoute(builder: (_) => const ShareScreen());
-      case '/chat':
-        final args = settings.arguments as Map<String, dynamic>?;
-        final friend = args?['friend'] as Friend?;
-        if (friend != null) {
-          return MaterialPageRoute(
-            builder: (_) => ChatScreen(friend: friend),
-          );
-        }
-        return MaterialPageRoute(builder: (_) => const HomeScreen());
-      case '/create-post':
-        return MaterialPageRoute(builder: (_) => const CreatePostScreen());
-      case '/register':
-        return MaterialPageRoute(builder: (_) => const RegisterScreen());
-      case '/forgot-password':
-        return MaterialPageRoute(builder: (_) => const ForgotPasswordScreen());
-      case '/call':
-        final args = settings.arguments as Map<String, dynamic>?;
-        return MaterialPageRoute(
-          builder: (_) => CallScreen(
-            friend: args?['friend'] as Friend,
-            callType: args?['callType'] ?? CallType.audio,
-            isIncoming: args?['isIncoming'] ?? false,
-          ),
-        );
-      case '/events':
-        return MaterialPageRoute(builder: (_) => const EventsScreen());
-      case '/games':
-        return MaterialPageRoute(builder: (_) => const GamesScreen());
-      case '/groups':
-        return MaterialPageRoute(builder: (_) => const GroupsScreen());
-      case '/markets':
-        return MaterialPageRoute(builder: (_) => const MarketsScreen());
-      case '/music':
-        return MaterialPageRoute(builder: (_) => const MusicScreen());
-      case '/pages':
-        return MaterialPageRoute(builder: (_) => const PagesScreen());
-      case '/feedback':
-        return MaterialPageRoute(builder: (_) => const FeedbackScreen());
-      case '/map':
-        return MaterialPageRoute(builder: (_) => const MapScreen());
-      default:
-        return MaterialPageRoute(builder: (_) => const HomeScreen());
-    }
-  }
-}
-
-class _InitialScreen extends StatefulWidget {
-  const _InitialScreen();
-
-  @override
-  State<_InitialScreen> createState() => __InitialScreenState();
-}
-
-class __InitialScreenState extends State<_InitialScreen> with TickerProviderStateMixin {
-  final AuthService _authService = AuthService();
-  late AnimationController _fadeController;
-  late Animation<double> _fadeAnimation;
-  final bool _isLoading = true;
-
-  @override
-  void initState() {
-    super.initState();
-
-    _fadeController = AnimationController(duration: const Duration(milliseconds: 800), vsync: this);
-
-    _fadeAnimation = Tween<double>(begin: 1.0, end: 0.0).animate(CurvedAnimation(parent: _fadeController, curve: Curves.easeOut));
-
-    _checkAuthStatus();
-  }
-
-  Future<void> _checkAuthStatus() async {
-    try {
-      // Add timeout to ensure we always navigate
-      await _authService.initPrefs().timeout(const Duration(seconds: 5));
-      final userId = await _authService.getStoredUserId();
-      final userProfile = await _authService.getStoredUserProfile();
-
-      if (mounted) {
-        if (userId != null) {
-          // If we have a stored user ID, treat the user as logged in
-          // and try to refresh the profile in the background.
-          if (userProfile == null) {
-            try {
-              final username = await _authService.getStoredUsername();
-              if (username != null) {
-                // Best-effort profile refresh; failures should NOT log the user out
-                await _authService
-                    .fetchUserProfile(username)
-                    .timeout(const Duration(seconds: 5));
-              }
-            } catch (e) {
-              // Ignore errors here – we'll still navigate to the last screen
-            }
+            
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => CallScreen(
+                  friend: caller,
+                  roomId: callId,
+                  callType: callType == 'video' ? CallType.video : CallType.audio,
+                  isIncoming: true,
+                ),
+              ),
+            );
           }
-
-          // Restore last screen or default to home
-          await _navigateToLastScreen();
-          return;
-        }
-        // Navigate to login if we reach here
-        if (mounted) {
-          // Clear last route on logout
-          await NavigationService.clearLastRoute();
-          Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (context) => const LoginScreen()));
-        }
-      }
-    } catch (e) {
-      if (mounted) {
-        // Clear last route on error
-        await NavigationService.clearLastRoute();
-        Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (context) => const LoginScreen()));
-      }
-    }
+       }
+    };
   }
   
-  /// Navigate to the last saved screen or default to home
-  Future<void> _navigateToLastScreen() async {
-    if (!mounted) return;
-    
-    try {
-      final lastRoute = await NavigationService.getLastRoute();
-      
-      if (lastRoute != null && lastRoute.isNotEmpty) {
-        // Navigate to the last route
-        Navigator.of(context).pushReplacementNamed(lastRoute);
-      } else {
-        // Default to home if no last route saved
-        Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (context) => const HomeScreen()));
-      }
-    } catch (e) {
-      // Fallback to home on error
-      if (mounted) {
-        Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (context) => const HomeScreen()));
-      }
-    }
-  }
-
-  @override
-  void dispose() {
-    _fadeController.dispose();
-    super.dispose();
+  // Method to preload map screen
+  void preloadMapScreen() {
+    // This is a dummy call to initialize the map controller in background
+    // if applicable, or just warm up the engine
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.grey[900], // Grey background during initial load
-      body: Stack(
-        children: [
-          Container(color: Colors.grey[900]), // Grey background
-          Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Image.asset('assets/images/logo.png', width: 150, height: 150),
-                const SizedBox(height: 30),
-                const CircularProgressIndicator(valueColor: AlwaysStoppedAnimation<Color>(Colors.white)),
-              ],
-            ),
-          ),
-        ],
+    // Get theme service
+    final themeService = Provider.of<ThemeService>(context);
+
+    // Lock orientation to portrait
+    SystemChrome.setPreferredOrientations([
+      DeviceOrientation.portraitUp,
+      DeviceOrientation.portraitDown,
+    ]);
+    
+    // Set system UI style (status bar) based on theme
+    // This ensures the status bar text color is readable
+    // Transparent status bar for edge-to-edge design
+    SystemChrome.setSystemUIOverlayStyle(
+      SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent, // Fully transparent status bar
+        statusBarIconBrightness: themeService.isDarkMode ? Brightness.light : Brightness.dark,
+        statusBarBrightness: themeService.isDarkMode ? Brightness.dark : Brightness.light, // For iOS
+        systemNavigationBarColor: themeService.isDarkMode ? const Color(0xFF1E1E1E) : Colors.white,
+        systemNavigationBarIconBrightness: themeService.isDarkMode ? Brightness.light : Brightness.dark,
       ),
     );
+
+    return MaterialApp(
+      navigatorKey: navigatorKey, // Set global navigator key
+      title: 'Skybyn',
+      debugShowCheckedModeBanner: false,
+      theme: themeService.themeData, // Use theme from service
+      // Ensure we use a unique route for home to separate from login
+      initialRoute: '/',
+      routes: {
+        '/': (context) => _getInitialScreen(),
+        '/login': (context) => const LoginScreen(),
+        '/register': (context) => const RegisterScreen(),
+        '/forgot_password': (context) => const ForgotPasswordScreen(),
+        '/home': (context) => const HomeScreen(),
+        '/profile': (context) => const ProfileScreen(),
+        '/settings': (context) => const SettingsScreen(),
+        '/qr_scanner': (context) => const QrScannerScreen(qrCode: ''),
+        '/share': (context) => const ShareScreen(),
+        '/create_post': (context) => const CreatePostScreen(),
+        '/events': (context) => const EventsScreen(),
+        '/games': (context) => const GamesScreen(),
+        '/groups': (context) => const GroupsScreen(),
+        '/markets': (context) => const MarketsScreen(),
+        '/music': (context) => const MusicScreen(),
+        '/pages': (context) => const PagesScreen(),
+        '/feedback': (context) => const FeedbackScreen(),
+        '/map': (context) => const MapScreen(),
+        // Note: ChatScreen and CallScreen require arguments, so they are pushed directly
+      },
+      onGenerateRoute: (settings) {
+        if (settings.name == '/chat') {
+          final args = settings.arguments as Map<String, dynamic>;
+          return MaterialPageRoute(
+            builder: (context) => ChatScreen(
+              friend: args['friend'],
+            ),
+          );
+        } else if (settings.name == '/call') {
+          final args = settings.arguments as Map<String, dynamic>;
+          return MaterialPageRoute(
+            builder: (context) => CallScreen(
+              friend: args['friend'],
+              callType: args['callType'],
+              isIncoming: args['isIncoming'] ?? false,
+            ),
+          );
+        }
+        return null;
+      },
+      builder: (context, child) {
+        return MediaQuery(
+          // Fix text scaling to prevent layout issues
+          data: MediaQuery.of(context).copyWith(textScaler: TextScaler.noScaling),
+          child: child!,
+        );
+      },
+    );
+  }
+
+  Widget _getInitialScreen() {
+    // Check if user is logged in
+    return FutureBuilder<bool>(
+      future: _checkLoginStatus(),
+      builder: (context, snapshot) {
+        // Show splash screen while checking
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Scaffold(
+            body: Center(
+              child: CircularProgressIndicator(),
+            ),
+          );
+        }
+
+        // If logged in, go to Home, otherwise Login
+        if (snapshot.data == true) {
+          return const HomeScreen();
+        } else {
+          return const LoginScreen();
+        }
+      },
+    );
+  }
+
+  Future<bool> _checkLoginStatus() async {
+    final authService = AuthService();
+    return await authService.isLoggedIn();
   }
 }
-
