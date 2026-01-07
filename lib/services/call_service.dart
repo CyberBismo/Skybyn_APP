@@ -778,6 +778,7 @@ class CallService {
 
       final response = await http.post(
         Uri.parse('${ApiConstants.apiBase}/call/send_call_notification.php'),
+        headers: {'X-API-KEY': ApiConstants.apiKey},
         body: {
           'user': targetUserId,
           'from': currentUserId,

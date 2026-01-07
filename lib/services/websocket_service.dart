@@ -856,21 +856,41 @@ class WebSocketService {
               _onTypingStatus?.call(fromUserId, false);
               break;
             case 'recipient_offline':
-              // Recipient is offline - send Firebase notification from sender's app
-              final toUserId = data['to']?.toString() ?? '';
-              final messageId = data['messageId']?.toString();
-              final message = data['message']?.toString() ?? '';
-              final fromName = data['fromName']?.toString();
+              // Check if this is for a call or a chat message
+              final callId = data['callId']?.toString();
               
-              _logChat('WebSocket Recipient Offline', '📴 Recipient offline: to=$toUserId, messageId=$messageId');
-              
-              // Send Firebase notification to the recipient
-              _sendFirebaseNotificationToRecipient(
-                toUserId: toUserId,
-                messageId: messageId,
-                message: message,
-                fromName: fromName,
-              );
+              if (callId != null && callId.isNotEmpty) {
+                 // It's a call - recipient is offline, send call push notification
+                 final toUserId = data['to']?.toString() ?? '';
+                 final callType = data['callType']?.toString() ?? 'audio';
+                 final fromName = data['fromName']?.toString();
+                 
+                 _logChat('WebSocket Recipient Offline', '📴 Call recipient offline: to=$toUserId, callId=$callId');
+                 
+                 // Send Firebase notification for call
+                 _sendCallPushNotification(
+                   targetUserId: toUserId,
+                   callId: callId,
+                   callType: callType,
+                   fromName: fromName,
+                 );
+              } else {
+                // It's a chat message - recipient is offline
+                final toUserId = data['to']?.toString() ?? '';
+                final messageId = data['messageId']?.toString();
+                final message = data['message']?.toString() ?? '';
+                final fromName = data['fromName']?.toString();
+                
+                _logChat('WebSocket Recipient Offline', '📴 Recipient offline: to=$toUserId, messageId=$messageId');
+                
+                // Send Firebase notification to the recipient (Chat)
+                _sendFirebaseNotificationToRecipient(
+                  toUserId: toUserId,
+                  messageId: messageId,
+                  message: message,
+                  fromName: fromName,
+                );
+              }
               break;
             case 'online_status':
               final userId = data['userId']?.toString() ?? 
@@ -1623,6 +1643,39 @@ class WebSocketService {
       _logChat('WebSocket In-App Notification', 'In-app notification shown: type=$notificationType, title=$title');
     } catch (e) {
       _logChat('WebSocket In-App Notification', 'Failed to show in-app notification: $e');
+    }
+  }
+
+  /// Send call push notification when recipient is offline
+  Future<void> _sendCallPushNotification({
+    required String targetUserId,
+    required String callId,
+    required String callType,
+    String? fromName,
+  }) async {
+    try {
+      final authService = AuthService();
+      final currentUserId = await authService.getStoredUserId();
+      if (currentUserId == null) return;
+
+      final response = await http.post(
+        Uri.parse('${ApiConstants.apiBase}/call/send_call_notification.php'),
+        headers: {'X-API-KEY': ApiConstants.apiKey},
+        body: {
+          'user': targetUserId,
+          'from': currentUserId,
+          'callId': callId,
+          'callType': callType,
+        },
+      ).timeout(const Duration(seconds: 5));
+
+      if (response.statusCode != 200) {
+        debugPrint('❌ [WebSocket] Failed to send call push notification: ${response.statusCode}');
+      } else {
+        debugPrint('✅ [WebSocket] Call push notification sent to recipient');
+      }
+    } catch (e) {
+      debugPrint('❌ [WebSocket] Error sending call push notification: $e');
     }
   }
 }
