@@ -1109,6 +1109,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
 
   Future<bool> _checkLoginStatus() async {
     final authService = AuthService();
-    return await authService.isLoggedIn();
+    final userId = await authService.getStoredUserId();
+    return userId != null && userId.isNotEmpty;
   }
 }
