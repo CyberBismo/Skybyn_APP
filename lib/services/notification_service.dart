@@ -683,6 +683,48 @@ class NotificationService {
       rethrow;
     }
   }
+  
+  // Added methods for update progress
+  Future<void> showUpdateProgressNotification({
+    required String title,
+    required String status,
+    required int progress,
+    bool indeterminate = false,
+  }) async {
+    final AndroidNotificationDetails androidPlatformChannelSpecifics = AndroidNotificationDetails(
+      _updateProgressChannelId,
+      'Update Progress',
+      channelDescription: 'App update download and installation progress',
+      importance: Importance.low,
+      priority: Priority.low,
+      showProgress: true,
+      maxProgress: 100,
+      progress: progress,
+      indeterminate: indeterminate,
+      ongoing: true,
+      autoCancel: false,
+      onlyAlertOnce: true, // Don't buzz on every update
+      enableVibration: false,
+      playSound: false,
+      icon: '@drawable/notification_icon',
+    );
+    
+    final NotificationDetails platformChannelSpecifics = NotificationDetails(
+      android: androidPlatformChannelSpecifics,
+    );
+    
+    await _localNotifications.show(
+      _updateProgressNotificationId,
+      title,
+      status,
+      platformChannelSpecifics,
+      payload: 'app_update',
+    );
+  }
+
+  Future<void> cancelUpdateProgressNotification() async {
+    await _localNotifications.cancel(_updateProgressNotificationId);
+  }
 
   Future<void> showScheduledNotification({
     required String title,
