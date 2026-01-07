@@ -445,6 +445,19 @@ class NotificationService {
       );
 
       await _localNotifications.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()?.createNotificationChannel(callsChannel);
+
+      // Default channel fallback (for backend compatibility)
+      const AndroidNotificationChannel defaultChannel = AndroidNotificationChannel(
+        'default',
+        'Default Notifications',
+        description: 'General application notifications',
+        importance: Importance.high,
+        playSound: true,
+        enableVibration: true,
+        enableLights: true,
+      );
+      
+      await _localNotifications.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()?.createNotificationChannel(defaultChannel);
     }
   }
 
@@ -798,85 +811,27 @@ class NotificationService {
   Future<bool> requestPermissions() async {
     try {
       if (Platform.isIOS) {
-        await requestIOSPermissions();
-        return true;
+        final IOSFlutterLocalNotificationsPlugin? iOSImplementation = _localNotifications.resolvePlatformSpecificImplementation<IOSFlutterLocalNotificationsPlugin>();
+        
+        if (iOSImplementation != null) {
+          _localNotifications.resolvePlatformSpecificImplementation<IOSFlutterLocalNotificationsPlugin>()?.requestPermissions(
+            alert: true,
+            badge: true,
+            sound: true,
+          );
+          return true;
+        }
       } else if (Platform.isAndroid) {
-        await requestAndroidPermissions();
-        return true;
-      }
-      return false;
-    } catch (e) {
-      return false;
-    }
-  }
-
-  /// Show or update a progress notification for app updates
-  /// [progress] should be between 0 and 100
-  Future<void> showUpdateProgressNotification({
-    required String title,
-    required String status,
-    required int progress,
-    bool indeterminate = false,
-  }) async {
-    try {
-      if (Platform.isAndroid) {
-        // Android supports progress notifications
-        final AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
-          _updateProgressChannelId,
-          'Update Progress',
-          channelDescription: 'App update download and installation progress',
-          importance: Importance.low,
-          priority: Priority.low,
-          showWhen: false,
-          playSound: false,
-          enableVibration: false,
-          icon: '@drawable/notification_icon',
-          progress: progress,
-          maxProgress: 100,
-          indeterminate: indeterminate,
-          ongoing: true,
-          onlyAlertOnce: true,
-          autoCancel: false,
-        );
-
-        final NotificationDetails notificationDetails = NotificationDetails(
-          android: androidDetails,
-        );
-
-        await _localNotifications.show(
-          _updateProgressNotificationId,
-          title,
-          status,
-          notificationDetails,
-        );
-      } else if (Platform.isIOS) {
-        // iOS doesn't support progress notifications well, show simple status notification
-        const DarwinNotificationDetails iOSDetails = DarwinNotificationDetails(
-          presentAlert: false,
-          presentBadge: false,
-          presentSound: false,
-        );
-
-        const NotificationDetails notificationDetails = NotificationDetails(
-          iOS: iOSDetails,
-        );
-
-        await _localNotifications.show(
-          _updateProgressNotificationId,
-          title,
-          status,
-          notificationDetails,
-        );
+        final AndroidFlutterLocalNotificationsPlugin? androidImplementation = _localNotifications.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+        
+        if (androidImplementation != null) {
+          androidImplementation.requestNotificationsPermission();
+          return true;
+        }
       }
     } catch (e) {
+      // Ignore
     }
-  }
-
-  /// Cancel the update progress notification
-  Future<void> cancelUpdateProgressNotification() async {
-    try {
-      await _localNotifications.cancel(_updateProgressNotificationId);
-    } catch (e) {
-    }
+    return false;
   }
 }
