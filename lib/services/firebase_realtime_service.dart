@@ -72,24 +72,24 @@ class FirebaseRealtimeService {
       if (user == null || user.id.isEmpty) {
         // No user logged in, cannot authenticate with Firebase securely
         // We could try anonymous if needed, but for now just return
-        print('[SKYBYN] ⚠️ [Firebase] No user logged in, skipping init');
+        // print('[SKYBYN] ⚠️ [Firebase] No user logged in, skipping init');
         return;
       }
       
       // Check if we are already signed in with the correct UID
       final currentUser = _auth.currentUser;
       if (currentUser != null && currentUser.uid == user.id) {
-         print('[SKYBYN] ℹ️ [Firebase] Session exists for ${currentUser.uid}, but forcing re-auth to ensure token validity.');
+         // print('[SKYBYN] ℹ️ [Firebase] Session exists for ${currentUser.uid}, but forcing re-auth to ensure token validity.');
          // We do NOT return here anymore, to fix the permission denied errors by forcing a fresh token
          // _isInitialized = true;
          // return;
       } else if (currentUser != null) {
-         print('[SKYBYN] ℹ️ [Firebase] Signed in as different user (${currentUser.uid}) != (${user.id}). Signing out.');
+         // print('[SKYBYN] ℹ️ [Firebase] Signed in as different user (${currentUser.uid}) != (${user.id}). Signing out.');
          await _auth.signOut();
       }
 
       // Fetch Custom Token from PHP Backend
-      print('[SKYBYN] 🔄 [Firebase] Fetching custom auth token for user ${user.id}...');
+      // print('[SKYBYN] 🔄 [Firebase] Fetching custom auth token for user ${user.id}...');
       final response = await http.post(
         Uri.parse(ApiConstants.authFirebase),
         body: {'user_id': user.id}
@@ -102,7 +102,7 @@ class FirebaseRealtimeService {
           
           // Sign in to Firebase with the custom token
           await _auth.signInWithCustomToken(customToken);
-          print('[SKYBYN] ✅ [Firebase] Signed in with Custom Token as user ${user.id}');
+          // print('[SKYBYN] ✅ [Firebase] Signed in with Custom Token as user ${user.id}');
           _isInitialized = true;
         } else {
            print('[SKYBYN] ⚠️ [Firebase] Token generation failed: ${data['message']}');
@@ -127,7 +127,7 @@ class FirebaseRealtimeService {
     try {
       if (_auth.currentUser == null) {
         await _auth.signInAnonymously();
-        print('[SKYBYN] ✅ [Firebase] Signed in anonymously (Fallback)');
+        // print('[SKYBYN] ✅ [Firebase] Signed in anonymously (Fallback)');
       }
     } catch (e) {
       // Only log if it's NOT the admin-restricted error to reduce noise, 
@@ -314,7 +314,7 @@ class FirebaseRealtimeService {
            print('[SKYBYN] ⚠️ [Firebase] Chat listener error: $error');
         }
       });
-      print('[SKYBYN] ✅ [Firebase] Chat listener set up for user $_userId');
+      // print('[SKYBYN] ✅ [Firebase] Chat listener set up for user $_userId');
     } catch (e) {
       print('[SKYBYN] ⚠️ [Firebase] Failed to setup chat listener: $e');
     }
@@ -438,7 +438,7 @@ class FirebaseRealtimeService {
         'type': 'chat',
       });
       
-      print('[SKYBYN] ✅ [Firebase] Notification written to chat_notifications/$targetUserId/$messageId');
+      // print('[SKYBYN] ✅ [Firebase] Notification written to chat_notifications/$targetUserId/$messageId');
     } catch (e) {
       print('[SKYBYN] ⚠️ [Firebase] Failed to write notification: $e');
       // Don't throw - Firebase is a fallback, HTTP API is primary

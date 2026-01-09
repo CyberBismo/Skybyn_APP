@@ -105,6 +105,12 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     _loadData();
     _setupChatMessageCountListener();
     
+    // Request notification permissions (required for Android 13+ and iOS)
+    // This ensures the user is prompted to allow notifications
+    final notificationService = NotificationService();
+    notificationService.requestAndroidPermissions();
+    notificationService.requestIOSPermissions();
+    
     // Safety timeout: ensure loading always completes after max 20 seconds
     Timer(const Duration(seconds: 20), () {
       if (mounted && _isLoading) {

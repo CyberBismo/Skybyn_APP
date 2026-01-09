@@ -8,6 +8,13 @@ class ThemeService extends ChangeNotifier {
   bool _isInitialized = false;
   
   ThemeMode get themeMode => _themeMode;
+
+  bool get isDarkMode {
+    if (_themeMode == ThemeMode.system) {
+      return WidgetsBinding.instance.platformDispatcher.platformBrightness == Brightness.dark;
+    }
+    return _themeMode == ThemeMode.dark;
+  }
   
   // Get the theme mode string for display
   String get themeModeString {

@@ -440,7 +440,7 @@ class ChatService {
       );
 
       // Step 2: Sync with server in background (incremental sync)
-      _syncMessagesInBackground(friendId, userId);
+      syncMessages(friendId, userId);
 
       // Return local messages immediately (even if empty)
       return localMessages;
@@ -451,8 +451,9 @@ class ChatService {
     }
   }
 
-  /// Sync messages with server in background (incremental sync)
-  Future<void> _syncMessagesInBackground(String friendId, String userId) async {
+  /// Sync messages with server (incremental sync)
+  /// Returns list of new messages fetched and saved
+  Future<List<Message>> syncMessages(String friendId, String userId) async {
     try {
       // Get last sync timestamp for incremental sync
       final lastSyncTimestamp = await _localDb.getLastSyncTimestamp(friendId);
@@ -486,13 +487,16 @@ class ChatService {
         await _localDb.updateLastSyncTimestamp(friendId, latestTimestamp, latestMessageId);
         
         developer.log('Synced ${newMessages.length} new messages for $friendId', name: 'ChatService');
+        return newMessages;
       } else {
         // No new messages - update sync timestamp to current time to prevent unnecessary API calls
         await _localDb.updateLastSyncTimestamp(friendId, DateTime.now().millisecondsSinceEpoch, null);
+        return [];
       }
     } catch (e) {
       developer.log('Error syncing messages in background: $e', name: 'ChatService');
-      // Don't throw - background sync failures shouldn't block UI
+      // Don't throw - sync failures shouldn't block UI
+      return [];
     }
   }
 
@@ -675,8 +679,8 @@ class ChatService {
 
   /// Refresh messages in background (now uses local database)
   void _refreshMessagesInBackground(String friendId, String userId) {
-    // This is now handled by _syncMessagesInBackground which uses local database
-    _syncMessagesInBackground(friendId, userId);
+    // This is now handled by syncMessages which uses local database
+    syncMessages(friendId, userId);
   }
 
   /// Process offline queue - send queued messages when online

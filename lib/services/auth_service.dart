@@ -411,15 +411,15 @@ class AuthService {
       );
       
       // Log HTTP response details
-      print('[SKYBYN] 📡 [Profile API] HTTP Response received');
-      print('[SKYBYN]    Status Code: ${response.statusCode}');
-      print('[SKYBYN]    Response Body Length: ${response.body.length}');
-      print('[SKYBYN]    Response Body (first 500 chars): ${response.body.length > 500 ? response.body.substring(0, 500) + "..." : response.body}');
+      // print('[SKYBYN] 📡 [Profile API] HTTP Response received');
+      // print('[SKYBYN]    Status Code: ${response.statusCode}');
+      // print('[SKYBYN]    Response Body Length: ${response.body.length}');
+      // print('[SKYBYN]    Response Body (first 500 chars): ${response.body.length > 500 ? response.body.substring(0, 500) + "..." : response.body}');
       
       if (response.statusCode == 200) {
         try {
           final data = json.decode(response.body);
-          print('[SKYBYN]    Parsed JSON: responseCode=${data['responseCode']}, message=${data['message'] ?? 'N/A'}');
+          // print('[SKYBYN]    Parsed JSON: responseCode=${data['responseCode']}, message=${data['message'] ?? 'N/A'}');
           
           if (data['responseCode'] == '1') {
             // Ensure the user ID is set in the response data
@@ -435,7 +435,7 @@ class AuthService {
               data['userID'] = data['id'].toString();
             }
             
-            print('[SKYBYN]    ✅ [Profile API] Successfully parsed profile data');
+            // print('[SKYBYN]    ✅ [Profile API] Successfully parsed profile data');
             return User.fromJson(data);
           } else {
             print('[SKYBYN]    ❌ [Profile API] responseCode is not "1": ${data['responseCode']}');
@@ -569,8 +569,8 @@ class AuthService {
         // Execute the HTTP request
         final response = await request();
         if (kDebugMode) {
-          print('API Response ($operationName): ${response.statusCode}');
-          print('Response Body: ${response.body}');
+          // print('API Response ($operationName): ${response.statusCode}');
+          // print('Response Body: ${response.body}');
         }
 
         // Don't retry on successful responses (2xx) or client errors (4xx)

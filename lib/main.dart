@@ -147,7 +147,7 @@ Future<void> _initializeFirebase(bool enableErrorLogging) async {
       try {
         await Firebase.initializeApp();
         if (enableErrorLogging) {
-          print('✅ [Firebase] Firebase Core initialized successfully');
+          // print('✅ [Firebase] Firebase Core initialized successfully');
         }
       } catch (e) {
         if (enableErrorLogging) {
@@ -190,7 +190,7 @@ Future<void> _initializeFirebase(bool enableErrorLogging) async {
       // Token is already registered on app start in initialize() method
       // If user is logged in, it will be updated with user ID in auth_service.dart after login
       if (enableErrorLogging) {
-        print('✅ [Firebase] Firebase Messaging initialized successfully');
+        // print('✅ [Firebase] Firebase Messaging initialized successfully');
       }
     } catch (e) {
       if (enableErrorLogging) {
@@ -226,6 +226,7 @@ class MyApp extends StatefulWidget {
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
+  bool _isIncomingCallDialogShowing = false;
   final NotificationService _notificationService = NotificationService();
   final FirebaseRealtimeService _firebaseRealtimeService = FirebaseRealtimeService();
   final WebSocketService _webSocketService = WebSocketService();
@@ -413,8 +414,9 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
             headers: {'Content-Type': 'application/x-www-form-urlencoded'},
           ).timeout(const Duration(seconds: 10));
 
+
           if (response.statusCode == 200) {
-            print('Friends locations preloaded on app startup');
+            // print('Friends locations preloaded on app startup');
           }
         } catch (e) {
           // Silently handle errors - friends locations preloading is optional
@@ -669,16 +671,16 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
 
   /// Set up global chat message listener to update badge count
   void _setupGlobalChatMessageListener() {
-    developer.log('[SKYBYN]    Setting up global chat message listener', name: 'Main Chat Listener');
-    developer.log('[SKYBYN]    - WebSocket connected: ${_webSocketService.isConnected}', name: 'Main Chat Listener');
+    // developer.log('[SKYBYN]    Setting up global chat message listener', name: 'Main Chat Listener');
+    // developer.log('[SKYBYN]    - WebSocket connected: ${_webSocketService.isConnected}', name: 'Main Chat Listener');
     
     // Listen for chat messages via WebSocket to update badge count
     _webSocketService.connect(
       onChatMessage: (messageId, fromUserId, toUserId, message) async {
         // Use print with [SKYBYN] prefix so zone allows it through
-        print('[SKYBYN] 🔵 [Main Chat Listener] WebSocket message received');
-        print('[SKYBYN]    MessageId: $messageId');
-        print('[SKYBYN]    From: $fromUserId, To: $toUserId');
+        // print('[SKYBYN] 🔵 [Main Chat Listener] WebSocket message received');
+        // print('[SKYBYN]    MessageId: $messageId');
+        // print('[SKYBYN]    From: $fromUserId, To: $toUserId');
         
         // Get current user ID
         final authService = AuthService();
@@ -688,14 +690,13 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         
         // Only increment badge if message is for current user and from someone else
         if (currentUserId == null) {
-          print('[SKYBYN] ⏭️ [Main Chat Listener] Skipping - current user ID is null');
+          // print('[SKYBYN] ⏭️ [Main Chat Listener] Skipping - current user ID is null');
         } else if (toUserId != currentUserId) {
-          print('[SKYBYN] ⏭️ [Main Chat Listener] Skipping - message not for current user (To: $toUserId, Current: $currentUserId)');
+          // print('[SKYBYN] ⏭️ [Main Chat Listener] Skipping - message not for current user (To: $toUserId, Current: $currentUserId)');
         } else if (fromUserId == currentUserId) {
           print('[SKYBYN] ⏭️ [Main Chat Listener] Skipping - message from self (From: $fromUserId, Current: $currentUserId)');
-        } else {
-          // Message is for current user and from someone else - process it
-          print('[SKYBYN] 🔵 [Main Chat Listener] Incrementing unread count for: $fromUserId');
+        // Message is for current user and from someone else - process it
+          // print('[SKYBYN] 🔵 [Main Chat Listener] Incrementing unread count for: $fromUserId');
           // Increment unread count for this friend (with messageId and messageContent to prevent duplicates)
           final wasIncremented = await _chatMessageCountService.incrementUnreadCount(
             fromUserId, 
@@ -703,7 +704,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
             messageContent: message, // Pass message content for content-based deduplication
           );
           if (wasIncremented) {
-            print('[SKYBYN] ✅ [Main Chat Listener] Unread count incremented');
+            // print('[SKYBYN] ✅ [Main Chat Listener] Unread count incremented');
             
             // Only show notification if chat screen for this friend is NOT currently open
             if (!_chatMessageCountService.isChatOpenForFriend(fromUserId)) {
@@ -713,14 +714,14 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
               final isAppInForeground = appLifecycleState == AppLifecycleState.resumed;
               
               // Debug logging for lifecycle state
-              print('[SKYBYN] 📱 [Main Chat Listener] App Lifecycle State: $appLifecycleState');
-              print('[SKYBYN]    Is Foreground (resumed): $isAppInForeground');
-              print('[SKYBYN]    State breakdown:');
-              print('[SKYBYN]      - resumed: ${appLifecycleState == AppLifecycleState.resumed}');
-              print('[SKYBYN]      - paused: ${appLifecycleState == AppLifecycleState.paused}');
-              print('[SKYBYN]      - inactive: ${appLifecycleState == AppLifecycleState.inactive}');
-              print('[SKYBYN]      - hidden: ${appLifecycleState == AppLifecycleState.hidden}');
-              print('[SKYBYN]      - detached: ${appLifecycleState == AppLifecycleState.detached}');
+              // print('[SKYBYN] 📱 [Main Chat Listener] App Lifecycle State: $appLifecycleState');
+              // print('[SKYBYN]    Is Foreground (resumed): $isAppInForeground');
+              // print('[SKYBYN]    State breakdown:');
+              // print('[SKYBYN]      - resumed: ${appLifecycleState == AppLifecycleState.resumed}');
+              // print('[SKYBYN]      - paused: ${appLifecycleState == AppLifecycleState.paused}');
+              // print('[SKYBYN]      - inactive: ${appLifecycleState == AppLifecycleState.inactive}');
+              // print('[SKYBYN]      - hidden: ${appLifecycleState == AppLifecycleState.hidden}');
+              // print('[SKYBYN]      - detached: ${appLifecycleState == AppLifecycleState.detached}');
               
               if (!isAppInForeground) {
                 // App is in background or closed - show system notification
@@ -742,6 +743,8 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
                   
                   final friendName = friend.nickname.isNotEmpty ? friend.nickname : friend.username;
                   
+                  final notificationId = int.tryParse(fromUserId) ?? fromUserId.hashCode;
+
                   await _notificationService.showNotification(
                     title: friendName,
                     body: message,
@@ -751,6 +754,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
                       'messageId': messageId,
                       'to': currentUserId,
                     }),
+                    notificationId: notificationId,
                   );
                   print('[SKYBYN] ✅ [Main Chat Listener] System notification shown for message from $friendName (app in background)');
                 } catch (e) {
@@ -769,7 +773,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       },
     );
     
-    print('[SKYBYN] ✅ [Main Chat Listener] WebSocket callback registered');
+    // print('[SKYBYN] ✅ [Main Chat Listener] WebSocket callback registered');
     
     // Also listen via Firebase Realtime for messages when WebSocket is NOT available
     // Only use Firebase as fallback when WebSocket is disconnected
@@ -778,13 +782,13 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       (messageId, fromUserId, toUserId, message) async {
         // Only process if WebSocket is NOT connected (Firebase is fallback)
         if (_webSocketService.isConnected) {
-          print('[SKYBYN] ⏭️ [Main Chat Listener] Skipping Firebase - WebSocket connected');
+          // print('[SKYBYN] ⏭️ [Main Chat Listener] Skipping Firebase - WebSocket connected');
           return; // WebSocket handles it, skip Firebase
         }
         
-        print('[SKYBYN] 🔵 [Main Chat Listener] Firebase message (WebSocket unavailable)');
-        print('[SKYBYN]    MessageId: $messageId');
-        print('[SKYBYN]    From: $fromUserId, To: $toUserId');
+        // print('[SKYBYN] 🔵 [Main Chat Listener] Firebase message (WebSocket unavailable)');
+        // print('[SKYBYN]    MessageId: $messageId');
+        // print('[SKYBYN]    From: $fromUserId, To: $toUserId');
         
         // Get current user ID
         final authService = AuthService();
@@ -796,7 +800,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         if (currentUserId == null) {
           print('[SKYBYN] ⏭️ [Main Chat Listener] Skipping - current user ID is null (Firebase)');
         } else if (toUserId != currentUserId) {
-          print('[SKYBYN] ⏭️ [Main Chat Listener] Skipping - message not for current user (To: $toUserId, Current: $currentUserId, Firebase)');
+          // print('[SKYBYN] ⏭️ [Main Chat Listener] Skipping - message not for current user (To: $toUserId, Current: $currentUserId, Firebase)');
         } else if (fromUserId == currentUserId) {
           print('[SKYBYN] ⏭️ [Main Chat Listener] Skipping - message from self (From: $fromUserId, Current: $currentUserId, Firebase)');
         } else {
@@ -862,98 +866,120 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
 
   /// Set up call handlers (callbacks for incoming calls via WebSocket)
   void _setupCallHandlers() {
-    _webSocketService.onIncomingCall = (callId, fromUserId, callType) async {
-      print('[SKYBYN] 📞 [Main] Incoming call detected from WebSocket');
-      print('[SKYBYN]    CallId: $callId, From: $fromUserId, Type: $callType');
-      
-      // Store active call details
-      _activeCallId = callId;
-      
-      try {
-        // Fetch friend details (the caller)
-        final authService = AuthService();
-        final currentUserId = await authService.getStoredUserId();
+    _webSocketService.setCallCallbacks(
+      onCallInitiate: (callId, fromUserId, callType, fromUsername) async {
+        print('[SKYBYN] 📞 [Main] Incoming call detected from WebSocket');
+        print('[SKYBYN]    CallId: $callId, From: $fromUserId, Type: $callType');
         
-        if (currentUserId != null) {
-          final friends = await _friendService.fetchFriendsForUser(userId: currentUserId);
-           final caller = friends.firstWhere(
-            (f) => f.id == fromUserId,
-            orElse: () => Friend(
-              id: fromUserId,
-              username: 'Unknown',
-              nickname: 'Unknown Caller',
-              avatar: '',
-              online: true,
-            ),
-          );
+        // Store active call details
+        _activeCallId = callId;
+        
+        try {
+          // Fetch friend details (the caller)
+          final authService = AuthService();
+          final currentUserId = await authService.getStoredUserId();
           
-          _activeCallFriend = caller;
-          
-          if (mounted) {
-            // Show incoming call notification overlay
-            IncomingCallNotification.show(
-              context: context,
-              caller: caller,
-              callType: callType == 'video' ? CallType.video : CallType.audio,
-              onAccept: () {
-                // Navigate to call screen
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => CallScreen(
-                      friend: caller,
-                      roomId: callId,
-                      callType: callType == 'video' ? CallType.video : CallType.audio,
-                      isIncoming: true,
-                    ),
-                  ),
-                );
-                _activeCallId = null;
-                _activeCallFriend = null;
-              },
-              onDecline: () {
-                // Send decline message
-                _webSocketService.sendCallEnd(
-                  callId: callId,
-                  targetUserId: fromUserId,
-                );
-                _activeCallId = null;
-                _activeCallFriend = null;
-              },
+          if (currentUserId != null) {
+            final friends = await _friendService.fetchFriendsForUser(userId: currentUserId);
+             final caller = friends.firstWhere(
+              (f) => f.id == fromUserId,
+              orElse: () => Friend(
+                id: fromUserId,
+                username: fromUsername.isNotEmpty ? fromUsername : 'Unknown',
+                nickname: 'Unknown Caller',
+                avatar: '',
+                online: true,
+              ),
             );
-          } else {
-             // App is in background, show system notification
-             final callerName = caller.nickname.isNotEmpty ? caller.nickname : caller.username;
-             final isVideo = callType == 'video';
-             
-             await _notificationService.showNotification(
-               title: 'Incoming ${isVideo ? "Video" : "Voice"} Call',
-               body: '$callerName is calling you',
-               channelId: 'calls', // Use dedicated call channel
-               payload: jsonEncode({
-                 'type': 'call',
-                 'callId': callId,
-                 'fromUserId': fromUserId,
-                 'callType': callType,
-                 'fromName': callerName,
-                 'fromAvatar': caller.avatar,
-               }),
-             );
+            
+            _activeCallFriend = caller;
+            
+            if (mounted) {
+              // Show incoming call notification overlay using Dialog
+              _isIncomingCallDialogShowing = true;
+              showDialog(
+                context: navigatorKey.currentContext!, // Use global key context to ensure it shows
+                barrierDismissible: false,
+                builder: (context) => IncomingCallNotification(
+                  callId: callId,
+                  fromUserId: fromUserId,
+                  fromUsername: caller.nickname.isNotEmpty ? caller.nickname : caller.username,
+                  avatarUrl: caller.avatar,
+                  callType: callType == 'video' ? CallType.video : CallType.audio,
+                  onAccept: () {
+                    Navigator.of(context).pop(); // Close dialog
+                    _isIncomingCallDialogShowing = false;
+                    
+                    // Navigate to call screen
+                    final nav = navigatorKey.currentState;
+                    if (nav != null) {
+                      nav.push(
+                        MaterialPageRoute(
+                          builder: (context) => CallScreen(
+                            friend: caller,
+                            callType: callType == 'video' ? CallType.video : CallType.audio,
+                            isIncoming: true,
+                          ),
+                        ),
+                      );
+                    }
+                    _activeCallId = null;
+                    _activeCallFriend = null;
+                  },
+                  onReject: () {
+                    Navigator.of(context).pop(); // Close dialog
+                    _isIncomingCallDialogShowing = false;
+                    
+                    // Send decline message
+                    _webSocketService.sendCallEnd(
+                      callId: callId,
+                      targetUserId: fromUserId,
+                    );
+                    _activeCallId = null;
+                    _activeCallFriend = null;
+                  },
+                ),
+              ).then((_) => _isIncomingCallDialogShowing = false);
+            } else {
+               // App is in background, show system notification
+               final callerName = caller.nickname.isNotEmpty ? caller.nickname : caller.username;
+               final isVideo = callType == 'video';
+               
+               await _notificationService.showNotification(
+                 title: 'Incoming ${isVideo ? "Video" : "Voice"} Call',
+                 body: '$callerName is calling you',
+                 channelId: 'calls', // Use dedicated call channel
+                 payload: jsonEncode({
+                   'type': 'call',
+                   'callId': callId,
+                   'fromUserId': fromUserId,
+                   'callType': callType,
+                   'fromName': callerName,
+                   'fromAvatar': caller.avatar,
+                 }),
+               );
+            }
           }
+        } catch (e) {
+          print('[SKYBYN] ❌ [Main] Error handling incoming call: $e');
         }
-      } catch (e) {
-        print('[SKYBYN] ❌ [Main] Error handling incoming call: $e');
-      }
-    };
-    
-    _webSocketService.onCallEnded = (callId) {
-       print('[SKYBYN] 📞 [Main] Call ended: $callId');
-       if (_activeCallId == callId) {
-         _activeCallId = null;
-         _activeCallFriend = null;
-         IncomingCallNotification.hide();
-       }
-    };
+      },
+      onCallEnd: (callId, fromUserId, targetUserId) {
+         print('[SKYBYN] 📞 [Main] Call ended: $callId');
+         if (_activeCallId == callId) {
+           _activeCallId = null;
+           _activeCallFriend = null;
+           // Close dialog if showing
+           if (_isIncomingCallDialogShowing) {
+             final nav = navigatorKey.currentState;
+             if (nav != null && nav.canPop()) {
+               nav.pop(); // Close dialog
+             }
+             _isIncomingCallDialogShowing = false;
+           }
+         }
+      },
+    );
   }
 
   /// Set up handler for incoming calls via Notification
@@ -984,7 +1010,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
               MaterialPageRoute(
                 builder: (context) => CallScreen(
                   friend: caller,
-                  roomId: callId,
+                  // roomId: callId, // Removed, CallScreen handles it or doesn't need it
                   callType: callType == 'video' ? CallType.video : CallType.audio,
                   isIncoming: true,
                 ),
@@ -1029,7 +1055,9 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       navigatorKey: navigatorKey, // Set global navigator key
       title: 'Skybyn',
       debugShowCheckedModeBanner: false,
-      theme: themeService.themeData, // Use theme from service
+      themeMode: themeService.themeMode, // Use theme mode from service
+      theme: ThemeData.light(useMaterial3: true), // Define light theme
+      darkTheme: ThemeData.dark(useMaterial3: true), // Define dark theme
       // Ensure we use a unique route for home to separate from login
       initialRoute: '/',
       routes: {

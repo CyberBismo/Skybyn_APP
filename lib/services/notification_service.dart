@@ -9,6 +9,9 @@ import 'package:flutter/foundation.dart';
 import 'package:timezone/timezone.dart' as tz;
 import 'package:timezone/data/latest.dart' as tz;
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:http/http.dart' as http;
+import 'package:path_provider/path_provider.dart';
+import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'firebase_messaging_service.dart';
 import 'auto_update_service.dart';
 import 'background_update_scheduler.dart';
@@ -219,7 +222,7 @@ class NotificationService {
   /// Handle chat notification tap - navigate to chat screen
   Future<void> _handleChatNotificationTap(Map<String, dynamic> data) async {
     try {
-      final fromUserId = data['from']?.toString();
+      final fromUserId = data['from']?.toString() ?? data['sender']?.toString() ?? data['senderId']?.toString();
       if (fromUserId == null) {
         return;
       }
@@ -503,7 +506,9 @@ class NotificationService {
     required String title,
     required String body,
     String? payload,
+    String? largeIconUrl,
     String channelId = _adminChannelId,
+    int? notificationId,
   }) async {
     try {
       // Check notification type from payload
@@ -584,7 +589,7 @@ class NotificationService {
         importance = Importance.max;
       }
       
-      final AndroidNotificationDetails androidPlatformChannelSpecifics = AndroidNotificationDetails(
+      var androidPlatformChannelSpecifics = AndroidNotificationDetails(
         channelId,
         channelName,
         channelDescription: channelDescription,
@@ -606,6 +611,51 @@ class NotificationService {
         category: isCall ? AndroidNotificationCategory.call : AndroidNotificationCategory.message,
         fullScreenIntent: isCall, // Show full screen for calls (Android 11+)
       );
+      
+      // If large icon URL provided, try to get from cache or download
+      if (largeIconUrl != null && largeIconUrl.isNotEmpty) {
+        try {
+           final File file = await DefaultCacheManager().getSingleFile(largeIconUrl);
+           final String largeIconPath = file.path;
+           
+           // Use BigTextStyle for expandable text
+           final BigTextStyleInformation bigTextStyleInformation = BigTextStyleInformation(
+             body,
+             htmlFormatBigText: true,
+             contentTitle: title,
+             htmlFormatContentTitle: true,
+             summaryText: isChat ? 'New Message' : null,
+             htmlFormatSummaryText: true,
+           );
+           
+           androidPlatformChannelSpecifics = AndroidNotificationDetails(
+            channelId,
+            channelName,
+            channelDescription: channelDescription,
+            importance: importance,
+            priority: Priority.high,
+            showWhen: !isCall,
+            enableVibration: true,
+            playSound: true,
+            icon: '@drawable/notification_icon',
+            largeIcon: FilePathAndroidBitmap(largeIconPath),
+            styleInformation: bigTextStyleInformation,
+            color: isCall ? const Color.fromRGBO(76, 175, 80, 1.0) : const Color.fromRGBO(33, 150, 243, 1.0),
+            enableLights: true,
+            ledColor: isCall ? const Color.fromRGBO(76, 175, 80, 1.0) : const Color.fromRGBO(33, 150, 243, 1.0),
+            ledOnMs: 1000,
+            ledOffMs: 500,
+            ongoing: ongoing,
+            autoCancel: autoCancel,
+            actions: actions,
+            category: isCall ? AndroidNotificationCategory.call : AndroidNotificationCategory.message,
+            fullScreenIntent: isCall,
+          );
+        } catch (e) {
+          // Fallback to default if download fails
+          print('Failed to download large icon: $e');
+        }
+      }
 
       // iOS notification details
       // For iOS, we need to use categoryIdentifier for action buttons
@@ -627,10 +677,10 @@ class NotificationService {
         iOS: iOSPlatformChannelSpecifics,
       );
 
-      final int notificationId = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+      final int id = notificationId ?? (DateTime.now().millisecondsSinceEpoch ~/ 1000);
       // Show the notification
       await _localNotifications.show(
-        notificationId,
+        id,
         title,
         body,
         platformChannelSpecifics,
@@ -674,11 +724,11 @@ class NotificationService {
       
       if (shouldAutoDismiss) {
         Timer(const Duration(seconds: 3), () {
-          cancelNotification(notificationId);
+          cancelNotification(id);
         });
       }
       
-      return notificationId;
+      return id;
     } catch (e) {
       rethrow;
     }
@@ -726,6 +776,11 @@ class NotificationService {
     await _localNotifications.cancel(_updateProgressNotificationId);
   }
 
+  /// Cancel a specific notification by ID
+  Future<void> cancelNotification(int id) async {
+    await _localNotifications.cancel(id);
+  }
+
   Future<void> showScheduledNotification({
     required String title,
     required String body,
@@ -770,9 +825,7 @@ class NotificationService {
     await _localNotifications.cancelAll();
   }
 
-  Future<void> cancelNotification(int id) async {
-    await _localNotifications.cancel(id);
-  }
+
 
   Future<List<PendingNotificationRequest>> getPendingNotifications() async {
     return await _localNotifications.pendingNotificationRequests();

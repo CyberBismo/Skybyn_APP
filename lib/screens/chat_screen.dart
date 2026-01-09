@@ -38,6 +38,7 @@ import '../config/constants.dart' show UrlHelper;
 import '../widgets/chat_list_modal.dart';
 import '../widgets/app_colors.dart';
 import '../services/chat_message_count_service.dart';
+import '../services/notification_service.dart';
 
 class ChatScreen extends StatefulWidget {
   final Friend friend;
@@ -63,6 +64,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
   List<Message> _messages = [];
   bool _isLoading = true;
   bool _isLoadingOlder = false;
+  bool _isSyncing = false;
   bool _isSending = false;
   String? _currentUserId;
   int? _userRank; // Store user's rank
@@ -111,6 +113,12 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
   String? _selectedFileType;
   String? _selectedFileName;
 
+  void _clearNotifications() {
+    final notificationId = int.tryParse(widget.friend.id) ?? widget.friend.id.hashCode;
+    NotificationService().cancelNotification(notificationId);
+    _chatMessageCountService.clearUnreadCount(widget.friend.id);
+  }
+
   @override
   void initState() {
     super.initState();
@@ -128,8 +136,8 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
     _setupTypingAnimation();
     _checkFriendOnlineStatus(); // Check immediately
     _startPeriodicMessageCheck(); // Start periodic message checking
-    // Clear unread count when opening chat
-    _chatMessageCountService.clearUnreadCount(widget.friend.id);
+    // Clear unread count and notifications when opening chat
+    _clearNotifications();
     // Messages are loaded once when opening chat, then WebSocket handles all updates
     // No need for periodic refresh - WebSocket provides real-time message delivery
     // Check online status every 10 seconds
@@ -147,6 +155,8 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
     switch (state) {
       case AppLifecycleState.resumed:
         // App is in foreground - resume timers
+        // Clear notifications as we are looking at the chat
+        _clearNotifications();
         // Messages are handled by WebSocket - no periodic refresh needed
         if (_onlineStatusTimer == null || !_onlineStatusTimer!.isActive) {
           _onlineStatusTimer = Timer.periodic(const Duration(seconds: 10), (_) {
@@ -187,6 +197,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
     
     // Cleanup subscriptions and listeners
     WidgetsBinding.instance.removeObserver(this);
+    _chatMessageCountService.setCurrentOpenChat(null);
     _amplitudeSubscription?.cancel();
     _onlineStatusSubscription?.cancel();
     
@@ -491,83 +502,66 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
   Future<void> _loadMessages() async {
     setState(() {
       _isLoading = true;
+      _isSyncing = false;
     });
 
     // Log API request
-    final apiUrl = ApiConstants.chatGet;
-    final requestParams = {
-      'friendID': widget.friend.id,
-    };
+    final apiUrl = ApiConstants.chatGet; // Keep logging references
     
-    print('[SKYBYN] ═══════════════════════════════════════════════════════');
-    print('[SKYBYN] 📤 [Chat] Loading messages from API');
-    print('[SKYBYN]    URL: $apiUrl');
-    print('[SKYBYN]    Parameters: ${jsonEncode(requestParams)}');
-    print('[SKYBYN]    Method: POST');
-    developer.log('📤 [Chat] Loading messages from API', name: 'Chat API');
-    developer.log('   URL: $apiUrl', name: 'Chat API');
-    developer.log('   Parameters: ${jsonEncode(requestParams)}', name: 'Chat API');
-    developer.log('   Method: POST', name: 'Chat API');
-
     try {
-      final messages = await _chatService.getMessages(
+      // 1. Get local messages first (Fast, Offline-first)
+      // Note: This triggers a detached background sync in ChatService too,
+      // but we'll run our own awaited sync to update UI state properly.
+      final localMessages = await _chatService.getMessages(
         friendId: widget.friend.id,
       );
       
-      // Log API response
-      print('[SKYBYN] 📥 [Chat] Messages API Response received');
-      print('[SKYBYN]    Status: Success');
-      print('[SKYBYN]    Messages Count: ${messages.length}');
-      if (messages.isNotEmpty) {
-        print('[SKYBYN]    First Message ID: ${messages.first.id}');
-        print('[SKYBYN]    Last Message ID: ${messages.last.id}');
-        print('[SKYBYN]    First Message Preview: ${messages.first.content.length > 50 ? messages.first.content.substring(0, 50) + "..." : messages.first.content}');
-        // Count messages with attachments
-        final messagesWithAttachments = messages.where((m) => m.attachmentUrl != null && m.attachmentType != null).length;
-        print('[SKYBYN]    Messages with attachments: $messagesWithAttachments');
-        
-        // Log all messages to check attachment data
-        for (var i = 0; i < messages.length; i++) {
-          final msg = messages[i];
-          print('[SKYBYN]    Message $i: id=${msg.id}, hasAttachment=${msg.attachmentUrl != null && msg.attachmentType != null}');
-          if (msg.attachmentUrl != null || msg.attachmentType != null) {
-            print('[SKYBYN]      - attachmentType: ${msg.attachmentType}');
-            print('[SKYBYN]      - attachmentUrl: ${msg.attachmentUrl}');
-            print('[SKYBYN]      - attachmentName: ${msg.attachmentName}');
-            print('[SKYBYN]      - attachmentSize: ${msg.attachmentSize}');
-          }
-        }
-      }
-      developer.log('📥 [Chat] Messages API Response received', name: 'Chat API');
-      developer.log('   Status: Success', name: 'Chat API');
-      developer.log('   Messages Count: ${messages.length}', name: 'Chat API');
-      if (messages.isNotEmpty) {
-        developer.log('   First Message ID: ${messages.first.id}', name: 'Chat API');
-        developer.log('   Last Message ID: ${messages.last.id}', name: 'Chat API');
-      }
-      print('[SKYBYN] ═══════════════════════════════════════════════════════');
-      developer.log('═══════════════════════════════════════════════════════', name: 'Chat API');
-      
       if (mounted) {
         setState(() {
-          // Messages are already sorted oldest to newest from service
-          // But ensure they're sorted by date to be safe
-          _messages = messages;
+          _messages = localMessages;
           _messages.sort((a, b) => a.date.compareTo(b.date));
           _isLoading = false;
+          _isSyncing = true; // Show syncing indicator
         });
-        // Scroll to bottom when initially loading messages
-        _scrollToBottom();
         
-        // Mark all unread messages from this friend as read
-        _chatService.markMessagesAsRead(friendId: widget.friend.id);
+        // Scroll to bottom immediately to show local content
+        _scrollToBottom();
+      }
+
+      // 2. Explicitly sync with server to get fresh data and wait for it
+      // This ensures we know exactly when loading finishes
+      if (_currentUserId != null) {
+          developer.log('🔄 [Chat] Starting explicit sync...', name: 'ChatScreen');
+          final newMessages = await _chatService.syncMessages(widget.friend.id, _currentUserId!);
+          
+          if (mounted) {
+             if (newMessages.isNotEmpty) {
+                 // Update the list with new messages
+                 // We use _addMessageIfNotExists to merge safely
+                 for (final msg in newMessages) {
+                     _addMessageIfNotExists(msg);
+                 }
+                 
+                 // Scroll to bottom if we got new stuff
+                 _scrollToBottom();
+                 
+                 // Mark read
+                 _markMessagesAsRead();
+                 
+                 developer.log('✅ [Chat] Explicit sync finished: ${newMessages.length} new messages', name: 'ChatScreen');
+             } else {
+                 developer.log('✨ [Chat] Explicit sync finished: Up to date', name: 'ChatScreen');
+             }
+          }
       }
     } catch (e) {
       print('[SKYBYN] ❌ [Chat] Error loading messages: $e');
       developer.log('❌ [Chat] Error loading messages: $e', name: 'Chat API');
+    } finally {
       if (mounted) {
         setState(() {
-          _isLoading = false;
+          _isLoading = false; 
+          _isSyncing = false; // Hide indicator
         });
       }
     }
@@ -1770,6 +1764,14 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
                                     )
                                   : Column(
                                       children: [
+                                        // Sync Indicator
+                                        if (_isSyncing)
+                                          const LinearProgressIndicator(
+                                            minHeight: 2,
+                                            backgroundColor: Colors.transparent,
+                                            color: Colors.white70,
+                                          ),
+                                        
                                         // Status message banner at top of chat
                                         if (_chatStatusMessage != null)
                                           Container(

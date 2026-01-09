@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../widgets/in_app_notification.dart';
 import '../models/friend.dart';
 import '../main.dart';
+import 'chat_message_count_service.dart';
 
 /// Service to manage in-app notifications for all notification types
 class InAppNotificationService {
@@ -17,34 +18,8 @@ class InAppNotificationService {
 
   /// Check if a specific chat screen is currently in focus
   bool isChatScreenInFocus(String friendId) {
-    try {
-      final navigator = navigatorKey.currentState;
-      if (navigator == null) return false;
-
-      final context = navigatorKey.currentContext;
-      if (context == null) return false;
-
-      // Get the current route from the context
-      final currentRoute = ModalRoute.of(context);
-      if (currentRoute == null || !currentRoute.isCurrent) return false;
-
-      // Check route name
-      final routeSettings = currentRoute.settings;
-      if (routeSettings.name != '/chat') return false;
-
-      // Check if the current route arguments contain this friend
-      final args = routeSettings.arguments as Map<String, dynamic>?;
-      if (args == null) return false;
-      
-      final friend = args['friend'] as Friend?;
-      if (friend == null) return false;
-      
-      // Compare friend IDs
-      return friend.id == friendId;
-    } catch (e) {
-      // If route checking fails, assume not in focus to be safe
-      return false;
-    }
+    // Rely on the reliable ChatMessageCountService which tracks open chat states
+    return ChatMessageCountService().isChatOpenForFriend(friendId);
   }
 
   /// Show in-app notification for chat messages

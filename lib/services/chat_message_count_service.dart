@@ -85,6 +85,12 @@ class ChatMessageCountService extends ChangeNotifier {
     
     final now = DateTime.now().millisecondsSinceEpoch;
     
+    // First check: if chat is currently open for this friend, don't increment
+    if (isChatOpenForFriend(friendId)) {
+      print('[SKYBYN] ⏭️ [ChatMessageCount] SKIPPING INCREMENT - Chat screen currently open for this friend');
+      return false; 
+    }
+
     // First check: messageId-based deduplication
     if (messageId != null && messageId.isNotEmpty && messageId != 'no-id' && messageId != 'null') {
       final messageKey = '${friendId}_$messageId';
