@@ -6,7 +6,7 @@ import 'dart:convert';
 import '../services/auth_service.dart';
 import 'dart:async'; // Required for OverlayEntry
 import '../widgets/background_gradient.dart';
-import '../utils/translation_keys.dart';
+import '../services/translation_service.dart';
 import '../widgets/translated_text.dart';
 import '../widgets/header.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -422,196 +422,262 @@ class _QrScannerScreenState extends State<QrScannerScreen> with WidgetsBindingOb
       ),
       body: Stack(
         children: [
-          const BackgroundGradient(),
-          Center(
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(20.0), // Adjust border radius as needed
-              child: SizedBox(
-                width: MediaQuery.of(context).size.width * 0.7, // 70% of screen width
-                height: MediaQuery.of(context).size.width * 0.7, // Maintain aspect ratio for a square
-                child: Stack(
-                  alignment: Alignment.center,
+          // 1. Full Screen Camera or Background
+          const BackgroundGradient(), // Keep gradient as fallback
+          if (_isCameraInitialized && _cameraError == null)
+            Positioned.fill(
+              child: MobileScanner(
+                controller: cameraController,
+                onDetect: (capture) {
+                  // If we already have a pending code, ignore new detections
+                  if (_pendingQrCode != null) return;
+                  
+                  final List<Barcode> barcodes = capture.barcodes;
+                  for (final barcode in barcodes) {
+                    final scannedValue = barcode.rawValue;
+                    if (scannedValue != null) {
+                      final code = _extractQrCode(scannedValue);
+                      if (code != null && code.length == 10) {
+                        setState(() {
+                          _pendingQrCode = code;
+                          // Optional: Vibrate or sound
+                        });
+                      }
+                    }
+                  }
+                },
+              ),
+            )
+          else if (_cameraError != null)
+             _buildCameraErrorUI()
+          else
+             const Center(child: CircularProgressIndicator(color: Colors.white)),
+
+          // 2. Overlay (Dimmed Background + Scan Square)
+          if (_pendingQrCode == null)
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final double width = constraints.maxWidth;
+                final double height = constraints.maxHeight;
+                final double squareSize = width * 0.7;
+                final double verticalGap = (height - squareSize) / 2;
+                final double horizontalGap = (width - squareSize) / 2;
+
+                return Stack(
                   children: [
-                    if (_isCameraInitialized && _cameraError == null)
-                      MobileScanner(
-                        controller: cameraController,
-                        // MobileScanner auto-starts by default, no need to call start() manually
-                        onDetect: (capture) async {
-                          final List<Barcode> barcodes = capture.barcodes;
-                          for (final barcode in barcodes) {
-                            final scannedValue = barcode.rawValue;
-                            if (scannedValue != null) {
-                              // Extract code from scanned value (handles both URL and plain code formats)
-                              final code = _extractQrCode(scannedValue);
-                              if (code != null && code.length == 10) {
-                                await _sendQrCodeToServer(code);
-                              } else {
-                                _showOverlayToast('Invalid QR code format. Please scan a valid login QR code.');
-                              }
-                            }
-                          }
-                        },
-                      )
-                    else if (_cameraError != null)
-                      Container(
-                        color: Colors.black.withOpacity(0.8),
-                        child: Center(
-                          child: SingleChildScrollView(
-                            child: Padding(
-                              padding: const EdgeInsets.all(24.0),
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                const Icon(
-                                  Icons.error_outline,
-                                  color: Colors.white,
-                                  size: 64,
-                                ),
-                                const SizedBox(height: 16),
-                                const Text(
-                                  'Camera Error',
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                                const SizedBox(height: 8),
-                                Padding(
-                                  padding: const EdgeInsets.symmetric(horizontal: 32),
-                                  child: Text(
-                                    _cameraError!,
-                                    style: const TextStyle(
-                                      color: Colors.white70,
-                                      fontSize: 14,
-                                    ),
-                                    textAlign: TextAlign.center,
-                                  ),
-                                ),
-                                const SizedBox(height: 24),
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    ElevatedButton(
-                                      onPressed: () {
-                                        setState(() {
-                                          _cameraError = null;
-                                          _isPermissionDenied = false;
-                                          _isCameraInitialized = false;
-                                        });
-                                        _checkCameraPermission();
-                                      },
-                                      child: const TranslatedText(TranslationKeys.retry),
-                                    ),
-                                    if (_isPermissionDenied) ...[
-                                      const SizedBox(width: 12),
-                                      ElevatedButton(
-                                        onPressed: () async {
-                                          await openAppSettings();
-                                          // Permission will be re-checked when app resumes via lifecycle observer
-                                        },
-                                        style: ElevatedButton.styleFrom(
-                                          backgroundColor: Colors.blue,
-                                          foregroundColor: Colors.white,
-                                        ),
-                                        child: const TranslatedText(TranslationKeys.openSettings),
-                                      ),
-                                    ],
-                                  ],
-                                ),
-                              ],
-                            ),
-                            ),
-                          ),
-                        ),
-                      )
-                    else
-                      const Center(
-                        child: CircularProgressIndicator(
-                          color: Colors.white,
+                    // Top Dim area
+                    Positioned(
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      height: verticalGap,
+                      child: Container(color: Colors.black.withOpacity(0.5)),
+                    ),
+                    // Bottom Dim area
+                    Positioned(
+                      bottom: 0,
+                      left: 0,
+                      right: 0,
+                      height: verticalGap,
+                      child: Container(color: Colors.black.withOpacity(0.5)),
+                    ),
+                    // Left Dim area (middle)
+                    Positioned(
+                      top: verticalGap,
+                      left: 0,
+                      width: horizontalGap,
+                      height: squareSize,
+                      child: Container(color: Colors.black.withOpacity(0.5)),
+                    ),
+                    // Right Dim area (middle)
+                    Positioned(
+                      top: verticalGap,
+                      right: 0,
+                      width: horizontalGap,
+                      height: squareSize,
+                      child: Container(color: Colors.black.withOpacity(0.5)),
+                    ),
+                    // Center Square Border
+                    Positioned(
+                      top: verticalGap,
+                      left: horizontalGap,
+                      width: squareSize,
+                      height: squareSize,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          border: Border.all(color: Colors.blue, width: 2.0),
+                          borderRadius: BorderRadius.circular(12),
                         ),
                       ),
-                    if (_showSuccessOverlay)
-                      Positioned.fill(
-                        child: BackdropFilter(
-                          filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
-                          child: Container(
-                            color: Colors.black.withOpacity(0.3),
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                const Icon(Icons.check_circle, color: Colors.green, size: 120),
-                                const SizedBox(height: 24),
-                                ElevatedButton(
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: Colors.green,
-                                    foregroundColor: Colors.white,
-                                    padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(30),
-                                    ),
-                                  ),
-                                  onPressed: () {
-                                    setState(() {
-                                      _showSuccessOverlay = false;
-                                    });
-                                    Navigator.of(context).pop();
-                                  },
-                                  child: const TranslatedText(TranslationKeys.done, style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-                                ),
-                              ],
+                    ),
+                  ],
+                );
+              },
+            ),
+
+          // 3. Pending Confirmation UI (When code found)
+          if (_pendingQrCode != null)
+            Container(
+              color: Colors.black.withOpacity(0.8), // Darken background to focus on result
+              child: Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                   // The "Square" with the code inside
+                   Container(
+                      width: MediaQuery.of(context).size.width * 0.7,
+                      height: MediaQuery.of(context).size.width * 0.7,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.1),
+                        border: Border.all(color: Colors.green, width: 3.0),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(Icons.qr_code, color: Colors.white, size: 60),
+                            const SizedBox(height: 16),
+                            const TranslatedText(
+                              TranslationKeys.skybynQrDetected,
+                              style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
                             ),
-                          ),
+                          ],
                         ),
                       ),
+                   ),
+                   const SizedBox(height: 32),
+                   // Action Buttons
+                   Row(
+                     mainAxisAlignment: MainAxisAlignment.center,
+                     children: [
+                       TextButton(
+                         onPressed: () {
+                           setState(() {
+                             _pendingQrCode = null;
+                           });
+                         },
+                         child: const Text('Cancel', style: TextStyle(color: Colors.white70, fontSize: 16)),
+                       ),
+                       const SizedBox(width: 24),
+                       ElevatedButton(
+                         onPressed: _handleConfirmScan,
+                         style: ElevatedButton.styleFrom(
+                           backgroundColor: Colors.green,
+                           foregroundColor: Colors.white,
+                           padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+                         ),
+                         child: const Text('Confirm', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                       ),
+                     ],
+                   )
                   ],
                 ),
               ),
             ),
-          ),
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: 32 + MediaQuery.of(context).padding.bottom,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24.0),
-              child: _showSuccessOverlay
-                  ? ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.green,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(30),
-                        ),
-                      ),
-                      onPressed: () {
-                        setState(() {
-                          _showSuccessOverlay = false;
-                          _lastScannedCode = null;
-                        });
-                        // Camera should continue running automatically
-                        // No need to manually resume as MobileScanner handles it
-                      },
-                      child: const TranslatedText(TranslationKeys.scanAgain, style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-                    )
-                  : Container(
-                      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-                      decoration: BoxDecoration(
-                        color: Colors.black.withOpacity(0.7),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Text(
-                        _lastScannedCode == 'VALID' ? 'VALID' : (_lastScannedCode ?? 'Scanning..'),
-                        style: const TextStyle(color: Colors.white, fontSize: 18),
-                        textAlign: TextAlign.center,
-                      ),
-                    ),
+          
+          // 4. Scanning Text (Only when scanning)
+          if (_pendingQrCode == null)
+            Positioned(
+              left: 0, 
+              right: 0,
+              bottom: 80,
+              child: const Center(
+                child: Text(
+                  'Align QR code within the frame',
+                  style: TextStyle(color: Colors.white, fontSize: 16, shadows: [Shadow(color: Colors.black, blurRadius: 4)]),
+                ),
+              ),
             ),
-          ),
         ],
       ),
     );
   }
+  
+  // Helper to build camera error UI to deduplicate code
+  Widget _buildCameraErrorUI() {
+    return Container(
+      color: Colors.black.withOpacity(0.8),
+      child: Center(
+        child: SingleChildScrollView(
+          child: Padding(
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.error_outline, color: Colors.white, size: 64),
+                const SizedBox(height: 16),
+                const Text('Camera Error', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 8),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 32),
+                  child: Text(_cameraError!, style: const TextStyle(color: Colors.white70, fontSize: 14), textAlign: TextAlign.center),
+                ),
+                const SizedBox(height: 24),
+                ElevatedButton(
+                   onPressed: () {
+                     setState(() {
+                       _cameraError = null;
+                       _isCameraInitialized = false;
+                     });
+                     _checkCameraPermission();
+                   },
+                   child: const TranslatedText(TranslationKeys.retry),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // Handle the confirmation button press
+  Future<void> _handleConfirmScan() async {
+     if (_pendingQrCode == null) return;
+     
+     // Send to server
+     await _sendQrCodeToServerAndNavigate(_pendingQrCode!);
+  }
+  
+  // Modified send method to handle navigation
+  Future<void> _sendQrCodeToServerAndNavigate(String qrCode) async {
+    if (_userId == null) return;
+
+    try {
+      final response = await http.post(
+        Uri.parse('https://api.skybyn.no/qr_check.php'),
+        body: {'user': _userId!, 'code': qrCode},
+      );
+
+      final Map<String, dynamic> data = json.decode(response.body);
+
+      if (data['responseCode'] == '1') {
+        if (!mounted) return;
+        // Show brief success feedback if needed or just pop
+        ScaffoldMessenger.of(context).showSnackBar(
+           const SnackBar(content: Text('Login confirmed!'), backgroundColor: Colors.green, duration: Duration(seconds: 1)),
+        );
+        Navigator.of(context).pop(); // Go back to previous screen
+      } else {
+        setState(() {
+          // Show error and reset
+          _lastScannedCode = data['message'] ?? 'Failed to check QR code.';
+           _showOverlayToast(_lastScannedCode ?? 'Error');
+           _pendingQrCode = null; // Allow retry
+        });
+      }
+    } catch (e) {
+      _showOverlayToast('Error communicating with server: $e');
+      setState(() {
+        _pendingQrCode = null; // Allow retry
+      });
+    }
+  }
+
+  // Define _pendingQrCode variable in State class
+  String? _pendingQrCode;
 }
+

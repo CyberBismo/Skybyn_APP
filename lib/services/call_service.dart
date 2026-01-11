@@ -135,40 +135,49 @@ class CallService {
       await _peerConnection!.setLocalDescription(offer);
       // Ensure WebSocket is connected before sending call offer
       if (!_signalingService.isConnected) {
+        debugPrint('⚠️ [Call] WebSocket not connected. Attempting to connect...');
         // Try to connect WebSocket
-        await _signalingService.connect().timeout(
-          const Duration(seconds: 5),
-          onTimeout: () {
-            throw Exception('WebSocket connection timeout');
-          },
-        );
-        
-        // Wait a bit more for connection to be fully established
-        int waitAttempts = 0;
-        while (!_signalingService.isConnected && waitAttempts < 10) {
-          await Future.delayed(const Duration(milliseconds: 200));
-          waitAttempts++;
+        try {
+          await _signalingService.connect().timeout(
+            const Duration(seconds: 3), // Reduced timeout to fail faster and try push
+          );
+          
+          // Wait a bit more for connection to be fully established (ping/pong)
+          int waitAttempts = 0;
+          while (!_signalingService.isConnected && waitAttempts < 5) {
+            await Future.delayed(const Duration(milliseconds: 200));
+            waitAttempts++;
+          }
+        } catch (e) {
+          debugPrint('⚠️ [Call] WebSocket connection attempt failed: $e');
         }
         
         if (!_signalingService.isConnected) {
-          throw Exception('WebSocket failed to connect');
+          debugPrint('⚠️ [Call] WebSocket still not connected. Proceeding with Push Notification fallback.');
+          // We don't throw exception here anymore. 
+          // We rely on:
+          // 1. Queueing the offer message (WebSocketService queues messages when offline)
+          // 2. Sending the Push Notification to wake up the other party
+          // 3. Background reconnection attempting to restore link
         }
-      } else {
       }
-      // Send offer through WebSocket
+
+      // Send offer through WebSocket (will be queued if disconnected)
       _signalingService.sendCallOffer(
         callId: _currentCallId!,
         targetUserId: otherUserId,
         offer: offer.sdp!,
         callType: callType == CallType.video ? 'video' : 'audio',
       );
+      
+      // Send push notification to wake up recipient (high priority)
+      // We do this concurrently with the offer
+      _sendCallPushNotification(otherUserId, _currentCallId!, callType);
+
       // Start call timeout timer
       _startCallTimeout();
       // Start connection check timer to ensure state updates when media arrives
       _startConnectionCheck();
-      
-      // Send push notification to wake up recipient (high priority)
-      _sendCallPushNotification(otherUserId, _currentCallId!, callType);
     } catch (e) {
       _stopConnectionCheck();
       _updateCallState(CallState.ended);
@@ -226,7 +235,7 @@ class CallService {
 
       // Send answer through WebSocket
       if (!_signalingService.isConnected) {
-        throw Exception('WebSocket not connected - cannot send answer');
+        debugPrint('⚠️ [Call] WebSocket not connected during answer. Answer will be queued.');
       }
       _signalingService.sendCallAnswer(
         callId: callId,

@@ -615,6 +615,22 @@ class WebSocketService {
               _logChat('WebSocket Delete Comment', '🗑️ Comment deleted: postId=$postId, commentId=$commentId');
               _handleDeleteComment(postId ?? '', commentId ?? '');
               break;
+            case 'online_status':
+              final userId = data['userId']?.toString();
+              final isOnline = data['isOnline'] == true;
+              _logChat('WebSocket Online Status', '🟢 Online status update: userId=$userId, isOnline=$isOnline');
+              
+              if (userId != null) {
+                // Notify all registered listeners
+                for (final callback in _onOnlineStatusCallbacks) {
+                  try {
+                    callback(userId, isOnline);
+                  } catch (e) {
+                    _logChat('WebSocket Online Status', 'Error in callback: $e');
+                  }
+                }
+              }
+              break;
             case 'notification':
               // Handle notification (e.g., chat message notification)
               final notificationType = data['notificationType']?.toString();

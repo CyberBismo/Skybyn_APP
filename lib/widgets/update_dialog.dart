@@ -2,7 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import '../services/auto_update_service.dart';
 import 'app_colors.dart';
-import '../utils/translation_keys.dart';
+
 import '../widgets/translated_text.dart';
 import '../services/translation_service.dart';
 

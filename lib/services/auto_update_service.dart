@@ -66,16 +66,16 @@ class AutoUpdateService {
     try {
       print('[Update Check] Starting update check...');
       
-      // Get current app version/build number first
+      // Get current app version (semantic version "1.0.0") instead of build number
       final PackageInfo packageInfo = await PackageInfo.fromPlatform();
-      final String installedVersionCode = packageInfo.buildNumber.isNotEmpty ? packageInfo.buildNumber : '1';
-      print('[Update Check] Current installed version: $installedVersionCode');
+      final String installedVersion = packageInfo.version.isNotEmpty ? packageInfo.version : '1.0.0';
+      print('[Update Check] Current installed version: $installedVersion');
 
-      // Build URL with query parameters: c=android&v={buildNumber}
+      // Build URL with query parameters: c=android&v={version}
       final uri = Uri.parse(_updateCheckUrl).replace(
         queryParameters: {
           'c': 'android',
-          'v': installedVersionCode,
+          'v': installedVersion,
         },
       );
       print('[Update Check] Checking update at: $uri');
@@ -115,9 +115,9 @@ class AutoUpdateService {
           
           // Parse response from app_update.php
           // Response format: { responseCode: 1|0, message: string, url: string, currentVersion: string, yourVersion: string }
-          final responseCode = data['responseCode'];
+          final responseCode = int.tryParse(data['responseCode']?.toString() ?? '0');
           final downloadUrl = data['url']?.toString() ?? '';
-          final latestVersion = data['currentVersion']?.toString() ?? installedVersionCode;
+          final latestVersion = data['currentVersion']?.toString() ?? installedVersion;
           final message = data['message']?.toString() ?? '';
 
           print('[Update Check] Parsed response:');
@@ -131,11 +131,11 @@ class AutoUpdateService {
           final isUpdateAvailable = responseCode == 1 && downloadUrl.isNotEmpty;
 
           if (isUpdateAvailable) {
-            print('[Update Check] ✓ Update available! Latest version: $latestVersion, Current: $installedVersionCode');
+            print('[Update Check] ✓ Update available! Latest version: $latestVersion, Current: $installedVersion');
             // Update available
             return UpdateInfo(
               version: latestVersion,
-              buildNumber: int.tryParse(latestVersion) ?? int.tryParse(installedVersionCode) ?? 1,
+              buildNumber: int.tryParse(latestVersion.replaceAll('.', '')) ?? 0, // Semantic placeholder
               downloadUrl: downloadUrl,
               releaseNotes: message.isNotEmpty ? message : 'A new version is available.',
               isAvailable: true,
@@ -144,8 +144,8 @@ class AutoUpdateService {
             print('[Update Check] ✓ No update available. Current version is up to date.');
             // No update available
             return UpdateInfo(
-              version: installedVersionCode,
-              buildNumber: int.tryParse(installedVersionCode) ?? 1,
+              version: installedVersion,
+              buildNumber: int.tryParse(installedVersion.replaceAll('.', '')) ?? 0,
               downloadUrl: '',
               releaseNotes: message.isNotEmpty ? message : 'No new version available.',
               isAvailable: false,

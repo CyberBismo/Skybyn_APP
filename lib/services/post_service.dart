@@ -378,27 +378,61 @@ class PostService {
   Future<Map<String, dynamic>> createPost({
     required String userId,
     required String content,
+    File? mediaFile,
   }) async {
     // Send plain text content to server (server will handle encryption)
 
-    final response = await http.post(
-      Uri.parse(ApiConstants.addPost),
-      body: {
-        'userID': userId,
-        'content': content,
-      },
-    );
+    if (mediaFile == null) {
+      final response = await http.post(
+        Uri.parse(ApiConstants.addPost),
+        body: {
+          'userID': userId,
+          'content': content,
+        },
+      );
 
-    if (response.statusCode != 200) {
-      throw Exception('Failed to create post');
+      if (response.statusCode != 200) {
+        throw Exception('Failed to create post');
+      }
+      
+      final data = json.decode(response.body);
+      if (data['responseCode'] != '1') {
+        final message = data['message'] ?? 'Failed to create post';
+        throw Exception(message);
+      }
+      return data;
+    } else {
+      // Use MultipartRequest for file upload
+      final request = http.MultipartRequest('POST', Uri.parse(ApiConstants.addPost));
+      request.fields['userID'] = userId;
+      request.fields['content'] = content;
+      
+      final stream = http.ByteStream(mediaFile.openRead());
+      final length = await mediaFile.length();
+      
+      final multipartFile = http.MultipartFile(
+        'file',
+        stream,
+        length,
+        filename: mediaFile.path.split('/').last,
+      );
+      
+      request.files.add(multipartFile);
+      
+      final streamedResponse = await request.send();
+      final response = await http.Response.fromStream(streamedResponse);
+      
+      if (response.statusCode != 200) {
+        throw Exception('Failed to create post');
+      }
+      
+      final data = json.decode(response.body);
+      if (data['responseCode'] != '1') {
+        final message = data['message'] ?? 'Failed to create post';
+        throw Exception(message);
+      }
+      return data;
     }
-    
-    final data = json.decode(response.body);
-    if (data['responseCode'] != '1') {
-      final message = data['message'] ?? 'Failed to create post';
-      throw Exception(message);
-    }
-    return data;
   }
 
   Future<void> updatePost({

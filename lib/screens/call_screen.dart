@@ -35,6 +35,7 @@ class _CallScreenState extends State<CallScreen> {
   @override
   void initState() {
     super.initState();
+    _isCameraOff = widget.callType == CallType.audio;
     _initializeRenderers();
     _setupCallService();
     
@@ -314,12 +315,10 @@ class _CallScreenState extends State<CallScreen> {
   }
 
   Future<void> _toggleCamera() async {
-    if (widget.callType == CallType.video) {
-      await _callService.toggleCamera();
-      setState(() {
-        _isCameraOff = !_isCameraOff;
-      });
-    }
+    await _callService.toggleCamera();
+    setState(() {
+      _isCameraOff = !_isCameraOff;
+    });
   }
 
   Future<void> _switchCamera() async {
@@ -758,17 +757,16 @@ class _CallScreenState extends State<CallScreen> {
                           backgroundColor: Colors.white.withOpacity(0.2),
                         ),
 
-                      // Camera toggle (video calls only)
-                      if (isConnected && isVideoCall)
-                        _buildControlButton(
-                          icon: _isCameraOff ? Icons.videocam_off : Icons.videocam,
-                          label: 'Camera',
-                          onPressed: _toggleCamera,
-                          backgroundColor: Colors.white.withOpacity(0.2),
-                        ),
+                      // Camera toggle - always visible
+                      _buildControlButton(
+                        icon: _isCameraOff ? Icons.videocam_off : Icons.videocam,
+                        label: 'Camera',
+                        onPressed: _toggleCamera,
+                        backgroundColor: Colors.white.withOpacity(0.2),
+                      ),
 
-                      // Switch camera (video calls only, when connected)
-                      if (isConnected && isVideoCall)
+                      // Switch camera - only visible while camera is toggled on
+                      if (!_isCameraOff)
                         _buildControlButton(
                           icon: Icons.switch_camera,
                           label: 'Switch',

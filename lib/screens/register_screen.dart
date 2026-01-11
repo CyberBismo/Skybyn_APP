@@ -6,6 +6,7 @@ import '../widgets/wheel_date_picker.dart';
 import '../services/translation_service.dart';
 import 'home_screen.dart';
 
+
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
 
@@ -25,6 +26,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _confirmPasswordController = TextEditingController();
 
   final _authService = AuthService();
+  final _translationService = TranslationService();
 
   final _firstNameFocusNode = FocusNode();
   final _middleNameFocusNode = FocusNode();
@@ -97,7 +99,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   Future<void> _selectDate(BuildContext context) async {
     final DateTime now = DateTime.now();
-    final DateTime initialDate = _selectedDate ?? DateTime(now.year - 15, now.month, now.day);
+    final DateTime initialDate = _selectedDate ?? DateTime(now.year - 20, now.month, now.day);
     final DateTime firstDate = DateTime(now.year - 100, now.month, now.day);
     final DateTime lastDate = DateTime(now.year - 15, now.month, now.day);
 
@@ -117,29 +119,29 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   String? _validateRequired(String? value, String fieldName) {
     if (value == null || value.trim().isEmpty) {
-      return '$fieldName is required';
+      return _translationService.translate(TranslationKeys.fieldRequired);
     }
     return null;
   }
 
   String? _validateEmail(String? value) {
     if (value == null || value.trim().isEmpty) {
-      return 'Email is required';
+      return _translationService.translate(TranslationKeys.fieldRequired);
     }
     final emailRegex = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
     if (!emailRegex.hasMatch(value)) {
-      return 'Please enter a valid email address';
+      return _translationService.translate(TranslationKeys.invalidEmail);
     }
     return null;
   }
 
   String? _validateVerificationCode(String? value) {
     if (value == null || value.trim().isEmpty) {
-      return 'Please enter the verification code';
+      return _translationService.translate(TranslationKeys.enterVerificationCode);
     }
     final trimmedValue = value.trim();
     if (trimmedValue.length < 4) {
-      return 'Verification code must be at least 4 characters';
+      return _translationService.translate(TranslationKeys.verificationCodeTooShort);
     }
     // Only validate against expected code if we have one (for dev/testing)
     // In production, the server will validate the code
@@ -164,7 +166,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       }
       
       // Codes don't match
-      return 'Invalid verification code. Please try again.';
+      return _translationService.translate(TranslationKeys.invalidVerificationCode);
     }
     // If no expected code is set, just check minimum length (server will validate)
     return null;
@@ -172,10 +174,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   String? _validatePassword(String? value) {
     if (value == null || value.trim().isEmpty) {
-      return 'Password is required';
+      return _translationService.translate(TranslationKeys.fieldRequired);
     }
     if (value.length < 8) {
-      return 'Password must be at least 8 characters long';
+      return _translationService.translate(TranslationKeys.passwordTooShort);
     }
     // API requires at least one English letter (A-Z, a-z) and one number (0-9)
     // Allow only English characters and common English keyboard special characters
@@ -184,34 +186,34 @@ class _RegisterScreenState extends State<RegisterScreen> {
     // Note: Using regular string to properly escape quotes and dollar signs
     final allowedPattern = RegExp('^[A-Za-z0-9~!@#\\\$%^&*()_+\\-=\\[\\]{}|;:\\\'\\",.<>?/\\\\]+\$');
     if (!allowedPattern.hasMatch(value)) {
-      return 'Password can only contain English letters, numbers, and common keyboard symbols';
+      return _translationService.translate(TranslationKeys.onlyEnglishCharsAllowed);
     }
     if (!RegExp(r'[A-Za-z]').hasMatch(value)) {
-      return 'Password must contain at least one letter (A-Z)';
+      return _translationService.translate(TranslationKeys.alphaCharUsed);
     }
     if (!RegExp(r'[0-9]').hasMatch(value)) {
-      return 'Password must contain at least one number';
+      return _translationService.translate(TranslationKeys.numericCharUsed);
     }
     return null;
   }
 
   String? _validateConfirmPassword(String? value) {
     if (value == null || value.trim().isEmpty) {
-      return 'Please confirm your password';
+      return _translationService.translate(TranslationKeys.confirmPassword);
     }
     if (value != _passwordController.text) {
-      return 'Passwords do not match';
+      return _translationService.translate(TranslationKeys.passwordsDoNotMatch);
     }
     return null;
   }
 
   String? _validateDate() {
     if (_selectedDate == null) {
-      return 'Please select your date of birth';
+      return _translationService.translate(TranslationKeys.selectDateBirthDesc);
     }
     final age = DateTime.now().difference(_selectedDate!).inDays ~/ 365;
     if (age < 15) {
-      return 'You must be at least 15 years old';
+      return _translationService.translate(TranslationKeys.mustBe15YearsOld);
     }
     return null;
   }
@@ -272,7 +274,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
             // Show message that email is already verified
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text(result['message'] ?? 'Email already verified'),
+                content: Text(_translationService.translate(result['message'] ?? 'Email already verified')),
                 backgroundColor: Colors.green,
                 duration: const Duration(seconds: 2),
               ),
@@ -290,7 +292,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(result['message'] ?? 'Verification code sent successfully'),
+              content: Text(_translationService.translate(result['message'] ?? TranslationKeys.verificationCodeSentTo)),
               backgroundColor: Colors.green,
             ),
           );
@@ -335,7 +337,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         if (result['success']) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(result['message']),
+              content: Text(_translationService.translate(result['message'])),
               backgroundColor: Colors.green,
             ),
           );
@@ -549,7 +551,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
           // Show success message
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(result['message'] ?? 'Registration successful'),
+              content: Text(_translationService.translate(result['message'] ?? TranslationKeys.registrationSuccessful)),
               backgroundColor: Colors.green,
               duration: const Duration(seconds: 3),
             ),
@@ -562,14 +564,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
         } else {
           // Show error message
           setState(() {
-            _errorMessage = result['message'] ?? 'Registration failed. Please try again.';
+            _errorMessage = _translationService.translate(result['message'] ?? TranslationKeys.registrationFailed);
           });
         }
       }
     } catch (e) {
       if (mounted) {
         setState(() {
-          _errorMessage = 'Registration failed: ${e.toString()}';
+          _errorMessage = '${_translationService.translate(TranslationKeys.registrationFailed)}: ${e.toString()}';
         });
       }
     } finally {
@@ -603,25 +605,30 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }
 
   Widget _buildDateGroup() {
-    final translationService = TranslationService();
+
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? Colors.white : Colors.black87;
+    final secondaryTextColor = isDark ? Colors.white70 : Colors.black54;
+    final containerColor = isDark ? Colors.white.withValues(alpha: 0.1) : Colors.black.withValues(alpha: 0.05);
+    final borderColor = isDark ? Colors.white.withValues(alpha: 0.3) : Colors.black.withValues(alpha: 0.2);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          translationService.translate('date_of_birth'),
-          style: const TextStyle(
+          _translationService.translate(TranslationKeys.dateOfBirth),
+          style: TextStyle(
             fontSize: 20,
             fontWeight: FontWeight.bold,
-            color: Colors.white,
+            color: textColor,
           ),
         ),
         const SizedBox(height: 8),
         Text(
-          translationService.translate('select_date_birth_desc'),
-          style: const TextStyle(
+          _translationService.translate(TranslationKeys.selectDateBirthDesc),
+          style: TextStyle(
             fontSize: 14,
-            color: Colors.white70,
+            color: secondaryTextColor,
           ),
         ),
         const SizedBox(height: 20),
@@ -632,13 +639,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
           child: ElevatedButton(
             onPressed: () => _selectDate(context),
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.white.withValues(alpha: 0.1),
-              foregroundColor: Colors.white,
+              backgroundColor: containerColor,
+              foregroundColor: textColor,
               padding: const EdgeInsets.symmetric(vertical: 16),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(10),
                 side: BorderSide(
-                  color: Colors.white.withValues(alpha: 0.3),
+                  color: borderColor,
                   width: 1.5,
                 ),
               ),
@@ -648,16 +655,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
               children: [
                 Icon(
                   _selectedDate != null ? Icons.check_circle : Icons.calendar_today,
-                  color: Colors.white,
+                  color: textColor,
                   size: 20,
                 ),
                 const SizedBox(width: 8),
                 Text(
-                  _selectedDate != null ? '${_selectedDate!.day}/${_selectedDate!.month}/${_selectedDate!.year}' : 'Select Date of Birth',
-                  style: const TextStyle(
+                  _selectedDate != null ? '${_selectedDate!.day}/${_selectedDate!.month}/${_selectedDate!.year}' : _translationService.translate(TranslationKeys.selectDate),
+                  style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
-                    color: Colors.white,
+                    color: textColor,
                   ),
                 ),
               ],
@@ -670,18 +677,18 @@ class _RegisterScreenState extends State<RegisterScreen> {
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.08),
+              color: isDark ? Colors.white.withValues(alpha: 0.08) : Colors.black.withValues(alpha: 0.04),
               borderRadius: BorderRadius.circular(10),
               border: Border.all(
-                color: Colors.white.withValues(alpha: 0.3),
+                color: borderColor,
                 width: 1.5,
               ),
             ),
             child: Row(
               children: [
-                const Icon(
+                Icon(
                   Icons.check_circle,
-                  color: Colors.white,
+                  color: textColor,
                   size: 24,
                 ),
                 const SizedBox(width: 12),
@@ -689,19 +696,19 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
-                        'Based on your selection, you are',
+                      Text(
+                        _translationService.translate(TranslationKeys.basedOnSelection),
                         style: TextStyle(
-                          color: Colors.white,
+                          color: textColor,
                           fontSize: 16,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        '${DateTime.now().difference(_selectedDate!).inDays ~/ 365} years old',
+                        '${DateTime.now().difference(_selectedDate!).inDays ~/ 365} ${_translationService.translate(TranslationKeys.yearsOld)}',
                         style: TextStyle(
-                          color: Colors.white.withValues(alpha: 0.8),
+                          color: secondaryTextColor,
                           fontSize: 14,
                         ),
                       ),
@@ -717,34 +724,40 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }
 
   Widget _buildFullNameGroup() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? Colors.white : Colors.black87;
+    final secondaryTextColor = isDark ? Colors.white70 : Colors.black54;
+    final containerColor = isDark ? Colors.white.withValues(alpha: 0.1) : Colors.black.withValues(alpha: 0.05);
+    final hintColor = isDark ? Colors.white.withValues(alpha: 0.7) : Colors.black.withValues(alpha: 0.6);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          'Full Name',
+        Text(
+          _translationService.translate(TranslationKeys.fullName),
           style: TextStyle(
             fontSize: 20,
             fontWeight: FontWeight.bold,
-            color: Colors.white,
+            color: textColor,
           ),
         ),
         const SizedBox(height: 8),
-        const Text(
-          'Please enter your full name as it appears on official documents.',
+        Text(
+          _translationService.translate(TranslationKeys.fullNameDesc),
           style: TextStyle(
             fontSize: 14,
-            color: Colors.white70,
+            color: secondaryTextColor,
           ),
         ),
         const SizedBox(height: 20),
 
         // First Name
-        const Text(
-          'First Name',
+        Text(
+          _translationService.translate(TranslationKeys.firstName),
           style: TextStyle(
             fontSize: 16,
             fontWeight: FontWeight.w600,
-            color: Colors.white,
+            color: textColor,
           ),
         ),
         const SizedBox(height: 8),
@@ -754,21 +767,21 @@ class _RegisterScreenState extends State<RegisterScreen> {
           validator: (value) => _validateRequired(value, 'First name'),
           decoration: InputDecoration(
             filled: true,
-            fillColor: Colors.white.withValues(alpha: 0.1),
-            hintText: 'Enter your first name',
+            fillColor: containerColor,
+            hintText: _translationService.translate(TranslationKeys.enterFirstName),
             hintStyle: TextStyle(
-              color: Colors.white.withValues(alpha: 0.7),
+              color: hintColor,
               fontSize: 16,
             ),
-            prefixIcon: const Icon(Icons.person, color: Colors.white),
+            prefixIcon: Icon(Icons.person, color: textColor),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(10),
               borderSide: BorderSide.none,
             ),
             contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
           ),
-          style: const TextStyle(
-            color: Colors.white,
+          style: TextStyle(
+            color: textColor,
             fontSize: 16,
           ),
           textInputAction: TextInputAction.next,
@@ -777,12 +790,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
         const SizedBox(height: 20),
 
         // Middle Name (Optional)
-        const Text(
-          'Middle Name (Optional)',
+        Text(
+          _translationService.translate(TranslationKeys.middleNameOptional),
           style: TextStyle(
             fontSize: 16,
             fontWeight: FontWeight.w600,
-            color: Colors.white,
+            color: textColor,
           ),
         ),
         const SizedBox(height: 8),
@@ -791,21 +804,21 @@ class _RegisterScreenState extends State<RegisterScreen> {
           focusNode: _middleNameFocusNode,
           decoration: InputDecoration(
             filled: true,
-            fillColor: Colors.white.withValues(alpha: 0.1),
-            hintText: 'Enter your middle name (optional)',
+            fillColor: containerColor,
+            hintText: _translationService.translate(TranslationKeys.enterMiddleName),
             hintStyle: TextStyle(
-              color: Colors.white.withValues(alpha: 0.7),
+              color: hintColor,
               fontSize: 16,
             ),
-            prefixIcon: const Icon(Icons.person, color: Colors.white),
+            prefixIcon: Icon(Icons.person, color: textColor),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(10),
               borderSide: BorderSide.none,
             ),
             contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
           ),
-          style: const TextStyle(
-            color: Colors.white,
+          style: TextStyle(
+            color: textColor,
             fontSize: 16,
           ),
           textInputAction: TextInputAction.next,
@@ -814,12 +827,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
         const SizedBox(height: 20),
 
         // Last Name
-        const Text(
-          'Last Name',
+        Text(
+          _translationService.translate(TranslationKeys.lastName),
           style: TextStyle(
             fontSize: 16,
             fontWeight: FontWeight.w600,
-            color: Colors.white,
+            color: textColor,
           ),
         ),
         const SizedBox(height: 8),
@@ -829,13 +842,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
           validator: (value) => _validateRequired(value, 'Last name'),
           decoration: InputDecoration(
             filled: true,
-            fillColor: Colors.white.withValues(alpha: 0.1),
-            hintText: 'Enter your last name',
+            fillColor: containerColor,
+            hintText: _translationService.translate(TranslationKeys.enterLastName),
             hintStyle: TextStyle(
-              color: Colors.white.withValues(alpha: 0.7),
+              color: hintColor,
               fontSize: 16,
             ),
-            prefixIcon: const Icon(Icons.person, color: Colors.white),
+            prefixIcon: Icon(Icons.person, color: textColor),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(10),
               borderSide: BorderSide.none,
@@ -854,34 +867,40 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }
 
   Widget _buildEmailGroup() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? Colors.white : Colors.black87;
+    final secondaryTextColor = isDark ? Colors.white70 : Colors.black54;
+    final containerColor = isDark ? Colors.white.withValues(alpha: 0.1) : Colors.black.withValues(alpha: 0.05);
+    final hintColor = isDark ? Colors.white.withValues(alpha: 0.7) : Colors.black.withValues(alpha: 0.6);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          'Email Address',
+        Text(
+          _translationService.translate(TranslationKeys.emailAddress),
           style: TextStyle(
             fontSize: 20,
             fontWeight: FontWeight.bold,
-            color: Colors.white,
+            color: textColor,
           ),
         ),
         const SizedBox(height: 8),
-        const Text(
-          'Please enter your email address. We\'ll send a verification code to confirm it\'s yours.',
+        Text(
+          _translationService.translate(TranslationKeys.emailDesc),
           style: TextStyle(
             fontSize: 14,
-            color: Colors.white70,
+            color: secondaryTextColor,
           ),
         ),
         const SizedBox(height: 20),
 
         // Email input
-        const Text(
-          'Email',
+        Text(
+          _translationService.translate(TranslationKeys.email),
           style: TextStyle(
             fontSize: 16,
             fontWeight: FontWeight.w600,
-            color: Colors.white,
+            color: textColor,
           ),
         ),
         const SizedBox(height: 8),
@@ -892,21 +911,21 @@ class _RegisterScreenState extends State<RegisterScreen> {
           validator: _validateEmail,
           decoration: InputDecoration(
             filled: true,
-            fillColor: Colors.white.withValues(alpha: 0.1),
-            hintText: 'Enter your email address',
+            fillColor: containerColor,
+            hintText: _translationService.translate(TranslationKeys.enterEmail),
             hintStyle: TextStyle(
-              color: Colors.white.withValues(alpha: 0.7),
+              color: hintColor,
               fontSize: 16,
             ),
-            prefixIcon: const Icon(Icons.email, color: Colors.white),
+            prefixIcon: Icon(Icons.email, color: textColor),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(10),
               borderSide: BorderSide.none,
             ),
             contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
           ),
-          style: const TextStyle(
-            color: Colors.white,
+          style: TextStyle(
+            color: textColor,
             fontSize: 16,
           ),
           textInputAction: TextInputAction.done,
@@ -949,8 +968,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
-                        'Email Sent',
+                      Text(
+                        _translationService.translate(TranslationKeys.emailSent),
                         style: TextStyle(
                           color: Colors.blue,
                           fontSize: 16,
@@ -959,7 +978,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        'Verification code sent to ${_emailController.text}',
+                        '${_translationService.translate(TranslationKeys.verificationCodeSentTo)}${_emailController.text}',
                         style: TextStyle(
                           color: Colors.blue.withValues(alpha: 0.8),
                           fontSize: 14,
@@ -977,35 +996,41 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }
 
   Widget _buildEmailVerificationGroup() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? Colors.white : Colors.black87;
+    final secondaryTextColor = isDark ? Colors.white70 : Colors.black54;
+    final containerColor = isDark ? Colors.white.withValues(alpha: 0.1) : Colors.black.withValues(alpha: 0.05);
+    final hintColor = isDark ? Colors.white.withValues(alpha: 0.7) : Colors.black.withValues(alpha: 0.6);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          'Email Verification',
+        Text(
+          _translationService.translate(TranslationKeys.emailVerification),
           style: TextStyle(
             fontSize: 20,
             fontWeight: FontWeight.bold,
-            color: Colors.white,
+            color: textColor,
           ),
         ),
         const SizedBox(height: 8),
         Text(
-          'Enter the verification code sent to ${_emailController.text}',
-          style: const TextStyle(
+          '${_translationService.translate(TranslationKeys.enterCodeSentTo)}${_emailController.text}',
+          style: TextStyle(
             fontSize: 14,
-            color: Colors.white70,
+            color: secondaryTextColor,
           ),
         ),
         const SizedBox(height: 20),
         const SizedBox(height: 20),
 
         // Verification code input
-        const Text(
-          'Verification Code',
+        Text(
+          _translationService.translate(TranslationKeys.verificationCode),
           style: TextStyle(
             fontSize: 16,
             fontWeight: FontWeight.w600,
-            color: Colors.white,
+            color: textColor,
           ),
         ),
         const SizedBox(height: 8),
@@ -1016,18 +1041,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
           validator: _validateVerificationCode,
           decoration: InputDecoration(
             filled: true,
-            fillColor: Colors.white.withValues(alpha: 0.1),
-            hintText: 'Enter 6-digit verification code',
+            fillColor: containerColor,
+            hintText: _translationService.translate(TranslationKeys.enterVerificationCode),
             hintStyle: TextStyle(
-              color: Colors.white.withValues(alpha: 0.7),
+              color: hintColor,
               fontSize: 16,
             ),
-            prefixIcon: const Icon(Icons.verified, color: Colors.white),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(10),
-              borderSide: BorderSide.none,
-            ),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
           ),
           style: const TextStyle(
             color: Colors.white,
@@ -1052,13 +1071,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       });
                     }
                   },
-            child: const Text(
-              'Resend Code',
+            child: Text(
+              _translationService.translate(TranslationKeys.resendCode),
               style: TextStyle(
-                color: Colors.white,
+                color: textColor,
                 fontSize: 14,
                 fontWeight: FontWeight.w600,
                 decoration: TextDecoration.underline,
+                decorationColor: textColor,
               ),
             ),
           ),
@@ -1068,23 +1088,29 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }
 
   Widget _buildUsernameGroup() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? Colors.white : Colors.black87;
+    final secondaryTextColor = isDark ? Colors.white70 : Colors.black54;
+    final containerColor = isDark ? Colors.white.withValues(alpha: 0.1) : Colors.black.withValues(alpha: 0.05);
+    final hintColor = isDark ? Colors.white.withValues(alpha: 0.7) : Colors.black.withValues(alpha: 0.6);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          'Username',
+        Text(
+          _translationService.translate(TranslationKeys.username),
           style: TextStyle(
             fontSize: 20,
             fontWeight: FontWeight.bold,
-            color: Colors.white,
+            color: textColor,
           ),
         ),
         const SizedBox(height: 8),
-        const Text(
-          'Choose a unique username for your account.',
+        Text(
+          _translationService.translate(TranslationKeys.usernameDesc),
           style: TextStyle(
             fontSize: 14,
-            color: Colors.white70,
+            color: secondaryTextColor,
           ),
         ),
         const SizedBox(height: 20),
@@ -1094,21 +1120,21 @@ class _RegisterScreenState extends State<RegisterScreen> {
           validator: (value) => _validateRequired(value, 'Username'),
           decoration: InputDecoration(
             filled: true,
-            fillColor: Colors.white.withValues(alpha: 0.1),
-            hintText: 'Choose a username',
+            fillColor: containerColor,
+            hintText: _translationService.translate(TranslationKeys.enterUsername),
             hintStyle: TextStyle(
-              color: Colors.white.withValues(alpha: 0.7),
+              color: hintColor,
               fontSize: 16,
             ),
-            prefixIcon: const Icon(Icons.account_circle, color: Colors.white),
+            prefixIcon: Icon(Icons.account_circle, color: textColor),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(10),
               borderSide: BorderSide.none,
             ),
             contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
           ),
-          style: const TextStyle(
-            color: Colors.white,
+          style: TextStyle(
+            color: textColor,
             fontSize: 16,
           ),
           textInputAction: TextInputAction.done,
@@ -1119,34 +1145,40 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }
 
   Widget _buildPasswordGroup() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? Colors.white : Colors.black87;
+    final secondaryTextColor = isDark ? Colors.white70 : Colors.black54;
+    final containerColor = isDark ? Colors.white.withValues(alpha: 0.1) : Colors.black.withValues(alpha: 0.05);
+    final hintColor = isDark ? Colors.white.withValues(alpha: 0.7) : Colors.black.withValues(alpha: 0.6);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          'Password',
+        Text(
+          _translationService.translate(TranslationKeys.password),
           style: TextStyle(
             fontSize: 20,
             fontWeight: FontWeight.bold,
-            color: Colors.white,
+            color: textColor,
           ),
         ),
         const SizedBox(height: 8),
-        const Text(
-          'Create a strong password for your account security.',
+        Text(
+          _translationService.translate(TranslationKeys.passwordDesc),
           style: TextStyle(
             fontSize: 14,
-            color: Colors.white70,
+            color: secondaryTextColor,
           ),
         ),
         const SizedBox(height: 20),
 
         // Password
-        const Text(
-          'Password',
+        Text(
+          _translationService.translate(TranslationKeys.password),
           style: TextStyle(
             fontSize: 16,
             fontWeight: FontWeight.w600,
-            color: Colors.white,
+            color: textColor,
           ),
         ),
         const SizedBox(height: 8),
@@ -1157,17 +1189,17 @@ class _RegisterScreenState extends State<RegisterScreen> {
           validator: _validatePassword,
           decoration: InputDecoration(
             filled: true,
-            fillColor: Colors.white.withValues(alpha: 0.1),
-            hintText: 'Create a password',
+            fillColor: containerColor,
+            hintText: _translationService.translate(TranslationKeys.enterPassword),
             hintStyle: TextStyle(
-              color: Colors.white.withValues(alpha: 0.7),
+              color: hintColor,
               fontSize: 16,
             ),
-            prefixIcon: const Icon(Icons.lock_outline, color: Colors.white),
+            prefixIcon: Icon(Icons.lock_outline, color: textColor),
             suffixIcon: IconButton(
               icon: Icon(
                 _obscurePassword ? Icons.visibility : Icons.visibility_off,
-                color: Colors.white.withValues(alpha: 0.7),
+                color: hintColor,
               ),
               onPressed: () {
                 setState(() {
@@ -1181,8 +1213,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
             ),
             contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
           ),
-          style: const TextStyle(
-            color: Colors.white,
+          style: TextStyle(
+            color: textColor,
             fontSize: 16,
           ),
           textInputAction: TextInputAction.next,
@@ -1192,12 +1224,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
         const SizedBox(height: 20),
 
         // Confirm Password
-        const Text(
-          'Confirm Password',
+        Text(
+          _translationService.translate(TranslationKeys.confirmPassword),
           style: TextStyle(
             fontSize: 16,
             fontWeight: FontWeight.w600,
-            color: Colors.white,
+            color: textColor,
           ),
         ),
         const SizedBox(height: 8),
@@ -1208,17 +1240,17 @@ class _RegisterScreenState extends State<RegisterScreen> {
           validator: _validateConfirmPassword,
           decoration: InputDecoration(
             filled: true,
-            fillColor: Colors.white.withValues(alpha: 0.1),
-            hintText: 'Re-enter your password',
+            fillColor: containerColor,
+            hintText: _translationService.translate(TranslationKeys.confirmPassword),
             hintStyle: TextStyle(
-              color: Colors.white.withValues(alpha: 0.7),
+              color: hintColor,
               fontSize: 16,
             ),
-            prefixIcon: const Icon(Icons.lock_outline, color: Colors.white),
+            prefixIcon: Icon(Icons.lock_outline, color: textColor),
             suffixIcon: IconButton(
               icon: Icon(
                 _obscureConfirmPassword ? Icons.visibility : Icons.visibility_off,
-                color: Colors.white.withValues(alpha: 0.7),
+                color: hintColor,
               ),
               onPressed: () {
                 setState(() {
@@ -1232,8 +1264,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
             ),
             contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
           ),
-          style: const TextStyle(
-            color: Colors.white,
+          style: TextStyle(
+            color: textColor,
             fontSize: 16,
           ),
           textInputAction: TextInputAction.done,
@@ -1247,19 +1279,19 @@ class _RegisterScreenState extends State<RegisterScreen> {
           child: LinearProgressIndicator(
             value: _passwordStrength.clamp(0.0, 1.0),
             minHeight: 12,
-            backgroundColor: Colors.white.withValues(alpha: 0.2),
+            backgroundColor: isDark ? Colors.white.withValues(alpha: 0.2) : Colors.black.withValues(alpha: 0.1),
             valueColor: AlwaysStoppedAnimation<Color>(
               _passwordStrength < 0.5 ? Colors.red : (_passwordStrength < 0.75 ? Colors.orange : Colors.green),
             ),
           ),
         ),
         const SizedBox(height: 12),
-        _buildRequirementRow('At least 8 characters.', _pwHasMinLen),
-        _buildRequirementRow('Alphabetic character used.', _pwHasAlpha),
-        _buildRequirementRow('Numeric character used.', _pwHasNum),
-        _buildRequirementRow('Special character used.', _pwHasSpecial),
-        _buildRequirementRow('Only English characters and keyboard symbols allowed.', !_pwHasInvalidChars),
-        _buildRequirementRow('Passwords match.', _pwMatch),
+        _buildRequirementRow(_translationService.translate(TranslationKeys.atLeast8Chars), _pwHasMinLen),
+        _buildRequirementRow(_translationService.translate(TranslationKeys.alphaCharUsed), _pwHasAlpha),
+        _buildRequirementRow(_translationService.translate(TranslationKeys.numericCharUsed), _pwHasNum),
+        _buildRequirementRow(_translationService.translate(TranslationKeys.specialCharUsed), _pwHasSpecial),
+        _buildRequirementRow(_translationService.translate(TranslationKeys.onlyEnglishCharsAllowed), !_pwHasInvalidChars),
+        _buildRequirementRow(_translationService.translate(TranslationKeys.passwordsMatch), _pwMatch),
       ],
     );
   }
@@ -1277,8 +1309,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
           const SizedBox(width: 8),
           Text(
             text,
-            style: const TextStyle(
-              color: Colors.white,
+            style: TextStyle(
+              color: (Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black87),
               fontSize: 14,
             ),
           ),
@@ -1288,23 +1320,28 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }
 
   Widget _buildProfilePackageGroup() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? Colors.white : Colors.black87;
+    final secondaryTextColor = isDark ? Colors.white70 : Colors.black54;
+    final containerColor = isDark ? Colors.white.withValues(alpha: 0.1) : Colors.black.withValues(alpha: 0.05);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          'Profile Privacy',
+        Text(
+          _translationService.translate(TranslationKeys.profilePrivacy),
           style: TextStyle(
             fontSize: 20,
             fontWeight: FontWeight.bold,
-            color: Colors.white,
+            color: textColor,
           ),
         ),
         const SizedBox(height: 8),
-        const Text(
-          'Choose how you want your profile to be visible to others.',
+        Text(
+          _translationService.translate(TranslationKeys.profilePrivacyDesc),
           style: TextStyle(
             fontSize: 14,
-            color: Colors.white70,
+            color: secondaryTextColor,
           ),
         ),
         const SizedBox(height: 20),
@@ -1321,12 +1358,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
             decoration: BoxDecoration(
               color: _selectedPackage == 'op' 
                   ? Colors.blue.withValues(alpha: 0.3)
-                  : Colors.white.withValues(alpha: 0.1),
+                  : containerColor,
               borderRadius: BorderRadius.circular(10),
               border: Border.all(
                 color: _selectedPackage == 'op' 
                     ? Colors.blue
-                    : Colors.white.withValues(alpha: 0.3),
+                    : (isDark ? Colors.white.withValues(alpha: 0.3) : Colors.black.withValues(alpha: 0.2)),
                 width: _selectedPackage == 'op' ? 2 : 1.5,
               ),
             ),
@@ -1343,34 +1380,34 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           _selectedPackage = value;
                         });
                       },
-                      activeColor: Colors.white,
+                      activeColor: (isDark ? Colors.white : Colors.blue),
                     ),
-                    const Text(
-                      'Open Profile',
+                    Text(
+                      _translationService.translate(TranslationKeys.openProfile),
                       style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
-                        color: Colors.white,
+                        color: textColor,
                       ),
                     ),
                   ],
                 ),
                 const SizedBox(height: 8),
-                const Text(
-                  '• You appear in search',
-                  style: TextStyle(color: Colors.white70, fontSize: 14),
+                Text(
+                  '• ${_translationService.translate(TranslationKeys.appearInSearch)}',
+                  style: TextStyle(color: secondaryTextColor, fontSize: 14),
                 ),
-                const Text(
-                  '• Your profile is visible',
-                  style: TextStyle(color: Colors.white70, fontSize: 14),
+                Text(
+                  '• ${_translationService.translate(TranslationKeys.profileIsVisible)}',
+                  style: TextStyle(color: secondaryTextColor, fontSize: 14),
                 ),
-                const Text(
-                  '• Anyone can message you',
-                  style: TextStyle(color: Colors.white70, fontSize: 14),
+                Text(
+                  '• ${_translationService.translate(TranslationKeys.anyoneCanMessage)}',
+                  style: TextStyle(color: secondaryTextColor, fontSize: 14),
                 ),
-                const Text(
-                  '• You appear for new users',
-                  style: TextStyle(color: Colors.white70, fontSize: 14),
+                Text(
+                  '• ${_translationService.translate(TranslationKeys.appearForNewUsers)}',
+                  style: TextStyle(color: secondaryTextColor, fontSize: 14),
                 ),
               ],
             ),
@@ -1391,12 +1428,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
             decoration: BoxDecoration(
               color: _selectedPackage == 'pp' 
                   ? Colors.blue.withValues(alpha: 0.3)
-                  : Colors.white.withValues(alpha: 0.1),
+                  : containerColor,
               borderRadius: BorderRadius.circular(10),
               border: Border.all(
                 color: _selectedPackage == 'pp' 
                     ? Colors.blue
-                    : Colors.white.withValues(alpha: 0.3),
+                    : (isDark ? Colors.white.withValues(alpha: 0.3) : Colors.black.withValues(alpha: 0.2)),
                 width: _selectedPackage == 'pp' ? 2 : 1.5,
               ),
             ),
@@ -1413,30 +1450,30 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           _selectedPackage = value;
                         });
                       },
-                      activeColor: Colors.white,
+                      activeColor: (isDark ? Colors.white : Colors.blue),
                     ),
-                    const Text(
-                      'Private Profile',
+                    Text(
+                      _translationService.translate(TranslationKeys.privateProfile),
                       style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
-                        color: Colors.white,
+                        color: textColor,
                       ),
                     ),
                   ],
                 ),
                 const SizedBox(height: 8),
-                const Text(
-                  '• You do not appear in search',
-                  style: TextStyle(color: Colors.white70, fontSize: 14),
+                Text(
+                  '• ${_translationService.translate(TranslationKeys.notAppearInSearch)}',
+                  style: TextStyle(color: secondaryTextColor, fontSize: 14),
                 ),
-                const Text(
-                  '• Your profile is invisible',
-                  style: TextStyle(color: Colors.white70, fontSize: 14),
+                Text(
+                  '• ${_translationService.translate(TranslationKeys.profileIsInvisible)}',
+                  style: TextStyle(color: secondaryTextColor, fontSize: 14),
                 ),
-                const Text(
-                  '• Only friends can message you',
-                  style: TextStyle(color: Colors.white70, fontSize: 14),
+                Text(
+                  '• ${_translationService.translate(TranslationKeys.onlyFriendsCanMessage)}',
+                  style: TextStyle(color: secondaryTextColor, fontSize: 14),
                 ),
               ],
             ),
@@ -1457,12 +1494,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
             decoration: BoxDecoration(
               color: _selectedPackage == 'cp' 
                   ? Colors.blue.withValues(alpha: 0.3)
-                  : Colors.white.withValues(alpha: 0.1),
+                  : containerColor,
               borderRadius: BorderRadius.circular(10),
               border: Border.all(
                 color: _selectedPackage == 'cp' 
                     ? Colors.blue
-                    : Colors.white.withValues(alpha: 0.3),
+                    : (isDark ? Colors.white.withValues(alpha: 0.3) : Colors.black.withValues(alpha: 0.2)),
                 width: _selectedPackage == 'cp' ? 2 : 1.5,
               ),
             ),
@@ -1479,14 +1516,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           _selectedPackage = value;
                         });
                       },
-                      activeColor: Colors.white,
+                      activeColor: (isDark ? Colors.white : Colors.blue),
                     ),
-                    const Text(
-                      'Custom',
+                    Text(
+                      _translationService.translate(TranslationKeys.custom),
                       style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
-                        color: Colors.white,
+                        color: textColor,
                       ),
                     ),
                   ],
@@ -1498,18 +1535,18 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     padding: const EdgeInsets.all(12),
                     margin: const EdgeInsets.only(bottom: 12),
                     decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.05),
+                      color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.03),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text(
-                          'Privacy',
+                        Text(
+                          _translationService.translate(TranslationKeys.privacy),
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.w600,
-                            color: Colors.white,
+                            color: textColor,
                           ),
                         ),
                         const SizedBox(height: 8),
@@ -1523,12 +1560,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                   _isPrivate = value ?? false;
                                 });
                               },
-                              activeColor: Colors.white,
+                              activeColor: (isDark ? Colors.white : Colors.blue),
                             ),
-                            const Text(
-                              'Private',
-                              style: TextStyle(color: Colors.white, fontSize: 14),
-                            ),
+                             Text(
+                               _translationService.translate(TranslationKeys.private),
+                               style: TextStyle(color: textColor, fontSize: 14),
+                             ),
                             const SizedBox(width: 20),
                             Radio<bool>(
                               value: false,
@@ -1538,12 +1575,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                   _isPrivate = value ?? false;
                                 });
                               },
-                              activeColor: Colors.white,
+                              activeColor: (isDark ? Colors.white : Colors.blue),
                             ),
-                            const Text(
-                              'Public',
-                              style: TextStyle(color: Colors.white, fontSize: 14),
-                            ),
+                             Text(
+                               _translationService.translate(TranslationKeys.public),
+                               style: TextStyle(color: textColor, fontSize: 14),
+                             ),
                           ],
                         ),
                       ],
@@ -1553,20 +1590,20 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.05),
+                      color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.03),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text(
-                          'Visibility',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.white,
-                          ),
-                        ),
+                         Text(
+                           _translationService.translate(TranslationKeys.visibility),
+                           style: TextStyle(
+                             fontSize: 16,
+                             fontWeight: FontWeight.w600,
+                             color: textColor,
+                           ),
+                         ),
                         const SizedBox(height: 8),
                         Row(
                           children: [
@@ -1578,12 +1615,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                   _isVisible = value ?? true;
                                 });
                               },
-                              activeColor: Colors.white,
+                              activeColor: (isDark ? Colors.white : Colors.blue),
                             ),
-                            const Text(
-                              'Visible',
-                              style: TextStyle(color: Colors.white, fontSize: 14),
-                            ),
+                             Text(
+                               _translationService.translate(TranslationKeys.visible),
+                               style: TextStyle(color: textColor, fontSize: 14),
+                             ),
                             const SizedBox(width: 20),
                             Radio<bool>(
                               value: false,
@@ -1593,22 +1630,22 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                   _isVisible = value ?? false;
                                 });
                               },
-                              activeColor: Colors.white,
+                              activeColor: (isDark ? Colors.white : Colors.blue),
                             ),
-                            const Text(
-                              'Invisible',
-                              style: TextStyle(color: Colors.white, fontSize: 14),
-                            ),
+                             Text(
+                               _translationService.translate(TranslationKeys.invisible),
+                               style: TextStyle(color: textColor, fontSize: 14),
+                             ),
                           ],
                         ),
                       ],
                     ),
                   ),
                 ] else ...[
-                  const Text(
-                    'Set each setting manually',
-                    style: TextStyle(color: Colors.white70, fontSize: 14),
-                  ),
+                   Text(
+                     _translationService.translate(TranslationKeys.setManually),
+                     style: TextStyle(color: secondaryTextColor, fontSize: 14),
+                   ),
                 ],
               ],
             ),
@@ -1619,6 +1656,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }
 
   Widget _buildNavigationButtons() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? Colors.white : Colors.black87;
+
     return Column(
       children: [
         // Continue button
@@ -1630,7 +1670,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 : null,
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.transparent,
-              foregroundColor: Colors.white,
+              foregroundColor: textColor,
               padding: const EdgeInsets.symmetric(vertical: 16),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(15),
@@ -1660,7 +1700,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       ),
                 borderRadius: BorderRadius.circular(15),
                 border: Border.all(
-                  color: _canProceedToNextGroup() ? Colors.white.withValues(alpha: 0.3) : Colors.white.withValues(alpha: 0.1),
+                  color: _canProceedToNextGroup() 
+                      ? (isDark ? Colors.white.withValues(alpha: 0.3) : Colors.black.withValues(alpha: 0.2)) 
+                      : (isDark ? Colors.white.withValues(alpha: 0.1) : Colors.black.withValues(alpha: 0.1)),
                   width: 1.5,
                 ),
               ),
@@ -1670,8 +1712,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Text(
-                        _currentGroup == 6 ? 'Create Account' : 'Continue',
+                       Text(
+                        _currentGroup == 6 ? _translationService.translate(TranslationKeys.createAccount) : _translationService.translate(TranslationKeys.continueButton),
                         style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.w600,
@@ -1704,7 +1746,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
               onPressed: _previousGroup,
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.transparent,
-                foregroundColor: Colors.white,
+                foregroundColor: textColor,
                 padding: const EdgeInsets.symmetric(vertical: 12), // Reduced from 16
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12), // Reduced from 15
@@ -1715,31 +1757,31 @@ class _RegisterScreenState extends State<RegisterScreen> {
               ),
               child: Container(
                 decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.1),
+                  color: isDark ? Colors.white.withValues(alpha: 0.1) : Colors.black.withValues(alpha: 0.05),
                   borderRadius: BorderRadius.circular(12), // Reduced from 15
                   border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.3),
+                    color: isDark ? Colors.white.withValues(alpha: 0.3) : Colors.black.withValues(alpha: 0.2),
                     width: 1.0, // Reduced from 1.5
                   ),
                 ),
                 child: Container(
                   padding: const EdgeInsets.symmetric(vertical: 12), // Reduced from 16
-                  child: const Center(
+                  child: Center(
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Icon(
                           Icons.arrow_back,
-                          color: Colors.white,
+                          color: textColor,
                           size: 16, // Reduced from 20
                         ),
-                        SizedBox(width: 6), // Reduced from 8
+                        const SizedBox(width: 6), // Reduced from 8
                         Text(
-                          'Go Back',
+                          _translationService.translate(TranslationKeys.goBack),
                           style: TextStyle(
                             fontSize: 14, // Reduced from 18
                             fontWeight: FontWeight.w600,
-                            color: Colors.white,
+                            color: textColor,
                             letterSpacing: 0.5,
                           ),
                         ),
@@ -1757,6 +1799,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? Colors.white : Colors.black87;
+    final secondaryTextColor = isDark ? Colors.white70 : Colors.black54;
+    final containerColor = isDark ? Colors.white.withValues(alpha: 0.1) : Colors.black.withValues(alpha: 0.05);
+
     return Scaffold(
       body: Stack(
         children: [
@@ -1775,15 +1822,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         children: [
                           IconButton(
                             onPressed: () => Navigator.of(context).pop(),
-                            icon: const Icon(Icons.arrow_back, color: Colors.white),
+                            icon: Icon(Icons.arrow_back, color: textColor),
                           ),
                           const SizedBox(width: 16),
-                          const Text(
-                            'Create Account',
+                          Text(
+                            _translationService.translate(TranslationKeys.createAccount),
                             style: TextStyle(
                               fontSize: 24,
                               fontWeight: FontWeight.bold,
-                              color: Colors.white,
+                              color: textColor,
                             ),
                           ),
                         ],
@@ -1798,7 +1845,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               height: 4,
                               margin: EdgeInsets.only(right: index < 6 ? 8 : 0),
                               decoration: BoxDecoration(
-                                color: index <= _currentGroup ? Colors.white : Colors.white.withValues(alpha: 0.3),
+                                color: index <= _currentGroup ? (isDark ? Colors.white : Colors.blue) : (isDark ? Colors.white.withValues(alpha: 0.3) : Colors.black.withValues(alpha: 0.1)),
                                 borderRadius: BorderRadius.circular(2),
                               ),
                             ),
@@ -1849,10 +1896,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              const Text(
-                                'Already have an account? ',
+                               Text(
+                                _translationService.translate(TranslationKeys.alreadyHaveAccount),
                                 style: TextStyle(
-                                  color: Colors.white,
+                                  color: textColor,
                                   fontSize: 14,
                                 ),
                               ),
@@ -1863,13 +1910,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                   minimumSize: Size.zero,
                                   tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                                 ),
-                                child: const Text(
-                                  'Sign In',
+                                 child: Text(
+                                  _translationService.translate(TranslationKeys.signIn),
                                   style: TextStyle(
-                                    color: Colors.white,
+                                    color: (isDark ? Colors.white : Colors.blue),
                                     fontSize: 14,
-                                    fontWeight: FontWeight.w600,
+                                    fontWeight: FontWeight.bold,
                                     decoration: TextDecoration.underline,
+                                    decorationColor: (isDark ? Colors.white : Colors.blue),
                                   ),
                                 ),
                               ),

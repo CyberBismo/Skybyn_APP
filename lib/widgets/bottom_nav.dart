@@ -22,7 +22,7 @@ class BottomNavBarStyles {
   static const double addButtonRadius = 25.0;
   
   // Shadows and effects
-  static const double blurSigma = 10.0;
+  static const double blurSigma = 50.0;
   static const double elevation = 0.0;
   
   // Animation
@@ -64,7 +64,7 @@ class CustomBottomNavigationBar extends StatelessWidget {
     }
     
     // Show home button only if route is NOT home or profile
-    final isHomeOrProfile = routeName == '/home' || routeName == '/profile';
+    final isHomeOrProfile = routeName == '/home' || routeName == '/profile' || routeName == '/';
     return !isHomeOrProfile;
   }
 

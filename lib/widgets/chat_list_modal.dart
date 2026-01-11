@@ -5,12 +5,13 @@ import 'package:cached_network_image/cached_network_image.dart';
 import '../services/friend_service.dart';
 import '../services/auth_service.dart';
 import '../services/firebase_realtime_service.dart';
+import '../services/websocket_service.dart';
 import '../services/chat_message_count_service.dart';
 import '../services/chat_service.dart';
 import '../models/friend.dart';
 import '../models/message.dart';
 import '../screens/chat_screen.dart';
-import '../utils/translation_keys.dart';
+
 import '../widgets/translated_text.dart';
 import '../services/translation_service.dart';
 import '../config/constants.dart';
@@ -28,15 +29,13 @@ class _ChatListModalState extends State<ChatListModal> {
   final FirebaseRealtimeService _firebaseRealtimeService = FirebaseRealtimeService();
   final ChatMessageCountService _chatMessageCountService = ChatMessageCountService();
   final ChatService _chatService = ChatService();
+  final WebSocketService _webSocketService = WebSocketService();
 
   List<Friend> _friends = [];
   bool _isLoading = true;
   
   // Store last messages for each friend
   final Map<String, Message?> _lastMessages = {};
-
-  // Store subscriptions for cleanup
-  final Map<String, StreamSubscription> _onlineStatusSubscriptions = {};
 
   @override
   void initState() {
@@ -49,11 +48,9 @@ class _ChatListModalState extends State<ChatListModal> {
 
   @override
   void dispose() {
-    // Cancel all online status subscriptions when widget is disposed
-    for (var subscription in _onlineStatusSubscriptions.values) {
-      subscription.cancel();
-    }
-    _onlineStatusSubscriptions.clear();
+    // Remove online status listener
+    _webSocketService.removeOnlineStatusCallback(_handleOnlineStatusUpdate);
+    
     // Remove unread count listener
     _chatMessageCountService.removeListener(_onUnreadCountChanged);
     super.dispose();
@@ -72,68 +69,93 @@ class _ChatListModalState extends State<ChatListModal> {
     }
   }
 
-  void _setupChatMessageListener() {
-    // Listen to WebSocket chat messages to update last messages in real-time
-    _firebaseRealtimeService.setupChatListener(
-      '', // Empty friendId means listen to all chats
-      (messageId, fromUserId, toUserId, message) async {
-        if (mounted) {
-          final currentUserId = await _authService.getStoredUserId();
-          if (currentUserId == null) return;
-          
-          // Determine which friend this message is from/to
-          String? friendId;
-          if (fromUserId == currentUserId) {
-            friendId = toUserId; // Message sent to this friend
-          } else if (toUserId == currentUserId) {
-            friendId = fromUserId; // Message received from this friend
-          }
-          
-          if (friendId != null && friendId.isNotEmpty) {
-            final friendIdNonNull = friendId; // Non-null assertion
-            setState(() {
-              // Update last message for this friend
-              _lastMessages[friendIdNonNull] = Message(
-                id: messageId,
-                from: fromUserId,
-                to: toUserId,
-                content: message,
-                date: DateTime.now(),
-                viewed: false,
-                isFromMe: fromUserId == currentUserId,
-              );
-            });
-          }
-        }
-      },
+  void _setupWebSocketListener() {
+    // Listen to WebSocket updates (Online Status + Chat Messages)
+    _webSocketService.connect(
+      onOnlineStatus: _handleOnlineStatusUpdate,
+      onChatMessage: _handleNewMessage,
     );
   }
 
-  void _setupWebSocketListener() {
-    // Set up Firebase online status listeners for all friends
-    for (var friend in _friends) {
-      _setupOnlineStatusListenerForFriend(friend.id);
+  void _handleNewMessage(String messageId, String fromUserId, String toUserId, String message) async {
+    if (!mounted) return;
+    
+    final currentUserId = await _authService.getStoredUserId();
+    if (currentUserId == null) return;
+    
+    // Determine which friend this message is from/to
+    String? friendId;
+    if (fromUserId == currentUserId) {
+      friendId = toUserId; // Message sent to this friend
+    } else if (toUserId == currentUserId) {
+      friendId = fromUserId; // Message received from this friend
+    }
+    
+    if (friendId != null && friendId.isNotEmpty) {
+      final friendIdNonNull = friendId; // Non-null assertion
+
+      setState(() {
+        // Update last message for this friend
+        _lastMessages[friendIdNonNull] = Message(
+          id: messageId,
+          from: fromUserId,
+          to: toUserId,
+          content: message,
+          date: DateTime.now(),
+          viewed: false,
+          isFromMe: fromUserId == currentUserId,
+        );
+        _sortFriends();
+      });
     }
   }
 
-  void _setupOnlineStatusListenerForFriend(String friendId) {
-    // Cancel existing subscription if any
-    _onlineStatusSubscriptions[friendId]?.cancel();
-    
-    // Set up Firebase listener for this friend
-    _onlineStatusSubscriptions[friendId] = _firebaseRealtimeService.setupOnlineStatusListener(
-      friendId,
-      (userId, isOnline) {
-        if (mounted) {
-          setState(() {
-            final index = _friends.indexWhere((f) => f.id == userId);
-            if (index != -1) {
-              _friends[index] = _friends[index].copyWith(online: isOnline);
-            }
-          });
-        }
-      },
+  void _setupChatMessageListener() {
+    // Listen to Firebase chat messages (Fallback)
+    _firebaseRealtimeService.setupChatListener(
+      '', // Empty friendId means listen to all chats
+      _handleNewMessage,
     );
+  }
+  void _sortFriends() {
+    _friends.sort((a, b) {
+      final msgA = _lastMessages[a.id];
+      final msgB = _lastMessages[b.id];
+      
+      // If one has a message and other doesn't, the one with message comes first
+      if (msgA != null && msgB == null) return -1;
+      if (msgA == null && msgB != null) return 1;
+      
+      // If both have messages, sort by date descending (newest first)
+      if (msgA != null && msgB != null) {
+        return msgB.date.compareTo(msgA.date);
+      }
+      
+      // If neither has message, sort by online status then name
+      if (a.online != b.online) {
+        return a.online ? -1 : 1;
+      }
+      
+      final nameA = a.nickname.isNotEmpty ? a.nickname : a.username;
+      final nameB = b.nickname.isNotEmpty ? b.nickname : b.username;
+      return nameA.toLowerCase().compareTo(nameB.toLowerCase());
+    });
+  }
+
+  void _handleOnlineStatusUpdate(String userId, bool isOnline) {
+    if (!mounted) return;
+    
+    setState(() {
+      final index = _friends.indexWhere((f) => f.id == userId);
+      if (index != -1) {
+        // Only update if status actually changed
+        if (_friends[index].online != isOnline) {
+          _friends[index] = _friends[index].copyWith(online: isOnline);
+          // Re-sort list if status changed (online users usually on top)
+          _sortFriends();
+        }
+      }
+    });
   }
 
   Future<void> _loadFriends() async {
@@ -155,20 +177,30 @@ class _ChatListModalState extends State<ChatListModal> {
         if (mounted) {
           setState(() {
             _friends = updatedFriends;
+            _sortFriends();
           });
         }
       },
     );
+
     if (!mounted) return;
+
+    // Load last messages from local DB cache *before* showing the list
+    // This ensures valid sorting on initial render
+    try {
+      final latestMessages = await _chatService.getLatestMessages();
+      for (var friendId in latestMessages.keys) {
+        _lastMessages[friendId] = latestMessages[friendId];
+      }
+    } catch (e) {
+      // Ignore
+    }
+
     setState(() {
       _friends = friends;
       _isLoading = false;
+      _sortFriends();
     });
-    
-    // Set up Firebase online status listeners for all friends
-    for (var friend in _friends) {
-      _setupOnlineStatusListenerForFriend(friend.id);
-    }
     
     // Load last messages for all friends
     _loadLastMessages();
@@ -178,23 +210,89 @@ class _ChatListModalState extends State<ChatListModal> {
     final currentUserId = await _authService.getStoredUserId();
     if (currentUserId == null) return;
     
-    // Load last message for each friend
-    for (var friend in _friends) {
+    // 1. Fast load from local DB using getLatestMessages (efficient SQL query)
+    try {
+      final latestMessages = await _chatService.getLatestMessages();
+      if (mounted) {
+        setState(() {
+          // Update all known friends with their latest message from local DB
+          for (var friendId in latestMessages.keys) {
+            _lastMessages[friendId] = latestMessages[friendId];
+          }
+        });
+      }
+    } catch (e) {
+      // Ignore error
+    }
+
+    // 2. Individual check (Robustness): Ensure we have the last message for every friend
+    // The bulk query might miss edge cases, so we explicitly check each friend
+    // Create a copy of the list to avoid concurrent modification
+    final friendsList = List<Friend>.from(_friends);
+    for (var friend in friendsList) {
       try {
-        // Fetch only the last message (limit: 1)
-        final messages = await _chatService.getMessages(
-          friendId: friend.id,
-          limit: 1,
-        );
+        // Try local DB first
+        Message? lastMsg = await _chatService.getLastMessage(friend.id);
         
-        if (mounted && messages.isNotEmpty) {
-          setState(() {
-            // Get the last message (newest)
-            _lastMessages[friend.id] = messages.last;
-          });
+        // If missing locally, force fetch from API (source of truth)
+        if (lastMsg == null) {
+            await _chatService.fetchLatestMessage(friend.id);
+            // Re-fetch from local DB to verify it was cached and ensure consistency
+            // This satisfies "update from the cached data"
+            lastMsg = await _chatService.getLastMessage(friend.id);
+        }
+
+        if (mounted && lastMsg != null) {
+          // Update if we don't have one or if this one is newer/different
+          final current = _lastMessages[friend.id];
+          if (current == null || lastMsg.id != current.id || lastMsg.date.isAfter(current.date)) {
+             setState(() {
+               _lastMessages[friend.id] = lastMsg;
+               _sortFriends();
+             });
+          }
         }
       } catch (e) {
-        // Silently fail - last message is optional
+        // Ignore
+      }
+    }
+    
+    // Sort after initial load
+    if (mounted) {
+      setState(() {
+        _sortFriends();
+      });
+    }
+    
+    // 3. Background sync for each friend to get new messages
+    for (var friend in friendsList) {
+      try {
+        // Sync messages (fetches new ones from server)
+        final newMessages = await _chatService.syncMessages(friend.id, currentUserId);
+        
+        // If we got new messages, update the latest message and re-sort
+        if (mounted && newMessages.isNotEmpty) {
+          // Find the newest message in the batch
+          Message? newest;
+          for (var msg in newMessages) {
+            if (newest == null || msg.date.isAfter(newest.date)) {
+              newest = msg;
+            }
+          }
+          
+          if (newest != null) {
+            setState(() {
+              // Only update if it's newer than what we have
+              final current = _lastMessages[friend.id];
+              if (current == null || newest!.date.isAfter(current.date)) {
+                _lastMessages[friend.id] = newest;
+                _sortFriends();
+              }
+            });
+          }
+        }
+      } catch (e) {
+        // Silently fail - sync is optional
       }
     }
   }
@@ -417,20 +515,6 @@ class _ChatListModalState extends State<ChatListModal> {
         ),
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
-      );
-    }
-    // Fallback to username if no last message
-    final friend = _friends.firstWhere(
-      (f) => f.id == friendId,
-      orElse: () => Friend(id: '', username: '', nickname: '', avatar: '', online: false),
-    );
-    if (friend.nickname.isNotEmpty) {
-      return Text(
-        '@${friend.username}',
-        style: const TextStyle(
-          color: Colors.white70,
-          fontSize: 13,
-        ),
       );
     }
     return null;

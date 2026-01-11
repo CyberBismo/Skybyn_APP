@@ -8,7 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:crypto/crypto.dart';
 import '../services/auth_service.dart';
 import '../config/constants.dart';
-import '../utils/translation_keys.dart';
+import '../services/translation_service.dart';
 import '../widgets/translated_text.dart';
 import '../screens/music_screen.dart';
 import '../screens/games_screen.dart';

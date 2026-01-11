@@ -25,7 +25,7 @@ import '../services/firebase_realtime_service.dart';
 import '../services/websocket_service.dart';
 // Firestore disabled - using WebSocket for real-time features instead
 // import 'package:cloud_firestore/cloud_firestore.dart';
-import '../utils/translation_keys.dart';
+
 import '../widgets/translated_text.dart';
 import '../services/translation_service.dart';
 import 'package:timeago/timeago.dart' as timeago;
@@ -39,6 +39,7 @@ import '../widgets/chat_list_modal.dart';
 import '../widgets/app_colors.dart';
 import '../services/chat_message_count_service.dart';
 import '../services/notification_service.dart';
+import '../widgets/skeleton_loader.dart';
 
 class ChatScreen extends StatefulWidget {
   final Friend friend;
@@ -578,29 +579,34 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
       _webSocketOnlineStatusCallback = null;
     }
     
-    // Set up Firebase real-time listeners for chat (fallback)
-    // Set up online status listener for the friend
-    _onlineStatusSubscription = _firebaseRealtimeService.setupOnlineStatusListener(
-      widget.friend.id,
-      (userId, isOnline) {
-        if (userId == widget.friend.id && mounted) {
-          final oldStatus = _friendOnline;
-          setState(() {
-            _friendOnline = isOnline;
-          });
-        }
-      },
-    );
-
     // Set up WebSocket online status listener (primary real-time source)
     _webSocketOnlineStatusCallback = (userId, isOnline) {
       if (userId == widget.friend.id && mounted) {
-        final oldStatus = _friendOnline;
         setState(() {
           _friendOnline = isOnline;
         });
       }
     };
+    
+    // Set up WebSocket typing status message handler
+    void _handleTypingStatus(String userId, bool isTyping) {
+      if (userId == widget.friend.id && mounted) {
+        setState(() {
+          _isFriendTyping = isTyping;
+        });
+        // Auto-hide typing indicator after 3 seconds if no stop message received
+        if (isTyping) {
+          _typingStopTimer?.cancel();
+          _typingStopTimer = Timer(const Duration(seconds: 3), () {
+            if (mounted) {
+              setState(() {
+                _isFriendTyping = false;
+              });
+            }
+          });
+        }
+      }
+    }
     
     // Register callbacks with WebSocket service
     _webSocketChatMessageCallback = (messageId, fromUserId, toUserId, message) {
@@ -639,35 +645,11 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
     _webSocketService.connect(
       onOnlineStatus: _webSocketOnlineStatusCallback,
       onChatMessage: _webSocketChatMessageCallback,
+      onTypingStatus: _handleTypingStatus,
     );
     
     debugPrint('🔵 [ChatScreen] WebSocket callbacks registered. Chat callback: ${_webSocketChatMessageCallback != null}, Online callback: ${_webSocketOnlineStatusCallback != null}');
     debugPrint('🔵 [ChatScreen] Friend ID: ${widget.friend.id}, Current User ID: $_currentUserId');
-
-    // Set up typing status listener
-    _firebaseRealtimeService.setupTypingStatusListener(
-      widget.friend.id,
-      (userId, isTyping) {
-        if (userId == widget.friend.id && mounted) {
-          setState(() {
-            _isFriendTyping = isTyping;
-          });
-          // Auto-hide typing indicator after 3 seconds if no stop message received
-          if (isTyping) {
-            _typingStopTimer?.cancel();
-            _typingStopTimer = Timer(const Duration(seconds: 3), () {
-              if (mounted) {
-                setState(() {
-                  _isFriendTyping = false;
-                });
-              }
-            });
-          } else {
-            _typingStopTimer?.cancel();
-          }
-        }
-      },
-    );
 
     // Set up chat message listener (Firebase fallback - only when WebSocket is not connected)
     _firebaseRealtimeService.setupChatListener(
@@ -1068,6 +1050,30 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
       Message? sentMessage;
       
       try {
+        // Send message via WebSocket and Firebase concurrently with API call (Optimistic delivery)
+        // We use tempId because we don't have the real ID yet, but this ensures instant delivery
+        if (_webSocketService.isConnected) {
+          try {
+            _webSocketService.sendChatMessage(
+              messageId: tempId,
+              targetUserId: widget.friend.id,
+              content: message,
+            );
+          } catch (e) {
+            print('[SKYBYN] ⚠️ [Chat] WebSocket send failed: $e');
+          }
+        }
+
+        if (_firebaseRealtimeService.isConnected) {
+          _firebaseRealtimeService.sendChatMessageNotification(
+            messageId: tempId,
+            targetUserId: widget.friend.id,
+            content: message,
+          ).catchError((e) {
+            print('[SKYBYN] ⚠️ [Chat] Firebase send failed: $e');
+          });
+        }
+
         // Send message via API
         sentMessage = await _chatService.sendMessage(
           toUserId: widget.friend.id,
@@ -1196,36 +1202,6 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
           });
         }
 
-        // Send message via both WebSocket and Firebase for real-time delivery
-        // WebSocket: For immediate delivery when recipient's app is running
-        // Firebase: For delivery when app is in background (triggers push notification)
-        // NOTE: These are fire-and-forget - don't block on them and don't show errors
-        try {
-          // Send via WebSocket (non-blocking)
-          if (_webSocketService.isConnected) {
-            _webSocketService.sendChatMessage(
-              messageId: sentMessage.id,
-              targetUserId: widget.friend.id,
-              content: message,
-            );
-          }
-          
-          // Send via Firebase (non-blocking, but await to catch errors)
-          if (_firebaseRealtimeService.isConnected) {
-            _firebaseRealtimeService.sendChatMessageNotification(
-              messageId: sentMessage.id,
-              targetUserId: widget.friend.id,
-              content: message,
-            ).catchError((e) {
-              // Silently fail - message was already saved via HTTP API
-              print('[SKYBYN] ⚠️ [Chat] Firebase notification failed (non-critical): $e');
-            });
-          }
-        } catch (e) {
-          // Don't fail the send - message was already saved via HTTP API
-          // Don't show error to user - message was successfully sent
-          print('[SKYBYN] ⚠️ [Chat] WebSocket/Firebase error (non-critical, message sent): $e');
-        }
       } else {
         // sentMessage is null - API call failed
         // Remove the temporary message from UI
@@ -1593,7 +1569,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
                                           width: 8,
                                           height: 8,
                                           decoration: BoxDecoration(
-                                            color: Friend.getStatusColorFromText(_getLastActiveStatus()),
+                                            color: _getStatusColor(),
                                             shape: BoxShape.circle,
                                           ),
                                         ),
@@ -1601,7 +1577,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
                                         Text(
                                           _getLastActiveStatus(),
                                           style: TextStyle(
-                                            color: Friend.getStatusColorFromText(_getLastActiveStatus()),
+                                            color: _getStatusColor(),
                                             fontSize: 14,
                                           ),
                                         ),
@@ -1747,10 +1723,17 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
                             ),
                           ),
                           child: _isLoading
-                              ? const Center(
-                                  child: CircularProgressIndicator(
-                                    color: Colors.white,
-                                  ),
+                              ? ListView.builder(
+                                  padding: const EdgeInsets.all(16),
+                                  itemCount: 6,
+                                  itemBuilder: (context, index) {
+                                    return Padding(
+                                      padding: const EdgeInsets.only(bottom: 16),
+                                      child: _SkeletonMessageBubble(
+                                        isMe: index % 2 != 0,
+                                      ),
+                                    );
+                                  },
                                 )
                               : _messages.isEmpty
                                   ? const Center(
@@ -1936,44 +1919,17 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
                               ),
                             ),
                             const SizedBox(width: 8),
-                            // Attachment button (only show if rank > 5)
-                            if ((_userRank ?? 0) > 5)
-                              Padding(
-                                padding: const EdgeInsets.only(right: 4),
-                                child: Container(
-                                  width: 40,
-                                  height: 40,
-                                  decoration: BoxDecoration(
-                                    color: Colors.white.withOpacity(0.2),
-                                    shape: BoxShape.circle,
-                                  ),
-                                  child: IconButton(
-                                    onPressed: _showAttachmentOptions,
-                                    icon: Icon(
-                                      _showAttachmentMenu ? Icons.close : Icons.attach_file,
-                                      color: Colors.white,
-                                      size: 20,
-                                    ),
-                                    padding: EdgeInsets.zero,
-                                  ),
-                                ),
-                              ),
-                            const SizedBox(width: 8),
                             Expanded(
                               child: TextField(
                                 controller: _messageController,
                                 focusNode: _messageFocusNode,
                                 decoration: InputDecoration(
-                                  hintText: 'Type a message...',
+                                  hintText: TranslationService().translate(TranslationKeys.typeMessage),
                                   hintStyle: TextStyle(
                                     color: Colors.white.withOpacity(0.7),
                                     fontSize: 16,
                                   ),
                                   border: InputBorder.none,
-                                  contentPadding: const EdgeInsets.symmetric(
-                                    horizontal: 20,
-                                    vertical: 14,
-                                  ),
                                 ),
                                 style: const TextStyle(
                                   color: Colors.white,
@@ -2010,7 +1966,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
                                   });
                                 },
                                 child: Padding(
-                                  padding: const EdgeInsets.only(right: 4),
+                                  padding: EdgeInsets.zero,
                                   child: Container(
                                     width: 40,
                                     height: 40,
@@ -2029,26 +1985,28 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
                                 ),
                               ),
                             const SizedBox(width: 8),
-                            Padding(
-                              padding: const EdgeInsets.only(right: 4),
-                              child: Container(
-                                width: 40,
-                                height: 40,
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withOpacity(0.2),
-                                  shape: BoxShape.circle,
-                                ),
-                                child: IconButton(
-                                  onPressed: _sendMessage,
-                                  icon: const Icon(
-                                    Icons.send,
-                                    color: Colors.white,
-                                    size: 20,
+                            // Attachment button (only show if rank > 5)
+                            if ((_userRank ?? 0) > 5)
+                              Padding(
+                                padding: const EdgeInsets.only(right: 4),
+                                child: Container(
+                                  width: 40,
+                                  height: 40,
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withOpacity(0.2),
+                                    shape: BoxShape.circle,
                                   ),
-                                  padding: EdgeInsets.zero,
+                                  child: IconButton(
+                                    onPressed: _showAttachmentOptions,
+                                    icon: Icon(
+                                      _showAttachmentMenu ? Icons.close : Icons.attach_file,
+                                      color: Colors.white,
+                                      size: 20,
+                                    ),
+                                    padding: EdgeInsets.zero,
+                                  ),
                                 ),
                               ),
-                            ),
                           ],
                         ),
                       ),
@@ -3239,31 +3197,50 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
   
   /// Get formatted last active status string
   String _getLastActiveStatus() {
+    final service = TranslationService();
+    
+    if (_friendOnline) {
+      return service.translate(TranslationKeys.active) ?? 'Active';
+    }
+    
     if (_friendLastActive == null) {
-      return _friendOnline ? 'Online' : 'Offline';
+      return service.translate(TranslationKeys.inactive) ?? 'Inactive';
     }
     
     final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
-    final twoMinutesAgo = now - 120; // 2 minutes = 120 seconds
-    final oneHourAgo = now - 3600; // 1 hour = 3600 seconds
+    final diff = now - _friendLastActive!;
     
-    if (_friendLastActive! >= twoMinutesAgo) {
-      return 'Online';
+    // Less than 5 minutes ago -> Away
+    if (diff < 300) {
+      return service.translate(TranslationKeys.away) ?? 'Away';
     }
     
-    // If last activity was more than 1 hour ago, show "Offline"
-    if (_friendLastActive! < oneHourAgo) {
-      return 'Offline';
+    // Less than 30 minutes ago -> Last seen xx ago
+    if (diff < 1800) {
+      final minutes = (diff / 60).round();
+      // If less than 1 minute, show 1 minute 
+      final displayMinutes = minutes < 1 ? 1 : minutes;
+      
+      final lastSeen = service.translate(TranslationKeys.lastSeen) ?? 'Last seen';
+      final minStr = service.translate(TranslationKeys.minutesAgo) ?? 'minutes ago';
+      
+      return '$lastSeen $displayMinutes $minStr';
     }
     
-    final secondsAgo = now - _friendLastActive!;
+    // 30 minutes or more -> Inactive
+    return service.translate(TranslationKeys.inactive) ?? 'Inactive';
+  }
+
+  Color _getStatusColor() {
+    if (_friendOnline) return Colors.green;
+    if (_friendLastActive == null) return Colors.grey;
     
-    if (secondsAgo < 60) {
-      return 'Last active ${secondsAgo}s ago';
-    } else {
-      final minutes = secondsAgo ~/ 60;
-      return 'Last active ${minutes}m ago';
-    }
+    final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+    final diff = now - _friendLastActive!;
+    
+    if (diff < 1800) return Colors.orange;
+    
+    return Colors.grey;
   }
 
   /// Show attachment options menu
@@ -4278,6 +4255,65 @@ class _AudioVisualizerWidgetState extends State<_AudioVisualizerWidget> with Sin
         crossAxisAlignment: CrossAxisAlignment.center,
         mainAxisSize: MainAxisSize.min,
         children: bars,
+      ),
+    );
+  }
+}
+
+
+class _SkeletonMessageBubble extends StatelessWidget {
+  final bool isMe;
+
+  const _SkeletonMessageBubble({required this.isMe});
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
+      child: Container(
+        margin: EdgeInsets.only(
+          left: isMe ? 50 : 0,
+          right: isMe ? 0 : 50,
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        decoration: BoxDecoration(
+          color: isMe 
+              ? Colors.white.withOpacity(0.1) 
+              : Colors.white.withOpacity(0.05),
+          borderRadius: BorderRadius.only(
+            topLeft: const Radius.circular(20),
+            topRight: const Radius.circular(20),
+            bottomLeft: isMe ? const Radius.circular(20) : const Radius.circular(0),
+            bottomRight: isMe ? const Radius.circular(0) : const Radius.circular(20),
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+             SkeletonLoader(
+               child: Container(
+                 width: 100.0 + (isMe ? 20.0 : 50.0), // Variation
+                 height: 16,
+                 decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(4),
+                 ),
+               ),
+             ),
+             const SizedBox(height: 4),
+             SkeletonLoader(
+               child: Container(
+                 width: 60,
+                 height: 12,
+                 decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(4),
+                 ),
+               ),
+             ),
+          ],
+        ),
       ),
     );
   }

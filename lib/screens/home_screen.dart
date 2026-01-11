@@ -27,9 +27,10 @@ import '../widgets/global_search_overlay.dart';
 import '../widgets/update_dialog.dart';
 import '../config/constants.dart';
 import '../services/translation_service.dart';
-import '../utils/translation_keys.dart';
+
 import '../widgets/translated_text.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import '../widgets/skeleton_loader.dart';
 
 // Lifecycle event handler for keyboard-aware scrolling
 class LifecycleEventHandler extends WidgetsBindingObserver {
@@ -203,7 +204,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           final translationService = TranslationService();
           final notificationService = NotificationService();
           notificationService.showNotification(
-            title: translationService.translate('broadcast'),
+            title: translationService.translate(TranslationKeys.broadcast),
             body: message,
             payload: 'broadcast',
           );
@@ -266,7 +267,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           final translationService = TranslationService();
           final notificationService = NotificationService();
           notificationService.showNotification(
-            title: translationService.translate('broadcast'),
+            title: translationService.translate(TranslationKeys.broadcast),
             body: message,
             payload: 'broadcast',
           );
@@ -288,6 +289,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           }
         }
       },
+      onOnlineStatus: _handleOnlineStatusUpdate,
     ).catchError((error) {
     });
   }
@@ -299,6 +301,20 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     // Just register our callbacks - the connection is managed globally
     // If not connected, main.dart will handle reconnection
     _connectWebSocket();
+  }
+
+  /// Handle online status updates from WebSocket
+  void _handleOnlineStatusUpdate(String userId, bool isOnline) {
+    if (!mounted) return;
+    
+    // Update friend service cache
+    // This allows chat screens and friend lists to show correct status when opened later
+    final friendService = FriendService();
+    friendService.updateFriendOnlineStatus(userId, isOnline, onUpdated: (friends) {
+      // If we had a friend list here in HomeScreen state, we would update it here
+      // But friends list is loaded inside specific widgets (like ChatScreen or FriendsScreen)
+      // Those widgets should register their own listeners or rely on FriendService cache logic
+    });
   }
 
   void _startNoPostsTimer() {
@@ -558,7 +574,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             if (newPosts.isNotEmpty) {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
-                  content: Text(translationService.translate('refreshed_found_posts').replaceAll('{count}', newPosts.length.toString())),
+                  content: Text(translationService.translate(TranslationKeys.refreshedFoundPosts).replaceAll('{count}', newPosts.length.toString())),
                   backgroundColor: Colors.green,
                   duration: const Duration(seconds: 1),
                   behavior: SnackBarBehavior.floating,
@@ -569,9 +585,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         }
       } else {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
+          _scaffoldMessengerKey.currentState?.showSnackBar(
             SnackBar(
-              content: Text(translationService.translate('please_login_to_refresh')),
+              content: Text(translationService.translate(TranslationKeys.pleaseLoginToRefresh)),
               backgroundColor: Colors.orange,
               duration: const Duration(seconds: 2),
               behavior: SnackBarBehavior.floating,
@@ -584,9 +600,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         setState(() {
           _isLoading = false;
         });
-        ScaffoldMessenger.of(context).showSnackBar(
+        _scaffoldMessengerKey.currentState?.showSnackBar(
           SnackBar(
-            content: Text('${translationService.translate('failed_to_refresh')}: ${e.toString()}'),
+            content: Text('${translationService.translate(TranslationKeys.failedToRefresh)}: ${e.toString()}'),
             backgroundColor: Colors.red,
             duration: const Duration(seconds: 3),
             behavior: SnackBarBehavior.floating,
@@ -692,7 +708,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     if (!Platform.isAndroid) {
       print('[App Update] Verification skipped: Not on Android');
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(translationService.translate('auto_updates_only_android'))),
+        SnackBar(content: Text(translationService.translate(TranslationKeys.autoUpdatesOnlyAndroid))),
       );
       return;
     }
@@ -741,7 +757,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         print('[App Update] No updates available.');
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(translationService.translate('no_updates_available'))),
+            SnackBar(content: Text(translationService.translate(TranslationKeys.noUpdatesAvailable))),
           );
         }
       }
@@ -752,7 +768,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('${translationService.translate('error_checking_updates')}: $e')),
+          SnackBar(content: Text('${translationService.translate(TranslationKeys.errorCheckingUpdates)}: $e')),
         );
       }
     }
@@ -1072,8 +1088,26 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   ),
                 ),
               ),
-            if (_isLoading)
-              const Center(child: CircularProgressIndicator())
+              // Show skeleton loader instead of spinner
+              if (_isLoading)
+                SingleChildScrollView(
+                physics: const NeverScrollableScrollPhysics(),
+                padding: EdgeInsets.only(
+                  top: 60.0 + MediaQuery.of(context).padding.top + 5.0,
+                  bottom: 80.0,
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 10.0),
+                  child: Column(
+                    children: [
+                      for (int i = 0; i < 4; i++) ...[
+                        const SizedBox(height: 10),
+                        const PostCardSkeleton(),
+                      ],
+                    ],
+                  ),
+                ),
+              )
             else if (_posts.isEmpty)
               RefreshIndicator(
                 onRefresh: () async {
@@ -1103,7 +1137,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
                                   Text(
-                                    TranslationService().translate('no_posts_display'),
+                                    TranslationService().translate(TranslationKeys.noPostsDisplay),
                                     style: TextStyle(
                                       color: AppColors.getSecondaryTextColor(context),
                                       fontSize: 18,
@@ -1111,7 +1145,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                                   ),
                                   const SizedBox(height: 10),
                                   Text(
-                                    TranslationService().translate('pull_to_refresh'),
+                                    TranslationService().translate(TranslationKeys.pullToRefresh),
                                     style: TextStyle(
                                       color: AppColors.getHintColor(context),
                                       fontSize: 14,
@@ -1125,7 +1159,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                             children: [
                               for (int index = 0; index < 3; index++) ...[
                                 const SizedBox(height: 10),
-                                _SkeletonPostCard(),
+                                const PostCardSkeleton(),
                               ],
                             ],
                           ),
@@ -1182,219 +1216,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             ),
           ],
       ),
-    );
-  }
-}
-
-/// Animated skeleton placeholder for post cards
-class _SkeletonPostCard extends StatefulWidget {
-  @override
-  State<_SkeletonPostCard> createState() => _SkeletonPostCardState();
-}
-
-class _SkeletonPostCardState extends State<_SkeletonPostCard>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1500),
-    )..repeat();
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: PostCardStyles.getCardBackgroundColor(context),
-        borderRadius: BorderRadius.circular(PostCardStyles.cardRadius),
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(PostCardStyles.cardRadius),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(
-            sigmaX: PostCardStyles.blurSigma,
-            sigmaY: PostCardStyles.blurSigma,
-          ),
-          child: Padding(
-            padding: PostCardStyles.contentPadding,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Header with avatar and username
-                Row(
-                  children: [
-                    _ShimmerWidget(
-                      controller: _controller,
-                      child: Container(
-                        width: PostCardStyles.avatarSize,
-                        height: PostCardStyles.avatarSize,
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.2),
-                          borderRadius: BorderRadius.circular(PostCardStyles.avatarRadius),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 15),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _ShimmerWidget(
-                            controller: _controller,
-                            child: Container(
-                              height: 16,
-                              width: 120,
-                              decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.3),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          _ShimmerWidget(
-                            controller: _controller,
-                            child: Container(
-                              height: 12,
-                              width: 80,
-                              decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.2),
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 15),
-                // Content lines
-                _ShimmerWidget(
-                  controller: _controller,
-                  child: Container(
-                    height: 14,
-                    width: double.infinity,
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.3),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                _ShimmerWidget(
-                  controller: _controller,
-                  child: Container(
-                    height: 14,
-                    width: MediaQuery.of(context).size.width * 0.7,
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.3),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                _ShimmerWidget(
-                  controller: _controller,
-                  child: Container(
-                    height: 14,
-                    width: MediaQuery.of(context).size.width * 0.5,
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.3),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 15),
-                // Action buttons
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
-                  children: [
-                    _ShimmerWidget(
-                      controller: _controller,
-                      child: Container(
-                        height: 20,
-                        width: 60,
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.2),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                      ),
-                    ),
-                    _ShimmerWidget(
-                      controller: _controller,
-                      child: Container(
-                        height: 20,
-                        width: 60,
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.2),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                      ),
-                    ),
-                    _ShimmerWidget(
-                      controller: _controller,
-                      child: Container(
-                        height: 20,
-                        width: 60,
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.2),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// Shimmer effect widget
-class _ShimmerWidget extends StatelessWidget {
-  final AnimationController controller;
-  final Widget child;
-
-  const _ShimmerWidget({
-    required this.controller,
-    required this.child,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: controller,
-      builder: (context, child) {
-        return ShaderMask(
-          shaderCallback: (bounds) {
-            return LinearGradient(
-              begin: Alignment(-1.0 + (controller.value * 2), 0.0),
-              end: Alignment(1.0 + (controller.value * 2), 0.0),
-              colors: [
-                Colors.white.withOpacity(0.3),
-                Colors.white.withOpacity(0.6),
-                Colors.white.withOpacity(0.3),
-              ],
-              stops: const [0.0, 0.5, 1.0],
-            ).createShader(bounds);
-          },
-          child: child,
-        );
-      },
-      child: child,
     );
   }
 }

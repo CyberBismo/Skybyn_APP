@@ -1,6 +1,6 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import '../utils/translation_keys.dart';
+import '../services/translation_service.dart';
 import '../widgets/translated_text.dart';
 
 class WheelDatePicker extends StatefulWidget {

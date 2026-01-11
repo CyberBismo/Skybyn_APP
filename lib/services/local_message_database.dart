@@ -165,6 +165,27 @@ class LocalMessageDatabase {
     }
   }
 
+  /// Get the very last message for a specific friend (most recent)
+  Future<Message?> getLastMessage(String friendId, String currentUserId) async {
+    try {
+      final db = await database;
+      final results = await db.rawQuery('''
+        SELECT * FROM messages
+        WHERE (from_user_id = ? AND to_user_id = ?)
+           OR (from_user_id = ? AND to_user_id = ?)
+        ORDER BY date DESC LIMIT 1
+      ''', [currentUserId, friendId, friendId, currentUserId]);
+      
+      if (results.isNotEmpty) {
+        return _messageFromRow(results.first, currentUserId);
+      }
+      return null;
+    } catch (e) {
+      developer.log('Error getting last message: $e', name: 'LocalMessageDB');
+      return null;
+    }
+  }
+
   /// Get latest messages for all conversations (for conversation list)
   Future<Map<String, Message>> getLatestMessages(String currentUserId) async {
     try {

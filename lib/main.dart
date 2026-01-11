@@ -41,7 +41,7 @@ import 'services/firebase_messaging_service.dart';
 import 'services/websocket_service.dart';
 import 'services/translation_service.dart';
 import 'services/background_update_scheduler.dart';
-import 'services/background_activity_service.dart';
+// import 'services/background_activity_service.dart';
 import 'services/call_service.dart';
 import 'services/message_sync_worker.dart';
 import 'services/friend_service.dart';
@@ -332,8 +332,8 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       // Initialize background update scheduler
       await _backgroundUpdateScheduler.initialize();
       
-      // Initialize background activity service (updates activity even when app is closed)
-      await BackgroundActivityService.initialize();
+      // Background Activity Service removed in favor of WebSocket presence
+      // await BackgroundActivityService.initialize();
       
       // Initialize WorkManager for periodic message sync (battery-efficient)
       // WorkManager handles background tasks without requiring a foreground service notification
@@ -428,37 +428,18 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   }
 
   /// Start periodic activity updates
-  /// Updates activity every few seconds while WebSocket is connected
+  /// Updates activity only on state change (connected/disconnected) 
+  /// since WebSocket connection itself maintains presence
   void _startActivityUpdates() {
-    // Cancel any existing timer
+    // Activity updates via HTTP polling have been removed
+    // WebSocket connection maintains "Online" status on the server
     _activityUpdateTimer?.cancel();
-    
-    // Update activity immediately
-    _updateActivity();
-    
-    // Update every 5 seconds while WebSocket is connected
-    // This keeps the user's last_active timestamp fresh and shows them as online
-    _activityUpdateTimer = Timer.periodic(const Duration(seconds: 5), (timer) {
-      // Only update if WebSocket is connected
-      if (_webSocketService.isConnected) {
-        _updateActivity();
-      } else {
-        // If WebSocket is not connected, stop the timer
-        timer.cancel();
-        _activityUpdateTimer = null;
-      }
-    });
+    _activityUpdateTimer = null;
   }
 
   /// Update user activity
   Future<void> _updateActivity() async {
-    try {
-      // Update activity in your own database only
-      final authService = AuthService();
-      await authService.updateActivity();
-    } catch (e) {
-      // Silently fail - activity updates are not critical
-    }
+      // Logic removed - handled by WebSocket connection state
   }
 
   /// Start periodic profile checks

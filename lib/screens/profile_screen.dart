@@ -15,7 +15,7 @@ import '../services/auth_service.dart';
 import '../services/post_service.dart';
 import 'create_post_screen.dart';
 import '../config/constants.dart';
-import '../utils/translation_keys.dart';
+
 import '../widgets/translated_text.dart';
 import '../services/translation_service.dart';
 import '../widgets/skeleton_loader.dart';
@@ -201,12 +201,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
         if (profile != null) {
           userData = profile.toJson();
           // Ensure userData has the id field set
-          if (userData!['id'] == null || userData!['id'].toString().isEmpty) {
-            if (profileUserId != null) {
-              userData!['id'] = profileUserId;
-              userData!['userID'] = profileUserId; // Also set for compatibility
+            if (userData!['id'] == null || userData!['id'].toString().isEmpty) {
+              if (profileUserId != null) {
+                userData!['id'] = profileUserId;
+                userData!['userID'] = profileUserId; // Also set for compatibility
+              }
+            } else if (profileUserId == null) {
+              // Update profileUserId from loaded data if we didn't have it initially (e.g. navigated by username)
+              profileUserId = userData!['id'].toString();
             }
-          }
           _errorMessage = null; // Clear any previous error
         } else {
           // Use default data if profile fetch failed
@@ -591,6 +594,58 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _buildActionButtons() {
+    // If friend request received, show Accept/Decline buttons prominently
+    if (_friendshipStatus == 'received') {
+      return Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          _buildActionButton(
+            icon: Icons.check,
+            label: TranslationService().translate(TranslationKeys.acceptFriend), // Ensure this key exists or use string
+            color: Colors.green,
+            onTap: () => _sendFriendAction('accept'),
+          ),
+          const SizedBox(width: 12),
+          _buildActionButton(
+            icon: Icons.close,
+            label: TranslationService().translate(TranslationKeys.declineFriend), // Ensure this key exists or use string
+            color: Colors.red,
+            onTap: () => _sendFriendAction('decline'),
+          ),
+          const SizedBox(width: 12),
+          _buildActionButton(
+            icon: Icons.chat,
+            label: TranslationService().translate(TranslationKeys.chat),
+            onTap: () {
+              if (profileUserId != null && userData != null) {
+                final friend = Friend(
+                  id: profileUserId!,
+                  username: userData!['username']?.toString() ?? '',
+                  nickname: userData!['nickname']?.toString() ?? userData!['username']?.toString() ?? '',
+                  avatar: userData!['avatar']?.toString() ?? '',
+                  online: userData!['online'] == '1' || userData!['online'] == 1 || userData!['online'] == true || userData!['online'] == 'true',
+                );
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => ChatScreen(friend: friend),
+                  ),
+                );
+              }
+            },
+          ),
+          const SizedBox(width: 12),
+           _buildActionButton(
+            icon: Icons.share,
+            label: TranslationService().translate(TranslationKeys.share),
+            onTap: () {
+              _shareProfile();
+            },
+          ),
+        ],
+      );
+    }
+
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [

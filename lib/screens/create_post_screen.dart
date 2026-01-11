@@ -6,7 +6,7 @@ import 'dart:ui';
 import '../services/post_service.dart';
 import '../services/auth_service.dart';
 import '../models/post.dart';
-import '../utils/translation_keys.dart';
+
 import '../widgets/translated_text.dart';
 import '../services/translation_service.dart';
 
@@ -30,6 +30,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
   final PostService _postService = PostService();
   final AuthService _authService = AuthService();
   File? _selectedImage;
+  bool _isVideo = false;
   final ImagePicker _picker = ImagePicker();
   bool _isPosting = false;
 
@@ -57,11 +58,101 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
     super.dispose();
   }
 
-  // Removed unused _pickImage method
+  Future<void> _showMediaPicker() async {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (BuildContext context) {
+        return ClipRRect(
+          borderRadius: const BorderRadius.only(
+            topLeft: Radius.circular(20),
+            topRight: Radius.circular(20),
+          ),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+            child: Container(
+              decoration: BoxDecoration(
+                color: Theme.of(context).brightness == Brightness.dark 
+                    ? Colors.black.withOpacity(0.7) 
+                    : Colors.white.withOpacity(0.7),
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(20),
+                  topRight: Radius.circular(20),
+                ),
+                border: Border(
+                  top: BorderSide(
+                    color: Theme.of(context).brightness == Brightness.dark 
+                        ? Colors.white.withOpacity(0.1) 
+                        : Colors.black.withOpacity(0.1),
+                  ),
+                ),
+              ),
+              child: Wrap(
+                children: [
+                   Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8.0),
+                    child: Center(
+                      child: Container(
+                        width: 40,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).brightness == Brightness.dark 
+                              ? Colors.white.withOpacity(0.3) 
+                              : Colors.black.withOpacity(0.3),
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                    ),
+                  ),
+                  ListTile(
+                    leading: Icon(Icons.photo, color: Theme.of(context).iconTheme.color),
+                    title: Text('Photo Library', style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color)),
+                    onTap: () {
+                      _pickMedia(ImageSource.gallery, false);
+                      Navigator.of(context).pop();
+                    },
+                  ),
+                  ListTile(
+                    leading: Icon(Icons.videocam, color: Theme.of(context).iconTheme.color),
+                    title: Text('Video Library', style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color)),
+                    onTap: () {
+                      _pickMedia(ImageSource.gallery, true);
+                      Navigator.of(context).pop();
+                    },
+                  ),
+                  SizedBox(height: MediaQuery.of(context).padding.bottom + 50),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _pickMedia(ImageSource source, bool isVideo) async {
+    try {
+      final XFile? media = isVideo 
+          ? await _picker.pickVideo(source: source, maxDuration: const Duration(minutes: 5))
+          : await _picker.pickImage(source: source, imageQuality: 80);
+      
+      if (media != null) {
+        setState(() {
+          _selectedImage = File(media.path);
+          _isVideo = isVideo;
+        });
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to pick media: $e')),
+      );
+    }
+  }
 
   Future<void> _submitPost() async {
     final content = _contentController.text.trim();
-    if (content.isEmpty) {
+    // Allow empty content if an image is selected
+    if (content.isEmpty && _selectedImage == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: TranslatedText(TranslationKeys.fieldRequired),
@@ -80,7 +171,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
       }
 
       if (widget.isEditing && widget.postToEdit != null) {
-        // Update existing post
+        // Update existing post (does not support changing image for now)
         await _postService.updatePost(
           postId: widget.postToEdit!.id,
           userId: userId,
@@ -95,6 +186,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
         final result = await _postService.createPost(
           userId: userId,
           content: content,
+          mediaFile: _selectedImage,
         );
 
         // Send WebSocket message to notify other clients
@@ -160,7 +252,13 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
         ),
         body: Container(
           decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.3),
+            color: Theme.of(context).brightness == Brightness.dark 
+                ? Colors.black.withOpacity(0.7) 
+                : Colors.white.withOpacity(0.7),
+            borderRadius: const BorderRadius.only(
+              topLeft: Radius.circular(20),
+              topRight: Radius.circular(20),
+            ),
           ),
           child: Padding(
             padding: EdgeInsets.only(
@@ -183,28 +281,52 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
                         ),
-                        child:                         ListenableBuilder(
-                          listenable: TranslationService(),
-                          builder: (context, _) {
-                            return TextField(
-                              controller: _contentController,
-                              focusNode: _focusNode,
-                              autofocus: true,
-                              maxLines: 5,
-                              minLines: 3,
-                              style: const TextStyle(color: Colors.white),
-                              decoration: InputDecoration(
-                                hintText: TranslationService().translate(TranslationKeys.whatOnMind),
-                                hintStyle: const TextStyle(color: Colors.white70),
-                                border: InputBorder.none,
-                                contentPadding: const EdgeInsets.all(16),
-                              ),
-                              onTap: () {
-                                // Ensure any other context menus are closed
-                                // This helps prevent SystemContextMenu conflicts
+                        child: Column(
+                          children: [
+                            ListenableBuilder(
+                              listenable: TranslationService(),
+                              builder: (context, _) {
+                                return TextField(
+                                  controller: _contentController,
+                                  focusNode: _focusNode,
+                                  autofocus: true,
+                                  maxLines: 5,
+                                  minLines: 3,
+                                  style: const TextStyle(color: Colors.white),
+                                  decoration: InputDecoration(
+                                    hintText: TranslationService().translate(TranslationKeys.whatOnMind),
+                                    hintStyle: const TextStyle(color: Colors.white70),
+                                    border: InputBorder.none,
+                                    contentPadding: const EdgeInsets.all(16),
+                                  ),
+                                  onTap: () {},
+                                );
                               },
-                            );
-                          },
+                            ),
+                            const Divider(height: 1, color: Colors.white24),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                              child: Row(
+                                children: [
+                                  IconButton(
+                                    icon: const Icon(Icons.image, color: Colors.white70),
+                                    onPressed: () => _showMediaPicker(),
+                                    tooltip: 'Add Photo/Video',
+                                  ),
+                                  IconButton(
+                                    icon: const Icon(Icons.camera_alt, color: Colors.white70),
+                                    onPressed: () => _pickMedia(ImageSource.camera, false), // Default to photo camera
+                                    tooltip: 'Take Photo',
+                                  ),
+                                  IconButton(
+                                    icon: const Icon(Icons.videocam, color: Colors.white70),
+                                    onPressed: () => _pickMedia(ImageSource.camera, true), // Default to video camera
+                                    tooltip: 'Take Video',
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                       const SizedBox(height: 16),
@@ -218,22 +340,37 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                             borderRadius: BorderRadius.circular(12),
                             child: Stack(
                               children: [
-                                Image.file(
-                                  _selectedImage!,
-                                  height: 180,
-                                  fit: BoxFit.cover,
-                                  width: double.infinity,
-                                  errorBuilder: (context, error, stackTrace) {
-                                    // Return placeholder on error
-                                    return Container(
+                                _isVideo 
+                                  ? Container(
                                       height: 180,
-                                      color: Colors.grey.withOpacity(0.3),
+                                      width: double.infinity,
+                                      color: Colors.black,
                                       child: const Center(
-                                        child: Icon(Icons.error, color: Colors.grey),
+                                        child: Column(
+                                          mainAxisAlignment: MainAxisAlignment.center,
+                                          children: [
+                                            Icon(Icons.videocam, color: Colors.white, size: 48),
+                                            SizedBox(height: 8),
+                                            Text('Video Selected', style: TextStyle(color: Colors.white)),
+                                          ],
+                                        ),
                                       ),
-                                    );
-                                  },
-                                ),
+                                    )
+                                  : Image.file(
+                                      _selectedImage!,
+                                      height: 180,
+                                      fit: BoxFit.cover,
+                                      width: double.infinity,
+                                      errorBuilder: (context, error, stackTrace) {
+                                        return Container(
+                                          height: 180,
+                                          color: Colors.grey.withOpacity(0.3),
+                                          child: const Center(
+                                            child: Icon(Icons.error, color: Colors.grey),
+                                          ),
+                                        );
+                                      },
+                                    ),
                                 Positioned(
                                   top: 4,
                                   right: 4,
@@ -244,7 +381,10 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                                     ),
                                     child: IconButton(
                                       icon: const Icon(Icons.close, color: Colors.white, size: 20),
-                                      onPressed: () => setState(() => _selectedImage = null),
+                                      onPressed: () => setState(() {
+                                        _selectedImage = null;
+                                        _isVideo = false;
+                                      }),
                                     ),
                                   ),
                                 ),

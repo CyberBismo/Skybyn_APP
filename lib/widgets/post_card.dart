@@ -13,7 +13,7 @@ import '../services/websocket_service.dart';
 import '../screens/create_post_screen.dart';
 import '../widgets/app_colors.dart';
 import '../config/constants.dart';
-import '../utils/translation_keys.dart';
+
 import '../widgets/translated_text.dart';
 import '../services/translation_service.dart';
 import '../screens/profile_screen.dart';
@@ -63,13 +63,13 @@ class PostCardStyles {
 
   // Border radius - match web platform exactly
   static const double cardRadius = 20.0; // border-radius: 20px
-  static const double avatarRadius = 10.0; // border-radius: 10px
+  static const double avatarRadius = 50.0; // border-radius: 10px
   static const double imageRadius = 10.0; // border-radius: 10px
   static const double buttonRadius = 10.0; // border-radius: 10px
   static const double commentRadius = 10.0; // border-radius: 10px
 
   // Shadows and effects - match web platform exactly
-  static const double blurSigma = 5.0; // backdrop-filter: blur(5px)
+  static const double blurSigma = 30.0; // backdrop-filter: blur(5px)
   static const double shadowBlurRadius = 0.0; // No shadow in web
   static const Offset shadowOffset = Offset(0, 0);
   static const double shadowOpacity = 0.0;

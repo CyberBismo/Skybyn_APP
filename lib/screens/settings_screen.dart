@@ -25,7 +25,7 @@ import '../services/location_service.dart';
 import '../services/notification_sound_service.dart';
 import '../widgets/translated_text.dart';
 import '../widgets/update_dialog.dart';
-import '../utils/translation_keys.dart';
+
 import '../config/constants.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -2217,7 +2217,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Skybyn is a social networking platform that connects people from around the world. Share your moments, connect with friends, and discover new communities.',
+              TranslationKeys.aboutDescription.tr,
               style: TextStyle(
                 color: AppColors.getTextColor(context),
                 fontSize: 14,
@@ -2229,7 +2229,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               Row(
                 children: [
                   Text(
-                    '${TranslationKeys.version.tr}: ',
+                    '${TranslationKeys.appVersion.tr}: ',
                     style: TextStyle(
                       color: AppColors.getSecondaryTextColor(context),
                       fontSize: 14,
@@ -2237,26 +2237,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                   Text(
                     version,
-                    style: TextStyle(
-                      color: AppColors.getTextColor(context),
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  Text(
-                    '${TranslationKeys.buildNumber.tr}: ',
-                    style: TextStyle(
-                      color: AppColors.getSecondaryTextColor(context),
-                      fontSize: 14,
-                    ),
-                  ),
-                  Text(
-                    buildNumber,
                     style: TextStyle(
                       color: AppColors.getTextColor(context),
                       fontSize: 14,
@@ -2281,24 +2261,30 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     borderRadius: BorderRadius.circular(8),
                   ),
                 ),
-                child: _isCheckingForUpdates
+                child: (_isCheckingForUpdates || _updateCheckStatus.isNotEmpty)
                     ? Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                          if (_isCheckingForUpdates) ...[
+                            const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                              ),
                             ),
-                          ),
-                          const SizedBox(width: 12),
-                          Text(
-                            _updateCheckStatus.isNotEmpty
-                                ? _updateCheckStatus
-                                : TranslationKeys.checkingForUpdates.tr,
-                            style: const TextStyle(color: Colors.white),
+                            const SizedBox(width: 12),
+                          ],
+                          Flexible(
+                            child: Text(
+                              _updateCheckStatus.isNotEmpty
+                                  ? _updateCheckStatus
+                                  : TranslationKeys.checkingForUpdates.tr,
+                              style: const TextStyle(color: Colors.white),
+                              textAlign: TextAlign.center,
+                              overflow: TextOverflow.ellipsis,
+                            ),
                           ),
                         ],
                       )
@@ -2317,7 +2303,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (!Platform.isAndroid) {
       if (mounted) {
         setState(() {
-          _updateCheckStatus = translationService.translate('auto_updates_only_android');
+          _updateCheckStatus = translationService.translate(TranslationKeys.autoUpdatesOnlyAndroid);
           _isCheckingForUpdates = false;
         });
         // Reset status after 3 seconds
@@ -2355,7 +2341,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (mounted) {
       setState(() {
         _isCheckingForUpdates = true;
-        _updateCheckStatus = translationService.translate('checking_for_updates') ?? 'Checking for updates...';
+        _updateCheckStatus = translationService.translate(TranslationKeys.checkingForUpdates) ?? 'Checking for updates...';
       });
     }
 
@@ -2404,7 +2390,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         } else {
           // No update available
           setState(() {
-            _updateCheckStatus = translationService.translate('no_updates_available') ?? 'You are using the latest version';
+            _updateCheckStatus = translationService.translate(TranslationKeys.noUpdatesAvailable) ?? 'You are using the latest version';
             _isCheckingForUpdates = false;
           });
           
@@ -2422,7 +2408,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       // Update button status with error
       if (mounted) {
         setState(() {
-          _updateCheckStatus = translationService.translate('error_checking_updates') ?? 'Error checking for updates';
+          _updateCheckStatus = translationService.translate(TranslationKeys.errorCheckingUpdates) ?? 'Error checking for updates';
           _isCheckingForUpdates = false;
         });
         

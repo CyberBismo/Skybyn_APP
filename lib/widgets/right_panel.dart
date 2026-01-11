@@ -12,6 +12,7 @@ import '../services/translation_service.dart';
 import 'find_friends_widget.dart';
 import '../config/constants.dart';
 
+
 class RightPanel extends StatefulWidget {
   const RightPanel({super.key});
 
@@ -200,7 +201,7 @@ class _RightPanelState extends State<RightPanel> {
                               listenable: TranslationService(),
                               builder: (context, _) {
                                 return Text(
-                                  TranslationService().translate('friends'),
+                                  TranslationService().translate(TranslationKeys.friends),
                                   style: const TextStyle(
                                     color: Colors.white,
                                     fontSize: 24,

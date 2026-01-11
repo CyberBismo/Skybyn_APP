@@ -3,7 +3,7 @@ import 'dart:ui';
 import 'dart:async';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'app_colors.dart';
-import '../utils/translation_keys.dart';
+
 import '../services/translation_service.dart';
 import '../services/auth_service.dart';
 import '../screens/profile_screen.dart';
@@ -26,7 +26,7 @@ class SearchFormStyles {
   static const double fieldRadius = 40.0; // Match web platform
   
   // Shadows and effects
-  static const double blurSigma = 5.0; // Match web platform blur
+  static const double blurSigma = 50.0; // Match web platform blur
   static const double elevation = 0.0;
   
   // Animation

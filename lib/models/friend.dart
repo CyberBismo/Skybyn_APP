@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../config/constants.dart';
+import '../services/translation_service.dart';
+
 
 class Friend {
   final String id;
@@ -160,53 +162,59 @@ class Friend {
   }
   
   /// Get formatted last active status string
-  /// Returns "Online" if active within 2 minutes, otherwise "Last active X ago"
+  /// Returns translated status string
   String getLastActiveStatus() {
+    final service = TranslationService();
+    
+    if (online) {
+      return service.translate(TranslationKeys.active) ?? 'Active';
+    }
+    
     if (lastActive == null) {
-      return online ? 'Online' : 'Offline';
+      return service.translate(TranslationKeys.inactive) ?? 'Inactive';
     }
     
     final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
-    final twoMinutesAgo = now - 120; // 2 minutes = 120 seconds
+    final diff = now - lastActive!;
     
-    if (lastActive! >= twoMinutesAgo) {
-      return 'Online';
+    if (diff < 300) {
+      return service.translate(TranslationKeys.away) ?? 'Away';
     }
     
-    final secondsAgo = now - lastActive!;
-    
-    if (secondsAgo < 60) {
-      return 'Last active ${secondsAgo}s ago';
-    } else if (secondsAgo < 3600) {
-      final minutes = secondsAgo ~/ 60;
-      return 'Last active ${minutes}m ago';
-    } else if (secondsAgo < 86400) {
-      final hours = secondsAgo ~/ 3600;
-      return 'Last active ${hours}h ago';
-    } else {
-      final days = secondsAgo ~/ 86400;
-      return 'Last active ${days}d ago';
+    if (diff < 1800) {
+      final minutes = (diff / 60).round();
+      final displayMinutes = minutes < 1 ? 1 : minutes;
+      
+      final lastSeen = service.translate(TranslationKeys.lastSeen) ?? 'Last seen';
+      final minStr = service.translate(TranslationKeys.minutesAgo) ?? 'minutes ago';
+      
+      return '$lastSeen $displayMinutes $minStr';
     }
+    
+    return service.translate(TranslationKeys.inactive) ?? 'Inactive';
   }
   
-  /// Get color for status text based on status string
-  /// Green for "Online", Orange for "Last active xxx", Grey for "Offline"
+  /// Get color for status
   Color getStatusColor() {
-    final status = getLastActiveStatus();
-    return Friend.getStatusColorFromText(status);
+    if (online) return Colors.green;
+    if (lastActive == null) return Colors.grey;
+    
+    final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+    final diff = now - lastActive!;
+    
+    if (diff < 1800) return Colors.orange;
+    
+    return Colors.grey;
   }
   
   /// Static method to get color for status text
-  /// Green for "Online", Orange for "Last active xxx", Grey for "Offline"
+  /// DEPRECATED: Do not use text to determine color. Use getStatusColor() on Friend instance.
   static Color getStatusColorFromText(String status) {
-    if (status == 'Online') {
+    if (status == 'Online' || status == 'Active' || status == 'Aktiv') {
       return Colors.green;
-    } else if (status.startsWith('Last active')) {
+    } else if (status.startsWith('Last') || status == 'Away' || status == 'Borte') {
       return Colors.orange;
-    } else if (status == 'Offline') {
-      return Colors.grey;
-    }
-    // Default fallback
+    } 
     return Colors.grey;
   }
 }

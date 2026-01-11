@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:share_plus/share_plus.dart';
 import '../widgets/background_gradient.dart';
-import '../utils/translation_keys.dart';
+import '../services/translation_service.dart';
 import '../widgets/translated_text.dart';
 
 class ShareScreen extends StatelessWidget {

@@ -16,7 +16,7 @@ import '../services/location_service.dart';
 import '../config/constants.dart';
 import '../models/friend.dart';
 import '../widgets/translated_text.dart';
-import '../utils/translation_keys.dart';
+import '../services/translation_service.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';

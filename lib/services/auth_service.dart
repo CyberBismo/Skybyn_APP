@@ -11,7 +11,7 @@ import 'device_service.dart';
 import 'firebase_messaging_service.dart';
 import 'translation_service.dart';
 import 'websocket_service.dart';
-import 'background_activity_service.dart';
+// import 'background_activity_service.dart';
 import 'navigation_service.dart';
 import 'chat_message_count_service.dart';
 import 'post_service.dart';
@@ -263,12 +263,14 @@ class AuthService {
   }
 
   Future<void> logout() async {
-    // Cancel background activity updates on logout
+    // Background activity service removed
+    /*
     try {
       await BackgroundActivityService.cancel();
     } catch (e) {
       // Silently fail
     }
+    */
     
     // Reset cached online status on logout
     _lastKnownOnlineStatus = null;
@@ -609,33 +611,7 @@ class AuthService {
 
   /// Update user online status
   /// Update user activity timestamp (for online status tracking)
-  Future<void> updateActivity() async {
-    try {
-      final userId = await getStoredUserId();
-      if (userId == null) {
-        return; // User not logged in, silently fail
-      }
-
-      final requestBody = <String, String>{
-        'userID': userId,
-      };
-
-      final response = await _client.post(
-        Uri.parse(ApiConstants.updateActivity),
-        body: requestBody,
-      );
-
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        if (data['responseCode'] == '1') {
-          // Activity updated successfully
-          return;
-        }
-      }
-    } catch (e) {
-      // Silently fail - activity updates are not critical
-    }
-  }
+  // updateActivity removed - replaced by WebSocket presence
 
   Future<void> updateOnlineStatus(bool isOnline) async {
     try {
@@ -750,7 +726,14 @@ class AuthService {
         final data = _safeJsonDecode(response.body);
 
         if (data['responseCode'] == '1' || data['success'] == true) {
-          final userId = data['userID']?.toString() ?? data['data']?['userID']?.toString();
+          String? userId = data['userID']?.toString() ?? data['data']?['userID']?.toString();
+          if (userId == null) {
+            userId = data['id']?.toString() ?? data['data']?['id']?.toString();
+          }
+          if (userId == null) {
+            userId = data['userid']?.toString() ?? data['data']?['userid']?.toString();
+          }
+          
           final token = data['token']?.toString() ?? data['data']?['token']?.toString();
           
           // Automatically log the user in after successful registration

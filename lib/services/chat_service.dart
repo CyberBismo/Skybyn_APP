@@ -451,6 +451,39 @@ class ChatService {
     }
   }
 
+  /// Get the most recent message for each friend from local DB
+  /// Returns a map of friendId -> Message
+  Future<Map<String, Message>> getLatestMessages() async {
+    final userId = await _authService.getStoredUserId();
+    if (userId == null) return {};
+    return await _localDb.getLatestMessages(userId);
+  }
+
+  /// Get the last message for a specific friend
+  Future<Message?> getLastMessage(String friendId) async {
+    final userId = await _authService.getStoredUserId();
+    if (userId == null) return null;
+    return await _localDb.getLastMessage(friendId, userId);
+  }
+
+  /// Force fetch the latest message from API (bypass local DB check)
+  Future<Message?> fetchLatestMessage(String friendId) async {
+    final userId = await _authService.getStoredUserId();
+    if (userId == null) return null;
+    try {
+      // Limit 1, Offset 0 should get the absolute latest message
+      final messages = await _fetchMessagesFromAPI(friendId, userId, 1, 0);
+      if (messages.isNotEmpty) {
+        final message = messages.first;
+        await _localDb.saveMessage(message, synced: true);
+        return message;
+      }
+    } catch (e) {
+      developer.log('Error fetching latest message: $e', name: 'ChatService');
+    }
+    return null;
+  }
+
   /// Sync messages with server (incremental sync)
   /// Returns list of new messages fetched and saved
   Future<List<Message>> syncMessages(String friendId, String userId) async {

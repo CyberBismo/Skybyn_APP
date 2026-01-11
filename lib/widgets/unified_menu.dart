@@ -7,7 +7,7 @@ import '../screens/settings_screen.dart';
 import '../screens/qr_scanner_screen.dart';
 import '../screens/share_screen.dart';
 import 'app_colors.dart';
-import '../utils/translation_keys.dart';
+
 import '../utils/navigation_helper.dart';
 import '../services/translation_service.dart';
 import '../services/auth_service.dart';
@@ -358,7 +358,7 @@ class UnifiedMenu {
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(10),
                   child: BackdropFilter(
-                    filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                    filter: ImageFilter.blur(sigmaX: 50, sigmaY: 50),
                     child: Material(
                       color: Colors.transparent,
                       child: Container(

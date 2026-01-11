@@ -4,7 +4,7 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../config/constants.dart';
 import '../services/auth_service.dart';
-import '../utils/translation_keys.dart';
+import '../services/translation_service.dart';
 import '../widgets/translated_text.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:intl/intl.dart';
@@ -23,6 +23,8 @@ class Notification {
   final String type;
   final String? profile;
   final String? post;
+  final String? fromUserId;
+  final String? friendStatus;
 
   Notification({
     required this.id,
@@ -35,6 +37,8 @@ class Notification {
     required this.type,
     this.profile,
     this.post,
+    this.fromUserId,
+    this.friendStatus,
   });
 
   factory Notification.fromJson(Map<String, dynamic> json) {
@@ -49,12 +53,16 @@ class Notification {
       type: json['type']?.toString() ?? '',
       profile: json['profile']?.toString(),
       post: json['post']?.toString(),
+      fromUserId: json['from_user_id']?.toString(),
+      friendStatus: json['friend_status']?.toString(),
     );
   }
 }
 
+
 /// Unified notification overlay system that positions relative to bottom nav bar
 class UnifiedNotificationOverlay {
+
   static OverlayEntry? _currentOverlayEntry;
   static _NotificationOverlayState? _currentState;
   
@@ -87,7 +95,7 @@ class UnifiedNotificationOverlay {
     
     // Calculate overlay position - above the bottom nav bar
     final overlayHeight = screenHeight * 0.6; // 60% of screen height
-    final bottomOffset = bottomPadding + 50.0 + 16.0; // Bottom nav height + padding + gap
+    final bottomOffset = bottomPadding + 80.0; // Bottom nav height + padding + gap
     final overlayTop = screenHeight - overlayHeight - bottomOffset;
     
     _currentOverlayEntry = OverlayEntry(
@@ -153,6 +161,7 @@ class _NotificationOverlayState extends State<NotificationOverlayContent> {
   List<Notification> _notifications = [];
   bool _isLoading = true;
   String? _userId;
+  final Map<String, String> _notificationActionStates = {}; // 'accepted' or 'declined'
 
   @override
   void initState() {
@@ -185,6 +194,8 @@ class _NotificationOverlayState extends State<NotificationOverlayContent> {
         if (data is List) {
           setState(() {
             _notifications = data.map((item) => Notification.fromJson(item)).toList();
+            // Sort by date descending (latest first)
+            _notifications.sort((a, b) => b.date.compareTo(a.date));
             _isLoading = false;
           });
           
@@ -235,6 +246,8 @@ class _NotificationOverlayState extends State<NotificationOverlayContent> {
                 type: _notifications[index].type,
                 profile: _notifications[index].profile,
                 post: _notifications[index].post,
+                fromUserId: _notifications[index].fromUserId,
+                friendStatus: _notifications[index].friendStatus,
               );
             }
           });
@@ -292,6 +305,109 @@ class _NotificationOverlayState extends State<NotificationOverlayContent> {
     }
   }
 
+  Future<void> _deleteNotification(String notificationId) async {
+    // Optimistically remove from list
+    setState(() {
+      _notifications.removeWhere((n) => n.id == notificationId);
+    });
+    // Update count
+    final unreadCount = _notifications.where((n) => n.read == 0).length;
+    widget.onUnreadCountChanged?.call(unreadCount);
+
+    try {
+      await http.post(
+        Uri.parse(ApiConstants.deleteNotification),
+        body: {'notiID': notificationId},
+      );
+    } catch (e) {
+      // Create silently
+    }
+  }
+
+  Future<void> _acceptFriendRequest(String senderId, String notificationId) async {
+    if (_userId == null) return;
+
+    setState(() {
+      _notificationActionStates[notificationId] = 'accepted';
+    });
+    
+    try {
+      final response = await http.post(
+        Uri.parse(ApiConstants.friend),
+        body: {
+          'userID': _userId!,
+          'friendID': senderId,
+          'action': 'accept',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data['responseCode'] == '1') {
+          // Do not reload notifications, just update UI state locally
+          if (mounted) {
+             ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(data['message'] ?? 'Friend request accepted'),
+                backgroundColor: Colors.green,
+                duration: const Duration(seconds: 2),
+              ),
+            );
+          }
+        }
+      }
+    } catch (e) {
+      // Handle error silently
+      if (mounted) {
+        setState(() {
+          _notificationActionStates.remove(notificationId); // Revert on likely error
+        });
+      }
+    }
+  }
+
+  Future<void> _declineFriendRequest(String senderId, String notificationId) async {
+    if (_userId == null) return;
+    
+    setState(() {
+       _notificationActionStates[notificationId] = 'declined';
+    });
+
+    try {
+      final response = await http.post(
+        Uri.parse(ApiConstants.friend),
+        body: {
+          'userID': _userId!,
+          'friendID': senderId,
+          'action': 'decline',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data['responseCode'] == '1') {
+          // Do not reload
+          if (mounted) {
+             ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(data['message'] ?? 'Friend request declined'),
+                backgroundColor: Colors.grey,
+                duration: const Duration(seconds: 2),
+              ),
+            );
+          }
+        }
+      }
+    } catch (e) {
+      // Handle error silently
+       if (mounted) {
+        setState(() {
+          _notificationActionStates.remove(notificationId); // Revert
+        });
+      }
+    }
+  }
+
   String _formatDate(int timestamp) {
     if (timestamp == 0) return '';
     
@@ -326,7 +442,7 @@ class _NotificationOverlayState extends State<NotificationOverlayContent> {
     return ClipRRect(
       borderRadius: BorderRadius.circular(10),
       child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+        filter: ImageFilter.blur(sigmaX: 50, sigmaY: 50),
         child: Material(
           color: Colors.transparent,
           child: Container(
@@ -409,123 +525,211 @@ class _NotificationOverlayState extends State<NotificationOverlayContent> {
                                 separatorBuilder: (context, index) => const SizedBox(height: 8),
                                 itemBuilder: (context, index) {
                                   final notification = _notifications[index];
-                                  return GestureDetector(
-                                    onTap: () {
-                                      if (notification.read == 0) {
-                                        _markAsRead(notification.id);
-                                      }
-                                      
-                                      // Close the overlay first
-                                      UnifiedNotificationOverlay.closeCurrentOverlay();
-                                      
-                                      // Navigate based on notification type
-                                      if (notification.type == 'friend_request' || notification.type == 'friend_accepted') {
-                                        // Navigate to user's profile
-                                        // Use username from notification (which is the sender's username)
-                                        if (notification.username.isNotEmpty && notification.username != 'System') {
-                                          Navigator.of(context).push(
-                                            MaterialPageRoute(
-                                              builder: (context) => ProfileScreen(
-                                                username: notification.username,
-                                              ),
-                                            ),
-                                          );
+                                  final actionState = _notificationActionStates[notification.id];
+                                  
+                                  return Dismissible(
+                                    key: Key(notification.id),
+                                    direction: DismissDirection.horizontal,
+                                    background: Container(
+                                      alignment: Alignment.centerLeft,
+                                      padding: const EdgeInsets.only(left: 20),
+                                      color: Colors.red,
+                                      child: const Icon(Icons.delete, color: Colors.white),
+                                    ),
+                                    secondaryBackground: Container(
+                                      alignment: Alignment.centerRight,
+                                      padding: const EdgeInsets.only(right: 20),
+                                      color: Colors.blue,
+                                      child: const Icon(Icons.mark_email_read, color: Colors.white),
+                                    ),
+                                    confirmDismiss: (direction) async {
+                                      if (direction == DismissDirection.startToEnd) {
+                                        // Swipe Right -> Delete
+                                        await _deleteNotification(notification.id);
+                                        return true;
+                                      } else {
+                                        // Swipe Left -> Mark as Read
+                                        if (notification.read == 0) {
+                                          await _markAsRead(notification.id);
                                         }
-                                      } else if (notification.type == 'comment' && notification.post != null) {
-                                        // Navigate to home screen
-                                        // Note: Scrolling to a specific post/comment would require additional implementation
-                                        Navigator.of(context).pushAndRemoveUntil(
-                                          MaterialPageRoute(
-                                            builder: (context) => const HomeScreen(),
-                                          ),
-                                          (route) => route.isFirst,
-                                        );
+                                        return false; // Snap back, don't remove
                                       }
                                     },
-                                    child: Container(
-                                      decoration: BoxDecoration(
-                                        color: Colors.transparent,
-                                        borderRadius: BorderRadius.circular(10),
-                                      ),
-                                      child: ListTile(
-                                        leading: CircleAvatar(
-                                          radius: 22,
-                                          backgroundColor: AppColors.getIconColor(context).withOpacity(0.2),
-                                          child: notification.avatar.isNotEmpty
-                                              ? ClipOval(
-                                                  child: CachedNetworkImage(
-                                                    imageUrl: UrlHelper.convertUrl(notification.avatar),
+                                    child: GestureDetector(
+                                      onTap: () {
+                                        if (notification.read == 0) {
+                                          _markAsRead(notification.id);
+                                        }
+                                        
+                                        // Close the overlay first
+                                        UnifiedNotificationOverlay.closeCurrentOverlay();
+                                        
+                                        // Navigate based on notification type
+                                        if (notification.type == 'friend_request' || notification.type == 'friend_accepted') {
+                                          // Navigate to user's profile
+                                          if (notification.username.isNotEmpty && notification.username != 'System') {
+                                            Navigator.of(context).push(
+                                              MaterialPageRoute(
+                                                builder: (context) => ProfileScreen(
+                                                  username: notification.username,
+                                                ),
+                                              ),
+                                            );
+                                          }
+                                        } else if (notification.type == 'comment' && notification.post != null) {
+                                          Navigator.of(context).pushAndRemoveUntil(
+                                            MaterialPageRoute(
+                                              builder: (context) => const HomeScreen(),
+                                            ),
+                                            (route) => route.isFirst,
+                                          );
+                                        }
+                                      },
+                                      child: Container(
+                                        decoration: BoxDecoration(
+                                          color: Colors.transparent,
+                                          borderRadius: BorderRadius.circular(10),
+                                        ),
+                                        child: ListTile(
+                                          leading: CircleAvatar(
+                                            radius: 22,
+                                            backgroundColor: AppColors.getIconColor(context).withOpacity(0.2),
+                                            child: notification.avatar.isNotEmpty
+                                                ? ClipOval(
+                                                    child: CachedNetworkImage(
+                                                      imageUrl: UrlHelper.convertUrl(notification.avatar),
+                                                      width: 44,
+                                                      height: 44,
+                                                      fit: BoxFit.cover,
+                                                      placeholder: (context, url) => Image.asset(
+                                                        'assets/images/icon.png',
+                                                        width: 44,
+                                                        height: 44,
+                                                        fit: BoxFit.cover,
+                                                      ),
+                                                      errorWidget: (context, url, error) => Image.asset(
+                                                        'assets/images/icon.png',
+                                                        width: 44,
+                                                        height: 44,
+                                                        fit: BoxFit.cover,
+                                                      ),
+                                                    ),
+                                                  )
+                                                : Image.asset(
+                                                    'assets/images/icon.png',
                                                     width: 44,
                                                     height: 44,
                                                     fit: BoxFit.cover,
-                                                    placeholder: (context, url) => Image.asset(
-                                                      'assets/images/icon.png',
-                                                      width: 44,
-                                                      height: 44,
-                                                      fit: BoxFit.cover,
-                                                    ),
-                                                    errorWidget: (context, url, error) => Image.asset(
-                                                      'assets/images/icon.png',
-                                                      width: 44,
-                                                      height: 44,
-                                                      fit: BoxFit.cover,
-                                                    ),
+                                                  ),
+                                          ),
+                                          title: Text(
+                                            notification.nickname,
+                                            style: TextStyle(
+                                              color: AppColors.getTextColor(context),
+                                              fontWeight: notification.read == 0
+                                                  ? FontWeight.bold
+                                                  : FontWeight.normal,
+                                              fontSize: 16,
+                                            ),
+                                          ),
+                                          subtitle: Column(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              const SizedBox(height: 4),
+                                              Text(
+                                                notification.content,
+                                                style: TextStyle(
+                                                  color: AppColors.getSecondaryTextColor(context),
+                                                  fontSize: 14,
+                                                ),
+                                                maxLines: 2,
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                              const SizedBox(height: 4),
+                                              Text(
+                                                _formatDate(notification.date),
+                                                style: TextStyle(
+                                                  color: AppColors.getSecondaryTextColor(context),
+                                                  fontSize: 12,
+                                                ),
+                                              ),
+                                              if (notification.type == 'friend_request' && notification.fromUserId != null) ...[
+                                                const SizedBox(height: 8),
+                                                if (actionState == 'accepted' || notification.friendStatus == 'friends')
+                                                  Row(
+                                                    children: [
+                                                      const Icon(Icons.check_circle, color: Colors.green, size: 20),
+                                                      const SizedBox(width: 8),
+                                                      Text(
+                                                        'Accepted', // Fallback string
+                                                        style: TextStyle(
+                                                          color: Colors.green,
+                                                          fontWeight: FontWeight.bold,
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  )
+                                                else if (actionState == 'declined')
+                                                  Row(
+                                                    children: [
+                                                      const Icon(Icons.cancel, color: Colors.red, size: 20),
+                                                      const SizedBox(width: 8),
+                                                      Text(
+                                                        'Declined', // Fallback string
+                                                        style: TextStyle(
+                                                          color: Colors.red,
+                                                          fontWeight: FontWeight.bold,
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  )
+                                                else
+                                                  Row(
+                                                    children: [
+                                                      Expanded(
+                                                        child: ElevatedButton(
+                                                          onPressed: () => _acceptFriendRequest(notification.fromUserId!, notification.id),
+                                                          style: ElevatedButton.styleFrom(
+                                                            backgroundColor: Colors.green,
+                                                            foregroundColor: Colors.white,
+                                                            padding: const EdgeInsets.symmetric(vertical: 8),
+                                                            minimumSize: const Size(0, 32),
+                                                          ),
+                                                          child: Text(TranslationService().translate(TranslationKeys.acceptFriend)),
+                                                        ),
+                                                      ),
+                                                      const SizedBox(width: 8),
+                                                      Expanded(
+                                                        child: ElevatedButton(
+                                                          onPressed: () => _declineFriendRequest(notification.fromUserId!, notification.id),
+                                                          style: ElevatedButton.styleFrom(
+                                                            backgroundColor: Colors.grey[700],
+                                                            foregroundColor: Colors.white,
+                                                            padding: const EdgeInsets.symmetric(vertical: 8),
+                                                            minimumSize: const Size(0, 32),
+                                                          ),
+                                                          child: Text(TranslationService().translate(TranslationKeys.declineFriend)),
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                              ],
+                                            ],
+                                          ),
+                                          trailing: notification.read == 0
+                                              ? Container(
+                                                  width: 8,
+                                                  height: 8,
+                                                  decoration: const BoxDecoration(
+                                                    color: Colors.blue,
+                                                    shape: BoxShape.circle,
                                                   ),
                                                 )
-                                              : Image.asset(
-                                                  'assets/images/icon.png',
-                                                  width: 44,
-                                                  height: 44,
-                                                  fit: BoxFit.cover,
-                                                ),
+                                              : null,
                                         ),
-                                        title: Text(
-                                          notification.nickname,
-                                          style: TextStyle(
-                                            color: AppColors.getTextColor(context),
-                                            fontWeight: notification.read == 0
-                                                ? FontWeight.bold
-                                                : FontWeight.normal,
-                                            fontSize: 16,
-                                          ),
-                                        ),
-                                        subtitle: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
-                                          children: [
-                                            const SizedBox(height: 4),
-                                            Text(
-                                              notification.content,
-                                              style: TextStyle(
-                                                color: AppColors.getSecondaryTextColor(context),
-                                                fontSize: 14,
-                                              ),
-                                              maxLines: 2,
-                                              overflow: TextOverflow.ellipsis,
-                                            ),
-                                            const SizedBox(height: 4),
-                                            Text(
-                                              _formatDate(notification.date),
-                                              style: TextStyle(
-                                                color: AppColors.getSecondaryTextColor(context),
-                                                fontSize: 12,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                        trailing: notification.read == 0
-                                            ? Container(
-                                                width: 8,
-                                                height: 8,
-                                                decoration: const BoxDecoration(
-                                                  color: Colors.blue,
-                                                  shape: BoxShape.circle,
-                                                ),
-                                              )
-                                            : null,
                                       ),
-                                    ),
-                                  );
-                                },
+                                    ));
+                                  },
                               ),
                             ),
                 ),

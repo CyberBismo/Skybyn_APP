@@ -2,8 +2,13 @@ import 'package:flutter/material.dart';
 import 'dart:ui';
 import '../widgets/background_gradient.dart';
 import '../widgets/app_colors.dart';
-import '../utils/translation_keys.dart';
+import '../services/translation_service.dart';
 import '../widgets/translated_text.dart';
+
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import '../config/constants.dart';
+import '../config/constants.dart';
 
 class ForgotPasswordScreen extends StatefulWidget {
   const ForgotPasswordScreen({super.key});
@@ -36,16 +41,35 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     });
 
     try {
-      // TODO: Implement forgot password API call
-      // For now, just simulate a success response
-      await Future.delayed(const Duration(seconds: 2));
+      final response = await http.post(
+        Uri.parse(ApiConstants.forgotPassword),
+        body: {
+          'username': _usernameController.text.trim(),
+          'email': _emailController.text.trim(),
+        },
+      );
 
       if (!mounted) return;
 
-      setState(() {
-        _successMessage = 'Password reset instructions have been sent to your email';
-        _isLoading = false;
-      });
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data['responseCode'] == '1') {
+          setState(() {
+            _successMessage = data['message'] ?? 'Password reset instructions have been sent to your email';
+            _isLoading = false;
+          });
+        } else {
+          setState(() {
+            _errorMessage = data['message'] ?? TranslationKeys.connectionError.tr;
+            _isLoading = false;
+          });
+        }
+      } else {
+        setState(() {
+          _errorMessage = '${TranslationKeys.connectionError.tr} (${response.statusCode})';
+          _isLoading = false;
+        });
+      }
     } catch (e) {
       if (!mounted) return;
       setState(() {

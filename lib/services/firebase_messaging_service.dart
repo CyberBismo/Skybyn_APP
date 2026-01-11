@@ -117,6 +117,19 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
           notificationId: notificationId,
         );
       }
+  } else if (type == 'friend_request') {
+      // Handle Friend Request messages (Data-Only to support Action Buttons)
+      if (!hasNotificationPayload) {
+        final senderName = message.data['senderName'] ?? message.data['username'] ?? message.data['title'] ?? 'Friend';
+        // 'body' might be in data payload from our server logic
+        final msgBody = message.data['body'] ?? 'sent you a friend request.';
+        
+        await NotificationService().showNotification(
+          title: senderName,
+          body: msgBody,
+          payload: jsonEncode(message.data),
+        );
+      }
   } else if (!hasNotificationPayload) {
     // Data-only message: We MUST show a local notification manually
     await NotificationService().showNotification(
