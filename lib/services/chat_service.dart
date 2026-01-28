@@ -927,5 +927,13 @@ class ChatService {
       developer.log('Error clearing all data: $e', name: 'ChatService');
     }
   }
+  /// Delete a message locally
+  Future<void> deleteMessage(String messageId) async {
+    try {
+      await _localDb.deleteMessage(messageId);
+    } catch (e) {
+      developer.log('Error deleting message locally: $e', name: 'ChatService');
+    }
+  }
 }
 

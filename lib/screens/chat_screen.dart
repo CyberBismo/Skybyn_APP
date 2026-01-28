@@ -614,6 +614,30 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
       debugPrint('🔵 [ChatScreen] WebSocket chat message received: id=$messageId, from=$fromUserId, to=$toUserId, msg=${message.substring(0, message.length > 20 ? 20 : message.length)}...');
       
       // Only handle messages for this chat
+      // Check if message is a deletion command (special attachment type)
+      // Parse message as JSON if possible to check structure
+      String? msgAttachmentType;
+      try {
+        final decoded = json.decode(message);
+        if (decoded is Map<String, dynamic>) {
+           msgAttachmentType = decoded['attachment_type'];
+        }
+      } catch (e) {
+        // Not JSON
+      }
+
+      // If this is a delete command, handle it
+      if (msgAttachmentType == 'delete') {
+         debugPrint('🔵 [ChatScreen] Received DELETE command via WebSocket for message $messageId');
+         if (mounted) {
+           setState(() {
+             _messages.removeWhere((m) => m.id == messageId);
+           });
+           _chatService.deleteMessage(messageId);
+         }
+         return;
+      }
+
       // Check if message is for this friend (either as sender or recipient)
       final isForThisChat = fromUserId == widget.friend.id || toUserId == widget.friend.id;
       debugPrint('🔵 [ChatScreen] Message for this chat? $isForThisChat (friend.id=${widget.friend.id}, currentUserId=$_currentUserId)');
@@ -687,10 +711,21 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
   /// Helper method to safely add a message, preventing duplicates
   /// This method is thread-safe and checks for duplicates by message ID
   void _addMessageIfNotExists(Message message) {
+    // If message type is 'delete', remove the existing message instead of adding
+    if (message.attachmentType == 'delete') {
+       if (mounted) {
+         setState(() {
+           _messages.removeWhere((m) => m.id == message.id);
+         });
+         _chatService.deleteMessage(message.id);
+       }
+       return;
+    }
+
     // Double-check for duplicates - check both by ID and by content+timestamp to be extra safe
     final existingById = _messages.indexWhere((m) => m.id == message.id && message.id.isNotEmpty);
     if (existingById != -1) {
-      debugPrint('🟢 [ChatScreen] Message ${message.id} already exists (by ID), skipping duplicate');
+      // debugPrint('🟢 [ChatScreen] Message ${message.id} already exists (by ID), skipping duplicate');
       return;
     }
     
@@ -704,7 +739,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
         (m.date.difference(message.date).inSeconds.abs() < 2) // Within 2 seconds
       );
       if (existingByContent != -1) {
-        debugPrint('🟢 [ChatScreen] Message already exists (by content+timestamp), skipping duplicate');
+        // debugPrint('🟢 [ChatScreen] Message already exists (by content+timestamp), skipping duplicate');
         return;
       }
     }
@@ -714,7 +749,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
       _messages.add(message);
       _messages.sort((a, b) => a.date.compareTo(b.date));
     });
-    debugPrint('🟢 [ChatScreen] Message ${message.id} added. Total: ${_messages.length}');
+    print('🟢 [ChatScreen] Added NEW message ${message.id} to UI. Content: ${message.content.substring(0, math.min(20, message.content.length))}');
   }
 
   /// Update an existing message (e.g., replace temp ID with real ID)
@@ -1307,6 +1342,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
   }
 
   Future<void> _loadOlderMessages() async {
+    print('[SKYBYN] [Chat] Loading older messages... isLoading=${_isLoadingOlder}, hasMore=${_hasMoreMessages}');
     if (_isLoadingOlder || !_hasMoreMessages) return;
 
     setState(() {
@@ -1736,15 +1772,33 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
                                   },
                                 )
                               : _messages.isEmpty
-                                  ? const Center(
-                                      child: TranslatedText(
-                                        TranslationKeys.noMessages,
-                                        style: TextStyle(
-                                          color: Colors.white70,
-                                          fontSize: 16,
-                                        ),
+                                  ? RefreshIndicator(
+                                      onRefresh: _loadOlderMessages,
+                                      color: Colors.white,
+                                      backgroundColor: Colors.black.withOpacity(0.3),
+                                      child: LayoutBuilder(
+                                        builder: (context, constraints) {
+                                          return SingleChildScrollView(
+                                            physics: const AlwaysScrollableScrollPhysics(),
+                                            child: ConstrainedBox(
+                                              constraints: BoxConstraints(
+                                                minHeight: constraints.maxHeight,
+                                              ),
+                                              child: const Center(
+                                                child: TranslatedText(
+                                                  TranslationKeys.noMessages,
+                                                  style: TextStyle(
+                                                    color: Colors.white70,
+                                                    fontSize: 16,
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                          );
+                                        },
                                       ),
                                     )
+
                                   : Column(
                                       children: [
                                         // Sync Indicator
@@ -1793,11 +1847,12 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
                                           ),
                                         Expanded(
                                           child: RefreshIndicator(
-                                            onRefresh: _refreshMessages,
+                                            onRefresh: _loadOlderMessages,
                                             color: Colors.white,
                                             backgroundColor: Colors.black.withOpacity(0.3),
                                             child: ListView.builder(
                                               controller: _scrollController,
+                                              physics: const AlwaysScrollableScrollPhysics(), // Ensure refresh indicator works even with few items
                                               reverse: false, // Normal order: oldest at top, newest at bottom
                                               padding: const EdgeInsets.all(16),
                                               itemCount: _messages.length + (_isLoadingOlder ? 1 : 0),
@@ -2039,7 +2094,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
     final fullUrl = UrlHelper.convertUrl(message.attachmentUrl!);
     
     // Debug logging for attachment display
-    print('[SKYBYN] 📎 [Chat] Building attachment widget: type=${message.attachmentType}, url=$fullUrl, name=${message.attachmentName}');
+
 
     switch (message.attachmentType) {
       case 'image':
@@ -2804,7 +2859,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
 
     if (confirm == true && _currentUserId != null) {
       try {
-        final apiUrl = '${ApiConstants.apiBase}/message/delete.php';
+        final apiUrl = ApiConstants.chatDelete;
         final requestParams = {
           'userID': _currentUserId!,
           'friendID': widget.friend.id,
@@ -2842,25 +2897,17 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
             
             // Remove message from list
             setState(() {
+              final countBefore = _messages.length;
               _messages.removeWhere((m) => m.id == message.id);
+              final countAfter = _messages.length;
+              print('[SKYBYN] [Chat] Removed message ${message.id} from UI list. Count: $countBefore -> $countAfter');
             });
             
-            // Show success message at top of chat box
-            if (mounted) {
-              setState(() {
-                _chatStatusMessage = 'Message deleted';
-                _chatStatusMessageIsError = false;
-              });
-              
-              // Auto-dismiss after 2 seconds
-              Future.delayed(const Duration(seconds: 2), () {
-                if (mounted) {
-                  setState(() {
-                    _chatStatusMessage = null;
-                  });
-                }
-              });
-            }
+            // Delete from local database
+            await _chatService.deleteMessage(message.id);
+            print('[SKYBYN] [Chat] Message deleted from local DB: ${message.id}');
+            
+
           } else {
             print('[SKYBYN]    Response: Failed - ${data['message'] ?? 'Unknown error'}');
             developer.log('   Response: Failed - ${data['message'] ?? 'Unknown error'}', name: 'Chat API');

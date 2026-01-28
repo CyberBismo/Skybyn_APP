@@ -290,17 +290,7 @@ class FriendService {
         final friend = cachedFriends[index];
         // Only update if status actually changed
         if (friend.online != isOnline) {
-          cachedFriends[index] = Friend(
-            id: friend.id,
-            username: friend.username,
-            // Assuming other fields exist, copy them carefully or use copyWith if available
-            // Since Friend might not have copyWith, we reconstruct it roughly
-            // Check Friend model structure for correct fields
-            nickname: friend.nickname,
-            avatar: friend.avatar,
-            online: isOnline,
-            // unreadCount: friend.unreadCount, // Preserve unread count
-          );
+          cachedFriends[index] = friend.copyWith(online: isOnline);
           
           // Save updated list to cache
           await _saveToCache(cachedFriends);

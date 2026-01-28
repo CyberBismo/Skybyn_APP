@@ -6,7 +6,7 @@ class Message {
   final DateTime date;
   final bool viewed;
   final bool isFromMe;
-  final String? attachmentType; // 'image', 'video', 'audio', 'voice', 'file'
+  final String? attachmentType; // 'image', 'video', 'audio', 'voice', 'file', 'delete'
   final String? attachmentUrl;
   final String? attachmentName;
   final int? attachmentSize; // in bytes

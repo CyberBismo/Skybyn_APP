@@ -26,6 +26,8 @@ class CallService {
   Timer? _connectionCheckTimer;
   static const Duration _callTimeoutDuration = Duration(seconds: 45);
   static const Duration _connectionCheckInterval = Duration(seconds: 1);
+  final List<RTCIceCandidate> _remoteIceCandidateQueue = [];
+
 
   // Callbacks
   Function(CallState)? onCallStateChanged;
@@ -172,7 +174,12 @@ class CallService {
       
       // Send push notification to wake up recipient (high priority)
       // We do this concurrently with the offer
-      _sendCallPushNotification(otherUserId, _currentCallId!, callType);
+      _sendCallPushNotification(
+        otherUserId,
+        _currentCallId!,
+        callType,
+        offer.sdp!,
+      );
 
       // Start call timeout timer
       _startCallTimeout();
@@ -221,31 +228,10 @@ class CallService {
       await _peerConnection!.setRemoteDescription(
         RTCSessionDescription(offer, 'offer'),
       );
-      // Create and send answer
-      final answer = await _peerConnection!.createAnswer({
-        'offerToReceiveAudio': true,
-        'offerToReceiveVideo': _currentCallType == CallType.video,
-      });
-      await _peerConnection!.setLocalDescription(answer);
-      // Verify we have the expected tracks
-      if (_localStream != null) {
-        final videoTracks = _localStream!.getVideoTracks();
-        final audioTracks = _localStream!.getAudioTracks();
-      }
-
-      // Send answer through WebSocket
-      if (!_signalingService.isConnected) {
-        debugPrint('⚠️ [Call] WebSocket not connected during answer. Answer will be queued.');
-      }
-      _signalingService.sendCallAnswer(
-        callId: callId,
-        targetUserId: fromUserId,
-        answer: answer.sdp!,
-      );
-      // Update state to "calling" to indicate we've answered and are connecting
-      // This prevents showing the answer button again in CallScreen
-      // The state will be updated to connected when remote stream is received
-      _updateCallState(CallState.calling);
+      
+      // Do NOT send answer automatically. Wait for user to accept.
+      // The state is already set to ringing above.
+      
     } catch (e) {
       _updateCallState(CallState.ended);
       final errorMsg = 'Failed to handle incoming call: $e';
@@ -259,16 +245,19 @@ class CallService {
   Future<void> handleIncomingAnswer(String answer) async {
     try {
       if (_peerConnection == null) {
+        debugPrint('⚠️ [Call] Received answer but peer connection is null');
         return;
       }
+      debugPrint('📞 [Call] Setting remote description (answer)');
       await _peerConnection!.setRemoteDescription(
         RTCSessionDescription(answer, 'answer'),
       );
       
       // Log current ICE connection state after setting answer
       final iceState = _peerConnection?.iceConnectionState;
-      final connectionState = _peerConnection?.connectionState;
+      debugPrint('🧊 [Call] ICE State after answer: $iceState');
     } catch (e) {
+      debugPrint('❌ [Call] Error handling answer: $e');
       onCallError?.call('Failed to handle answer: $e');
     }
   }
@@ -279,28 +268,60 @@ class CallService {
     required String sdpMid,
     required int sdpMLineIndex,
   }) async {
+    final iceCandidate = RTCIceCandidate(candidate, sdpMid, sdpMLineIndex);
+    
     try {
       // Only add candidate if peer connection exists and is in a valid state
       if (_peerConnection != null && 
           _peerConnection!.signalingState != RTCSignalingState.RTCSignalingStateClosed) {
-        await _peerConnection!.addCandidate(
-          RTCIceCandidate(candidate, sdpMid, sdpMLineIndex),
-        );
+        // debugPrint('🧊 [Call] Adding ICE candidate');
+        await _peerConnection!.addCandidate(iceCandidate);
+      } else {
+        // Queue candidate until peer connection is ready
+        debugPrint('🧊 [Call] Queueing ICE candidate (connection not ready)');
+        _remoteIceCandidateQueue.add(iceCandidate);
       }
     } catch (e) {
-      // Don't fail the call on ICE candidate errors - they're often non-critical
-      // Some candidates may be invalid or arrive after connection is established
-      // This is normal WebRTC behavior
+      // Don't fail the call on ICE candidate errors
     }
   }
 
   /// Accept incoming call
   Future<void> acceptCall() async {
     if (_callState == CallState.ringing) {
-      // Answer was already sent in handleIncomingOffer
-      // Update state to indicate we're connecting (waiting for ICE connection)
-      // The state will be updated to connected when remote stream is received
-      _updateCallState(CallState.calling); // Use calling state to indicate "connecting"
+      try {
+        if (_peerConnection == null) {
+          debugPrint('⚠️ [Call] Cannot accept call - peer connection is null');
+          return;
+        }
+        
+        debugPrint('📞 [Call] Accepting call $_currentCallId');
+        // Create and send answer
+        final answer = await _peerConnection!.createAnswer({
+          'offerToReceiveAudio': true,
+          'offerToReceiveVideo': _currentCallType == CallType.video,
+        });
+        await _peerConnection!.setLocalDescription(answer);
+        
+        // Send answer through WebSocket
+        if (_currentCallId != null && _otherUserId != null) {
+           _signalingService.sendCallAnswer(
+            callId: _currentCallId!,
+            targetUserId: _otherUserId!,
+            answer: answer.sdp!,
+          );
+        }
+        
+        // Update state to "calling" (connecting)
+        _updateCallState(CallState.calling);
+        _cancelCallTimeout();
+      } catch (e) {
+        debugPrint('❌ [Call] Error accepting call: $e');
+        onCallError?.call('Failed to accept call: $e');
+        endCall();
+      }
+    } else {
+      debugPrint('⚠️ [Call] Cannot accept call - state is $_callState (expected ringing)');
     }
   }
 
@@ -491,6 +512,16 @@ class CallService {
   Future<void> _createPeerConnection() async {
     try {
       _peerConnection = await createPeerConnection(_configuration);
+    debugPrint('📞 [Call] Peer connection created');
+
+    // Drain queued remote ICE candidates
+    if (_remoteIceCandidateQueue.isNotEmpty) {
+      debugPrint('🧊 [Call] Draining ${_remoteIceCandidateQueue.length} queued ICE candidates');
+      for (final candidate in _remoteIceCandidateQueue) {
+        await _peerConnection!.addCandidate(candidate);
+      }
+      _remoteIceCandidateQueue.clear();
+    }
 
       // Handle ICE candidates
       _peerConnection!.onIceCandidate = (RTCIceCandidate candidate) {
@@ -780,7 +811,12 @@ class CallService {
   }
 
   /// Send high-priority push notification to recipient to wake up the app
-  Future<void> _sendCallPushNotification(String targetUserId, String callId, CallType callType) async {
+  Future<void> _sendCallPushNotification(
+    String targetUserId,
+    String callId,
+    CallType callType,
+    String offer,
+  ) async {
     try {
       final currentUserId = await _authService.getStoredUserId();
       if (currentUserId == null) return;
@@ -793,6 +829,7 @@ class CallService {
           'from': currentUserId,
           'callId': callId,
           'callType': callType == CallType.video ? 'video' : 'audio',
+          'offer': offer,
         },
       ).timeout(const Duration(seconds: 5));
 

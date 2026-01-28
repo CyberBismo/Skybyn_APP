@@ -60,12 +60,16 @@ class ApiConstants {
 
   // Updates
   static String get appUpdate => '$apiBase/app_update.php';
+  
+  // Error Reporting
+  static String get reportError => '$apiBase/report_error.php';
 
   // Chat
   static String get chatSend => '$apiBase/chat/send.php';
   static String get chatGet => '$apiBase/chat/get.php';
   static String get chatRead => '$apiBase/chat/read.php';
   static String get chatClear => '$apiBase/chat/clear.php';
+  static String get chatDelete => '$apiBase/chat/delete.php';
 
   // Activity
   static String get updateActivity => '$apiBase/update_activity.php';
@@ -100,6 +104,8 @@ class UrlHelper {
       return url;
     }
     
+
+
     // If URL starts with "/uploads/", prepend the web base URL
     if (url.startsWith('/uploads/')) {
       return '${ApiConstants.webBase}$url';

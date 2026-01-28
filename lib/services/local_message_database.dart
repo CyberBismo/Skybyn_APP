@@ -469,4 +469,18 @@ class LocalMessageDatabase {
       return 0;
     }
   }
+  /// Delete a single message
+  Future<void> deleteMessage(String messageId) async {
+    try {
+      final db = await database;
+      await db.delete(
+        'messages',
+        where: 'id = ?',
+        whereArgs: [messageId],
+      );
+      developer.log('Message deleted from local db: $messageId', name: 'LocalMessageDB');
+    } catch (e) {
+      developer.log('Error deleting message: $e', name: 'LocalMessageDB');
+    }
+  }
 }

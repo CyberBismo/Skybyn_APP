@@ -101,17 +101,9 @@ subprojects {
     // This must happen before plugins try to access android.flutter
     beforeEvaluate { project ->
         // Create flutter extension early for plugins that need it
-        // The Flutter Gradle plugin should create this, but we ensure it exists
-        if (!project.extensions.findByName('flutter')) {
+        // BUT don't do it if it's the app project, as that gets the real one
+        if (project.path != ':app' && !project.extensions.findByName('flutter')) {
             project.extensions.create('flutter', FlutterExtensionCompat)
-        }
-        
-        // Also ensure it's available on android extension for plugins that access android.flutter
-        if (project.hasProperty('android')) {
-            project.android {
-                // The flutter extension should be accessible via project.flutter
-                // Some plugins might try to access it via android.flutter
-            }
         }
     }
 }
@@ -120,6 +112,7 @@ subprojects {
 // This provides the properties that plugins expect from android.flutter
 class FlutterExtensionCompat {
     def minSdkVersion = 26  // Android 8.0+ for smaller APK size (reduces APK by removing desugaring)
+    def compileSdk = 36
     def compileSdkVersion = 36
     def targetSdkVersion = 36
     
@@ -145,7 +138,7 @@ allprojects {
     // Additional fix for Windows path resolution issues
     configurations.all {
         resolutionStrategy {
-            force 'com.android.tools.build:gradle:8.13.1'
+            force 'com.android.tools.build:gradle:8.13.2'
         }
     }
 }

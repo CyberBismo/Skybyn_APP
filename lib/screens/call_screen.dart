@@ -9,12 +9,18 @@ class CallScreen extends StatefulWidget {
   final Friend friend;
   final CallType callType;
   final bool isIncoming;
+  final bool autoAccept;
+  final String? offer;
+  final String? callId;
 
   const CallScreen({
     super.key,
     required this.friend,
     required this.callType,
     this.isIncoming = false,
+    this.autoAccept = false,
+    this.offer,
+    this.callId,
   });
 
   @override
@@ -31,10 +37,12 @@ class _CallScreenState extends State<CallScreen> {
   bool _isRemoteVideoInitialized = false;
   bool _isNavigatingBack = false; // Prevent multiple navigation attempts
   MediaStream? _lastRemoteStream; // Store reference to remote stream
+  bool _shouldAutoAccept = false;
 
   @override
   void initState() {
     super.initState();
+    _shouldAutoAccept = widget.autoAccept;
     _isCameraOff = widget.callType == CallType.audio;
     _initializeRenderers();
     _setupCallService();
@@ -43,8 +51,22 @@ class _CallScreenState extends State<CallScreen> {
       // Start outgoing call
       _startOutgoingCall();
     } else {
-      // For incoming calls, check if local stream is already available
-      // (handleIncomingOffer might have set it up before screen was shown)
+      // For incoming calls, handle the offer if provided directly via arguments
+      if (widget.offer != null && widget.callId != null) {
+        print('[SKYBYN] 📞 [CallScreen] Initializing call from provided offer/callId');
+        _callService.handleIncomingOffer(
+          callId: widget.callId!,
+          fromUserId: widget.friend.id,
+          offer: widget.offer!,
+          callType: widget.callType == CallType.video ? 'video' : 'audio',
+        ).then((_) {
+            _checkAndSetExistingStreams();
+        }).catchError((e) {
+            print('[SKYBYN] ❌ [CallScreen] Error handling provided offer: $e');
+        });
+      }
+
+      // Check if local/remote streams are already available in service
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _checkAndSetExistingStreams();
       });
@@ -69,6 +91,14 @@ class _CallScreenState extends State<CallScreen> {
           _callService.callState == CallState.ended || 
           _callService.callState == CallState.idle) {
         timer.cancel();
+      }
+    });
+    
+    // Check for auto-accept if already ringing
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _shouldAutoAccept && _callService.callState == CallState.ringing) {
+        _shouldAutoAccept = false;
+        _acceptCall();
       }
     });
   }
@@ -118,8 +148,6 @@ class _CallScreenState extends State<CallScreen> {
         // Store reference to remote stream
         _lastRemoteStream = stream;
         
-        // Check if stream has video tracks (for video calls)
-        final hasVideoTracks = stream.getVideoTracks().isNotEmpty;
         
         // If we have a remote stream, the call should be connected
         // This is a fallback in case the state update didn't happen
@@ -213,6 +241,13 @@ class _CallScreenState extends State<CallScreen> {
           }
         }
         setState(() {});
+        
+        // Auto-accept if requested and call is ringing
+        if (state == CallState.ringing && _shouldAutoAccept) {
+          _shouldAutoAccept = false;
+          _acceptCall();
+        }
+        
         if ((state == CallState.ended || state == CallState.idle) && !_isNavigatingBack) {
           _isNavigatingBack = true;
           

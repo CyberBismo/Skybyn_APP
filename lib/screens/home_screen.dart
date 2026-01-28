@@ -99,6 +99,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   Timer? _postRefreshTimer;
   bool _hasScrolled = false;
   bool _showNewPostIndicator = false;
+  int _loadRetries = 0; // Track retries for initial post loading
 
   @override
   void initState() {
@@ -510,6 +511,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     // Fetch fresh data in background
     try {
       final freshPosts = await postService.fetchPostsForUser(userId: userId).timeout(const Duration(seconds: 15));
+      
+      // Success - Reset retries
+      _loadRetries = 0;
+      
       if (mounted) {
         setState(() {
           _posts = freshPosts;
@@ -522,6 +527,24 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         }
       }
     } catch (timelineError) {
+      debugPrint('⚠️ [HomeScreen] Error loading posts: $timelineError');
+      
+      // Retry once if this is the first failure
+      if (_loadRetries < 1) {
+        _loadRetries++;
+        debugPrint('⚠️ [HomeScreen] Retrying post load... (Attempt $_loadRetries)');
+        
+        // Wait a small delay before retrying
+        await Future.delayed(const Duration(seconds: 2));
+        
+        if (mounted) {
+          // Recursive call to retry
+          // We don't await here to let the current execution stack finish
+          _loadData(); 
+        }
+        return;
+      }
+      
       // Always set loading to false, even if we have cached data
       if (mounted) {
         setState(() {

@@ -37,8 +37,8 @@ class WebSocketService {
   WebSocketService._internal();
 
   WebSocketChannel? _channel;
-  String? _sessionId;
   String? _userId;
+  String? _sessionId;
   bool _isConnected = false;
   bool _isConnecting = false;
   int _reconnectAttempts = 0;
@@ -161,6 +161,7 @@ class WebSocketService {
       ...message,
       'timestamp': DateTime.now().millisecondsSinceEpoch,
       'id': _generateMessageId(),
+      if (_sessionId != null) 'sessionId': _sessionId,
     });
 
   }
@@ -186,7 +187,12 @@ class WebSocketService {
     }
 
     try {
-      final messageJson = jsonEncode(message);
+      final messageWithSession = Map<String, dynamic>.from(message);
+      if (_sessionId != null && !messageWithSession.containsKey('sessionId')) {
+        messageWithSession['sessionId'] = _sessionId;
+      }
+      
+      final messageJson = jsonEncode(messageWithSession);
       _channel!.sink.add(messageJson);
       _updateConnectionMetrics('message_sent');
 
@@ -232,9 +238,10 @@ class WebSocketService {
   /// Initialize the WebSocket service
   Future<void> initialize() async {
     try {
-      // Generate session ID
-      _sessionId = _generateSessionId();
-
+      if (_sessionId == null) {
+        final random = Random();
+        _sessionId = 'session_${DateTime.now().millisecondsSinceEpoch}_${random.nextInt(10000)}';
+      }
       _isInitialized = true;
     } catch (e) {
     }
@@ -244,7 +251,7 @@ class WebSocketService {
   String _getWebSocketUrl() {
     // Use production port and host
     const port = 4433;
-    const host = 'server.skybyn.no';
+    const host = 'skybyn.asuscomm.com';
     return 'wss://$host:$port';
   }
 
@@ -261,9 +268,8 @@ class WebSocketService {
       // Set up certificate validation callback
       // This allows proper validation of the server's certificate
       httpClient.badCertificateCallback = (X509Certificate cert, String host, int port) {
-        // For server.skybyn.no on port 4433, we trust the certificate
-        // The certificate is valid and works, so we accept it
-        if (host == 'server.skybyn.no' && port == 4433) {
+        // Accept skybyn.asuscomm.com (DDNS)
+        if (host == 'skybyn.asuscomm.com' && port == 4433) {
           return true;
         }
         // For other hosts, use standard validation
@@ -354,9 +360,6 @@ class WebSocketService {
     try {
       _updateConnectionMetrics('connecting');
       
-      // Generate session ID if not exists
-      _sessionId ??= _generateSessionId();
-
       final wsUrl = _getWebSocketUrl();
       // Create WebSocket connection with SSL certificate handling
       _channel = await _createWebSocketChannel(wsUrl);
@@ -366,9 +369,11 @@ class WebSocketService {
           _handleMessage(message); // Fire and forget - async method
         },
         onError: (error) {
+          print('[WebSocket] ❌ Connection Error: $error'); // Added Log
           _onConnectionError(error);
         },
         onDone: () {
+          print('[WebSocket] 🔌 Connection Closed'); // Added Log
           _onConnectionClosed();
         },
         cancelOnError: false,
@@ -384,6 +389,8 @@ class WebSocketService {
         _lastPingReceivedTime = DateTime.now().millisecondsSinceEpoch;
         _updateConnectionMetrics('connected'); // This already logs the connection message
         
+        print('[WebSocket] ✅ Connected to ${wsUrl}'); // Added Log
+
         // Process any queued messages now that we're connected
         _processMessageQueue();
         
@@ -420,12 +427,12 @@ class WebSocketService {
 
       final connectMessage = {
         'type': 'connect',
-        'sessionId': _sessionId,
         'userId': _userId,
         'userName': userName,
+        'sessionId': _sessionId,
         'deviceInfo': {
           'device': await _getDeviceType(deviceInfo),
-          'browser': 'Skybyn App',
+          'client': 'Skybyn App',
           ...deviceInfo,
         },
       };
@@ -615,22 +622,7 @@ class WebSocketService {
               _logChat('WebSocket Delete Comment', '🗑️ Comment deleted: postId=$postId, commentId=$commentId');
               _handleDeleteComment(postId ?? '', commentId ?? '');
               break;
-            case 'online_status':
-              final userId = data['userId']?.toString();
-              final isOnline = data['isOnline'] == true;
-              _logChat('WebSocket Online Status', '🟢 Online status update: userId=$userId, isOnline=$isOnline');
-              
-              if (userId != null) {
-                // Notify all registered listeners
-                for (final callback in _onOnlineStatusCallbacks) {
-                  try {
-                    callback(userId, isOnline);
-                  } catch (e) {
-                    _logChat('WebSocket Online Status', 'Error in callback: $e');
-                  }
-                }
-              }
-              break;
+
             case 'notification':
               // Handle notification (e.g., chat message notification)
               final notificationType = data['notificationType']?.toString();
@@ -686,14 +678,22 @@ class WebSocketService {
                 _logChat('WebSocket Chat Notification', 'Skipping chat callbacks - message will be handled by \'chat\' case if sent');
               } else {
                 // Generic notification
-                final title = data['title']?.toString() ?? 'Notification';
+                final title = data['title']?.toString();
                 final body = data['message']?.toString() ?? data['body']?.toString() ?? '';
+                
+                // If both title and body are missing, do not show a notification
+                if ((title == null || title.isEmpty) && body.isEmpty) {
+                  _logChat('WebSocket Notification', 'Skipping notification with no title/body');
+                  return;
+                }
+                
+                final displayTitle = title ?? 'Skybyn';
                 
                 // Show only one type of notification - in-app if foreground, system if background
                 if (_isAppInForeground()) {
                   // App is in foreground - show in-app notification only
                   _showInAppNotification(
-                    title: title,
+                    title: displayTitle,
                     body: body,
                     icon: Icons.notifications,
                     iconColor: Colors.blue,
@@ -710,7 +710,7 @@ class WebSocketService {
                   // App is in background - show system notification only
                   try {
                     await _notificationService.showNotification(
-                      title: title,
+                      title: displayTitle,
                       body: body,
                       payload: message,
                     );
@@ -912,27 +912,30 @@ class WebSocketService {
               final userId = data['userId']?.toString() ?? 
                             data['user_id']?.toString() ?? 
                             data['userID']?.toString() ?? '';
+              
               // Parse isOnline value - check multiple possible field names and formats
               final isOnlineRaw = data['isOnline'] ?? data['online'];
-              final parsedIsOnline = isOnlineRaw == true || 
-                              isOnlineRaw == 'true' || 
-                              isOnlineRaw == 1 ||
-                              isOnlineRaw == '1';
+              final isOnline = isOnlineRaw == true || 
+                               isOnlineRaw == 'true' || 
+                               isOnlineRaw == 1 ||
+                               isOnlineRaw == '1';
               
-              // Invert the value if server is sending reversed status
-              // Server might be sending: true = offline, false = online
-              final isOnline = !parsedIsOnline;
+              _logChat('WebSocket Online Status', '🟢 Online status update: userId=$userId, isOnline=$isOnline');
               
-              if (userId.isEmpty) {
-                // Missing userId - skip
-              } else if (_onOnlineStatusCallbacks.isEmpty) {
-                // No callbacks registered - skip
-              } else {
-                // Call all registered online status callbacks
+              if (userId.isNotEmpty) {
+                // 1. Update global friend service cache (to affect other screens)
+                try {
+                  _friendService.updateFriendOnlineStatus(userId, isOnline);
+                } catch (e) {
+                  _logChat('WebSocket Online Status', 'Error updating FriendService: $e');
+                }
+
+                // 2. Notify all registered listeners (active screens)
                 for (final callback in _onOnlineStatusCallbacks) {
                   try {
                     callback(userId, isOnline);
                   } catch (e) {
+                    _logChat('WebSocket Online Status', 'Error in callback: $e');
                   }
                 }
               }
@@ -1028,8 +1031,7 @@ class WebSocketService {
   /// Send pong response
   void _sendPong() {
     final pongMessage = {
-      'type': 'pong',
-      'sessionId': _sessionId,
+      'type': 'pong'
     };
     _sendMessageInternal(pongMessage);
   }
@@ -1038,7 +1040,6 @@ class WebSocketService {
   void sendDeletePost(String postId) {
     final deleteMessage = {
       'type': 'delete_post',
-      'sessionId': _sessionId,
       'id': postId,
     };
     _sendMessageInternal(deleteMessage);
@@ -1048,7 +1049,6 @@ class WebSocketService {
   void sendDeleteComment(String postId, String commentId) {
     final deleteMessage = {
       'type': 'delete_comment',
-      'sessionId': _sessionId,
       'pid': postId,
       'id': commentId,
     };
@@ -1059,7 +1059,6 @@ class WebSocketService {
   void sendNewPost(String postId) {
     final newPostMessage = {
       'type': 'new_post',
-      'sessionId': _sessionId,
       'id': postId,
     };
     _sendMessageInternal(newPostMessage);
@@ -1069,7 +1068,6 @@ class WebSocketService {
   void sendNewComment(String postId, String commentId) {
     final newCommentMessage = {
       'type': 'new_comment',
-      'sessionId': _sessionId,
       'pid': postId,
       'cid': commentId,
     };
@@ -1132,8 +1130,7 @@ class WebSocketService {
       'callId': callId,
       'targetUserId': targetUserId,
       'offer': offer,
-      'callType': callType,
-      'sessionId': _sessionId,
+      'callType': callType
     };
     _sendMessageInternal(message);
   }
@@ -1149,7 +1146,6 @@ class WebSocketService {
       'callId': callId,
       'targetUserId': targetUserId,
       'answer': answer,
-      'sessionId': _sessionId,
     };
     _sendMessageInternal(message);
   }
@@ -1169,7 +1165,6 @@ class WebSocketService {
       'candidate': candidate,
       'sdpMid': sdpMid,
       'sdpMLineIndex': sdpMLineIndex,
-      'sessionId': _sessionId,
     };
     _sendMessageInternal(message);
   }
@@ -1183,7 +1178,6 @@ class WebSocketService {
       'type': 'call_end',
       'callId': callId,
       'targetUserId': targetUserId,
-      'sessionId': _sessionId,
     };
     _sendMessageInternal(message);
   }
@@ -1193,7 +1187,6 @@ class WebSocketService {
     final message = {
       'type': 'typing_start',
       'targetUserId': targetUserId,
-      'sessionId': _sessionId,
     };
     _sendMessageInternal(message);
   }
@@ -1203,7 +1196,6 @@ class WebSocketService {
     final message = {
       'type': 'typing_stop',
       'targetUserId': targetUserId,
-      'sessionId': _sessionId,
     };
     _sendMessageInternal(message);
   }
@@ -1226,7 +1218,6 @@ class WebSocketService {
     _logChat('WebSocket Chat Send', '   - From UserId: $_userId');
     _logChat('WebSocket Chat Send', '   - To UserId: $targetUserId');
     _logChat('WebSocket Chat Send', '   - Message: ${content.length > 50 ? content.substring(0, 50) + "..." : content}');
-    _logChat('WebSocket Chat Send', '   - SessionId: $_sessionId');
     _logChat('WebSocket Chat Send', '   - WebSocket connected: $_isConnected');
     
     final message = {
@@ -1235,7 +1226,6 @@ class WebSocketService {
       'from': _userId, // Include sender ID so server can broadcast correctly
       'to': targetUserId,
       'message': content,
-      'sessionId': _sessionId,
     };
     
     try {
@@ -1287,15 +1277,6 @@ class WebSocketService {
         connect();
       }
     });
-  }
-
-  /// Generate session ID
-  String _generateSessionId() {
-    const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
-    final random = Random();
-    return String.fromCharCodes(
-      Iterable.generate(32, (_) => chars.codeUnitAt(random.nextInt(chars.length))),
-    );
   }
 
   /// Stop the WebSocket service
@@ -1578,7 +1559,7 @@ class WebSocketService {
       
       // Get sender avatar
       String? senderAvatar;
-      if (currentUser?.avatar?.isNotEmpty == true) {
+      if (currentUser?.avatar.isNotEmpty == true) {
         final userId = currentUser!.id;
         senderAvatar = 'https://skybyn.no/uploads/avatars/$userId/${currentUser.avatar}';
       }

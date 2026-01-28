@@ -58,6 +58,8 @@ import 'models/friend.dart';
 import 'services/firebase_messaging_service.dart' show firebaseMessagingBackgroundHandler;
 import 'package:firebase_messaging/firebase_messaging.dart';
 
+import 'services/error_reporting_service.dart';
+
 Future<void> main() async {
   // Gate all print calls behind a debug flag using Zone
   // Logging enabled for debugging FCM token
@@ -82,6 +84,8 @@ Future<void> main() async {
           print('Stack: ${details.stack}');
           print('═══════════════════════════════════════════════════════════════');
         }
+        // Report to server
+        ErrorReportingService().reportError(details.exception, details.stack);
       };
 
       // Set preferred orientations to portrait only
@@ -127,6 +131,8 @@ Future<void> main() async {
         print('Stack: $stack');
         print('═══════════════════════════════════════════════════════════════');
       }
+      // Report to server
+      ErrorReportingService().reportError(error, stack);
     },
     zoneSpecification: ZoneSpecification(
       print: (self, parent, zone, line) {
@@ -427,19 +433,27 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     }
   }
 
-  /// Start periodic activity updates
-  /// Updates activity only on state change (connected/disconnected) 
-  /// since WebSocket connection itself maintains presence
   void _startActivityUpdates() {
-    // Activity updates via HTTP polling have been removed
-    // WebSocket connection maintains "Online" status on the server
+    // Cancel any existing timer
     _activityUpdateTimer?.cancel();
-    _activityUpdateTimer = null;
+    
+    // Update activity immediately on startup
+    _updateActivity();
+    
+    // Update activity every 60 seconds
+    _activityUpdateTimer = Timer.periodic(const Duration(seconds: 60), (_) {
+      if (mounted) {
+        _updateActivity();
+      }
+    });
   }
 
-  /// Update user activity
   Future<void> _updateActivity() async {
-      // Logic removed - handled by WebSocket connection state
+    final authService = AuthService();
+    final userId = await authService.getStoredUserId();
+    if (userId != null && mounted) {
+      await authService.updateActivity();
+    }
   }
 
   /// Start periodic profile checks
@@ -960,6 +974,39 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
            }
          }
       },
+      onCallOffer: (callId, fromUserId, offer, callType) async {
+        print('[SKYBYN] 📞 [Main] Call offer received: $callId');
+        try {
+          await _callService.handleIncomingOffer(
+            callId: callId,
+            fromUserId: fromUserId,
+            offer: offer,
+            callType: callType,
+          );
+        } catch (e) {
+          print('[SKYBYN] ❌ [Main] Error handling call offer: $e');
+        }
+      },
+      onCallAnswer: (callId, answer) async {
+        print('[SKYBYN] 📞 [Main] Call answer received: $callId');
+        try {
+          await _callService.handleIncomingAnswer(answer);
+        } catch (e) {
+          print('[SKYBYN] ❌ [Main] Error handling call answer: $e');
+        }
+      },
+      onIceCandidate: (callId, candidate, sdpMid, sdpMLineIndex) async {
+        // print('[SKYBYN] 🧊 [Main] ICE candidate received');
+        try {
+          await _callService.handleIceCandidate(
+            candidate: candidate,
+            sdpMid: sdpMid,
+            sdpMLineIndex: sdpMLineIndex,
+          );
+        } catch (e) {
+          print('[SKYBYN] ❌ [Main] Error handling ICE candidate: $e');
+        }
+      },
     );
   }
 
@@ -1077,6 +1124,9 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
               friend: args['friend'],
               callType: args['callType'],
               isIncoming: args['isIncoming'] ?? false,
+              autoAccept: args['autoAccept'] ?? false,
+              offer: args['offer'],
+              callId: args['callId'],
             ),
           );
         }

@@ -5,7 +5,6 @@ import 'dart:developer' as developer;
 
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:package_info_plus/package_info_plus.dart';
@@ -132,9 +131,19 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
       }
   } else if (!hasNotificationPayload) {
     // Data-only message: We MUST show a local notification manually
+    final title = message.data['title']?.toString();
+    final body = message.data['body']?.toString() ?? message.data['message']?.toString();
+    
+    // If both title and body are missing, do not show a notification
+    // This allows for "silent" data-only messages used for background sync
+    if ((title == null || title.isEmpty) && (body == null || body.isEmpty)) {
+      developer.log('🔇 Skipping empty data-only notification', name: 'FCM');
+      return;
+    }
+
     await NotificationService().showNotification(
-      title: message.data['title'] ?? 'New Notification',
-      body: message.data['body'] ?? message.data['message'] ?? 'You have a new notification',
+      title: title ?? 'Skybyn',
+      body: body ?? 'New update received',
       payload: jsonEncode(message.data),
     );
   }
@@ -385,9 +394,18 @@ class FirebaseMessagingService {
        );
     } else {
       // Generic System Notification as fallback
+      final title = message.notification?.title ?? message.data['title']?.toString();
+      final body = message.notification?.body ?? message.data['body']?.toString() ?? message.data['message']?.toString();
+
+      // If both title and body are missing, do not show a notification
+      if ((title == null || title.isEmpty) && (body == null || body.isEmpty)) {
+        developer.log('🔇 Skipping empty foreground notification', name: 'FCM');
+        return;
+      }
+
       NotificationService().showNotification(
-        title: message.notification?.title ?? 'Notification',
-        body: message.notification?.body ?? '',
+        title: title ?? 'Skybyn',
+        body: body ?? 'New message received',
         payload: jsonEncode(message.data),
       );
     }
@@ -411,7 +429,12 @@ class FirebaseMessagingService {
         nav.pushNamed('/home'); 
         break;
       case 'call':
-        // Handle call
+        final callId = data['callId']?.toString();
+        final fromUserId = data['fromUserId']?.toString();
+        final callType = data['callType']?.toString() ?? 'video';
+        if (callId != null && fromUserId != null) {
+          onIncomingCallFromNotification?.call(callId, fromUserId, callType);
+        }
         break;
       case 'broadcast':
       case 'admin':

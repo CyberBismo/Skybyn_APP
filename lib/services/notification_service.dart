@@ -5,12 +5,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart';
 import 'package:timezone/timezone.dart' as tz;
 import 'package:timezone/data/latest.dart' as tz;
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:http/http.dart' as http;
-import 'package:path_provider/path_provider.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'firebase_messaging_service.dart';
 import 'auto_update_service.dart';
@@ -51,8 +49,22 @@ class NotificationService {
 
       await _initializeLocalNotifications();
 
-      // Don't request permissions here - they will be requested after login
-      // This prevents asking for permissions before user is logged in
+      // Register background notification response handler
+      // Use the static method for background isolates
+      // onDidReceiveBackgroundNotificationResponse: _onBackgroundNotificationTapped,
+      // Note: This is usually set in _initializeLocalNotifications but let's ensure it's here too or confirmed there.
+
+      // Handle initial notification if the app was opened via a notification tap
+      final NotificationAppLaunchDetails? notificationAppLaunchDetails =
+          await _localNotifications.getNotificationAppLaunchDetails();
+      if (notificationAppLaunchDetails?.didNotificationLaunchApp ?? false) {
+        if (notificationAppLaunchDetails!.notificationResponse != null) {
+          // Defer processing slightly to allow navigator to be ready
+          Future.delayed(const Duration(milliseconds: 1000), () {
+            _onNotificationTapped(notificationAppLaunchDetails.notificationResponse!);
+          });
+        }
+      }
     } catch (e) {
     }
   }
@@ -62,18 +74,43 @@ class NotificationService {
     const AndroidInitializationSettings initializationSettingsAndroid = AndroidInitializationSettings('@mipmap/launcher_icon');
 
     // iOS initialization settings - updated for better iOS support
-    const DarwinInitializationSettings initializationSettingsIOS = DarwinInitializationSettings(
-      requestAlertPermission: true, // Request alert permission during initialization
-      requestBadgePermission: true, // Request badge permission during initialization
-      requestSoundPermission: true, // Request sound permission during initialization
+    final DarwinInitializationSettings initializationSettingsIOS = DarwinInitializationSettings(
+      requestAlertPermission: true, 
+      requestBadgePermission: true, 
+      requestSoundPermission: true, 
       defaultPresentAlert: true,
       defaultPresentBadge: true,
       defaultPresentSound: true,
-      // defaultPresentBanner: true, // Removed, managed by defaultPresentAlert
-      // defaultPresentList: true, // Removed, managed by defaultPresentAlert
+      notificationCategories: [
+        DarwinNotificationCategory(
+          'INCOMING_CALL',
+          actions: [
+            DarwinNotificationAction.plain(
+              'answer',
+              'Answer',
+              options: {DarwinNotificationActionOption.foreground},
+            ),
+            DarwinNotificationAction.plain(
+              'decline',
+              'Decline',
+              options: {DarwinNotificationActionOption.destructive},
+            ),
+          ],
+        ),
+        DarwinNotificationCategory(
+          'CHAT_MESSAGE',
+          actions: [
+            DarwinNotificationAction.plain(
+              'view_chat',
+              'Open Chat',
+              options: {DarwinNotificationActionOption.foreground},
+            ),
+          ],
+        ),
+      ],
     );
 
-    const InitializationSettings initializationSettings = InitializationSettings(
+    final InitializationSettings initializationSettings = InitializationSettings(
       android: initializationSettingsAndroid,
       iOS: initializationSettingsIOS,
     );
@@ -81,6 +118,7 @@ class NotificationService {
     final bool? initialized = await _localNotifications.initialize(
       initializationSettings,
       onDidReceiveNotificationResponse: _onNotificationTapped,
+      onDidReceiveBackgroundNotificationResponse: _onBackgroundNotificationTapped,
     );
 
     if (initialized == true) {
@@ -117,7 +155,8 @@ class NotificationService {
     
     // Handle call notification actions
     if (action != null && (action == 'answer' || action == 'decline')) {
-      _handleCallNotificationAction(action, payload);
+      print('[SKYBYN] 📞 [NotificationService] Call action detected: $action');
+      await _handleCallNotificationAction(action, payload);
       return;
     }
     
@@ -187,6 +226,7 @@ class NotificationService {
         if (type == 'app_update') {
           _triggerUpdateCheck();
         } else if (type == 'call') {
+          print('[SKYBYN] 📞 [NotificationService] Call notification tapped');
           _handleCallNotificationTap(data);
         } else if (type == 'chat') {
           await _handleChatNotificationTap(data);
@@ -214,7 +254,7 @@ class NotificationService {
       if (payload != null && payload.startsWith('{')) {
         try {
           final Map<String, dynamic> data = json.decode(payload);
-          _handleCallNotificationActionStatic(action, data);
+          await _handleCallNotificationActionStatic(action, data);
         } catch (e) {
         }
       }
@@ -291,53 +331,46 @@ class NotificationService {
       }
   }
 
-  void _handleCallNotificationAction(String action, String? payload) {
+  Future<void> _handleCallNotificationAction(String action, String? payload) async {
     if (payload == null || !payload.startsWith('{')) {
       return;
     }
     
     try {
       final Map<String, dynamic> data = json.decode(payload);
-      _handleCallNotificationActionStatic(action, data);
+      await _handleCallNotificationActionStatic(action, data);
     } catch (e) {
     }
   }
 
-  static void _handleCallNotificationActionStatic(String action, Map<String, dynamic> data) {
-    final sender = data['sender']?.toString();
-    final callType = data['callType']?.toString() ?? 'video';
+  static Future<void> _handleCallNotificationActionStatic(String action, Map<String, dynamic> data) async {
+    final sender = data['fromUserId']?.toString() ?? data['senderId']?.toString() ?? data['from']?.toString() ?? data['sender']?.toString();
     
     if (sender == null) {
       return;
     }
     
     if (action == 'answer') {
-      // When user answers, the app should open and navigate to call screen
-      NotificationService()._handleCallNotificationTap(data);
+      // When user answers, the app should open and navigate to call screen with auto-accept
+      await NotificationService()._handleCallNotificationTap(data, autoAccept: true);
     } else if (action == 'decline') {
       // Send call_end message via WebSocket
-      // Import WebSocketService to send decline message
-      _sendCallDecline(sender);
+      // Use the actual callId if available
+      final callId = data['callId']?.toString();
+      _sendCallDecline(sender, callId);
     }
   }
 
   // Send call decline message via WebSocket
-  static void _sendCallDecline(String targetUserId) {
+  static void _sendCallDecline(String targetUserId, String? callId) {
     try {
-      // Import WebSocketService dynamically to avoid circular dependency
-      // The WebSocket service will send the call_end message
       final websocketService = WebSocketService();
       if (websocketService.isConnected) {
-        // Generate a temporary call ID for the decline message
-        // The server will handle matching it to the actual call
-        final callId = DateTime.now().millisecondsSinceEpoch.toString();
+        final actualCallId = callId ?? DateTime.now().millisecondsSinceEpoch.toString();
         websocketService.sendCallEnd(
-          callId: callId,
+          callId: actualCallId,
           targetUserId: targetUserId,
         );
-      } else {
-        // Store the decline action to send when WebSocket reconnects
-        // This could be done via a queue or SharedPreferences
       }
     } catch (e) {
     }
@@ -385,11 +418,13 @@ class NotificationService {
     }
   }
 
-  void _handleCallNotificationTap(Map<String, dynamic> data) {
-    final fromUserId = data['fromUserId']?.toString() ?? data['sender']?.toString();
+  Future<void> _handleCallNotificationTap(Map<String, dynamic> data, {bool autoAccept = false}) async {
+    final fromUserId = data['fromUserId']?.toString() ?? data['senderId']?.toString() ?? data['from']?.toString() ?? data['sender']?.toString();
     final callTypeStr = data['callType']?.toString() ?? 'audio';
     final fromName = data['fromName']?.toString() ?? 'Someone';
     final fromAvatar = data['fromAvatar']?.toString() ?? '';
+    final callId = data['callId']?.toString();
+    final offer = data['offer']?.toString();
     
     if (fromUserId == null) {
       return;
@@ -400,19 +435,33 @@ class NotificationService {
       username: fromName,
       nickname: fromName,
       avatar: fromAvatar,
-      online: true, // We assume they are online if they are calling
+      online: true, 
     );
 
     final callType = callTypeStr == 'video' ? CallType.video : CallType.audio;
 
+    print('[SKYBYN] 📞 [NotificationService] Navigating to call screen. AutoAccept: $autoAccept');
+
+    // Wait for navigator to be ready if it's a cold start
+    int retryCount = 0;
+    while (navigatorKey.currentState == null && retryCount < 20) {
+      print('[SKYBYN] ⏳ [NotificationService] Waiting for navigator... (attempt ${retryCount + 1})');
+      await Future.delayed(const Duration(milliseconds: 500));
+      retryCount++;
+    }
+
     final navigator = navigatorKey.currentState;
     if (navigator != null) {
+      print('[SKYBYN] 🚀 [NotificationService] Pushing /call route');
       navigator.pushNamed(
         '/call',
         arguments: {
           'friend': friend,
           'callType': callType,
           'isIncoming': true,
+          'autoAccept': autoAccept,
+          'offer': offer,
+          'callId': callId,
         },
       );
     }
@@ -594,16 +643,12 @@ class NotificationService {
         final IOSFlutterLocalNotificationsPlugin? iOSImplementation = _localNotifications.resolvePlatformSpecificImplementation<IOSFlutterLocalNotificationsPlugin>();
 
         if (iOSImplementation != null) {
-          final bool? result = await iOSImplementation.requestPermissions(
+          // Requesting permissions for iOS
+          await iOSImplementation.requestPermissions(
             alert: true,
             badge: true,
             sound: true,
           );
-
-          // Check if permissions were actually granted
-          if (result == true) {
-          } else {
-          }
         } else {
         }
       } catch (e) {
@@ -617,11 +662,9 @@ class NotificationService {
 
       if (androidImplementation != null) {
         // Request notification permissions for Android 13+ (API level 33+)
-        final bool? result = await androidImplementation.requestNotificationsPermission();
+        await androidImplementation.requestNotificationsPermission();
         // Check if notifications are enabled
-        final bool? areNotificationsEnabled = await androidImplementation.areNotificationsEnabled();
-        if (areNotificationsEnabled != true) {
-        }
+        await androidImplementation.areNotificationsEnabled();
       }
     }
   }
@@ -936,7 +979,7 @@ class NotificationService {
       // For iOS, add additional debugging
       if (Platform.isIOS) {
         // Check if we can get pending notifications to verify it was created
-        final pendingNotifications = await _localNotifications.pendingNotificationRequests();
+        await _localNotifications.pendingNotificationRequests();
       }
       
       // Auto-dismiss app update and update_check notifications after 3 seconds
@@ -1082,7 +1125,7 @@ class NotificationService {
     final SharedPreferences prefs = await SharedPreferences.getInstance();
     final String? settingsJson = prefs.getString(_notificationSettingsKey);
     if (settingsJson != null) {
-      final Map<String, dynamic> settings = json.decode(settingsJson);
+      json.decode(settingsJson);
     }
   }
 

@@ -609,9 +609,27 @@ class AuthService {
     throw Exception('Retry logic error');
   }
 
-  /// Update user online status
   /// Update user activity timestamp (for online status tracking)
-  // updateActivity removed - replaced by WebSocket presence
+  Future<void> updateActivity() async {
+    try {
+      final userId = await getStoredUserId();
+      if (userId == null) return;
+
+      final response = await _client.post(
+        Uri.parse(ApiConstants.updateActivity),
+        body: {'userID': userId},
+      ).timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 200) {
+        // Activity updated successfully
+        if (_lastKnownOnlineStatus != true) {
+          _lastKnownOnlineStatus = true;
+        }
+      }
+    } catch (e) {
+      // Silently fail
+    }
+  }
 
   Future<void> updateOnlineStatus(bool isOnline) async {
     try {
