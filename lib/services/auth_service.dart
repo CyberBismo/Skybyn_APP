@@ -167,6 +167,132 @@ class AuthService {
       };
     }
   }
+  
+  Future<Map<String, dynamic>> loginWithSocial(String provider, String token) async {
+    try {
+      _httpClient ??= _createHttpClient();
+      
+      final deviceService = DeviceService();
+      final deviceInfo = await deviceService.getDeviceInfo();
+      
+      // Get FCM token if available and add it to deviceInfo
+      try {
+        final firebaseService = FirebaseMessagingService();
+        if (firebaseService.isInitialized && firebaseService.fcmToken != null) {
+          deviceInfo['fcmToken'] = firebaseService.fcmToken!;
+        }
+      } catch (e) {
+        debugPrint('AuthService: Failed to get FCM token during social login: $e');
+      }
+
+      final client = _client;
+      // Note: Make sure ApiConstants.socialLogin is defined in your constants file. 
+      // If not, use '${ApiConstants.apiBase}social_login.php'
+      final socialLoginUrl = '${ApiConstants.apiBase}social_login.php'; 
+      
+      http.Response response;
+      try {
+        response = await client.post(
+          Uri.parse(socialLoginUrl), 
+          body: {
+            'provider': provider,
+            'id_token': token,
+            'deviceInfo': json.encode(deviceInfo)
+          }
+        ).timeout(
+          const Duration(seconds: 30),
+          onTimeout: () {
+            throw TimeoutException('Social login request timed out after 30 seconds');
+          },
+        );
+      } on HandshakeException {
+        rethrow;
+      } on TimeoutException {
+        rethrow;
+      }
+
+      final data = _safeJsonDecode(response.body);
+
+      if (response.statusCode == 200) {
+        if (data['responseCode'] == '1') {
+          // Social login successful
+          await initPrefs();
+          
+          // Store user ID (convert to string)
+          final userId = data['userID']?.toString() ?? data['data']?['userID']?.toString();
+          if (userId != null) {
+            await _prefs?.setString(userIdKey, userId);
+          }
+          
+          // Store session token if provided (though headers handle cookies usually, 
+          // but API sends it back for mobile use)
+          // We might want to store 'token' or 'sessionToken'
+          // ...
+
+          // Fetch user profile immediately to get username and other details
+          // We don't have username from social login directly unless we added it to response
+          // But fetchUserProfile uses stored userID
+          try {
+            // First fetch profile using ID
+            final user = await fetchAnyUserProfile(userId: userId);
+            if (user != null) {
+                await _prefs?.setString(usernameKey, user.username);
+                // Also update stored profile
+                await _prefs?.setString(userProfileKey, json.encode(user.toJson()));
+            }
+          } catch (e) {
+            debugPrint('AuthService: Failed to fetch user profile after social login: $e');
+          }
+
+          // Register FCM token
+          try {
+            final firebaseService = FirebaseMessagingService();
+            if (firebaseService.isInitialized) {
+              await firebaseService.sendFCMTokenToServer();
+            }
+          } catch (e) {
+             // Ignore
+          }
+
+          return data;
+        }
+        return data; 
+      } else {
+        return data;
+      }
+    } catch (e) {
+      String errorMessage = 'Connection error: ${e.toString()}';
+      return {
+        'responseCode': '0', 
+        'message': errorMessage
+      };
+    }
+  }
+
+  Future<bool> getSocialLoginStatus() async {
+    try {
+      _httpClient ??= _createHttpClient();
+      final client = _client;
+      // Note: Make sure ApiConstants.socialLogin is defined in your constants file. 
+      // If not, use '${ApiConstants.apiBase}social_login.php'
+      final socialLoginUrl = '${ApiConstants.apiBase}social_login.php'; 
+      
+      final response = await client.get(
+        Uri.parse(socialLoginUrl),
+      ).timeout(const Duration(seconds: 10));
+      
+      if (response.statusCode == 200) {
+        final data = _safeJsonDecode(response.body);
+        if (data['responseCode'] == '1' && data['data'] != null) {
+          return data['data']['enabled'] == true;
+        }
+      }
+      return false; // Default to false on error or disabled
+    } catch (e) {
+      debugPrint('AuthService: Failed to check social login status: $e');
+      return false;
+    }
+  }
 
   Future<User?> fetchUserProfile(String username) async {
     try {

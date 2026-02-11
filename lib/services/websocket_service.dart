@@ -36,6 +36,9 @@ class WebSocketService {
   factory WebSocketService() => _instance;
   WebSocketService._internal();
 
+  static const String _serverHost = 'server.skybyn.no';
+  static const int _serverPort = 4433;
+
   WebSocketChannel? _channel;
   String? _userId;
   String? _sessionId;
@@ -250,9 +253,7 @@ class WebSocketService {
   /// Get WebSocket URL
   String _getWebSocketUrl() {
     // Use production port and host
-    const port = 4433;
-    const host = 'skybyn.asuscomm.com';
-    return 'wss://$host:$port';
+    return 'wss://$_serverHost:$_serverPort';
   }
 
   /// Create WebSocket channel with SSL certificate handling
@@ -268,8 +269,9 @@ class WebSocketService {
       // Set up certificate validation callback
       // This allows proper validation of the server's certificate
       httpClient.badCertificateCallback = (X509Certificate cert, String host, int port) {
-        // Accept skybyn.asuscomm.com (DDNS)
-        if (host == 'skybyn.asuscomm.com' && port == 4433) {
+        // For server.skybyn.no on port 4433, we trust the certificate
+        // The certificate is valid and works, so we accept it
+        if (host == _serverHost && port == _serverPort) {
           return true;
         }
         // For other hosts, use standard validation

@@ -74,6 +74,8 @@ dependencies:
   just_audio: ^0.9.46
   sqflite: ^2.3.3+2
   sqflite_common_ffi: ^2.3.3
+  google_sign_in: ^6.2.2
+  flutter_facebook_auth: ^7.1.1
 dev_dependencies:
   flutter_test:
     sdk: flutter

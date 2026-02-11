@@ -14,6 +14,9 @@ import '../services/navigation_service.dart';
 import 'home_screen.dart';
 import 'register_screen.dart';
 import 'forgot_password_screen.dart';
+import 'package:google_sign_in/google_sign_in.dart';
+import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -32,10 +35,157 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _obscurePassword = true;
   String? _errorMessage;
 
+
+
+  bool _isSocialLoginEnabled = false;
+
   @override
   void initState() {
     super.initState();
     // Username field is no longer auto-focused
+    _checkSocialLoginStatus();
+  }
+
+  Future<void> _checkSocialLoginStatus() async {
+    try {
+      final enabled = await _authService.getSocialLoginStatus();
+      if (mounted) {
+        setState(() {
+          _isSocialLoginEnabled = enabled;
+        });
+      }
+    } catch (e) {
+      // Ignore errors, default is false
+    }
+  }
+
+  Future<void> _onLoginSuccess() async {
+    if (!mounted) return;
+
+    try {
+      final notificationService = NotificationService();
+      final firebaseMessagingService = FirebaseMessagingService();
+      await notificationService.requestPermissions();
+      await firebaseMessagingService.requestPermissions();
+      final isEnabled = await notificationService.areNotificationsEnabled();
+      if (Platform.isIOS) await notificationService.checkIOSNotificationStatus();
+
+      if (isEnabled) {
+        final int notificationId = await notificationService.showNotification(
+          title: TranslationKeys.loginSuccessful.tr,
+          body: TranslationKeys.welcomeToSkybyn.tr,
+          payload: 'login_success',
+        );
+        if (notificationId >= 0) {
+          Timer(const Duration(seconds: 3), () {
+            notificationService.cancelNotification(notificationId);
+          });
+        }
+      }
+    } catch (e) {}
+
+    await NavigationService.saveLastRoute('/home');
+
+    if (mounted) {
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (context) => const HomeScreen()),
+      );
+    }
+  }
+
+  Future<void> _handleGoogleLogin() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final GoogleSignIn googleSignIn = GoogleSignIn();
+      await googleSignIn.signOut();
+      final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
+
+      if (googleUser == null) {
+        setState(() {
+          _isLoading = false;
+        });
+        return;
+      }
+
+      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+      final String? idToken = googleAuth.idToken;
+
+      if (idToken == null) {
+        throw Exception('Failed to get ID Token from Google');
+      }
+
+      final response = await _authService.loginWithSocial('google', idToken);
+      
+      if (!mounted) return;
+
+      if (response['responseCode'] == '1') {
+        await _onLoginSuccess();
+      } else {
+        setState(() {
+           _errorMessage = response['message'] ?? 'Google Login failed';
+        });
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _errorMessage = 'Google Sign-In Error: $e';
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _handleFacebookLogin() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final LoginResult result = await FacebookAuth.instance.login(
+        permissions: ['public_profile', 'email'],
+      );
+
+      if (result.status == LoginStatus.success) {
+        final AccessToken accessToken = result.accessToken!;
+        final response = await _authService.loginWithSocial('facebook', accessToken.tokenString);
+        
+        if (!mounted) return;
+
+        if (response['responseCode'] == '1') {
+          await _onLoginSuccess();
+        } else {
+          setState(() {
+             _errorMessage = response['message'] ?? 'Facebook Login failed';
+          });
+        }
+      } else if (result.status == LoginStatus.cancelled) {
+         // User cancelled
+      } else {
+         setState(() {
+           _errorMessage = result.message ?? 'Facebook Login failed';
+         });
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _errorMessage = 'Facebook Sign-In Error: $e';
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
   }
 
   Future<void> _handleLogin() async {
@@ -61,47 +211,7 @@ class _LoginScreenState extends State<LoginScreen> {
       if (!mounted) return;
 
       if (response['responseCode'] == '1') {
-        if (mounted) {
-          // Request notification permissions after successful login
-          try {
-            final notificationService = NotificationService();
-            final firebaseMessagingService = FirebaseMessagingService();
-            
-            // Request permissions for both services
-            await notificationService.requestPermissions();
-            await firebaseMessagingService.requestPermissions();
-
-            // Check if notifications are enabled
-            final isEnabled = await notificationService.areNotificationsEnabled();
-            // For iOS, check notification status
-            if (Platform.isIOS) {
-              await notificationService.checkIOSNotificationStatus();
-            }
-
-            if (isEnabled) {
-              // Show system notification for login success
-              final int notificationId = await notificationService.showNotification(
-                title: TranslationKeys.loginSuccessful.tr,
-                body: TranslationKeys.welcomeToSkybyn.tr,
-                payload: 'login_success',
-              );
-              // Auto-hide the notification after 3 seconds (only if notification was shown)
-              if (notificationId >= 0) {
-                Timer(const Duration(seconds: 3), () {
-                  notificationService.cancelNotification(notificationId);
-                });
-              }
-            }
-          } catch (e) {
-          }
-
-          // Mark home as the last route so app restarts into the logged-in experience
-          await NavigationService.saveLastRoute('/home');
-
-          Navigator.of(context).pushReplacement(
-            MaterialPageRoute(builder: (context) => const HomeScreen()),
-          );
-        }
+        await _onLoginSuccess();
       } else {
         setState(() {
           _errorMessage = response['message'] ?? TranslationKeys.loginFailedCheckCredentials.tr;
@@ -426,6 +536,59 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                       ),
                     ),
+                    if (_isSocialLoginEnabled) ...[
+                      const SizedBox(height: 20),
+                      // Social Login Buttons
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          icon: Image.asset(
+                            'assets/images/google_logo.png', // Ensure you have this asset
+                            height: 24,
+                          ),
+                          label: const TranslatedText(
+                            'Sign in with Google', // Or a translation key like TranslationKeys.signInWithGoogle
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                            ),
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            side: BorderSide(color: Colors.white.withValues(alpha: 0.5)),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            backgroundColor: Colors.white.withValues(alpha: 0.1),
+                          ),
+                          onPressed: _isLoading ? null : _handleGoogleLogin,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      // Facebook Login Button
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          icon: const Icon(FontAwesomeIcons.facebook, color: Colors.blue),
+                          label: const TranslatedText(
+                            'Sign in with Facebook',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                            ),
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            side: BorderSide(color: Colors.white.withValues(alpha: 0.5)),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            backgroundColor: Colors.white.withValues(alpha: 0.1),
+                          ),
+                          onPressed: _isLoading ? null : _handleFacebookLogin,
+                        ),
+                      ),
+                    ],
                     // Forgot password text
                     Align(
                       alignment: Alignment.centerLeft,
