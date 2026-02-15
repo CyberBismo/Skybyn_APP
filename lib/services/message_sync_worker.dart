@@ -1,8 +1,8 @@
-import 'dart:async';
 import 'package:workmanager/workmanager.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'chat_service.dart';
 import 'auth_service.dart';
+import 'auto_update_service.dart';
 import 'dart:developer' as developer;
 
 /// WorkManager callback for periodic message sync
@@ -40,11 +40,15 @@ void callbackDispatcher() {
           developer.log('Offline queue processed', name: 'MessageSyncWorker');
           break;
         
-        case 'syncAllMessages':
-          // Full sync for all conversations
-          // This would require friend list - for now just process queue
           await chatService.processOfflineQueue();
           developer.log('Full sync completed', name: 'MessageSyncWorker');
+          break;
+
+        case 'download_update':
+          // Background update download
+          developer.log('Starting background update download...', name: 'MessageSyncWorker');
+          await AutoUpdateService.triggerBackgroundUpdate();
+          developer.log('Background update task completed', name: 'MessageSyncWorker');
           break;
         
         default:
@@ -64,6 +68,7 @@ void callbackDispatcher() {
 class MessageSyncWorker {
   static const String _syncMessagesTask = 'syncMessages';
   static const String _syncAllMessagesTask = 'syncAllMessages';
+  static const String _downloadUpdateTask = 'download_update';
   
   /// Initialize WorkManager and register tasks
   static Future<void> initialize() async {
@@ -117,6 +122,26 @@ class MessageSyncWorker {
       developer.log('One-time sync scheduled', name: 'MessageSyncWorker');
     } catch (e) {
       developer.log('Error scheduling one-time sync: $e', name: 'MessageSyncWorker');
+    }
+  }
+
+  /// Schedule one-time background update download
+  static Future<void> scheduleUpdateDownload() async {
+    try {
+      await Workmanager().registerOneOffTask(
+        '${_downloadUpdateTask}_${DateTime.now().millisecondsSinceEpoch}',
+        _downloadUpdateTask,
+        constraints: Constraints(
+          networkType: NetworkType.connected,
+          requiresBatteryNotLow: true, 
+        ),
+        existingWorkPolicy: ExistingWorkPolicy.replace,
+        initialDelay: const Duration(seconds: 1),
+      );
+      
+      developer.log('Background update download scheduled', name: 'MessageSyncWorker');
+    } catch (e) {
+      developer.log('Error scheduling update download: $e', name: 'MessageSyncWorker');
     }
   }
   

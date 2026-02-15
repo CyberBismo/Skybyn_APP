@@ -1192,6 +1192,7 @@ class TranslationKeys {
   static const String typeMessage = 'type_message';
   static const String typeYourMessage = 'type_your_message';
   static const String enter = 'enter';
+  static const String or = 'or';
   static const String messagePlaceholder = 'message_placeholder';
   static const String locked = 'locked';
 
@@ -1366,6 +1367,7 @@ class TranslationKeys {
   static const String confirmDeletePost = 'confirm_delete_post';
   static const String postDeletedSuccessfully = 'post_deleted_successfully';
   static const String confirmDeletePostMessage = 'confirm_delete_post_message';
+  static const String signInWithGoogle = 'sign_in_with_google';
   static const String reportPost = 'report_post';
   static const String confirmReportPostMessage = 'confirm_report_post_message';
   static const String postReportedSuccessfully = 'post_reported_successfully';

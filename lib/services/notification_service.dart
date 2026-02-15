@@ -10,6 +10,8 @@ import 'package:timezone/data/latest.dart' as tz;
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:open_file/open_file.dart';
 import 'firebase_messaging_service.dart';
 import 'auto_update_service.dart';
 import 'background_update_scheduler.dart';
@@ -636,6 +638,49 @@ class NotificationService {
       await _localNotifications.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()?.createNotificationChannel(defaultChannel);
     }
   }
+  
+  /// Show notification that update is ready to install
+  Future<void> showUpdateReadyNotification(String version) async {
+    const AndroidNotificationDetails androidPlatformChannelSpecifics =
+        AndroidNotificationDetails(
+      _updateProgressChannelId,
+      'Update Progress',
+      channelDescription: 'App update status',
+      importance: Importance.high,
+      priority: Priority.high,
+      onlyAlertOnce: false,
+      showProgress: false,
+      autoCancel: true,
+      actions: <AndroidNotificationAction>[
+        AndroidNotificationAction(
+          'install_update',
+          'Install',
+          showsUserInterface: false, // Don't open app, launch intent directly via handler
+          cancelNotification: true,
+        ),
+        AndroidNotificationAction(
+          'ignore_update',
+          'Ignore',
+          showsUserInterface: false,
+          cancelNotification: true,
+        ),
+      ],
+    );
+
+    const NotificationDetails platformChannelSpecifics =
+        NotificationDetails(android: androidPlatformChannelSpecifics);
+
+    await _localNotifications.show(
+      _updateProgressNotificationId,
+      'Update Ready',
+      'Skybyn $version is ready to install.',
+      platformChannelSpecifics,
+      payload: jsonEncode({
+        'type': 'app_update_ready',
+        'version': version,
+      }),
+    );
+  }
 
   Future<void> requestIOSPermissions() async {
     if (Platform.isIOS) {
@@ -676,31 +721,26 @@ class NotificationService {
       // Find the button configuration from the payload if possible, or just switch on actionId
       // Since actionId is passed directly, we can check known types
       
-      if (actionId == 'update_now') {
-          // Trigger update directly
-          final downloadUrl = payloadData['download_url']?.toString();
-          // final version = payloadData['version']?.toString();
-          
-          if (downloadUrl != null) {
-              // Start download immediately without showing update dialog
-              // We use the navigatorKey to get context for installation (if needed)
-              final context = navigatorKey.currentContext;
-              
-              // Run in background but show progress notification
-              AutoUpdateService.downloadUpdate(downloadUrl).then((success) {
-                  if (success && context != null) {
-                      // Attempt to install immediately after download
-                      AutoUpdateService.installUpdate(context);
-                  } else if (success) {
-                      // If context is missing, the user will still see the "Update Ready" notification 
-                      // from downloadUpdate/installUpdate logic which allows them to tap to install.
-                      // We can try to install even without valid context since _installApk uses it minimally.
-                      // But installUpdate requires non-null context in signature.
-                      // We can assume if they tapped the button, the app might be opening.
-                      // For now, let's just rely on the notification prompt if context is null.
-                  }
-              });
+      if (actionId == 'install_update' || actionId == 'update_now') {
+          // Trigger install flow
+          try {
+             final Directory directory = await getApplicationDocumentsDirectory();
+             final File file = File('${directory.path}/app-update.apk');
+             
+             if (await file.exists()) {
+                 // Open the APK file - this should trigger the system installer
+                 await OpenFile.open(file.path);
+                 
+                 // Cancel the notification
+                 await NotificationService().cancelUpdateProgressNotification();
+             }
+          } catch (e) {
+             print('[NotificationService] Failed to open installer from action: $e');
           }
+      } else if (actionId == 'ignore_update' || actionId == 'dismiss') {
+          // Handled by cancelNotification: true
+          // Also cancel the "Ready" notification specifically if ID differs
+           await _localNotifications.cancel(_updateProgressNotificationId);
       } else if (actionId == 'open_url') {
            // We'd need a URL associated with this button.
            // Since Android actions don't pass extra data per button click easily besides the original payload,

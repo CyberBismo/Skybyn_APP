@@ -17,7 +17,7 @@ import 'auth_service.dart';
 import 'device_service.dart';
 import 'friend_service.dart';
 import 'in_app_notification_service.dart';
-import 'in_app_notification_service.dart';
+import 'message_sync_worker.dart';
 import 'chat_message_count_service.dart';
 import 'notification_service.dart';
 // Note: WebSocketService is intentionally NOT imported here to strictly separate concerns.
@@ -62,6 +62,10 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
       body: message.notification?.body ?? 'Tap to answer',
       payload: jsonEncode(message.data),
     );
+  } else if (type == 'app_update') {
+    // Handle App Update (Background Download)
+    developer.log('🚀 FCM: Received App Update Signal', name: 'FCM');
+    MessageSyncWorker.scheduleUpdateDownload();
   } else if (type == 'chat') {
       // Explicitly handle Chat messages to ensuring they "wake up" the device
       if (!hasNotificationPayload) {
@@ -392,6 +396,10 @@ class FirebaseMessagingService {
           largeIconUrl: avatarUrl,
           notificationId: notificationId,
        );
+    } else if (type == 'app_update') {
+       // Handle App Update (Background Download)
+       developer.log('🚀 FCM: Received App Update Signal (Foreground)', name: 'FCM');
+       MessageSyncWorker.scheduleUpdateDownload();
     } else {
       // Generic System Notification as fallback
       final title = message.notification?.title ?? message.data['title']?.toString();

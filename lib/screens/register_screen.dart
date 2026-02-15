@@ -1,9 +1,18 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/gestures.dart';
+import 'package:google_sign_in/google_sign_in.dart';
+import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'dart:io';
+import 'dart:async'; // For Timer
 import '../widgets/background_gradient.dart';
 import '../services/auth_service.dart';
 import '../widgets/wheel_date_picker.dart';
 import '../services/translation_service.dart';
+import '../services/notification_service.dart'; // Added for _onLoginSuccess
+import '../services/firebase_messaging_service.dart'; // Added for _onLoginSuccess
+import '../services/navigation_service.dart'; // Added for _onLoginSuccess
+import '../widgets/background_gradient.dart';
 import 'home_screen.dart';
 
 
@@ -27,6 +36,136 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   final _authService = AuthService();
   final _translationService = TranslationService();
+
+  // Social Login Logic
+  Future<void> _onLoginSuccess() async {
+    if (!mounted) return;
+
+    try {
+      final notificationService = NotificationService();
+      final firebaseMessagingService = FirebaseMessagingService();
+      await notificationService.requestPermissions();
+      await firebaseMessagingService.requestPermissions();
+      final isEnabled = await notificationService.areNotificationsEnabled();
+      if (Platform.isIOS) await notificationService.checkIOSNotificationStatus();
+
+      if (isEnabled) {
+        final int notificationId = await notificationService.showNotification(
+          title: _translationService.translate(TranslationKeys.loginSuccessful),
+          body: _translationService.translate(TranslationKeys.welcomeToSkybyn),
+          payload: 'login_success',
+        );
+        if (notificationId >= 0) {
+          Timer(const Duration(seconds: 3), () {
+            notificationService.cancelNotification(notificationId);
+          });
+        }
+      }
+    } catch (e) {}
+
+    await NavigationService.saveLastRoute('/home');
+
+    if (mounted) {
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (context) => const HomeScreen()),
+      );
+    }
+  }
+
+  Future<void> _handleGoogleLogin() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final GoogleSignIn googleSignIn = GoogleSignIn();
+      await googleSignIn.signOut();
+      final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
+
+      if (googleUser == null) {
+        setState(() {
+          _isLoading = false;
+        });
+        return;
+      }
+
+      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+      final String? idToken = googleAuth.idToken;
+
+      if (idToken == null) {
+        throw Exception('Failed to get ID Token from Google');
+      }
+
+      final response = await _authService.loginWithSocial('google', idToken);
+      
+      if (!mounted) return;
+
+      if (response['responseCode'] == '1') {
+        await _onLoginSuccess();
+      } else {
+        setState(() {
+           _errorMessage = response['message'] ?? 'Google Login failed';
+        });
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _errorMessage = 'Google Sign-In Error: $e';
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _handleFacebookLogin() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final LoginResult result = await FacebookAuth.instance.login(
+        permissions: ['public_profile', 'email'],
+      );
+
+      if (result.status == LoginStatus.success) {
+        final AccessToken accessToken = result.accessToken!;
+        final response = await _authService.loginWithSocial('facebook', accessToken.tokenString);
+        
+        if (!mounted) return;
+
+        if (response['responseCode'] == '1') {
+          await _onLoginSuccess();
+        } else {
+          setState(() {
+             _errorMessage = response['message'] ?? 'Facebook Login failed';
+          });
+        }
+      } else if (result.status == LoginStatus.cancelled) {
+         // User cancelled
+      } else {
+         setState(() {
+           _errorMessage = result.message ?? 'Facebook Login failed';
+         });
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _errorMessage = 'Facebook Sign-In Error: $e';
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
 
   final _firstNameFocusNode = FocusNode();
   final _middleNameFocusNode = FocusNode();
@@ -1890,40 +2029,44 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       _buildNavigationButtons(),
                       const SizedBox(height: 20),
 
-                      // Login link (only show on first group)
+                      // Social Login for First Step
                       if (_currentGroup == 0) ...[
+                        const SizedBox(height: 20),
                         Center(
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                               Text(
-                                _translationService.translate(TranslationKeys.alreadyHaveAccount),
-                                style: TextStyle(
-                                  color: textColor,
-                                  fontSize: 14,
-                                ),
-                              ),
-                              TextButton(
-                                onPressed: () => Navigator.of(context).pop(),
-                                style: TextButton.styleFrom(
-                                  padding: EdgeInsets.zero,
-                                  minimumSize: Size.zero,
-                                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                ),
-                                 child: Text(
-                                  _translationService.translate(TranslationKeys.signIn),
-                                  style: TextStyle(
-                                    color: (isDark ? Colors.white : Colors.blue),
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.bold,
-                                    decoration: TextDecoration.underline,
-                                    decorationColor: (isDark ? Colors.white : Colors.blue),
-                                  ),
-                                ),
-                              ),
-                            ],
+                          child: Text(
+                            _translationService.translate(TranslationKeys.signUp),
+                            style: TextStyle(
+                              color: textColor,
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         ),
+                        const SizedBox(height: 15),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            // Google
+                            _buildSocialButton(
+                              icon: FontAwesomeIcons.google,
+                              color: Colors.red,
+                              onPressed: _isLoading ? null : _handleGoogleLogin,
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 20),
+                        Row(children: [
+                          Expanded(child: Divider(color: textColor.withValues(alpha: 0.3))),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 10),
+                            child: Text(
+                              _translationService.translate(TranslationKeys.or).toUpperCase(),
+                              style: TextStyle(color: textColor.withValues(alpha: 0.5)),
+                            ),
+                          ),
+                          Expanded(child: Divider(color: textColor.withValues(alpha: 0.3))),
+                        ]),
+                        const SizedBox(height: 10),
                       ],
                     ],
                   ),
@@ -1932,6 +2075,29 @@ class _RegisterScreenState extends State<RegisterScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildSocialButton({required IconData icon, required Color color, required VoidCallback? onPressed}) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return InkWell(
+      onTap: onPressed,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: isDark ? Colors.white.withValues(alpha: 0.1) : Colors.grey.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isDark ? Colors.white.withValues(alpha: 0.2) : Colors.grey.withValues(alpha: 0.2),
+          ),
+        ),
+        child: Icon(
+          icon,
+          color: color, // Keep brand colors? Or adapt? Web shows brand colors usually.
+          size: 24,
+        ),
       ),
     );
   }

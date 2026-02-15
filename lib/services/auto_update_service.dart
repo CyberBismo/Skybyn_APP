@@ -19,6 +19,7 @@ class AutoUpdateService {
   static const String _lastShownUpdateVersionKey = 'last_shown_update_version';
   static const String _lastShownUpdateTimestampKey = 'last_shown_update_timestamp';
   static bool _isDialogShowing = false;
+  static bool _isBackgroundDownload = false; // Flag to track if running in background
 
   /// Check if update dialog is currently showing
   static bool get isDialogShowing => _isDialogShowing;
@@ -68,7 +69,7 @@ class AutoUpdateService {
       
       // Get current app version (semantic version "1.0.0") instead of build number
       final PackageInfo packageInfo = await PackageInfo.fromPlatform();
-      final String installedVersion = packageInfo.version.isNotEmpty ? packageInfo.version : '1.0.0';
+      final String installedVersion = packageInfo.version;
       print('[Update Check] Current installed version: $installedVersion');
 
       // Build URL with query parameters: c=android&v={version}
@@ -490,6 +491,10 @@ class AutoUpdateService {
             return false;
           }
 
+          // If coming from background download (no context usually), just notify
+          // But since this method requires context, it's called from foreground.
+          // However, we want to support the "Install" button from notification.
+          
           await notificationService.showUpdateProgressNotification(
             title: 'Updating Skybyn',
             status: 'Opening installer...',
@@ -554,6 +559,33 @@ class AutoUpdateService {
         progress: 0,
       );
       return false;
+    }
+  }
+
+  /// Trigger background update (download and notify)
+  /// This is called from WorkManager or background service
+  static Future<void> triggerBackgroundUpdate() async {
+    _isBackgroundDownload = true;
+    final notificationService = NotificationService();
+    
+    try {
+      // 1. Check for update
+      final updateInfo = await checkForUpdates();
+      
+      if (updateInfo != null && updateInfo.isAvailable && updateInfo.downloadUrl.isNotEmpty) {
+        // 2. Download update
+        final success = await downloadUpdate(updateInfo.downloadUrl);
+        
+        if (success) {
+          // 3. Show "Ready to Install" notification with actions
+          await notificationService.showUpdateReadyNotification(updateInfo.version);
+        }
+      }
+    } catch (e) {
+      print('[AutoUpdateService] Background update failed: $e');
+      await notificationService.cancelUpdateProgressNotification();
+    } finally {
+      _isBackgroundDownload = false;
     }
   }
 

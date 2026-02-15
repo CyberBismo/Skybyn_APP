@@ -3,6 +3,12 @@
 *.log
 *.pyc
 *.swp
+
+# Large files
+*.apk
+*.zip
+*.lnk
+
 .DS_Store
 .atom/
 .buildlog/

@@ -285,36 +285,6 @@ class _LoginScreenState extends State<LoginScreen> {
                             ),
                           ],
                         ),
-                        GestureDetector(
-                          onTap: () {
-                            // TODO: Implement show info functionality
-                          },
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                Icons.keyboard_arrow_down,
-                                color: Colors.white.withValues(alpha: 0.7),
-                                size: 20,
-                              ),
-                              const SizedBox(width: 8),
-                              TranslatedText(
-                                'intro_read_more',
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  color: Colors.white.withValues(alpha: 0.7),
-                                  letterSpacing: 0.5,
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Icon(
-                                Icons.keyboard_arrow_down,
-                                color: Colors.white.withValues(alpha: 0.7),
-                                size: 20,
-                              ),
-                            ],
-                          ),
-                        ),
                       ],
                     ),
                     const SizedBox(height: 10),
@@ -547,7 +517,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             height: 24,
                           ),
                           label: const TranslatedText(
-                            'Sign in with Google', // Or a translation key like TranslationKeys.signInWithGoogle
+                            TranslationKeys.signInWithGoogle,
                             style: TextStyle(
                               color: Colors.white,
                               fontSize: 16,
@@ -564,8 +534,8 @@ class _LoginScreenState extends State<LoginScreen> {
                           onPressed: _isLoading ? null : _handleGoogleLogin,
                         ),
                       ),
-                      const SizedBox(height: 10),
-                      // Facebook Login Button
+                      // Facebook Login Button - Removed per user request to restrict to Google only
+                      /*
                       SizedBox(
                         width: double.infinity,
                         child: OutlinedButton.icon(
@@ -588,6 +558,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           onPressed: _isLoading ? null : _handleFacebookLogin,
                         ),
                       ),
+                      */
                     ],
                     // Forgot password text
                     Align(
