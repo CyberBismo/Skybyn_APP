@@ -27,12 +27,23 @@ class FirebaseRealtimeService {
 
   // Firestore disabled - using WebSocket for real-time features instead
   // final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final FirebaseDatabase _database = FirebaseDatabase.instance;
-  final FirebaseAuth _auth = FirebaseAuth.instance;
+  FirebaseDatabase? _database;
+  FirebaseAuth? _auth;
   bool _isInitialized = false;
   bool _isConnected = false;
   String? _userId;
   String? _sessionId;
+  
+  // Getters for instances (safe access)
+  FirebaseDatabase get database {
+    if (_database == null) throw Exception('[SKYBYN] [Firebase] FirebaseDatabase not initialized. Call initialize() first.');
+    return _database!;
+  }
+
+  FirebaseAuth get auth {
+    if (_auth == null) throw Exception('[SKYBYN] [Firebase] FirebaseAuth not initialized. Call initialize() first.');
+    return _auth!;
+  }
   
   // Stream subscriptions (Firestore disabled - these are not used)
   StreamSubscription<dynamic>? _userStatusSubscription;
@@ -64,7 +75,16 @@ class FirebaseRealtimeService {
       return;
     }
 
-    try {
+      // Ensure Firebase Core is actually initialized before accessing instances
+      if (Firebase.apps.isEmpty) {
+        print('[SKYBYN] ⚠️ [Firebase] Cannot initialize RealtimeService: Firebase Core not initialized.');
+        return;
+      }
+
+      // Initialize instances now that we know Firebase is ready
+      _database ??= FirebaseDatabase.instance;
+      _auth ??= FirebaseAuth.instance;
+
       // Get current logged-in user ID
       final authService = AuthService();
       final user = await authService.getStoredUserProfile();
@@ -77,7 +97,7 @@ class FirebaseRealtimeService {
       }
       
       // Check if we are already signed in with the correct UID
-      final currentUser = _auth.currentUser;
+      final currentUser = _auth!.currentUser;
       if (currentUser != null && currentUser.uid == user.id) {
          // print('[SKYBYN] ℹ️ [Firebase] Session exists for ${currentUser.uid}, but forcing re-auth to ensure token validity.');
          // We do NOT return here anymore, to fix the permission denied errors by forcing a fresh token
@@ -85,7 +105,7 @@ class FirebaseRealtimeService {
          // return;
       } else if (currentUser != null) {
          // print('[SKYBYN] ℹ️ [Firebase] Signed in as different user (${currentUser.uid}) != (${user.id}). Signing out.');
-         await _auth.signOut();
+         await _auth!.signOut();
       }
 
       // Fetch Custom Token from PHP Backend
@@ -93,7 +113,7 @@ class FirebaseRealtimeService {
       final response = await http.post(
         Uri.parse(ApiConstants.authFirebase),
         body: {'user_id': user.id}
-      );
+      ).timeout(const Duration(seconds: 15));
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
@@ -101,7 +121,7 @@ class FirebaseRealtimeService {
           String customToken = data['token'];
           
           // Sign in to Firebase with the custom token
-          await _auth.signInWithCustomToken(customToken);
+          await _auth!.signInWithCustomToken(customToken);
           // print('[SKYBYN] ✅ [Firebase] Signed in with Custom Token as user ${user.id}');
           _isInitialized = true;
         } else {
@@ -125,8 +145,8 @@ class FirebaseRealtimeService {
 
   Future<void> _signInAnonymously() async {
     try {
-      if (_auth.currentUser == null) {
-        await _auth.signInAnonymously();
+      if (_auth != null && _auth!.currentUser == null) {
+        await _auth!.signInAnonymously();
         // print('[SKYBYN] ✅ [Firebase] Signed in anonymously (Fallback)');
       }
     } catch (e) {
@@ -272,7 +292,7 @@ class FirebaseRealtimeService {
     
     // Listen to chat_notifications/{myUserId}
     // This node receives messages sent via sendChatMessageNotification when WebSocket fails
-    final DatabaseReference notificationsRef = _database.ref()
+    final DatabaseReference notificationsRef = database.ref()
         .child('chat_notifications')
         .child(_userId!);
         
@@ -423,7 +443,7 @@ class FirebaseRealtimeService {
     try {
       // Write to chat_notifications node in Realtime Database
       // Path: chat_notifications/{targetUserId}/{messageId}
-      final DatabaseReference notificationsRef = _database.ref()
+      final DatabaseReference notificationsRef = database.ref()
           .child('chat_notifications')
           .child(targetUserId)
           .child(messageId);

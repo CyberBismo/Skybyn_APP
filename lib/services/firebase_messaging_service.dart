@@ -161,7 +161,7 @@ class FirebaseMessagingService {
   factory FirebaseMessagingService() => _instance;
   FirebaseMessagingService._internal();
 
-  final FirebaseMessaging _messaging = FirebaseMessaging.instance;
+  FirebaseMessaging? _messaging;
   final AuthService _authService = AuthService();
   bool _isInitialized = false;
 
@@ -195,7 +195,15 @@ class FirebaseMessagingService {
   Future<void> initialize() async {
     if (_isInitialized) return;
 
+    // Check if Firebase Core is initialized before accessing instance
+    if (Firebase.apps.isEmpty) {
+      developer.log('⚠️ [Firebase] Cannot initialize MessagingService: Firebase Core not initialized.', name: 'FCM');
+      return;
+    }
+
     try {
+      _messaging ??= FirebaseMessaging.instance;
+
       // 1. Register Background Handler first
       FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
 
@@ -204,14 +212,14 @@ class FirebaseMessagingService {
       FirebaseMessaging.onMessageOpenedApp.listen(_handleMessageOpenedApp);
 
       // 3. Check for Initial Message (Dead App -> Open via Notification)
-      final initialMessage = await _messaging.getInitialMessage();
+      final initialMessage = await _messaging?.getInitialMessage();
       if (initialMessage != null) {
         _handleMessageOpenedApp(initialMessage);
       }
 
       // 4. iOS Foreground Options
       if (Platform.isIOS) {
-        await _messaging.setForegroundNotificationPresentationOptions(
+        await _messaging?.setForegroundNotificationPresentationOptions(
           alert: true,
           badge: true,
           sound: true,
@@ -222,7 +230,7 @@ class FirebaseMessagingService {
       syncToken();
 
       // 6. Listen for Token Refreshes
-      _messaging.onTokenRefresh.listen((newToken) {
+      _messaging?.onTokenRefresh.listen((newToken) {
         developer.log('🔄 FCM Token Refreshed', name: 'FCM');
         _currentToken = newToken;
         syncToken(force: true);
@@ -237,8 +245,9 @@ class FirebaseMessagingService {
 
   /// Explicitly request permissions (Call after Login)
   Future<void> requestPermissions() async {
+    if (_messaging == null) return;
     try {
-      NotificationSettings settings = await _messaging.requestPermission(
+      NotificationSettings settings = await _messaging!.requestPermission(
         alert: true,
         badge: true,
         sound: true,
@@ -275,10 +284,22 @@ class FirebaseMessagingService {
     }
   }
 
+  /// Subscribe to specific user topics
+  Future<void> subscribeToTopic(String topic) async {
+    if (_messaging == null) return;
+    try {
+      await _messaging!.subscribeToTopic(topic);
+      _subscribedTopics.add(topic);
+    } catch (e) {
+      developer.log('❌ Failed to subscribe to $topic: $e', name: 'FCM');
+    }
+  }
+
   /// Unsubscribe from a specific topic
   Future<void> unsubscribeFromTopic(String topic) async {
+    if (_messaging == null) return;
     try {
-      await _messaging.unsubscribeFromTopic(topic);
+      await _messaging!.unsubscribeFromTopic(topic);
       _subscribedTopics.remove(topic);
     } catch (e) {
       developer.log('❌ Failed to unsubscribe from $topic: $e', name: 'FCM');
@@ -288,9 +309,10 @@ class FirebaseMessagingService {
   /// Unified Token Sync: Handles Get, Store, and Send to Server
   /// Replaces: sendFCMTokenToServer, autoRegister, checkDevice
   Future<void> syncToken({bool force = false}) async {
+    if (_messaging == null) return;
     try {
       // 1. Get FCM Token
-      String? token = await _messaging.getToken();
+      String? token = await _messaging!.getToken();
       _currentToken = token; // Cache the token
       if (token == null) {
         developer.log('⚠️ FCM Token is NULL', name: 'FCM');
