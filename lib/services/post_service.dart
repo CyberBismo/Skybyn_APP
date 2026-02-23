@@ -378,18 +378,16 @@ class PostService {
   Future<Map<String, dynamic>> createPost({
     required String userId,
     required String content,
-    List<File>? mediaFiles,
-    int? visibility,
+    File? mediaFile,
   }) async {
     // Send plain text content to server (server will handle encryption)
 
-    if (mediaFiles == null || mediaFiles.isEmpty) {
+    if (mediaFile == null) {
       final response = await http.post(
         Uri.parse(ApiConstants.addPost),
         body: {
           'userID': userId,
           'content': content,
-          if (visibility != null) 'visibility': visibility.toString(),
         },
       );
 
@@ -408,20 +406,18 @@ class PostService {
       final request = http.MultipartRequest('POST', Uri.parse(ApiConstants.addPost));
       request.fields['userID'] = userId;
       request.fields['content'] = content;
-      if (visibility != null) request.fields['visibility'] = visibility.toString();
       
-      for (var file in mediaFiles) {
-        final stream = http.ByteStream(file.openRead());
-        final length = await file.length();
-        
-        final multipartFile = http.MultipartFile(
-          'image[]', // Match the PHP backend's expected array key
-          stream,
-          length,
-          filename: file.path.split('/').last,
-        );
-        request.files.add(multipartFile);
-      }
+      final stream = http.ByteStream(mediaFile.openRead());
+      final length = await mediaFile.length();
+      
+      final multipartFile = http.MultipartFile(
+        'file',
+        stream,
+        length,
+        filename: mediaFile.path.split('/').last,
+      );
+      
+      request.files.add(multipartFile);
       
       final streamedResponse = await request.send();
       final response = await http.Response.fromStream(streamedResponse);

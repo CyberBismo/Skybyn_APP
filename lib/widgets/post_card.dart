@@ -24,7 +24,7 @@ class PostCardStyles {
   static const Color lightCardBackgroundColor =
       Color.fromRGBO(0, 0, 0, 0.12); // White with 40% opacity for light mode
   static const Color darkCardBackgroundColor =
-      Color.fromRGBO(0, 0, 0, 0.7); // Black with 70% opacity for dark mode
+      Color.fromRGBO(0, 0, 0, 0.40); // Black with 40% opacity for dark mode
   static const Color lightCardBorderColor =
       Colors.transparent; // No border in web
   static const Color darkCardBorderColor = Colors.transparent;
@@ -38,7 +38,7 @@ class PostCardStyles {
 
   // Sizes - match web platform exactly
   static const double cardBorderRadius = 20.0; // border-radius: 20px
-  static const double avatarSize = 50.0; // width: 50px, height: 50px
+  static const double avatarSize = 70.0; // width: 70px, height: 70px
   static const double avatarBorderWidth = 0.0; // No border in web
   static const double imageMaxHeight = 300.0;
   static const double iconSize = 20.0;
@@ -63,13 +63,13 @@ class PostCardStyles {
 
   // Border radius - match web platform exactly
   static const double cardRadius = 20.0; // border-radius: 20px
-  static const double avatarRadius = 25.0; // border-radius: 25px (circular)
+  static const double avatarRadius = 50.0; // border-radius: 10px
   static const double imageRadius = 10.0; // border-radius: 10px
   static const double buttonRadius = 10.0; // border-radius: 10px
   static const double commentRadius = 10.0; // border-radius: 10px
 
   // Shadows and effects - match web platform exactly
-  static const double blurSigma = 15.0; // backdrop-filter: blur(20px) -> sigma ~15
+  static const double blurSigma = 30.0; // backdrop-filter: blur(5px)
   static const double shadowBlurRadius = 0.0; // No shadow in web
   static const Offset shadowOffset = Offset(0, 0);
   static const double shadowOpacity = 0.0;
@@ -897,7 +897,7 @@ class _PostCardState extends State<PostCard> {
                             children: [
                               // User avatar and name row
                               SizedBox(
-                                height: 50.0, // height: 50px (matches website post_user)
+                                height: 70.0, // height: 70px
                                 child: InkWell(
                                   onTap: () {
                                     if (_currentPost.userId != null && _currentPost.userId!.isNotEmpty) {
@@ -944,7 +944,7 @@ class _PostCardState extends State<PostCard> {
                                       // User name - match web platform's post_user_name exactly
                                       Expanded(
                                         child: SizedBox(
-                                          height: 50.0, // height: 50px
+                                          height: 70.0, // height: 70px
                                           child: Align(
                                             alignment: Alignment.centerLeft,
                                             child: Text(
@@ -960,17 +960,21 @@ class _PostCardState extends State<PostCard> {
                                 ),
                               ),
                               // Date - now part of the header
-                              Container(
-                                margin: const EdgeInsets.only(
-                                    left: 50.0), // margin-left: 50px
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 20.0, vertical: 10.0), // padding: 10px 20px
-                                child: ListenableBuilder(
-                                  listenable: TranslationService(),
-                                  builder: (context, _) => Text(
-                                    _formatTimestamp(_currentPost.createdAt),
-                                    style: PostCardStyles.getTimestampTextStyle(
-                                        context), // font-size: 12px
+                              Transform.translate(
+                                offset:
+                                    const Offset(0, -10), // Move date 10px up
+                                child: Container(
+                                  margin: const EdgeInsets.only(
+                                      left: 70.0), // margin-left: 70px
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 20.0, vertical: 0.0),
+                                  child: ListenableBuilder(
+                                    listenable: TranslationService(),
+                                    builder: (context, _) => Text(
+                                      _formatTimestamp(_currentPost.createdAt),
+                                      style: PostCardStyles.getTimestampTextStyle(
+                                          context), // font-size: 12px
+                                    ),
                                   ),
                                 ),
                               ),
@@ -982,7 +986,7 @@ class _PostCardState extends State<PostCard> {
                       Expanded(
                         flex: 2,
                         child: Container(
-                          height: 100.0, // Total header height
+                          height: 75.0, // height: 50px
                           padding: const EdgeInsets.all(20.0), // padding: 20px
                           child: Builder(
                             builder: (context) {

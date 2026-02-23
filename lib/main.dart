@@ -64,8 +64,8 @@ Future<void> main() async {
   // Gate all print calls behind a debug flag using Zone
   // Logging enabled for debugging FCM token
   const bool enableLogging = true;
-  // Always enable error logging on iOS or Web for debugging
-  final bool enableErrorLogging = kIsWeb || (!kIsWeb && Platform.isIOS) || enableLogging;
+  // Always enable error logging on iOS for debugging
+  final bool enableErrorLogging = Platform.isIOS || enableLogging;
 
   runZonedGuarded(
     () async {
@@ -88,15 +88,13 @@ Future<void> main() async {
         ErrorReportingService().reportError(details.exception, details.stack);
       };
 
-      // Set preferred orientations to portrait only (Mobile only)
-      if (!kIsWeb) {
-        await SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp, DeviceOrientation.portraitDown]);
-        
-        // Enable edge-to-edge mode to make app extend behind status bar
-        await SystemChrome.setEnabledSystemUIMode(
-          SystemUiMode.edgeToEdge,
-        );
-      }
+      // Set preferred orientations to portrait only
+      await SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp, DeviceOrientation.portraitDown]);
+      
+      // Enable edge-to-edge mode to make app extend behind status bar
+      await SystemChrome.setEnabledSystemUIMode(
+        SystemUiMode.edgeToEdge,
+      );
 
 
       // Initialize theme and translation services

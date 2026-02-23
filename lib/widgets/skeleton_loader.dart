@@ -103,13 +103,14 @@ class ProfileAvatarSkeleton extends StatelessWidget {
       height: size,
       decoration: BoxDecoration(
         color: Colors.grey[800],
-        shape: BoxShape.circle,
+        borderRadius: BorderRadius.circular(20),
         border: Border.all(
           color: Colors.grey[700]!,
           width: 3,
         ),
       ),
-      child: ClipOval(
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(17),
         child: SkeletonLoader(
           child: Container(
             width: size,

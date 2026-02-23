@@ -8,7 +8,6 @@ class AppColors {
   static const Color darkBackgroundColor =
       Color.fromRGBO(0, 0, 0, 0.30); // Black with 30% opacity
   static const Color transparentBackground = Colors.transparent;
-  static const Color transparentColor = Colors.transparent;
 
   // Text colors - All white
   static const Color lightTextColor = Colors.white; // White for light mode
@@ -105,10 +104,6 @@ class AppColors {
   static Color getCardBackgroundColor(BuildContext context) {
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
     return isDarkMode ? darkCardBackgroundColor : lightCardBackgroundColor;
-  }
-
-  static Color getCardColor(BuildContext context) {
-    return getCardBackgroundColor(context);
   }
 
   static Color getCardBorderColor(BuildContext context) {
