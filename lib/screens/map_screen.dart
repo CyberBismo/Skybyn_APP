@@ -51,6 +51,10 @@ class _MapScreenState extends State<MapScreen> {
   String _locationShareMode = 'off'; // 'off', 'last_active', 'live'
   bool _useSatelliteView = false; // Toggle between roadmap and satellite view
   static const String _mapLayerPreferenceKey = 'map_use_satellite_view';
+  static const String _mapLastLatKey = 'map_last_lat';
+  static const String _mapLastLngKey = 'map_last_lng';
+  static const String _mapLastZoomKey = 'map_last_zoom';
+  bool _hasLoadedState = false;
   
   // Cache manager for map tiles (30 days cache, 200MB max size)
   static final CacheManager _tileCacheManager = CacheManager(
@@ -120,6 +124,43 @@ class _MapScreenState extends State<MapScreen> {
     }
   }
 
+  /// Load the last saved map center and zoom
+  Future<void> _loadMapState() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final lat = prefs.getDouble(_mapLastLatKey);
+      final lng = prefs.getDouble(_mapLastLngKey);
+      final zoom = prefs.getDouble(_mapLastZoomKey);
+      
+      if (lat != null && lng != null && zoom != null) {
+        if (mounted) {
+          setState(() {
+            _center = LatLng(lat, lng);
+            _zoom = zoom;
+            _hasLoadedState = true;
+            _isLoading = false; // Show map immediately if we have a saved state
+          });
+          print('Map state loaded: lat=$lat, lng=$lng, zoom=$zoom');
+        }
+      }
+    } catch (e) {
+      print('Error loading map state: $e');
+    }
+  }
+
+  /// Save the current map center and zoom
+  Future<void> _saveMapState(LatLng center, double zoom) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setDouble(_mapLastLatKey, center.latitude);
+      await prefs.setDouble(_mapLastLngKey, center.longitude);
+      await prefs.setDouble(_mapLastZoomKey, zoom);
+      // print('Map state saved: lat=${center.latitude}, lng=${center.longitude}, zoom=$zoom');
+    } catch (e) {
+      print('Error saving map state: $e');
+    }
+  }
+
   Future<void> _preloadLocation() async {
     // Preload location in background to speed up map loading
     try {
@@ -143,6 +184,8 @@ class _MapScreenState extends State<MapScreen> {
     
     // Load saved map layer preference
     await _loadMapLayerPreference();
+    // Load saved map state (last position and zoom)
+    await _loadMapState();
     
     final userId = await _authService.getStoredUserId();
     if (userId == null) {
@@ -239,6 +282,31 @@ class _MapScreenState extends State<MapScreen> {
     print('Getting current user location...');
     final locationFuture = _locationService.getCurrentLocation();
 
+    // Ensure map is revealed as soon as we have enough context (ID found or not)
+    if (mounted && _isLoading) {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+
+    // Process location once it's available (don't await it here)
+    locationFuture.then((position) {
+      if (position != null && mounted) {
+        print('Location obtained in background: ${position.latitude}, ${position.longitude}');
+        setState(() {
+          _currentPosition = position;
+          // Only center on current location if no saved state was loaded
+          if (!_hasLoadedState) {
+            _center = LatLng(position.latitude, position.longitude);
+            _zoom = 15.0;
+            _mapController.move(_center, _zoom);
+          }
+        });
+      }
+    }).catchError((e) {
+      print('Error obtaining location in background: $e');
+    });
+
     // Create current user marker image (will be recreated after position is set)
     // Avatar is cached via CachedNetworkImageProvider, markers built dynamically
     if (_currentUserAvatar != null) {
@@ -247,29 +315,16 @@ class _MapScreenState extends State<MapScreen> {
       print('No avatar URL available');
     }
 
-    // Wait for location (may already be ready if preloaded)
+    // Process rest of initialization in background
+    _continueInitializationInBackground(locationFuture);
+  }
+
+  Future<void> _continueInitializationInBackground(Future<Position?> locationFuture) async {
     final position = await locationFuture;
     if (position != null && mounted) {
-      print('Location obtained: ${position.latitude}, ${position.longitude}');
-      setState(() {
-        _currentPosition = position;
-        _center = LatLng(position.latitude, position.longitude);
-        _zoom = 15.0;
-      });
-      // Recreate marker after position is set
-      // Avatar is cached via CachedNetworkImageProvider, markers built dynamically
-    } else {
-      print('No location obtained');
+       // Already handled in .then() above for immediate UI update, 
+       // but we keep this function for overall flow consistency if needed
     }
-
-    // Ensure loading is set to false so map can render
-    if (mounted) {
-      setState(() {
-        _isLoading = false;
-      });
-    }
-
-    // Load friends locations
     print('Loading friends locations...');
     await _loadFriendsLocations();
 
@@ -279,11 +334,19 @@ class _MapScreenState extends State<MapScreen> {
     });
 
     // Fit bounds after initial load - only once after all data is loaded
-    if (mounted) {
+    // Skip fitBounds if a specific state was loaded from preferences
+    if (mounted && !_hasLoadedState) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _fitBounds();
         // Force rebuild to show markers
         setState(() {});
+      });
+    } else if (mounted) {
+      // If we have loaded a state, explicitly move the controller to ensure it reflects
+      // the loaded coordinates, in case the map built with defaults before load finished.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+         _mapController.move(_center, _zoom);
+         setState(() {});
       });
     }
   }
@@ -862,13 +925,18 @@ class _MapScreenState extends State<MapScreen> {
                           interactionOptions: const InteractionOptions(
                             flags: InteractiveFlag.pinchZoom | InteractiveFlag.drag | InteractiveFlag.scrollWheelZoom,
                           ),
+                          onPositionChanged: (position, hasGesture) {
+                            if (hasGesture) {
+                              _saveMapState(position.center!, position.zoom!);
+                            }
+                          },
                           onTap: (tapPosition, point) {
                             print('Map tapped at: ${point.latitude}, ${point.longitude}');
                           },
                           onMapReady: () {
                             print('Map is ready');
-                            // Force map to render
-                            if (mounted && _currentPosition != null) {
+                            // Force map to render only if we HAVEN'T loaded a saved state
+                            if (mounted && _currentPosition != null && !_hasLoadedState) {
                               _mapController.move(
                                 LatLng(_currentPosition!.latitude, _currentPosition!.longitude),
                                 _zoom,
@@ -893,8 +961,8 @@ class _MapScreenState extends State<MapScreen> {
                         ],
                       ),
                     ),
-          // Show loading message while fetching location
-          if (_isLoading || (_currentPosition == null && _currentUserAvatar != null))
+          // Show loading message while fetching location only if no saved state is available
+          if (_isLoading || (!_hasLoadedState && _currentPosition == null && _currentUserAvatar != null))
             Center(
                     child: Container(
                       padding: const EdgeInsets.all(16),

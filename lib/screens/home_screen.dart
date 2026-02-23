@@ -725,7 +725,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   // Check for app updates
   Future<void> _checkForUpdates() async {
-
     final translationService = TranslationService();
 
     if (!Platform.isAndroid) {
@@ -736,59 +735,13 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       return;
     }
 
-    // Prevent multiple dialogs from showing at once
-    if (AutoUpdateService.isDialogShowing) {
-      print('[App Update] Update dialog is already showing - skipping check');
-      return;
-    }
-
     try {
-      print('[App Update] Checking for available updates...');
-      final updateInfo = await AutoUpdateService.checkForUpdates();
-
-      if (updateInfo != null && updateInfo.isAvailable) {
-        print('[App Update] Update available: version ${updateInfo.version}');
-        // Show update dialog if not already showing
-        if (mounted && !AutoUpdateService.isDialogShowing) {
-          // Mark dialog as showing immediately to prevent duplicates
-          AutoUpdateService.setDialogShowing(true);
-          
-          // Get current version for logging
-          final packageInfo = await PackageInfo.fromPlatform();
-          final currentVersion = packageInfo.version;
-          print('[App Update] Current version: $currentVersion. Showing update dialog.');
-          
-          // Mark this version as shown (so we don't spam the user)
-          await AutoUpdateService.markUpdateShownForVersion(updateInfo.version);
-          
-          await showDialog(
-            context: context,
-            barrierDismissible: false,
-            builder: (context) => UpdateDialog(
-              currentVersion: currentVersion,
-              latestVersion: updateInfo.version,
-              releaseNotes: updateInfo.releaseNotes,
-              downloadUrl: updateInfo.downloadUrl,
-            ),
-          ).then((_) {
-            // Dialog closed, mark as not showing
-            print('[App Update] Update dialog closed');
-            AutoUpdateService.setDialogShowing(false);
-          });
-        }
-      } else {
-        print('[App Update] No updates available.');
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(translationService.translate(TranslationKeys.noUpdatesAvailable))),
-          );
-        }
-      }
+      print('[App Update] Starting background update check and download...');
+      // Instead of showing a dialog, trigger the background update process
+      // which will check, download silently, and then notify the user.
+      await AutoUpdateService.triggerBackgroundUpdate();
     } catch (e) {
-      print('[App Update] Error checking for updates: $e');
-      // Mark dialog as not showing on error
-      AutoUpdateService.setDialogShowing(false);
-      
+      print('[App Update] Error triggering background update: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('${translationService.translate(TranslationKeys.errorCheckingUpdates)}: $e')),

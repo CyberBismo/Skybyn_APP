@@ -47,6 +47,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
   bool _isSendingRequest = false;
   String? _errorMessage; // Store error message to show in popup
 
+  bool get isOwnProfile => profileUserId != null && currentUserId != null && profileUserId == currentUserId;
+
   @override
   void initState() {
     super.initState();
@@ -490,10 +492,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     });
   }
 
-  bool get isOwnProfile =>
-      userData != null &&
-      currentUserId != null &&
-      (userData!['id']?.toString() ?? userData!['userID']?.toString()) == currentUserId;
 
   Future<void> _checkFriendshipStatus() async {
     if (currentUserId == null || profileUserId == null) {
@@ -646,61 +644,99 @@ class _ProfileScreenState extends State<ProfileScreen> {
       );
     }
 
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        // Chat button
-        _buildActionButton(
-          icon: Icons.chat,
-          label: TranslationService().translate(TranslationKeys.chat),
-          onTap: () {
-            if (profileUserId != null && userData != null) {
-              final friend = Friend(
-                id: profileUserId!,
-                username: userData!['username']?.toString() ?? '',
-                nickname: userData!['nickname']?.toString() ?? userData!['username']?.toString() ?? '',
-                avatar: userData!['avatar']?.toString() ?? '',
-                online: userData!['online'] == '1' || userData!['online'] == 1 || userData!['online'] == true || userData!['online'] == 'true',
-              );
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => ChatScreen(friend: friend),
-                ),
-              );
-            } else {
-            }
-          },
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.white.withOpacity(0.1)),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        children: [
+          // Chat button
+          _buildRedesignedActionButton(
+            icon: Icons.chat_bubble_outline,
+            label: TranslationService().translate(TranslationKeys.chat),
+            onTap: () {
+              if (profileUserId != null && userData != null) {
+                final friend = Friend(
+                  id: profileUserId!,
+                  username: userData!['username']?.toString() ?? '',
+                  nickname: userData!['nickname']?.toString() ?? userData!['username']?.toString() ?? '',
+                  avatar: userData!['avatar']?.toString() ?? '',
+                  online: userData!['online'] == '1' || userData!['online'] == 1 || userData!['online'] == true || userData!['online'] == 'true',
+                );
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => ChatScreen(friend: friend),
+                  ),
+                );
+              }
+            },
+          ),
+          // Friend Actions button
+          _buildRedesignedActionButton(
+            icon: Icons.person_add_outlined,
+            label: TranslationService().translate(TranslationKeys.friends),
+            onTap: () {
+              _showFriendActionsMenu();
+            },
+          ),
+          // Share button
+          _buildRedesignedActionButton(
+            icon: Icons.ios_share_outlined,
+            label: TranslationService().translate(TranslationKeys.share),
+            onTap: () {
+              _shareProfile();
+            },
+          ),
+          // More/Report button
+          _buildRedesignedActionButton(
+            icon: Icons.more_horiz,
+            label: TranslationService().translate(TranslationKeys.actions),
+            onTap: () {
+               _showFriendActionsMenu(); // Or report directly
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRedesignedActionButton({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+    Color? color,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(15),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              color: color ?? Colors.white.withOpacity(0.9),
+              size: 24,
+            ),
+            const SizedBox(height: 6),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 11,
+                color: Colors.white.withOpacity(0.7),
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
         ),
-        const SizedBox(width: 12),
-        // Friend Actions button
-        _buildActionButton(
-          icon: Icons.people,
-          label: TranslationService().translate(TranslationKeys.friends),
-          onTap: () {
-            _showFriendActionsMenu();
-          },
-        ),
-        const SizedBox(width: 12),
-        // Report button
-        _buildActionButton(
-          icon: Icons.report,
-          label: TranslationService().translate(TranslationKeys.report),
-          color: Colors.red,
-          onTap: () {
-            _reportUser();
-          },
-        ),
-        const SizedBox(width: 12),
-        // Share button
-        _buildActionButton(
-          icon: Icons.share,
-          label: TranslationService().translate(TranslationKeys.share),
-          onTap: () {
-            _shareProfile();
-          },
-        ),
-      ],
+      ),
     );
   }
 
@@ -759,213 +795,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  void _showFriendActionsMenu() {
-    // Refresh status before showing menu
-    _checkFriendshipStatus().then((_) {
-      _showFriendActionsMenuInternal();
-    });
-  }
-
-  void _showFriendActionsMenuInternal() {
-    final status = _friendshipStatus ?? 'none';
-    // Build menu items based on status
-    List<PopupMenuEntry<String>> menuItems = [];
-    
-    // Handle blocked status (user has blocked you)
-    if (status == 'blocked') {
-      // User has blocked you - show nothing or disabled state
-      menuItems.add(
-        const PopupMenuItem(
-          enabled: false,
-          child: Row(
-            children: [
-              Icon(Icons.block, size: 18, color: Colors.grey),
-              SizedBox(width: 12),
-              Text('This user has blocked you', style: TextStyle(color: Colors.grey)),
-            ],
-          ),
-        ),
-      );
-    } else if (status == 'friends') {
-      // Friends - show unfriend and block options
-      menuItems.add(
-        PopupMenuItem(
-          value: 'unfriend',
-          child: Row(
-            children: [
-              const Icon(Icons.person_remove, size: 18, color: Colors.white),
-              const SizedBox(width: 12),
-              Text(TranslationService().translate(TranslationKeys.removeFriend), style: const TextStyle(color: Colors.white)),
-            ],
-          ),
-        ),
-      );
-      menuItems.add(
-        const PopupMenuDivider(),
-      );
-      menuItems.add(
-        PopupMenuItem(
-          value: 'block',
-          child: Row(
-            children: [
-              const Icon(Icons.block, size: 18, color: Colors.red),
-              const SizedBox(width: 12),
-              Text(TranslationService().translate(TranslationKeys.blockUser), style: const TextStyle(color: Colors.red)),
-            ],
-          ),
-        ),
-      );
-    } else if (status == 'sent') {
-      // Sent request - show cancel and block options
-      menuItems.add(
-        PopupMenuItem(
-          value: 'cancel',
-          child: Row(
-            children: [
-              const Icon(Icons.close, size: 18, color: Colors.white),
-              const SizedBox(width: 12),
-              Text('${TranslationService().translate(TranslationKeys.cancel)} ${TranslationService().translate(TranslationKeys.friendRequest)}', style: const TextStyle(color: Colors.white)),
-            ],
-          ),
-        ),
-      );
-      menuItems.add(
-        const PopupMenuDivider(),
-      );
-      menuItems.add(
-        PopupMenuItem(
-          value: 'block',
-          child: Row(
-            children: [
-              const Icon(Icons.block, size: 18, color: Colors.red),
-              const SizedBox(width: 12),
-              Text(TranslationService().translate(TranslationKeys.blockUser), style: const TextStyle(color: Colors.red)),
-            ],
-          ),
-        ),
-      );
-    } else if (status == 'received') {
-      // Received request - show accept, ignore, and block options
-      menuItems.add(
-        PopupMenuItem(
-          value: 'accept',
-          child: Row(
-            children: [
-              const Icon(Icons.person_add, size: 18, color: Colors.green),
-              const SizedBox(width: 12),
-              Text(TranslationService().translate(TranslationKeys.acceptFriend), style: const TextStyle(color: Colors.green)),
-            ],
-          ),
-        ),
-      );
-      menuItems.add(
-        PopupMenuItem(
-          value: 'ignore',
-          child: Row(
-            children: [
-              const Icon(Icons.close, size: 18, color: Colors.white),
-              const SizedBox(width: 12),
-              Text(TranslationService().translate(TranslationKeys.declineFriend), style: const TextStyle(color: Colors.white)),
-            ],
-          ),
-        ),
-      );
-      menuItems.add(
-        const PopupMenuDivider(),
-      );
-      menuItems.add(
-        PopupMenuItem(
-          value: 'block',
-          child: Row(
-            children: [
-              const Icon(Icons.block, size: 18, color: Colors.red),
-              const SizedBox(width: 12),
-              Text(TranslationService().translate(TranslationKeys.blockUser), style: const TextStyle(color: Colors.red)),
-            ],
-          ),
-        ),
-      );
-    } else if (status == 'block' || status == 'unblock') {
-      // User is blocked - show unblock option
-      menuItems.add(
-        PopupMenuItem(
-          value: 'unblock',
-          child: Row(
-            children: [
-              const Icon(Icons.person_off, size: 18, color: Colors.orange),
-              const SizedBox(width: 12),
-              Text(TranslationService().translate(TranslationKeys.unblockUser), style: const TextStyle(color: Colors.orange)),
-            ],
-          ),
-        ),
-      );
-    } else {
-      // No friendship exists - show send request and block options
-      if (!_isSendingRequest) {
-        menuItems.add(
-          const PopupMenuItem(
-            value: 'send',
-            child: Row(
-              children: [
-                Icon(Icons.person_add, size: 18, color: Colors.white),
-                SizedBox(width: 12),
-                Text('Send Friend Request', style: TextStyle(color: Colors.white)),
-              ],
-            ),
-          ),
-        );
-        menuItems.add(
-          const PopupMenuDivider(),
-        );
-        menuItems.add(
-          PopupMenuItem(
-            value: 'block',
-            child: Row(
-              children: [
-                const Icon(Icons.block, size: 18, color: Colors.red),
-                const SizedBox(width: 12),
-                Text(TranslationService().translate(TranslationKeys.blockUser), style: const TextStyle(color: Colors.red)),
-              ],
-            ),
-          ),
-        );
-      }
-    }
-    
-    if (menuItems.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('No friend actions available'),
-          duration: Duration(seconds: 2),
-        ),
-      );
-      return;
-    }
-    
-    // Show popup menu
-    showMenu<String>(
-      context: context,
-      position: RelativeRect.fromLTRB(
-        MediaQuery.of(context).size.width / 2 - 150,
-        MediaQuery.of(context).size.height / 2,
-        MediaQuery.of(context).size.width / 2 - 150,
-        MediaQuery.of(context).size.height / 2,
-      ),
-      color: Colors.grey[900],
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-      ),
-      items: menuItems,
-    ).then((value) {
-      if (value != null) {
-        if (value == 'send') {
-          _sendFriendRequest();
-        } else {
-          _sendFriendAction(value);
-        }
-      }
-    });
-  }
 
   Future<void> _reportUser() async {
     if (currentUserId == null || userData == null) {
@@ -1289,6 +1118,492 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  Widget _buildRelationshipStatus() {
+    final relStatus = userData?['relationship']?.toString();
+    
+    // Calculate translated status safely
+    String translatedStatus = '';
+    if (relStatus != null && relStatus.isNotEmpty && relStatus.toLowerCase() != 'none' && relStatus != '0') {
+      final translationKey = 'rel_$relStatus';
+      translatedStatus = TranslationService().translate(translationKey);
+    }
+
+    final partner = userData?['partner'] as Map<String, dynamic>?;
+    final partnerName = partner?['username']?.toString();
+    final partnerAvatar = partner?['avatar']?.toString();
+
+    return Column(
+      children: [
+        if (profileUserId != null && currentUserId != null && profileUserId != currentUserId && userData != null)
+           _buildActionButtons(),
+        
+        // Profile Info Tabs (Username, Relationship)
+        Container(
+          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.05),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: Colors.white.withOpacity(0.1)),
+          ),
+          child: Column(
+            children: [
+              _buildInfoTab(Icons.alternate_email, userData?['username'] ?? 'unknown'),
+              if (translatedStatus.isNotEmpty) ...[
+                Divider(height: 1, color: Colors.white.withOpacity(0.05)),
+                _buildInfoTab(Icons.favorite_border, translatedStatus),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildInfoTab(IconData icon, String text) {
+     return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Colors.blueAccent.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(icon, color: Colors.blueAccent, size: 18),
+          ),
+          const SizedBox(width: 16),
+          Text(
+            text,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 15,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSubProfileThumbnail() {
+    final subprofiles = userData?['subprofiles'] as List?;
+    if (subprofiles == null || subprofiles.isEmpty) {
+      return Container(
+        color: Colors.white.withOpacity(0.05),
+        child: const Center(
+          child: Icon(Icons.add, color: Colors.white, size: 20),
+        ),
+      );
+    }
+
+    final sp = subprofiles[0] as Map<String, dynamic>;
+    final avatar = sp['avatar']?.toString() ?? '';
+    final type = sp['type']?.toString();
+
+    if (avatar.isNotEmpty) {
+      return CachedNetworkImage(
+        imageUrl: UrlHelper.convertUrl(avatar),
+        fit: BoxFit.cover,
+        placeholder: (context, url) => Container(color: Colors.black26),
+        errorWidget: (context, url, error) => _buildSubProfileIcon(type),
+      );
+    }
+
+    return _buildSubProfileIcon(type);
+  }
+
+  Widget _buildSubProfileIcon(String? type) {
+    IconData icon;
+    if (type == 'kid') {
+      icon = Icons.child_care;
+    } else if (type == 'pet') {
+      icon = Icons.pets;
+    } else if (type == 'vehicle') {
+      icon = Icons.directions_car;
+    } else {
+      icon = Icons.star;
+    }
+    return Center(child: Icon(icon, color: Colors.white, size: 20));
+  }
+
+  void _showSubProfileDetail(Map<String, dynamic> sp) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => _buildSubProfileDetailOverlay(sp),
+    );
+  }
+
+  Widget _buildSubProfileDetailOverlay(Map<String, dynamic> sp) {
+    final name = sp['name']?.toString() ?? sp['nickname']?.toString() ?? sp['modelname']?.toString() ?? 'Unknown';
+    final type = sp['type']?.toString() ?? 'Other';
+    final avatar = sp['avatar']?.toString() ?? '';
+    final breed = sp['breed']?.toString() ?? sp['brand']?.toString() ?? '';
+    final age = sp['age']?.toString() ?? '';
+
+    return Container(
+      height: MediaQuery.of(context).size.height * 0.75,
+      decoration: BoxDecoration(
+        color: Colors.grey[900],
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            Colors.grey[900]!,
+            Colors.black,
+          ],
+        ),
+      ),
+      child: Column(
+        children: [
+          Container(
+            width: 40,
+            height: 4,
+            margin: const EdgeInsets.symmetric(vertical: 12),
+            decoration: BoxDecoration(
+              color: Colors.white24,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                   Row(
+                    children: [
+                      Container(
+                        width: 100,
+                        height: 100,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Colors.white12),
+                        ),
+                        child: ClipOval(
+                          child: avatar.isNotEmpty 
+                            ? CachedNetworkImage(imageUrl: UrlHelper.convertUrl(avatar), fit: BoxFit.cover)
+                            : _buildSubProfileIcon(type),
+                        ),
+                      ),
+                      const SizedBox(width: 20),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(name, style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
+                            Text(type.toUpperCase(), style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 13, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 30),
+                  _buildDetailItem(Icons.star, "Breed/Brand", breed),
+                  _buildDetailItem(Icons.cake, "Age/Year", age),
+                  const SizedBox(height: 30),
+                  // Gallery Implementation
+                  const Text("Gallery", style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 12),
+                  () {
+                    final gallery = sp['gallery'] as List?;
+                    if (gallery == null || gallery.isEmpty) {
+                      return Container(
+                        height: 100,
+                        width: double.infinity,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.05),
+                          borderRadius: BorderRadius.circular(15),
+                        ),
+                        child: const Center(child: Text("No photos available", style: TextStyle(color: Colors.white54))),
+                      );
+                    }
+                    return SizedBox(
+                      height: 120,
+                      child: ListView.builder(
+                        scrollDirection: Axis.horizontal,
+                        itemCount: gallery.length,
+                        itemBuilder: (context, index) {
+                          final imageUrl = gallery[index].toString();
+                          return GestureDetector(
+                            onTap: () {
+                              // Optional: Implement full screen preview
+                              // _showFullScreenImage(imageUrl);
+                            },
+                            child: Container(
+                              margin: const EdgeInsets.only(right: 12),
+                              width: 120,
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(15),
+                                border: Border.all(color: Colors.white12),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.2),
+                                    blurRadius: 4,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
+                              ),
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(14),
+                                child: CachedNetworkImage(
+                                  imageUrl: imageUrl,
+                                  fit: BoxFit.cover,
+                                  placeholder: (context, url) => Container(
+                                    color: Colors.white.withOpacity(0.05),
+                                    child: const Center(
+                                      child: SizedBox(
+                                        width: 20,
+                                        height: 20,
+                                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white24),
+                                      ),
+                                    ),
+                                  ),
+                                  errorWidget: (context, url, error) => const Center(
+                                    child: Icon(Icons.error_outline, color: Colors.white24),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    );
+                  }(),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showFriendActionsMenu() {
+    final status = _friendshipStatus ?? 'none';
+    
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        padding: const EdgeInsets.symmetric(vertical: 20),
+        decoration: BoxDecoration(
+          color: Colors.grey[900],
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Colors.grey[900]!, Colors.black],
+          ),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              margin: const EdgeInsets.only(bottom: 20),
+              decoration: BoxDecoration(
+                color: Colors.white24,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            if (status == 'friends')
+              _buildMenuActionItem(Icons.person_remove, 'Unfriend', Colors.white, () {
+                Navigator.pop(context);
+                _sendFriendAction('unfriend');
+              })
+            else if (status == 'sent')
+              _buildMenuActionItem(Icons.close, 'Cancel Request', Colors.white, () {
+                Navigator.pop(context);
+                _sendFriendAction('cancel');
+              })
+            else if (status == 'received') ...[
+              _buildMenuActionItem(Icons.person_add, 'Accept Request', Colors.greenAccent, () {
+                Navigator.pop(context);
+                _sendFriendAction('accept');
+              }),
+              _buildMenuActionItem(Icons.close, 'Ignore Request', Colors.white, () {
+                Navigator.pop(context);
+                _sendFriendAction('ignore');
+              }),
+            ] else if (status == 'block' || status == 'unblock')
+              _buildMenuActionItem(Icons.person_off, 'Unblock', Colors.orangeAccent, () {
+                Navigator.pop(context);
+                _sendFriendAction('unblock');
+              })
+            else
+              _buildMenuActionItem(Icons.person_add, TranslationService().translate(TranslationKeys.sendFriendRequest), Colors.white, () {
+                Navigator.pop(context);
+                _sendFriendRequest();
+              }),
+            
+            _buildMenuActionItem(Icons.block, TranslationService().translate(TranslationKeys.blockUser), Colors.redAccent, () {
+              Navigator.pop(context);
+              _sendFriendAction('block');
+            }),
+            
+            _buildMenuActionItem(Icons.report_problem_outlined, TranslationService().translate(TranslationKeys.report), Colors.orange, () {
+               Navigator.pop(context);
+               _reportUser();
+            }),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMenuActionItem(IconData icon, String label, Color color, VoidCallback onTap) {
+    return ListTile(
+      leading: Container(
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Icon(icon, color: color, size: 20),
+      ),
+      title: Text(label, style: TextStyle(color: color, fontWeight: FontWeight.w600)),
+      onTap: onTap,
+    );
+  }
+
+  Widget _buildSubProfiles() {
+    final subprofiles = userData?['subprofiles'] as List?;
+    if (subprofiles == null || subprofiles.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+          child: Text(
+            TranslationService().translate(TranslationKeys.familyAndAssets) ?? 'Family & Assets',
+            style: TextStyle(
+              color: AppColors.getTextColor(context),
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
+        SizedBox(
+          height: 140,
+          child: ListView.builder(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            itemCount: subprofiles.length,
+            itemBuilder: (context, index) {
+              final sp = subprofiles[index] as Map<String, dynamic>;
+              return GestureDetector(
+                onTap: () => _showSubProfileDetail(sp),
+                child: _buildSubProfileCard(sp),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDetailItem(IconData icon, String label, String value) {
+    if (value.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Row(
+        children: [
+          Icon(icon, color: Colors.blueAccent, size: 20),
+          const SizedBox(width: 12),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(label, style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 11)),
+              Text(value, style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w500)),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSubProfileCard(Map<String, dynamic> sp) {
+    final type = sp['type']?.toString();
+    final name = sp['name']?.toString() ?? sp['nickname']?.toString() ?? sp['modelname']?.toString() ?? 'Unknown';
+    final avatar = sp['avatar']?.toString();
+    
+    IconData typeIcon;
+    Color iconColor;
+    
+    if (type == 'kid') {
+      typeIcon = Icons.child_care;
+      iconColor = Colors.blueAccent;
+    } else if (type == 'pet') {
+      typeIcon = Icons.pets;
+      iconColor = Colors.orangeAccent;
+    } else if (type == 'vehicle') {
+      typeIcon = Icons.directions_car;
+      iconColor = Colors.greenAccent;
+    } else {
+      typeIcon = Icons.star;
+      iconColor = Colors.purpleAccent;
+    }
+
+    return Container(
+      width: 110,
+      margin: const EdgeInsets.only(right: 12, bottom: 8, top: 4),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white.withOpacity(0.1)),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const SizedBox(height: 10),
+          if (avatar != null && avatar.isNotEmpty)
+            ClipOval(
+              child: CachedNetworkImage(
+                imageUrl: UrlHelper.convertUrl(avatar),
+                width: 50,
+                height: 50,
+                fit: BoxFit.cover,
+                errorWidget: (context, url, error) => Icon(typeIcon, color: iconColor, size: 30),
+              ),
+            )
+          else
+            Icon(typeIcon, color: iconColor, size: 40),
+          const SizedBox(height: 10),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            child: Text(
+              name,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          Text(
+            type?.toUpperCase() ?? '',
+            style: TextStyle(
+              color: Colors.white.withOpacity(0.5),
+              fontSize: 10,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 8),
+        ],
+      ),
+    );
+  }
+
   Future<void> _sendFriendAction(String action) async {
     if (currentUserId == null || userData == null) {
       return;
@@ -1422,39 +1737,38 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   child: Stack(
                     clipBehavior: Clip.none,
                     children: [
-                      const SizedBox(
+                      SizedBox(
                         width: double.infinity,
-                        height: 200,
-                        child: ProfileBackgroundSkeleton(),
+                        height: MediaQuery.of(context).size.height * 0.25, // 25vh
+                        child: const ProfileBackgroundSkeleton(),
                       ),
-                      // Avatar and Username Skeleton (overlapping wallpaper by 30dp)
+                      // Avatar and Username Skeleton (overlapping wallpaper)
                       Positioned(
-                        left: 0,
-                        right: 0,
-                        top: 170, // 200 - 30 = 170 (30dp overlap)
-                        child: Column(
+                        left: 20,
+                        top: MediaQuery.of(context).size.height * 0.18, // 18vh
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.center, // Matches UI center alignment
                           children: [
-                            const ProfileAvatarSkeleton(),
-                            const SizedBox(height: 16),
-                            SkeletonLoader(
-                              child: Container(
-                                height: 24,
-                                width: 150,
-                                decoration: BoxDecoration(
-                                  color: Colors.white,
-                                  borderRadius: BorderRadius.circular(4),
+                            const ProfileAvatarSkeleton(size: 150),
+                            const SizedBox(width: 16),
+                            Padding(
+                              padding: EdgeInsets.only(top: MediaQuery.of(context).size.height * 0.07), // 7vh
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                SkeletonLoader(
+                                  child: Container(
+                                    height: 28,
+                                    width: 150,
+                                    decoration: BoxDecoration(
+                                      color: Colors.white,
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                  ),
                                 ),
-                              ),
-                            ),
-                            const SizedBox(height: 6),
-                            SkeletonLoader(
-                              child: Container(
-                                height: 16,
-                                width: 100,
-                                decoration: BoxDecoration(
-                                  color: Colors.white,
-                                  borderRadius: BorderRadius.circular(4),
-                                ),
+                                const SizedBox(height: 10),
+                                ],
                               ),
                             ),
                           ],
@@ -1463,10 +1777,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ],
                   ),
                 ),
-                // Spacer to account for the avatar height that extends below the wallpaper
-                const SliverToBoxAdapter(
+                // Spacer to account for the content that extends below the wallpaper
+                SliverToBoxAdapter(
                   child: SizedBox(
-                    height: 120 + 16 + 24 + 6 + 24, // avatar height + username padding + text heights + spacing
+                    height: (MediaQuery.of(context).size.height * 0.18) - (MediaQuery.of(context).size.height * 0.25) + 120, 
                   ),
                 ),
                 const SliverToBoxAdapter(
@@ -1510,7 +1824,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       children: [
                         SizedBox(
                           width: double.infinity,
-                          height: 200,
+                          height: MediaQuery.of(context).size.height * 0.25, // 25vh
                           child: useDefaultWallpaper
                               ? Image.asset(
                                   'assets/images/background.png',
@@ -1533,88 +1847,137 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                   ),
                                 ),
                         ),
-                        // --- Avatar and Friend Action Buttons Section (overlapping wallpaper by 30dp) ---
+                        // --- Avatar Stack and User Info Section ---
                         Positioned(
-                          left: 0,
-                          right: 0,
-                          top: 170, // 200 - 30 = 170 (30dp overlap)
-                          child: Stack(
-                            clipBehavior: Clip.none,
+                          left: 16,
+                          top: MediaQuery.of(context).size.height * 0.18, // 18vh
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.center, // Centered vertically with avatar
                             children: [
-                              // Avatar (centered) - FIRST so it's below the button
-                              Center(
-                                child: Container(
-                                  width: 120,
-                                  height: 120,
-                                  decoration: BoxDecoration(
-                                    border: Border.all(
-                                        color: AppColors.getIconColor(context),
-                                        width: 3),
-                                    borderRadius: BorderRadius.circular(20),
+                              // Avatar Stack (Avatar + Subprofile thumbnail)
+                              Stack(
+                                clipBehavior: Clip.none,
+                                children: [
+                                  Container(
+                                    width: 150,
+                                    height: 150,
+                                    decoration: BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      border: Border.all(
+                                          color: Colors.black.withOpacity(0.1),
+                                          width: 3),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: Colors.black.withOpacity(0.3),
+                                          blurRadius: 10,
+                                          offset: const Offset(0, 5),
+                                        ),
+                                      ],
+                                    ),
+                                    child: ClipOval(
+                                      child: (avatarUrl.isNotEmpty)
+                                          ? CachedNetworkImage(
+                                              imageUrl: UrlHelper.convertUrl(avatarUrl),
+                                              fit: BoxFit.cover,
+                                              placeholder: (context, url) => Image.asset(
+                                                  'assets/images/icon.png',
+                                                  fit: BoxFit.cover),
+                                              errorWidget: (context, url, error) => Image.asset(
+                                                  'assets/images/icon.png',
+                                                  fit: BoxFit.cover),
+                                            )
+                                          : Image.asset('assets/images/icon.png',
+                                              fit: BoxFit.cover),
+                                    ),
                                   ),
-                                  child: ClipRRect(
-                                    borderRadius: BorderRadius.circular(17),
-                                    child: (avatarUrl.isNotEmpty)
-                                        ? CachedNetworkImage(
-                                            imageUrl: UrlHelper.convertUrl(avatarUrl),
-                                            fit: BoxFit.cover,
-                                            httpHeaders: const {},
-                                            placeholder: (context, url) => Image.asset(
-                                                'assets/images/icon.png',
-                                                fit: BoxFit.cover),
-                                            errorWidget: (context, url, error) {
-                                              // Handle all errors including 404 (HttpExceptionWithStatus)
-                                              return Image.asset(
-                                                'assets/images/icon.png',
-                                                fit: BoxFit.cover,
-                                              );
-                                            },
-                                          )
-                                        : Image.asset('assets/images/icon.png',
-                                            fit: BoxFit.cover),
+                                  // Sub-profile Overlap Avatar
+                                   Positioned(
+                                    left: 95, // Positioned at 95px margin-left in mobile web
+                                    top: 95, // Positioned at 95px margin-top in mobile web
+                                    child: GestureDetector(
+                                      onTap: () {
+                                        final subprofiles = userData?['subprofiles'] as List?;
+                                        if (subprofiles != null && subprofiles.isNotEmpty) {
+                                            _showSubProfileDetail(subprofiles[0]);
+                                        } else if (isOwnProfile) {
+                                            // _addSubProfile();
+                                        }
+                                      },
+                                      child: Opacity(
+                                        opacity: 0.5,
+                                        child: Container(
+                                          width: (userData?['subprofiles'] as List?)?.isNotEmpty == true ? 75 : 50,
+                                          height: (userData?['subprofiles'] as List?)?.isNotEmpty == true ? 75 : 50,
+                                          decoration: BoxDecoration(
+                                            color: Colors.black,
+                                            shape: BoxShape.circle,
+                                            border: Border.all(
+                                              color: Colors.white.withOpacity(0.2),
+                                              width: 2,
+                                            ),
+                                            boxShadow: [
+                                              BoxShadow(
+                                                color: Colors.black.withOpacity(0.4),
+                                                blurRadius: 8,
+                                                offset: const Offset(0, 2),
+                                              ),
+                                            ],
+                                          ),
+                                          child: ClipOval(
+                                            child: _buildSubProfileThumbnail(),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
                                   ),
-                                ),
+                                ],
                               ),
-                            ],
-                          ),
+                              const SizedBox(width: 16),
+                               // Username column (handle removed)
+                              Padding(
+                                padding: EdgeInsets.only(top: MediaQuery.of(context).size.height * 0.07), // 7vh
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                  Text(
+                                    userData?['username'] ?? 'Unknown User',
+                                    style: TextStyle(
+                                      fontSize: 24,
+                                      fontWeight: FontWeight.bold,
+                                      color: AppColors.getTextColor(context),
+                                      shadows: [
+                                        Shadow(
+                                          color: Colors.black.withOpacity(0.5),
+                                          blurRadius: 4,
+                                          offset: const Offset(0, 2),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                ],
+                              ),
+                            ),
+                          ],
                         ),
-                        // Username (below avatar)
-                        Positioned(
-                          left: 0,
-                          right: 0,
-                          top: 300, // Below avatar (170 + 120 + 10 spacing)
-                          child: Column(
-                            children: [
-                              Text(
-                                userData?['username'] ?? 'Unknown User',
-                                style: TextStyle(
-                                  fontSize: 24,
-                                  fontWeight: FontWeight.bold,
-                                  color: AppColors.getTextColor(context),
-                                ),
-                              ),
-                              const SizedBox(height: 6),
-                              Text(
-                                '@${userData?['username'] ?? 'unknown'}',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  color: AppColors.getSecondaryTextColor(context),
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ],
-                          ),
                         ),
                       ],
                     ),
                   ),
-                  // Spacer to account for the avatar and username that extend below the wallpaper
-                  // Avatar starts at 170, height 120, so extends to 290
-                  // Username starts at 300, height ~50 (24 + 6 + 24), so extends to ~350
+                  // Spacer to account for the content that extends below the wallpaper
                   const SliverToBoxAdapter(
                     child: SizedBox(
-                      height: 350 - 200, // Total height (350) minus wallpaper height (200) = 150
+                      height: 110, // Increased for 150px avatar
                     ),
+                  ),
+                  // Relationship Status Section
+                  SliverToBoxAdapter(
+                    child: _buildRelationshipStatus(),
+                  ),
+                  // Sub-profiles Section
+                  SliverToBoxAdapter(
+                    child: _buildSubProfiles(),
                   ),
                   // Action buttons navigation (outside Stack to ensure they're clickable)
                   if (profileUserId != null && 
@@ -1623,7 +1986,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       userData != null)
                     SliverToBoxAdapter(
                       child: Padding(
-                        padding: const EdgeInsets.only(top: 16, bottom: 16),
+                        padding: const EdgeInsets.only(top: 16, bottom: 8),
                         child: _buildActionButtons(),
                       ),
                     ),

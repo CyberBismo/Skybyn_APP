@@ -1,3 +1,5 @@
+import 'subprofile.dart';
+
 class User {
   final String id;
   final String username;
@@ -31,6 +33,14 @@ class User {
   final String wallpaperMargin;
   final String avatarMargin;
   final String? language;
+  
+  // Relationship Partner
+  final String? partnerId;
+  final String? partnerName;
+  final String? partnerAvatar;
+  
+  // Sub-profiles (children, pets, vehicles)
+  final List<SubProfile> subprofiles;
 
   User({
     required this.id,
@@ -65,9 +75,18 @@ class User {
     required this.wallpaperMargin,
     required this.avatarMargin,
     this.language,
+    this.partnerId,
+    this.partnerName,
+    this.partnerAvatar,
+    this.subprofiles = const [],
   });
 
   factory User.fromJson(Map<String, dynamic> json) {
+    final partner = json['partner'] as Map<String, dynamic>?;
+    final subprofilesList = (json['subprofiles'] as List?)
+        ?.map((sp) => SubProfile.fromJson(sp as Map<String, dynamic>))
+        .toList() ?? [];
+
     return User(
       id: json['id']?.toString() ?? json['userID']?.toString() ?? '',
       username: json['username']?.toString() ?? '',
@@ -101,6 +120,10 @@ class User {
       wallpaperMargin: json['wallpaper_margin']?.toString() ?? '',
       avatarMargin: json['avatar_margin']?.toString() ?? '',
       language: json['language']?.toString(),
+      partnerId: partner?['id']?.toString(),
+      partnerName: partner?['username']?.toString(),
+      partnerAvatar: partner?['avatar']?.toString(),
+      subprofiles: subprofilesList,
     );
   }
 
@@ -138,6 +161,91 @@ class User {
       'wallpaper_margin': wallpaperMargin,
       'avatar_margin': avatarMargin,
       'language': language,
+      'partner': partnerId != null ? {
+        'id': partnerId,
+        'username': partnerName,
+        'avatar': partnerAvatar,
+      } : null,
+      'subprofiles': subprofiles.map((sp) => sp.toJson()).toList(),
     };
   }
-} 
+
+  User copyWith({
+    String? id,
+    String? username,
+    String? secQOne,
+    String? secAOne,
+    String? secQTwo,
+    String? secATwo,
+    String? pinV,
+    String? pin,
+    String? email,
+    String? fname,
+    String? mname,
+    String? lname,
+    String? title,
+    String? nickname,
+    String? avatar,
+    String? bio,
+    String? color,
+    String? rank,
+    String? deactivated,
+    String? deactivatedReason,
+    String? banned,
+    String? bannedReason,
+    String? visible,
+    String? registered,
+    String? token,
+    String? reset,
+    String? online,
+    String? relationship,
+    String? wallpaper,
+    String? wallpaperMargin,
+    String? avatarMargin,
+    String? language,
+    String? partnerId,
+    String? partnerName,
+    String? partnerAvatar,
+    List<SubProfile>? subprofiles,
+  }) {
+    return User(
+      id: id ?? this.id,
+      username: username ?? this.username,
+      secQOne: secQOne ?? this.secQOne,
+      secAOne: secAOne ?? this.secAOne,
+      secQTwo: secQTwo ?? this.secQTwo,
+      secATwo: secATwo ?? this.secATwo,
+      pinV: pinV ?? this.pinV,
+      pin: pin ?? this.pin,
+      email: email ?? this.email,
+      fname: fname ?? this.fname,
+      mname: mname ?? this.mname,
+      lname: lname ?? this.lname,
+      title: title ?? this.title,
+      nickname: nickname ?? this.nickname,
+      avatar: avatar ?? this.avatar,
+      bio: bio ?? this.bio,
+      color: color ?? this.color,
+      rank: rank ?? this.rank,
+      deactivated: deactivated ?? this.deactivated,
+      deactivatedReason: deactivatedReason ?? this.deactivatedReason,
+      banned: banned ?? this.banned,
+      bannedReason: bannedReason ?? this.bannedReason,
+      visible: visible ?? this.visible,
+      registered: registered ?? this.registered,
+      token: token ?? this.token,
+      reset: reset ?? this.reset,
+      online: online ?? this.online,
+      relationship: relationship ?? this.relationship,
+      wallpaper: wallpaper ?? this.wallpaper,
+      wallpaperMargin: wallpaperMargin ?? this.wallpaperMargin,
+      avatarMargin: avatarMargin ?? this.avatarMargin,
+      language: language ?? this.language,
+      partnerId: partnerId ?? this.partnerId,
+      partnerName: partnerName ?? this.partnerName,
+      partnerAvatar: partnerAvatar ?? this.partnerAvatar,
+      subprofiles: subprofiles ?? this.subprofiles,
+    );
+  }
+}
+ 

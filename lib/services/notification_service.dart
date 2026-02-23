@@ -225,8 +225,8 @@ class NotificationService {
       try {
         final Map<String, dynamic> data = json.decode(payload);
         final type = data['type']?.toString();
-        if (type == 'app_update') {
-          _triggerUpdateCheck();
+        if (type == 'app_update' || type == 'app_update_ready') {
+          await _handleUpdateNotificationTap();
         } else if (type == 'call') {
           print('[SKYBYN] 📞 [NotificationService] Call notification tapped');
           _handleCallNotificationTap(data);
@@ -469,6 +469,25 @@ class NotificationService {
     }
   }
 
+  /// Handle update notification tap - navigate to settings
+  Future<void> _handleUpdateNotificationTap() async {
+    try {
+      final navigator = navigatorKey.currentState;
+      if (navigator != null) {
+        // Pop until first route to clear any open overlays
+        navigator.popUntil((route) => route.isFirst);
+        
+        // Navigate to settings with action argument
+        navigator.pushNamed(
+          '/settings',
+          arguments: {'action': 'show_update'},
+        );
+      }
+    } catch (e) {
+      print('[NotificationService] Error navigating to settings for update: $e');
+    }
+  }
+
   /// Trigger update check for app_update notifications
   /// This shows the update dialog directly when notification is tapped
   Future<void> _triggerUpdateCheck() async {
@@ -477,59 +496,11 @@ class NotificationService {
       return;
     }
 
-    // Prevent multiple dialogs from showing at once
-    if (AutoUpdateService.isDialogShowing) {
-      return;
-    }
-
     try {
-      // Check for updates
-      final updateInfo = await AutoUpdateService.checkForUpdates();
-
-      if (updateInfo != null && updateInfo.isAvailable) {
-        // Only show if dialog is not already showing (don't check version history)
-        if (AutoUpdateService.isDialogShowing) {
-          return;
-        }
-
-        // Get current version
-        final packageInfo = await PackageInfo.fromPlatform();
-        final currentVersion = packageInfo.version;
-
-        // Mark this version as shown (so we don't spam, but still allow if user dismissed)
-        await AutoUpdateService.markUpdateShownForVersion(updateInfo.version);
-
-        // Show update dialog using navigator key
-        final navigator = navigatorKey.currentState;
-        if (navigator != null && !AutoUpdateService.isDialogShowing) {
-          // Mark dialog as showing immediately to prevent duplicates
-          AutoUpdateService.setDialogShowing(true);
-          await showDialog(
-            context: navigator.context,
-            barrierDismissible: false,
-            builder: (context) => UpdateDialog(
-              currentVersion: currentVersion,
-              latestVersion: updateInfo.version,
-              releaseNotes: updateInfo.releaseNotes,
-              downloadUrl: updateInfo.downloadUrl,
-            ),
-          ).then((_) {
-            // Dialog closed, mark as not showing
-            AutoUpdateService.setDialogShowing(false);
-          });
-        } else {
-          // Fallback to callback if navigator not available
-          FirebaseMessagingService.triggerUpdateCheck();
-        }
-      } else {
-        // Also trigger callback in case HomeScreen wants to show a message
-        FirebaseMessagingService.triggerUpdateCheck();
-      }
+      // Trigger the background update process (check -> download -> notify)
+      await AutoUpdateService.triggerBackgroundUpdate();
     } catch (e) {
-      // Mark dialog as not showing on error
-      AutoUpdateService.setDialogShowing(false);
-      // Fallback to callback
-      FirebaseMessagingService.triggerUpdateCheck();
+      print('[NotificationService] Error triggering background update check: $e');
     }
   }
 

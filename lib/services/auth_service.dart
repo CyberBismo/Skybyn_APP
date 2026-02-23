@@ -109,7 +109,8 @@ class AuthService {
       }
 
       // Parse response regardless of status code to get actual API message
-      final data = json.decode(response.body);
+      // Use _safeJsonDecode instead of json.decode to handle potential HTML garbage/errors
+      final data = _safeJsonDecode(response.body);
 
       if (response.statusCode == 200) {
         if (data['responseCode'] == '1') {
@@ -519,6 +520,15 @@ class AuthService {
       await _prefs?.setString(userProfileKey, jsonEncode(updatedUser.toJson()));
     } catch (e) {
       throw Exception('Failed to update profile');
+    }
+  }
+
+  Future<void> storeUserProfile(User user) async {
+    try {
+      await initPrefs();
+      await _prefs?.setString(userProfileKey, jsonEncode(user.toJson()));
+    } catch (e) {
+      debugPrint('AuthService: Failed to store user profile: $e');
     }
   }
 

@@ -193,6 +193,7 @@ class TranslationService extends ChangeNotifier {
       if (e is HandshakeException) {
         // Silently fail for SSL issues
       } else {
+        // Log other errors if necessary
       }
     }
     return null;
@@ -492,6 +493,10 @@ class TranslationService extends ChangeNotifier {
         "edit_post": "Edit Post",
         "nickname": "Nickname",
         "save_changes": "Save Changes",
+        "relationship": "Relationship",
+        "relationship_partner": "Partner",
+        "with_": "with",
+        "family_and_assets": "Family & Assets",
         "confirm_password": "Confirm Password",
         "change_password": "Change Password",
         "field_required": "This field is required",
@@ -1811,4 +1816,10 @@ class TranslationKeys {
   static const String broadcast = 'broadcast';
   static const String stream = 'stream';
   static const String recording = 'recording';
+
+  // Relationship & Sub-profiles
+  static const String relationship = 'relationship';
+  static const String relationshipPartner = 'relationship_partner';
+  static const String with_ = 'with_';
+  static const String familyAndAssets = 'family_and_assets';
 }

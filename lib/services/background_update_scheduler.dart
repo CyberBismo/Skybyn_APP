@@ -92,15 +92,8 @@ class BackgroundUpdateScheduler {
   /// Check for updates and cache if available
   Future<void> _checkForUpdates() async {
     try {
-      final updateInfo = await AutoUpdateService.checkForUpdates();
-
-      if (updateInfo != null && updateInfo.isAvailable) {
-        // Cache the update info
-        await _cacheUpdate(updateInfo);
-      } else {
-        // Clear any cached update if no update is available
-        await _clearCachedUpdate();
-      }
+      // Trigger the background update process (check -> download -> notify)
+      await AutoUpdateService.triggerBackgroundUpdate();
     } catch (e) {
       // Error handling
     }
@@ -163,47 +156,13 @@ class BackgroundUpdateScheduler {
 
   /// Check for cached update on app startup and show dialog if available
   Future<void> _checkCachedUpdate() async {
-
     try {
-      final cachedData = await _getCachedUpdate();
-
-      if (cachedData == null) {
-        return;
-      }
-
-      // Check if we've already shown this version
-      final latestVersion = cachedData['latestVersion'] as String;
-      final hasShown = await AutoUpdateService.hasShownUpdateForVersion(latestVersion);
-
-      if (hasShown) {
-        return;
-      }
-
-      // Wait a bit for the app to fully initialize
-      await Future.delayed(const Duration(seconds: 2));
-
-      // Show update dialog
-      final navigator = navigatorKey.currentState;
-      if (navigator != null && !AutoUpdateService.isDialogShowing) {
-        AutoUpdateService.setDialogShowing(true);
-        await showDialog(
-          context: navigator.context,
-          barrierDismissible: false,
-          builder: (context) => UpdateDialog(
-            currentVersion: cachedData['currentVersion'] as String,
-            latestVersion: latestVersion,
-            releaseNotes: cachedData['releaseNotes'] as String? ?? '',
-            downloadUrl: cachedData['downloadUrl'] as String? ?? '',
-          ),
-        ).then((_) {
-          AutoUpdateService.setDialogShowing(false);
-        });
-
-        // Mark as shown and clear cache
-        await AutoUpdateService.markUpdateShownForVersion(latestVersion);
-        await _clearCachedUpdate();
-      }
+      // With the new silent update flow, we don't need to show a dialog on startup anymore.
+      // Instead, we can just trigger a fresh check and background download if needed.
+      // This ensures the app stays up to date without interrupting the user.
+      await AutoUpdateService.triggerBackgroundUpdate();
     } catch (e) {
+      print('[BackgroundUpdateScheduler] Error in startup update check: $e');
     }
   }
 

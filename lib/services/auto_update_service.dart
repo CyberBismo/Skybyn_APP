@@ -18,6 +18,7 @@ class AutoUpdateService {
   static String get _updateCheckUrl => ApiConstants.appUpdate;
   static const String _lastShownUpdateVersionKey = 'last_shown_update_version';
   static const String _lastShownUpdateTimestampKey = 'last_shown_update_timestamp';
+  static const String _downloadedUpdateVersionKey = 'downloaded_update_version';
   static bool _isDialogShowing = false;
   static bool _isBackgroundDownload = false; // Flag to track if running in background
 
@@ -573,10 +574,26 @@ class AutoUpdateService {
       final updateInfo = await checkForUpdates();
       
       if (updateInfo != null && updateInfo.isAvailable && updateInfo.downloadUrl.isNotEmpty) {
+        // Check if we already have this version downloaded
+        final prefs = await SharedPreferences.getInstance();
+        final downloadedVersion = prefs.getString(_downloadedUpdateVersionKey);
+        
+        final Directory directory = await getApplicationDocumentsDirectory();
+        final File file = File('${directory.path}/app-update.apk');
+        final bool fileExists = await file.exists();
+
+        if (fileExists && downloadedVersion == updateInfo.version) {
+          print('[AutoUpdateService] Version ${updateInfo.version} is already downloaded and ready.');
+          await notificationService.showUpdateReadyNotification(updateInfo.version);
+          return;
+        }
+
         // 2. Download update
         final success = await downloadUpdate(updateInfo.downloadUrl);
         
         if (success) {
+          // Store the downloaded version
+          await prefs.setString(_downloadedUpdateVersionKey, updateInfo.version);
           // 3. Show "Ready to Install" notification with actions
           await notificationService.showUpdateReadyNotification(updateInfo.version);
         }

@@ -110,6 +110,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final FocusNode _secQTwoFocusNode = FocusNode();
   final FocusNode _secATwoFocusNode = FocusNode();
   
+  // Relationship & Sub-profiles
+  String _relationship = 'none';
+  final TextEditingController _partnerController = TextEditingController();
+  final FocusNode _partnerFocusNode = FocusNode();
+  String? _partnerId;
+  String? _partnerName;
+  String? _partnerAvatar;
+  List<Map<String, dynamic>> _subprofiles = [];
+  bool _isLoadingSubprofiles = false;
+  
   // IP History
   List<Map<String, dynamic>> _ipHistory = [];
   bool _isLoadingIpHistory = false;
@@ -133,13 +143,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _loadLocationSettings();
     _loadNotificationSoundSettings();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      setState(() {
-        _selectedPinOption = _getPinOptionFromValue(user?.pinV);
-        _secQOneController.text = user?.secQOne ?? '';
-        _secAOneController.text = user?.secAOne ?? '';
-        _secQTwoController.text = user?.secQTwo ?? '';
-        _secATwoController.text = user?.secATwo ?? '';
-      });
+      if (mounted) {
+        setState(() {
+          _selectedPinOption = _getPinOptionFromValue(user?.pinV);
+          _secQOneController.text = user?.secQOne ?? '';
+          _secAOneController.text = user?.secAOne ?? '';
+          _secQTwoController.text = user?.secQTwo ?? '';
+          _secATwoController.text = user?.secATwo ?? '';
+        });
+
+        // Check for navigation arguments
+        final args = ModalRoute.of(context)?.settings.arguments;
+        if (args is Map && args['action'] == 'show_update') {
+          // Add a small delay to allow UI to settle before showing dialog
+          Future.delayed(const Duration(milliseconds: 500), () {
+            if (mounted) {
+              _checkForUpdates();
+            }
+          });
+        }
+      }
     });
   }
 
@@ -167,6 +190,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
         if (cachedUser.wallpaper.isNotEmpty) {
           backgroundImage = cachedUser.wallpaper;
         }
+        
+        // Load relationship info
+        _relationship = cachedUser.relationship;
+        _partnerId = cachedUser.partnerId;
+        _partnerName = cachedUser.partnerName;
+        _partnerAvatar = cachedUser.partnerAvatar;
+        _partnerController.text = cachedUser.partnerName ?? '';
+        
+        // Populate subprofiles from the User model
+        // (Assuming we've updated the model to handle these)
+        // For now, we'll fetch them from the API to be sure we have the latest
+        _fetchSubprofiles();
       });
       // Load IP history
       _loadIpHistory();
@@ -1797,6 +1832,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
                   ],
                 ),
+                // Relationship Section
+                _buildRelationshipSection(),
+                // Sub-profiles Section
+                _buildSubProfilesSection(),
                 // Appearance Section
                 Consumer<ThemeService>(
                   builder: (context, themeService, child) {
@@ -2091,6 +2130,483 @@ class _SettingsScreenState extends State<SettingsScreen> {
       if (focusNode != currentFocusNode && focusNode.hasFocus) {
         focusNode.unfocus();
       }
+    }
+  }
+
+  Widget _buildRelationshipSection() {
+    final statuses = [
+      'none',
+      'single',
+      'in_relationship',
+      'engaged',
+      'married',
+      'complicated',
+      'separated',
+      'divorced',
+      'widowed',
+      'other'
+    ];
+
+    return _buildExpansionTile(
+      title: TranslationKeys.relationship,
+      tileColor: AppColors.transparentColor,
+      children: [
+        DropdownButtonFormField<String>(
+          value: statuses.contains(_relationship) ? _relationship : 'none',
+          items: statuses.map((status) {
+            return DropdownMenuItem<String>(
+              value: status,
+              child: Text(
+                TranslationService().translate('rel_$status') ?? status,
+                style: TextStyle(color: AppColors.getTextColor(context)),
+              ),
+            );
+          }).toList(),
+          onChanged: (String? value) {
+            if (value != null) {
+              setState(() {
+                _relationship = value;
+              });
+            }
+          },
+          decoration: InputDecoration(
+            labelText: TranslationService().translate(TranslationKeys.relationship),
+            labelStyle: TextStyle(color: AppColors.getSecondaryTextColor(context)),
+            enabledBorder: UnderlineInputBorder(
+              borderSide: BorderSide(color: AppColors.getSecondaryTextColor(context).withOpacity(0.3)),
+            ),
+            focusedBorder: UnderlineInputBorder(
+              borderSide: BorderSide(color: AppColors.getTextColor(context)),
+            ),
+          ),
+          dropdownColor: Colors.black.withOpacity(0.9),
+        ),
+        const SizedBox(height: 16),
+        if (_relationship != 'none' && _relationship != 'single') ...[
+          _buildReactiveTextField(
+            controller: _partnerController,
+            focusNode: _partnerFocusNode,
+            labelKey: TranslationKeys.relationshipPartner,
+          ),
+          const SizedBox(height: 8),
+          if (_partnerId == null || _partnerId!.isEmpty)
+            Text(
+              'Enter partner username and tap search',
+              style: TextStyle(color: AppColors.getSecondaryTextColor(context), fontSize: 12),
+            )
+          else
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: _partnerAvatar != null && _partnerAvatar!.isNotEmpty
+                  ? CircleAvatar(
+                      backgroundImage: CachedNetworkImageProvider(UrlHelper.convertUrl(_partnerAvatar!)),
+                    )
+                  : const CircleAvatar(child: Icon(Icons.person)),
+              title: Text(_partnerName ?? 'Unknown', style: TextStyle(color: AppColors.getTextColor(context))),
+              subtitle: Text('Partner ID: $_partnerId', style: TextStyle(color: AppColors.getSecondaryTextColor(context))),
+              trailing: IconButton(
+                icon: const Icon(Icons.close, color: Colors.red),
+                onPressed: () {
+                  setState(() {
+                    _partnerId = null;
+                    _partnerName = null;
+                    _partnerAvatar = null;
+                    _partnerController.clear();
+                  });
+                },
+              ),
+            ),
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: _searchPartner,
+              icon: const Icon(Icons.search),
+              label: const Text('Search Partner'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blue.withOpacity(0.2),
+                foregroundColor: Colors.blue,
+              ),
+            ),
+          ),
+        ],
+        const SizedBox(height: 24),
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton(
+            onPressed: _saveRelationship,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.blue,
+              foregroundColor: AppColors.getTextColor(context),
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+            child: const TranslatedText(TranslationKeys.saveChanges),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _searchPartner() async {
+    final username = _partnerController.text.trim();
+    if (username.isEmpty) return;
+
+    try {
+      final response = await http.post(
+        Uri.parse(ApiConstants.profile),
+        body: {'username': username},
+      ).timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data['responseCode'] == '1') {
+          final userData = data['data'];
+          setState(() {
+            _partnerId = userData['id'].toString();
+            _partnerName = userData['username'].toString();
+            _partnerAvatar = userData['avatar']?.toString();
+            _partnerController.text = _partnerName!;
+          });
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('User not found')),
+          );
+        }
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: $e')),
+      );
+    }
+  }
+
+  Future<void> _saveRelationship() async {
+    if (user == null) return;
+
+    try {
+      final response = await http.post(
+        Uri.parse('${ApiConstants.apiBase}/profile_update.php'),
+        body: {
+          'userID': user!.id,
+          'relationship': _relationship,
+          'partner': _partnerId ?? '',
+        },
+      ).timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data['responseCode'] == '1') {
+          // Update cached user
+          final updatedUser = user!.copyWith(
+            relationship: _relationship,
+            partnerId: _partnerId,
+            partnerName: _partnerName,
+            partnerAvatar: _partnerAvatar,
+          );
+          await AuthService().storeUserProfile(updatedUser);
+          
+          setState(() {
+            user = updatedUser;
+          });
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Relationship updated successfully')),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error: ${data['message']}')),
+          );
+        }
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: $e')),
+      );
+    }
+  }
+
+  Future<void> _fetchSubprofiles() async {
+    if (user == null) return;
+
+    setState(() {
+      _isLoadingSubprofiles = true;
+    });
+
+    try {
+      final response = await http.post(
+        Uri.parse(ApiConstants.profile),
+        body: {'userID': user!.id},
+      ).timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data['responseCode'] == '1') {
+          setState(() {
+            _subprofiles = List<Map<String, dynamic>>.from(data['data']['subprofiles'] ?? []);
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint('Error fetching subprofiles: $e');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoadingSubprofiles = false;
+        });
+      }
+    }
+  }
+
+  Widget _buildSubProfilesSection() {
+    return _buildExpansionTile(
+      title: TranslationKeys.familyAndAssets,
+      tileColor: AppColors.transparentColor,
+      children: [
+        if (_isLoadingSubprofiles)
+          const Center(child: CircularProgressIndicator())
+        else if (_subprofiles.isEmpty)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 20),
+            child: Center(
+              child: Text(
+                'No family members or assets added yet.',
+                style: TextStyle(color: AppColors.getSecondaryTextColor(context)),
+              ),
+            ),
+          )
+        else
+          ListView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: _subprofiles.length,
+            itemBuilder: (context, index) {
+              final sp = _subprofiles[index];
+              final type = sp['type']?.toString() ?? 'unknown';
+              final name = sp['name']?.toString() ?? sp['nickname']?.toString() ?? sp['modelname']?.toString() ?? 'Unknown';
+              
+              IconData icon = Icons.help_outline;
+              if (type == 'kid') icon = Icons.child_care;
+              if (type == 'pet') icon = Icons.pets;
+              if (type == 'vehicle') icon = Icons.directions_car;
+
+              return ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: CircleAvatar(
+                  backgroundColor: Colors.white.withOpacity(0.1),
+                  child: Icon(icon, color: Colors.white70),
+                ),
+                title: Text(name, style: TextStyle(color: AppColors.getTextColor(context))),
+                subtitle: Text(type.toUpperCase(), style: TextStyle(color: AppColors.getSecondaryTextColor(context), fontSize: 12)),
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.edit, size: 20, color: Colors.blueAccent),
+                      onPressed: () => _showEditSubProfileDialog(sp),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.delete, size: 20, color: Colors.redAccent),
+                      onPressed: () => _showDeleteConfirmation(sp),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        const SizedBox(height: 16),
+        SizedBox(
+          width: double.infinity,
+          child: OutlinedButton.icon(
+            onPressed: _showAddSubProfileDialog,
+            icon: const Icon(Icons.add),
+            label: const Text('Add New'),
+            style: OutlinedButton.styleFrom(
+              side: const BorderSide(color: Colors.blue),
+              foregroundColor: Colors.blue,
+              padding: const EdgeInsets.symmetric(vertical: 12),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _showAddSubProfileDialog() {
+    _showSubProfileForm();
+  }
+
+  void _showEditSubProfileDialog(Map<String, dynamic> sp) {
+    _showSubProfileForm(existing: sp);
+  }
+
+  void _showSubProfileForm({Map<String, dynamic>? existing}) {
+    final isEdit = existing != null;
+    String type = existing?['type']?.toString() ?? 'kid';
+    
+    // Controllers
+    final nameController = TextEditingController(text: existing?['name']?.toString() ?? existing?['nickname']?.toString() ?? '');
+    final birthController = TextEditingController(text: existing?['birth']?.toString() ?? existing?['produced']?.toString() ?? '');
+    final genderController = TextEditingController(text: existing?['gender']?.toString() ?? '');
+    final typeController = TextEditingController(text: existing?['pet_type']?.toString() ?? existing?['pet_type_original']?.toString() ?? '');
+    final breedController = TextEditingController(text: existing?['breed']?.toString() ?? '');
+    final brandController = TextEditingController(text: existing?['brand']?.toString() ?? '');
+    final modelController = TextEditingController(text: existing?['modelname']?.toString() ?? '');
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              backgroundColor: AppColors.getCardColor(context),
+              title: Text(isEdit ? 'Edit Sub-profile' : 'Add Sub-profile', style: TextStyle(color: AppColors.getTextColor(context))),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (!isEdit)
+                      DropdownButtonFormField<String>(
+                        value: type,
+                        items: ['kid', 'pet', 'vehicle'].map((t) {
+                          return DropdownMenuItem<String>(
+                            value: t,
+                            child: Text(t.toUpperCase(), style: TextStyle(color: AppColors.getTextColor(context))),
+                          );
+                        }).toList(),
+                        onChanged: (val) {
+                          if (val != null) setDialogState(() => type = val);
+                        },
+                        dropdownColor: Colors.black,
+                        decoration: const InputDecoration(labelText: 'Type'),
+                      ),
+                    const SizedBox(height: 16),
+                    if (type == 'kid') ...[
+                      TextField(controller: nameController, decoration: const InputDecoration(labelText: 'Name'), style: TextStyle(color: AppColors.getTextColor(context))),
+                      TextField(controller: birthController, decoration: const InputDecoration(labelText: 'Birth Date (YYYY-MM-DD)'), style: TextStyle(color: AppColors.getTextColor(context))),
+                      TextField(controller: genderController, decoration: const InputDecoration(labelText: 'Gender'), style: TextStyle(color: AppColors.getTextColor(context))),
+                    ] else if (type == 'pet') ...[
+                      TextField(controller: nameController, decoration: const InputDecoration(labelText: 'Name'), style: TextStyle(color: AppColors.getTextColor(context))),
+                      TextField(controller: typeController, decoration: const InputDecoration(labelText: 'Pet Type (Cat, Dog, etc)'), style: TextStyle(color: AppColors.getTextColor(context))),
+                      TextField(controller: breedController, decoration: const InputDecoration(labelText: 'Breed'), style: TextStyle(color: AppColors.getTextColor(context))),
+                      TextField(controller: birthController, decoration: const InputDecoration(labelText: 'Birth Date (YYYY-MM-DD)'), style: TextStyle(color: AppColors.getTextColor(context))),
+                      TextField(controller: genderController, decoration: const InputDecoration(labelText: 'Gender'), style: TextStyle(color: AppColors.getTextColor(context))),
+                    ] else if (type == 'vehicle') ...[
+                      TextField(controller: nameController, decoration: const InputDecoration(labelText: 'Nickname'), style: TextStyle(color: AppColors.getTextColor(context))),
+                      TextField(controller: brandController, decoration: const InputDecoration(labelText: 'Brand'), style: TextStyle(color: AppColors.getTextColor(context))),
+                      TextField(controller: modelController, decoration: const InputDecoration(labelText: 'Model Name'), style: TextStyle(color: AppColors.getTextColor(context))),
+                      TextField(controller: birthController, decoration: const InputDecoration(labelText: 'Produced Year'), style: TextStyle(color: AppColors.getTextColor(context))),
+                    ],
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+                ElevatedButton(
+                  onPressed: () => _handleSubProfileSave(
+                    isEdit: isEdit,
+                    id: existing?['id'],
+                    type: type,
+                    data: {
+                      'name': nameController.text,
+                      'birth': birthController.text,
+                      'gender': genderController.text,
+                      'pet_type': typeController.text,
+                      'breed': breedController.text,
+                      'brand': brandController.text,
+                      'modelname': modelController.text,
+                      'nickname': nameController.text,
+                      'produced': birthController.text,
+                    },
+                  ),
+                  child: const Text('Save'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<void> _handleSubProfileSave({required bool isEdit, String? id, required String type, required Map<String, String> data}) async {
+    if (user == null) return;
+    
+    final body = {
+      'userID': user!.id,
+      'action': isEdit ? 'edit' : 'add',
+      'type': type,
+      ...data,
+    };
+    if (isEdit) body['id'] = id!;
+
+    try {
+      final response = await http.post(
+        Uri.parse('${ApiConstants.apiBase}/subprofile_manage.php'),
+        body: body,
+      ).timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 200) {
+        final resData = json.decode(response.body);
+        if (resData['responseCode'] == '1') {
+          Navigator.pop(context);
+          _fetchSubprofiles(); // Refresh list
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Saved successfully')));
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: ${resData['message']}')));
+        }
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+    }
+  }
+
+  void _showDeleteConfirmation(Map<String, dynamic> sp) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppColors.getCardColor(context),
+        title: const Text('Confirm Delete'),
+        content: const Text('Are you sure you want to delete this sub-profile?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _deleteSubProfile(sp);
+            },
+            child: const Text('Delete', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _deleteSubProfile(Map<String, dynamic> sp) async {
+    if (user == null) return;
+
+    try {
+      final response = await http.post(
+        Uri.parse('${ApiConstants.apiBase}/subprofile_manage.php'),
+        body: {
+          'userID': user!.id,
+          'id': sp['id'],
+          'type': sp['type'],
+          'action': 'delete',
+        },
+      ).timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 200) {
+        final resData = json.decode(response.body);
+        if (resData['responseCode'] == '1') {
+          _fetchSubprofiles(); // Refresh list
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Deleted successfully')));
+        }
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
     }
   }
 
