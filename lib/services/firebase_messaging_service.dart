@@ -265,16 +265,17 @@ class FirebaseMessagingService {
 
   /// Subscribe to user-specific topics
   Future<void> subscribeToUserTopics() async {
+    if (_messaging == null) return;
     try {
       final user = await _authService.getStoredUserProfile();
       if (user != null && user.id.isNotEmpty) {
         final userTopic = 'user_${user.id}';
-        await _messaging.subscribeToTopic(userTopic);
+        await _messaging!.subscribeToTopic(userTopic);
         _subscribedTopics.add(userTopic);
         
         if (user.rank.isNotEmpty) {
            final rankTopic = 'rank_${user.rank}';
-           await _messaging.subscribeToTopic(rankTopic);
+           await _messaging!.subscribeToTopic(rankTopic);
            _subscribedTopics.add(rankTopic);
         }
         developer.log('✅ Subscribed to topics: $_subscribedTopics', name: 'FCM');

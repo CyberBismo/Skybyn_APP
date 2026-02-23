@@ -3,6 +3,7 @@
 import 'dart:async';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../models/post.dart';
@@ -75,6 +76,7 @@ class FirebaseRealtimeService {
       return;
     }
 
+    try {
       // Ensure Firebase Core is actually initialized before accessing instances
       if (Firebase.apps.isEmpty) {
         print('[SKYBYN] ⚠️ [Firebase] Cannot initialize RealtimeService: Firebase Core not initialized.');
