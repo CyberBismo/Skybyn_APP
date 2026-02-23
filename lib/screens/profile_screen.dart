@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:ui' as ui;
 import 'dart:developer' as developer;
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -759,6 +760,81 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  Widget _buildInfoChip({required IconData icon, required String label}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.white.withOpacity(0.1), width: 1),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: AppColors.getIconColor(context).withOpacity(0.8)),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 12,
+              color: AppColors.getTextColor(context).withOpacity(0.9),
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _getRelationshipString(String value) {
+    switch (value) {
+      case '0':
+        return TranslationService().translate(TranslationKeys.relSingle);
+      case '1':
+        return TranslationService().translate(TranslationKeys.relInRelationship);
+      case '2':
+        return TranslationService().translate(TranslationKeys.relComplicated);
+      case '3':
+        return TranslationService().translate(TranslationKeys.relDivorced);
+      case '4':
+        return TranslationService().translate(TranslationKeys.relOther);
+      case '5':
+        return TranslationService().translate(TranslationKeys.relWidowed);
+      case '6':
+        return TranslationService().translate(TranslationKeys.relEngaged);
+      case '7':
+        return TranslationService().translate(TranslationKeys.relMarried);
+      case '8':
+        return TranslationService().translate(TranslationKeys.relSeparated);
+      default:
+        return TranslationService().translate(TranslationKeys.relSingle);
+    }
+  }
+
+  Widget _buildGlassLaneBoundary({required bool isRight}) {
+    return Container(
+      width: 40,
+      height: double.infinity,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: isRight ? Alignment.centerRight : Alignment.centerLeft,
+          end: isRight ? Alignment.centerLeft : Alignment.centerRight,
+          colors: [
+            Colors.blue.withOpacity(0.15),
+            Colors.transparent,
+          ],
+        ),
+      ),
+      child: ClipRect(
+        child: BackdropFilter(
+          filter: ui.ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          child: Container(color: Colors.transparent),
+        ),
+      ),
+    );
+  }
+
+
   void _showFriendActionsMenu() {
     // Refresh status before showing menu
     _checkFriendshipStatus().then((_) {
@@ -1489,144 +1565,182 @@ class _ProfileScreenState extends State<ProfileScreen> {
             )
           else
             // Always show profile UI, even if there was an error
-            RefreshIndicator(
-              onRefresh: _refreshProfile,
-              color: Colors.white,
-              backgroundColor: Colors.transparent,
-              strokeWidth: 2.0,
-              displacement: 40.0,
-              child: CustomScrollView(
-                physics: const AlwaysScrollableScrollPhysics(),
-                slivers: [
-                  SliverToBoxAdapter(
-                    child: SizedBox(
-                      height: appBarHeight + MediaQuery.of(context).padding.top,
-                    ),
+            Stack(
+              children: [
+                // Glass Lane Background Effect (Vertical strips on edges)
+                Positioned.fill(
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      _buildGlassLaneBoundary(isRight: false),
+                      _buildGlassLaneBoundary(isRight: true),
+                    ],
                   ),
-                  // --- Static Profile Header (Wallpaper Only) ---
-                  SliverToBoxAdapter(
-                    child: Stack(
-                      clipBehavior: Clip.none,
-                      children: [
-                        SizedBox(
-                          width: double.infinity,
-                          height: 200,
-                          child: useDefaultWallpaper
-                              ? Image.asset(
-                                  'assets/images/background.png',
-                                  width: double.infinity,
-                                  fit: BoxFit.cover,
-                                )
-                              : CachedNetworkImage(
-                                  imageUrl: UrlHelper.convertUrl(wallpaperUrl),
-                                  width: double.infinity,
-                                  fit: BoxFit.cover,
-                                  placeholder: (context, url) => Image.asset(
-                                    'assets/images/background.png',
-                                    width: double.infinity,
-                                    fit: BoxFit.cover,
-                                  ),
-                                  errorWidget: (context, url, error) => Image.asset(
-                                    'assets/images/background.png',
-                                    width: double.infinity,
-                                    fit: BoxFit.cover,
-                                  ),
-                                ),
+                ),
+                RefreshIndicator(
+                  onRefresh: _refreshProfile,
+                  color: Colors.white,
+                  backgroundColor: Colors.transparent,
+                  strokeWidth: 2.0,
+                  displacement: 40.0,
+                  child: CustomScrollView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    slivers: [
+                      SliverToBoxAdapter(
+                        child: SizedBox(
+                          height: appBarHeight + MediaQuery.of(context).padding.top,
                         ),
-                        // --- Avatar and Friend Action Buttons Section (overlapping wallpaper by 30dp) ---
-                        Positioned(
-                          left: 0,
-                          right: 0,
-                          top: 170, // 200 - 30 = 170 (30dp overlap)
-                          child: Stack(
-                            clipBehavior: Clip.none,
-                            children: [
-                              // Avatar (centered) - FIRST so it's below the button
-                              Center(
-                                child: Container(
-                                  width: 120,
-                                  height: 120,
-                                  decoration: BoxDecoration(
-                                    border: Border.all(
-                                        color: AppColors.getIconColor(context),
-                                        width: 3),
-                                    borderRadius: BorderRadius.circular(20),
-                                  ),
-                                  child: ClipRRect(
-                                    borderRadius: BorderRadius.circular(17),
-                                    child: (avatarUrl.isNotEmpty)
-                                        ? CachedNetworkImage(
-                                            imageUrl: UrlHelper.convertUrl(avatarUrl),
+                      ),
+                      // --- Corrected Profile Header (Integrated Design) ---
+                      SliverToBoxAdapter(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Stack(
+                              clipBehavior: Clip.none,
+                              children: [
+                                // Wallpaper
+                                SizedBox(
+                                  width: double.infinity,
+                                  height: 200,
+                                  child: useDefaultWallpaper
+                                      ? Image.asset(
+                                          'assets/images/background.png',
+                                          width: double.infinity,
+                                          fit: BoxFit.cover,
+                                        )
+                                      : CachedNetworkImage(
+                                          imageUrl: UrlHelper.convertUrl(wallpaperUrl),
+                                          width: double.infinity,
+                                          fit: BoxFit.cover,
+                                          placeholder: (context, url) => Image.asset(
+                                            'assets/images/background.png',
+                                            width: double.infinity,
                                             fit: BoxFit.cover,
-                                            httpHeaders: const {},
-                                            placeholder: (context, url) => Image.asset(
-                                                'assets/images/icon.png',
-                                                fit: BoxFit.cover),
-                                            errorWidget: (context, url, error) {
-                                              // Handle all errors including 404 (HttpExceptionWithStatus)
-                                              return Image.asset(
-                                                'assets/images/icon.png',
-                                                fit: BoxFit.cover,
-                                              );
-                                            },
-                                          )
-                                        : Image.asset('assets/images/icon.png',
-                                            fit: BoxFit.cover),
+                                          ),
+                                          errorWidget: (context, url, error) => Image.asset(
+                                            'assets/images/background.png',
+                                            width: double.infinity,
+                                            fit: BoxFit.cover,
+                                          ),
+                                        ),
+                                ),
+                                // Circular Avatar (Overlapping)
+                                Positioned(
+                                  left: 20,
+                                  bottom: -50,
+                                  child: Stack(
+                                    children: [
+                                      Container(
+                                        width: 110,
+                                        height: 110,
+                                        decoration: BoxDecoration(
+                                          shape: BoxShape.circle,
+                                          border: Border.all(
+                                            color: Colors.black.withOpacity(0.5),
+                                            width: 3,
+                                          ),
+                                          boxShadow: [
+                                            BoxShadow(
+                                              color: Colors.black.withOpacity(0.3),
+                                              blurRadius: 15,
+                                              spreadRadius: 2,
+                                            ),
+                                          ],
+                                        ),
+                                        child: ClipOval(
+                                          child: (avatarUrl.isNotEmpty)
+                                              ? CachedNetworkImage(
+                                                  imageUrl: UrlHelper.convertUrl(avatarUrl),
+                                                  fit: BoxFit.cover,
+                                                  placeholder: (context, url) => Image.asset(
+                                                      'assets/images/icon.png',
+                                                      fit: BoxFit.cover),
+                                                  errorWidget: (context, url, error) => Image.asset(
+                                                    'assets/images/icon.png',
+                                                    fit: BoxFit.cover,
+                                                  ),
+                                                )
+                                              : Image.asset('assets/images/icon.png',
+                                                  fit: BoxFit.cover),
+                                        ),
+                                      ),
+                                      // Plus Icon on Avatar
+                                      Positioned(
+                                        right: 5,
+                                        bottom: 5,
+                                        child: Container(
+                                          padding: const EdgeInsets.all(6),
+                                          decoration: BoxDecoration(
+                                            color: AppColors.getIconColor(context),
+                                            shape: BoxShape.circle,
+                                            border: Border.all(color: Colors.black, width: 2),
+                                          ),
+                                          child: const Icon(
+                                            Icons.add,
+                                            size: 18,
+                                            color: Colors.white,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        // Username (below avatar)
-                        Positioned(
-                          left: 0,
-                          right: 0,
-                          top: 300, // Below avatar (170 + 120 + 10 spacing)
-                          child: Column(
-                            children: [
-                              Text(
+                              ],
+                            ),
+                            const SizedBox(height: 15),
+                            Padding(
+                              padding: const EdgeInsets.only(left: 145, top: 10),
+                              child: Text(
                                 userData?['username'] ?? 'Unknown User',
                                 style: TextStyle(
-                                  fontSize: 24,
+                                  fontSize: 26,
                                   fontWeight: FontWeight.bold,
                                   color: AppColors.getTextColor(context),
+                                  shadows: [
+                                    Shadow(
+                                      color: Colors.black.withOpacity(0.5),
+                                      blurRadius: 10,
+                                      offset: const Offset(0, 2),
+                                    ),
+                                  ],
                                 ),
                               ),
-                              const SizedBox(height: 6),
-                              Text(
-                                '@${userData?['username'] ?? 'unknown'}',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  color: AppColors.getSecondaryTextColor(context),
-                                  fontWeight: FontWeight.w600,
-                                ),
+                            ),
+                            Padding(
+                              padding: const EdgeInsets.only(left: 20, top: 25, bottom: 10),
+                              child: Wrap(
+                                spacing: 10,
+                                runSpacing: 10,
+                                children: [
+                                  _buildInfoChip(
+                                    icon: Icons.alternate_email,
+                                    label: userData?['username'] ?? 'unknown',
+                                  ),
+                                  if (userData?['relationship'] != null && userData?['relationship'].toString() != 'null')
+                                    _buildInfoChip(
+                                      icon: Icons.favorite,
+                                      label: _getRelationshipString(userData?['relationship'].toString() ?? '0'),
+                                    ),
+                                ],
                               ),
-                            ],
-                          ),
+                            ),
+                            // Action buttons
+                            if (profileUserId != null &&
+                                currentUserId != null &&
+                                profileUserId != currentUserId &&
+                                userData != null)
+                              Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                                child: _buildActionButtons(),
+                              ),
+                          ],
                         ),
-                      ],
-                    ),
-                  ),
-                  // Spacer to account for the avatar and username that extend below the wallpaper
-                  // Avatar starts at 170, height 120, so extends to 290
-                  // Username starts at 300, height ~50 (24 + 6 + 24), so extends to ~350
-                  const SliverToBoxAdapter(
-                    child: SizedBox(
-                      height: 350 - 200, // Total height (350) minus wallpaper height (200) = 150
-                    ),
-                  ),
-                  // Action buttons navigation (outside Stack to ensure they're clickable)
-                  if (profileUserId != null && 
-                      currentUserId != null && 
-                      profileUserId != currentUserId &&
-                      userData != null)
-                    SliverToBoxAdapter(
-                      child: Padding(
-                        padding: const EdgeInsets.only(top: 16, bottom: 16),
-                        child: _buildActionButtons(),
                       ),
-                    ),
+                      // Spacer
+                      const SliverToBoxAdapter(
+                        child: SizedBox(height: 40),
+                      ),
                   // --- Post Feed ---
                   // Show skeleton loader if loading posts OR if there was an error loading profile
                   if (isLoadingPosts || _errorMessage != null)
@@ -1684,9 +1798,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   const SliverToBoxAdapter(
                     child:
                         SizedBox(height: 130), // Restore space for bottom nav bar
+                      ),
+                    ],
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           // Global search overlay
           GlobalSearchOverlay(

@@ -813,6 +813,15 @@ class TranslationService extends ChangeNotifier {
         "error_requesting_permission": "Error requesting permission",
         "feature_coming_soon": "{feature} feature coming soon",
         "just_now": "Just now",
+        "rel_single": "Single",
+        "rel_in_relationship": "In a relationship",
+        "rel_complicated": "It's complicated",
+        "rel_divorced": "Divorced",
+        "rel_other": "Other",
+        "rel_widowed": "Widowed",
+        "rel_engaged": "Engaged",
+        "rel_married": "Married",
+        "rel_separated": "Separated",
         "system": "System",
         "unknown": "Unknown",
         "month_jan": "Jan",
@@ -1811,4 +1820,15 @@ class TranslationKeys {
   static const String broadcast = 'broadcast';
   static const String stream = 'stream';
   static const String recording = 'recording';
+
+  // Relationship Statuses
+  static const String relSingle = 'rel_single';
+  static const String relInRelationship = 'rel_in_relationship';
+  static const String relComplicated = 'rel_complicated';
+  static const String relDivorced = 'rel_divorced';
+  static const String relOther = 'rel_other';
+  static const String relWidowed = 'rel_widowed';
+  static const String relEngaged = 'rel_engaged';
+  static const String relMarried = 'rel_married';
+  static const String relSeparated = 'rel_separated';
 }

@@ -63,7 +63,7 @@ class PostCardStyles {
 
   // Border radius - match web platform exactly
   static const double cardRadius = 20.0; // border-radius: 20px
-  static const double avatarRadius = 50.0; // border-radius: 10px
+  static const double avatarRadius = 35.0; // border-radius: 50% (circular)
   static const double imageRadius = 10.0; // border-radius: 10px
   static const double buttonRadius = 10.0; // border-radius: 10px
   static const double commentRadius = 10.0; // border-radius: 10px
