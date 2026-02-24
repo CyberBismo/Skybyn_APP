@@ -47,11 +47,32 @@ class _ProfileScreenState extends State<ProfileScreen> {
   String? _friendshipStatus; // 'none', 'sent', 'received', 'friends', 'blocked'
   bool _isSendingRequest = false;
   String? _errorMessage; // Store error message to show in popup
+  
+  // Scroll tracking for sticky header
+  late ScrollController _scrollController;
+  double _scrollOffset = 0.0;
+  bool _isSticky = false;
 
   @override
   void initState() {
     super.initState();
+    _scrollController = ScrollController();
+    _scrollController.addListener(_onScroll);
     _loadProfile();
+  }
+
+  @override
+  void dispose() {
+    _scrollController.removeListener(_onScroll);
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _onScroll() {
+    setState(() {
+      _scrollOffset = _scrollController.offset;
+      _isSticky = _scrollOffset > 200;
+    });
   }
 
 
@@ -594,6 +615,63 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
+  Widget _buildSubprofileOverlay() {
+    final subprofiles = userData?['subprofiles'] as List<dynamic>?;
+    final hasSubprofile = subprofiles != null && subprofiles.isNotEmpty;
+    
+    if (hasSubprofile) {
+      final firstSubprofile = subprofiles.first;
+      final subAvatarUrl = firstSubprofile['avatar']?.toString() ?? '';
+      
+      return Positioned(
+        left: _isSticky ? 30 : 85,
+        top: _isSticky ? 30 : 85,
+        child: Container(
+          width: _isSticky ? 25 : 75,
+          height: _isSticky ? 25 : 75,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: Colors.black.withOpacity(0.3),
+            border: Border.all(
+              color: Colors.black.withOpacity(0.5),
+              width: _isSticky ? 1.5 : 3,
+            ),
+          ),
+          child: ClipOval(
+            child: (subAvatarUrl.isNotEmpty)
+                ? CachedNetworkImage(
+                    imageUrl: UrlHelper.convertUrl(subAvatarUrl),
+                    fit: BoxFit.cover,
+                  )
+                : Image.asset('assets/images/logo_bg.png', fit: BoxFit.cover),
+          ),
+        ),
+      );
+    } else if (isOwnProfile) {
+      // Placeholder for own profile
+      return Positioned(
+        left: _isSticky ? 35 : 95,
+        top: _isSticky ? 35 : 95,
+        child: Container(
+          width: _isSticky ? 20 : 50,
+          height: _isSticky ? 20 : 50,
+          decoration: BoxDecoration(
+            color: AppColors.getIconColor(context),
+            shape: BoxShape.circle,
+            border: Border.all(color: Colors.black, width: _isSticky ? 1 : 2),
+          ),
+          child: Icon(
+            Icons.add,
+            size: _isSticky ? 12 : 24,
+            color: Colors.white,
+          ),
+        ),
+      );
+    }
+    
+    return const SizedBox.shrink();
+  }
+
   Widget _buildActionButtons() {
     // If friend request received, show Accept/Decline buttons prominently
     if (_friendshipStatus == 'received') {
@@ -648,12 +726,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
 
     return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
+      mainAxisAlignment: MainAxisAlignment.end,
       children: [
         // Chat button
-        _buildActionButton(
+        _buildHeaderActionButton(
           icon: Icons.chat,
-          label: TranslationService().translate(TranslationKeys.chat),
           onTap: () {
             if (profileUserId != null && userData != null) {
               final friend = Friend(
@@ -669,39 +746,119 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   builder: (context) => ChatScreen(friend: friend),
                 ),
               );
-            } else {
             }
           },
         ),
-        const SizedBox(width: 12),
+        const SizedBox(width: 10),
         // Friend Actions button
-        _buildActionButton(
-          icon: Icons.people,
-          label: TranslationService().translate(TranslationKeys.friends),
+        _buildHeaderActionButton(
+          icon: Icons.more_horiz,
           onTap: () {
-            _showFriendActionsMenu();
-          },
-        ),
-        const SizedBox(width: 12),
-        // Report button
-        _buildActionButton(
-          icon: Icons.report,
-          label: TranslationService().translate(TranslationKeys.report),
-          color: Colors.red,
-          onTap: () {
-            _reportUser();
-          },
-        ),
-        const SizedBox(width: 12),
-        // Share button
-        _buildActionButton(
-          icon: Icons.share,
-          label: TranslationService().translate(TranslationKeys.share),
-          onTap: () {
-            _shareProfile();
+            _showMobileActionMenu();
           },
         ),
       ],
+    );
+  }
+
+  Widget _buildHeaderActionButton({
+    required IconData icon,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 45,
+        height: 45,
+        decoration: BoxDecoration(
+          color: Colors.black.withOpacity(0.3),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: Colors.white.withOpacity(0.1),
+            width: 1,
+          ),
+        ),
+        child: Icon(
+          icon,
+          color: Colors.white,
+          size: 22,
+        ),
+      ),
+    );
+  }
+
+  void _showMobileActionMenu() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        padding: const EdgeInsets.symmetric(vertical: 20),
+        decoration: BoxDecoration(
+          color: Colors.grey[900]?.withOpacity(0.95),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: ClipRRect(
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+          child: BackdropFilter(
+            filter: ui.ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _buildMenuOption(
+                  icon: Icons.favorite,
+                  label: "Send Love",
+                  onTap: () {
+                    Navigator.pop(context);
+                    // Implement love action
+                  },
+                ),
+                _buildMenuOption(
+                  icon: Icons.person_add,
+                  label: "Add Friend",
+                  onTap: () {
+                    Navigator.pop(context);
+                    _sendFriendRequest();
+                  },
+                ),
+                _buildMenuOption(
+                  icon: Icons.block,
+                  label: "Block",
+                  color: Colors.red,
+                  onTap: () {
+                    Navigator.pop(context);
+                    _sendFriendAction('block');
+                  },
+                ),
+                _buildMenuOption(
+                  icon: Icons.report,
+                  label: "Report",
+                  color: Colors.red,
+                  onTap: () {
+                    Navigator.pop(context);
+                    _reportUser();
+                  },
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMenuOption({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+    Color? color,
+  }) {
+    return ListTile(
+      leading: Icon(icon, color: color ?? Colors.white),
+      title: Text(
+        label,
+        style: TextStyle(color: color ?? Colors.white),
+      ),
+      onTap: onTap,
     );
   }
 
@@ -1584,6 +1741,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   strokeWidth: 2.0,
                   displacement: 40.0,
                   child: CustomScrollView(
+                    controller: _scrollController,
                     physics: const AlwaysScrollableScrollPhysics(),
                     slivers: [
                       SliverToBoxAdapter(
@@ -1627,113 +1785,111 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 ),
                                 // Circular Avatar (Overlapping)
                                 Positioned(
-                                  left: 20,
-                                  bottom: -50,
-                                  child: Stack(
-                                    children: [
-                                      Container(
-                                        width: 110,
-                                        height: 110,
-                                        decoration: BoxDecoration(
-                                          shape: BoxShape.circle,
-                                          border: Border.all(
-                                            color: Colors.black.withOpacity(0.5),
-                                            width: 3,
-                                          ),
-                                          boxShadow: [
-                                            BoxShadow(
-                                              color: Colors.black.withOpacity(0.3),
-                                              blurRadius: 15,
-                                              spreadRadius: 2,
-                                            ),
-                                          ],
-                                        ),
-                                        child: ClipOval(
-                                          child: (avatarUrl.isNotEmpty)
-                                              ? CachedNetworkImage(
-                                                  imageUrl: UrlHelper.convertUrl(avatarUrl),
-                                                  fit: BoxFit.cover,
-                                                  placeholder: (context, url) => Image.asset(
-                                                      'assets/images/icon.png',
-                                                      fit: BoxFit.cover),
-                                                  errorWidget: (context, url, error) => Image.asset(
-                                                    'assets/images/icon.png',
-                                                    fit: BoxFit.cover,
-                                                  ),
-                                                )
-                                              : Image.asset('assets/images/icon.png',
-                                                  fit: BoxFit.cover),
-                                        ),
-                                      ),
-                                      // Plus Icon on Avatar
-                                      Positioned(
-                                        right: 5,
-                                        bottom: 5,
-                                        child: Container(
-                                          padding: const EdgeInsets.all(6),
+                                  left: _isSticky ? 15 : 20,
+                                  bottom: _isSticky ? -25 : -50,
+                                  child: AnimatedContainer(
+                                    duration: const Duration(milliseconds: 200),
+                                    child: Stack(
+                                      children: [
+                                        // Main Avatar
+                                        Container(
+                                          width: _isSticky ? 50 : 125,
+                                          height: _isSticky ? 50 : 125,
                                           decoration: BoxDecoration(
-                                            color: AppColors.getIconColor(context),
                                             shape: BoxShape.circle,
-                                            border: Border.all(color: Colors.black, width: 2),
+                                            border: Border.all(
+                                              color: Colors.black.withOpacity(0.5),
+                                              width: _isSticky ? 2 : 3,
+                                            ),
+                                            boxShadow: [
+                                              BoxShadow(
+                                                color: Colors.black.withOpacity(0.3),
+                                                blurRadius: _isSticky ? 5 : 15,
+                                                spreadRadius: _isSticky ? 1 : 2,
+                                              ),
+                                            ],
                                           ),
-                                          child: const Icon(
-                                            Icons.add,
-                                            size: 18,
-                                            color: Colors.white,
+                                          child: ClipOval(
+                                            child: (avatarUrl.isNotEmpty)
+                                                ? CachedNetworkImage(
+                                                    imageUrl: UrlHelper.convertUrl(avatarUrl),
+                                                    fit: BoxFit.cover,
+                                                    placeholder: (context, url) => Image.asset(
+                                                        'assets/images/icon.png',
+                                                        fit: BoxFit.cover),
+                                                    errorWidget: (context, url, error) => Image.asset(
+                                                      'assets/images/icon.png',
+                                                      fit: BoxFit.cover,
+                                                    ),
+                                                  )
+                                                : Image.asset('assets/images/icon.png',
+                                                    fit: BoxFit.cover),
                                           ),
                                         ),
-                                      ),
-                                    ],
+                                        // Subprofile Overlay
+                                        _buildSubprofileOverlay(),
+                                      ],
+                                    ),
                                   ),
                                 ),
+                                // Action Buttons (Top Right)
+                                if (profileUserId != null &&
+                                    currentUserId != null &&
+                                    profileUserId != currentUserId &&
+                                    userData != null)
+                                  Positioned(
+                                    top: 10,
+                                    right: 15,
+                                    child: _buildActionButtons(),
+                                  ),
                               ],
                             ),
                             const SizedBox(height: 15),
+                            // User Info and Pills
                             Padding(
-                              padding: const EdgeInsets.only(left: 145, top: 10),
-                              child: Text(
-                                userData?['username'] ?? 'Unknown User',
-                                style: TextStyle(
-                                  fontSize: 26,
-                                  fontWeight: FontWeight.bold,
-                                  color: AppColors.getTextColor(context),
-                                  shadows: [
-                                    Shadow(
-                                      color: Colors.black.withOpacity(0.5),
-                                      blurRadius: 10,
-                                      offset: const Offset(0, 2),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                            Padding(
-                              padding: const EdgeInsets.only(left: 20, top: 25, bottom: 10),
-                              child: Wrap(
-                                spacing: 10,
-                                runSpacing: 10,
+                              padding: EdgeInsets.only(
+                                  left: _isSticky ? 80 : 155, 
+                                  top: _isSticky ? 0 : 10),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  _buildInfoChip(
-                                    icon: Icons.alternate_email,
-                                    label: userData?['username'] ?? 'unknown',
+                                  Text(
+                                    userData?['username'] ?? 'Unknown User',
+                                    style: TextStyle(
+                                      fontSize: _isSticky ? 20 : 26,
+                                      fontWeight: FontWeight.bold,
+                                      color: AppColors.getTextColor(context),
+                                      shadows: [
+                                        Shadow(
+                                          color: Colors.black.withOpacity(0.5),
+                                          blurRadius: 10,
+                                          offset: const Offset(0, 2),
+                                        ),
+                                      ],
+                                    ),
                                   ),
-                                  if (userData?['relationship'] != null && userData?['relationship'].toString() != 'null')
-                                    _buildInfoChip(
-                                      icon: Icons.favorite,
-                                      label: _getRelationshipString(userData?['relationship'].toString() ?? '0'),
+                                  if (!_isSticky)
+                                    Padding(
+                                      padding: const EdgeInsets.only(top: 15),
+                                      child: Wrap(
+                                        spacing: 10,
+                                        runSpacing: 10,
+                                        children: [
+                                          _buildInfoChip(
+                                            icon: Icons.alternate_email,
+                                            label: userData?['username'] ?? 'unknown',
+                                          ),
+                                          if (userData?['relationship'] != null && userData?['relationship'].toString() != 'null')
+                                            _buildInfoChip(
+                                              icon: Icons.favorite,
+                                              label: _getRelationshipString(userData?['relationship'].toString() ?? '0'),
+                                            ),
+                                        ],
+                                      ),
                                     ),
                                 ],
                               ),
                             ),
-                            // Action buttons
-                            if (profileUserId != null &&
-                                currentUserId != null &&
-                                profileUserId != currentUserId &&
-                                userData != null)
-                              Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                                child: _buildActionButtons(),
-                              ),
                           ],
                         ),
                       ),
