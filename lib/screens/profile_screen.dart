@@ -624,8 +624,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
       final subAvatarUrl = firstSubprofile['avatar']?.toString() ?? '';
       
       return Positioned(
-        left: _isSticky ? 30 : 85,
-        top: _isSticky ? 30 : 85,
+        left: _isSticky ? -5 : -15,
+        top: _isSticky ? 25 : 70,
         child: Container(
           width: _isSticky ? 25 : 75,
           height: _isSticky ? 25 : 75,
@@ -650,15 +650,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
     } else if (isOwnProfile) {
       // Placeholder for own profile
       return Positioned(
-        left: _isSticky ? 35 : 95,
-        top: _isSticky ? 35 : 95,
+        left: _isSticky ? -5 : -10,
+        top: _isSticky ? 30 : 85,
         child: Container(
           width: _isSticky ? 20 : 50,
           height: _isSticky ? 20 : 50,
           decoration: BoxDecoration(
-            color: AppColors.getIconColor(context),
+            color: Colors.transparent,
             shape: BoxShape.circle,
-            border: Border.all(color: Colors.black, width: _isSticky ? 1 : 2),
+            border: Border.all(color: Colors.white.withOpacity(0.5), width: _isSticky ? 1 : 2),
           ),
           child: Icon(
             Icons.add,
