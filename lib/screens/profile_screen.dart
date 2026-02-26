@@ -812,14 +812,33 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     // Implement love action
                   },
                 ),
-                _buildMenuOption(
-                  icon: Icons.person_add,
-                  label: "Add Friend",
-                  onTap: () {
-                    Navigator.pop(context);
-                    _sendFriendRequest();
-                  },
-                ),
+                if (_friendshipStatus == 'none' || _friendshipStatus == null)
+                  _buildMenuOption(
+                    icon: Icons.person_add,
+                    label: "Add Friend",
+                    onTap: () {
+                      Navigator.pop(context);
+                      _sendFriendRequest();
+                    },
+                  ),
+                if (_friendshipStatus == 'sent')
+                  _buildMenuOption(
+                    icon: Icons.close,
+                    label: "Cancel Request",
+                    onTap: () {
+                      Navigator.pop(context);
+                      _sendFriendAction('cancel');
+                    },
+                  ),
+                if (_friendshipStatus == 'friends')
+                  _buildMenuOption(
+                    icon: Icons.person_remove,
+                    label: TranslationService().translate(TranslationKeys.removeFriend),
+                    onTap: () {
+                      Navigator.pop(context);
+                      _sendFriendAction('unfriend');
+                    },
+                  ),
                 _buildMenuOption(
                   icon: Icons.block,
                   label: "Block",
@@ -1826,16 +1845,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                     ],
                                   ),
                                 ),
-                                // Action Buttons (Top Right)
-                                if (profileUserId != null &&
-                                    currentUserId != null &&
-                                    profileUserId != currentUserId &&
-                                    userData != null)
-                                  Positioned(
-                                    top: 10,
-                                    right: 15,
-                                    child: _buildActionButtons(),
-                                  ),
                               ],
                             ),
                             const SizedBox(height: 15), // Reduced gap to restore name position
