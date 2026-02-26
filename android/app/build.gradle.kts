@@ -89,6 +89,10 @@ android {
             // Enable code shrinking for smaller APK size (only for release builds)
             isMinifyEnabled = true
             isShrinkResources = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
             // Ensure APK is properly aligned and optimized
             isDebuggable = false
         }
