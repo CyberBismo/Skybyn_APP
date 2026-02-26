@@ -72,27 +72,7 @@ class _CallScreenState extends State<CallScreen> {
       });
     }
     
-    // Periodically check if renderer has a stream set by the plugin
-    // This handles cases where onTrack doesn't fire but the plugin sets the stream directly
-    Timer.periodic(const Duration(milliseconds: 500), (timer) {
-      if (!mounted) {
-        timer.cancel();
-        return;
-      }
-      if (_isRemoteVideoInitialized && 
-          _remoteRenderer.srcObject != null && 
-          _lastRemoteStream != _remoteRenderer.srcObject) {
-        // Renderer has a stream that we haven't stored yet
-        _lastRemoteStream = _remoteRenderer.srcObject;
-        setState(() {});
-      }
-      // Stop checking once we have a stream or call ends
-      if (_lastRemoteStream != null || 
-          _callService.callState == CallState.ended || 
-          _callService.callState == CallState.idle) {
-        timer.cancel();
-      }
-    });
+
     
     // Check for auto-accept if already ringing
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -144,75 +124,21 @@ class _CallScreenState extends State<CallScreen> {
     };
 
     _callService.onRemoteStream = (stream) {
+      if (!mounted) return;
+      _lastRemoteStream = stream;
+      
       if (stream != null) {
-        // Store reference to remote stream
-        _lastRemoteStream = stream;
-        
-        
-        // If we have a remote stream, the call should be connected
-        // This is a fallback in case the state update didn't happen
-        if (_callService.callState != CallState.connected && 
-            _callService.callState != CallState.ended) {
-          // The state should have been updated by onTrack, but if not, 
-          // we'll rely on the state change callback to update it
-        }
-        
-        // Set the stream on the renderer - try multiple times if needed
-        void setRemoteStream() {
-          if (mounted && _isRemoteVideoInitialized) {
-            // Verify stream has video tracks and they're enabled
-            final videoTracks = stream.getVideoTracks();
-            if (videoTracks.isNotEmpty) {
-              // Ensure video tracks are enabled
-              for (final track in videoTracks) {
-                if (track.enabled == false) {
-                  track.enabled = true;
-                }
-              }
+        if (_isRemoteVideoInitialized) {
+          final videoTracks = stream.getVideoTracks();
+          if (videoTracks.isNotEmpty) {
+            for (final track in videoTracks) {
+              track.enabled = true;
             }
-            // Always set the stream, even if it's the same - this ensures it's properly attached
-            _remoteRenderer.srcObject = stream;
-            // Force UI update to show remote video and update call state display
-            setState(() {});
           }
-        }
-        
-        // Try to set immediately if renderer is ready
-        setRemoteStream();
-        
-        // If renderer isn't ready yet, wait and retry multiple times
-        if (!_isRemoteVideoInitialized) {
-          Future.delayed(const Duration(milliseconds: 100), () {
-            setRemoteStream();
-            if (!_isRemoteVideoInitialized && mounted) {
-              Future.delayed(const Duration(milliseconds: 200), () {
-                setRemoteStream();
-                if (!_isRemoteVideoInitialized && mounted) {
-                  Future.delayed(const Duration(milliseconds: 300), () {
-                    setRemoteStream();
-                    // One more retry after a longer delay
-                    if (!_isRemoteVideoInitialized && mounted) {
-                      Future.delayed(const Duration(milliseconds: 500), () {
-                        setRemoteStream();
-                      });
-                    }
-                  });
-                }
-              });
-            }
-          });
-        } else {
-          // Renderer is ready, but ensure stream is set - retry once more after a short delay
-          Future.delayed(const Duration(milliseconds: 200), () {
-            if (mounted && _isRemoteVideoInitialized && _remoteRenderer.srcObject != stream) {
-              _remoteRenderer.srcObject = stream;
-              setState(() {});
-            }
-          });
+          _remoteRenderer.srcObject = stream;
+          setState(() {});
         }
       } else {
-        // Stream is null - clear the renderer
-        _lastRemoteStream = null;
         if (_isRemoteVideoInitialized) {
           _remoteRenderer.srcObject = null;
           setState(() {});

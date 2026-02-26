@@ -104,6 +104,9 @@ class WebSocketService {
   bool get isConnected => _isConnected;
   bool get isInitialized => _isInitialized;
 
+  // New Global Connection Callback 
+  Function()? onWebSocketConnected;
+
   /// Get connection quality metrics
   Map<String, dynamic> getConnectionMetrics() {
     return Map<String, dynamic>.from(_connectionMetrics);
@@ -395,6 +398,9 @@ class WebSocketService {
 
         // Process any queued messages now that we're connected
         _processMessageQueue();
+
+        // Notify Listeners that a successful connection/reconnection was made
+        onWebSocketConnected?.call();
         
         // Start connection health monitoring
         _startConnectionHealthMonitor();

@@ -5,6 +5,14 @@ import 'package:http/http.dart' as http;
 import '../config/constants.dart';
 import 'websocket_service.dart';
 import 'auth_service.dart';
+import 'package:flutter_callkit_incoming/flutter_callkit_incoming.dart';
+import 'package:flutter_callkit_incoming/entities/call_event.dart';
+import 'package:flutter_callkit_incoming/entities/call_kit_params.dart';
+import 'package:flutter_callkit_incoming/entities/ios_params.dart';
+import 'package:flutter_callkit_incoming/entities/android_params.dart';
+import 'package:flutter_callkit_incoming/entities/notification_params.dart';
+import 'package:uuid/uuid.dart';
+import 'dart:convert';
 
 enum CallType { audio, video }
 enum CallState { idle, calling, ringing, connected, ended }
@@ -12,7 +20,46 @@ enum CallState { idle, calling, ringing, connected, ended }
 class CallService {
   static final CallService _instance = CallService._internal();
   factory CallService() => _instance;
-  CallService._internal();
+  
+  // Initialize callkit listeners
+  CallService._internal() {
+    _setupCallKitListeners();
+    // Bind WebSocket reconnection to WebRTC ICE recovery
+    _signalingService.onWebSocketConnected = _handleWebSocketReconnected;
+  }
+
+  void _setupCallKitListeners() {
+    FlutterCallkitIncoming.onEvent.listen((CallEvent? event) {
+      if (event == null) return;
+      
+      switch (event.event) {
+        case Event.actionCallAccept:
+          // User accepted the call from the native UI
+          print('✅ [CallKit] User accepted call');
+          if (callState == CallState.ringing) {
+            acceptCall();
+          }
+          break;
+        case Event.actionCallDecline:
+          // User rejected the call from the native UI
+          print('❌ [CallKit] User declined call');
+          rejectCall();
+          break;
+        case Event.actionCallEnded:
+          // Call ended from native UI
+          print('🛑 [CallKit] User ended call');
+          endCall();
+          break;
+        case Event.actionCallTimeout:
+          // Native UI timed out
+          print('⏰ [CallKit] Call timed out');
+          endCall();
+          break;
+        default:
+          break;
+      }
+    });
+  }
 
   RTCPeerConnection? _peerConnection;
   MediaStream? _localStream;
@@ -23,9 +70,7 @@ class CallService {
   String? _otherUserId;
   bool _isCaller = false;
   Timer? _callTimeoutTimer;
-  Timer? _connectionCheckTimer;
   static const Duration _callTimeoutDuration = Duration(seconds: 45);
-  static const Duration _connectionCheckInterval = Duration(seconds: 1);
   final List<RTCIceCandidate> _remoteIceCandidateQueue = [];
 
 
@@ -63,51 +108,68 @@ class CallService {
   final WebSocketService _signalingService = WebSocketService();
   final AuthService _authService = AuthService();
 
-  /// Initialize WebRTC configuration
-  Map<String, dynamic> get _configuration {
+  /// Fetch WebRTC configuration from backend securely
+  Future<Map<String, dynamic>> get _configuration async {
+    try {
+      final token = await _authService.getStoredUserId();
+      if (token == null) throw Exception("User not authenticated.");
+
+      final response = await http.get(
+        Uri.parse('${ApiConstants.apiBase}/call/get_ice_servers.php'), // Example endpoint
+        headers: {
+          'X-API-KEY': ApiConstants.apiKey,
+          'Authorization': 'Bearer $token',
+        },
+      ).timeout(const Duration(seconds: 5));
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data['status'] == 'success' && data['iceServers'] != null) {
+          return {
+            'iceServers': data['iceServers'],
+          };
+        }
+      }
+      debugPrint('⚠️ [Call] Failed to fetch dynamic TURN servers. Falling back to public STUN.');
+    } catch (e) {
+      debugPrint('⚠️ [Call] Error fetching dynamic TURN servers: $e. Falling back to public STUN.');
+    }
+
+    // Fallback to basic STUN servers
     return {
       'iceServers': [
-        // STUN servers for NAT discovery
         {'urls': 'stun:stun.l.google.com:19302'},
         {'urls': 'stun:stun1.l.google.com:19302'},
         {'urls': 'stun:stun2.l.google.com:19302'},
-        // TURN servers for relay (when direct P2P connection fails)
-        // Free public TURN servers (use with caution - may have rate limits)
-        {
-          'urls': 'turn:openrelay.metered.ca:80',
-          'username': 'openrelayproject',
-          'credential': 'openrelayproject'
-        },
-        {
-          'urls': 'turn:openrelay.metered.ca:443',
-          'username': 'openrelayproject',
-          'credential': 'openrelayproject'
-        },
-        {
-          'urls': 'turn:openrelay.metered.ca:443?transport=tcp',
-          'username': 'openrelayproject',
-          'credential': 'openrelayproject'
-        },
-        // Additional free TURN server
-        {
-          'urls': 'turn:relay.metered.ca:80',
-          'username': 'openrelayproject',
-          'credential': 'openrelayproject'
-        },
-        {
-          'urls': 'turn:relay.metered.ca:443',
-          'username': 'openrelayproject',
-          'credential': 'openrelayproject'
-        },
-        {
-          'urls': 'turn:relay.metered.ca:443?transport=tcp',
-          'username': 'openrelayproject',
-          'credential': 'openrelayproject'
-        },
-        // Note: For production, consider using your own TURN server
-        // Example: {'urls': 'turn:your-turn-server.com:3478', 'username': 'user', 'credential': 'pass'}
       ],
     };
+  }
+
+  /// Recover WebRTC connection after WebSocket reconnect
+  Future<void> _handleWebSocketReconnected() async {
+    if (_peerConnection == null || _callState != CallState.connected) return;
+
+    debugPrint('🔄 [Call] WebSocket reconnected. Restarting ICE to recover WebRTC media session...');
+    try {
+      // 1. Force the peer connection to gather new ICE candidates
+      await _peerConnection!.restartIce();
+
+      // 2. We only want the original Caller to send the new Offer
+      // If we are the callee, we wait for the caller's new offer.
+      if (_isCaller && _otherUserId != null && _currentCallId != null) {
+        final offer = await _peerConnection!.createOffer();
+        await _peerConnection!.setLocalDescription(offer);
+
+        _signalingService.sendCallOffer(
+          callId: _currentCallId!,
+          targetUserId: _otherUserId!,
+          offer: offer.sdp!,
+          callType: _currentCallType == CallType.video ? 'video' : 'audio',
+        );
+      }
+    } catch (e) {
+      debugPrint('❌ [Call] Failed to recover WebRTC connection: $e');
+    }
   }
 
   /// Start a call (initiate)
@@ -183,10 +245,7 @@ class CallService {
 
       // Start call timeout timer
       _startCallTimeout();
-      // Start connection check timer to ensure state updates when media arrives
-      _startConnectionCheck();
     } catch (e) {
-      _stopConnectionCheck();
       _updateCallState(CallState.ended);
       onCallError?.call('Failed to start call: $e');
     }
@@ -208,8 +267,6 @@ class CallService {
       _updateCallState(CallState.ringing);
       // Start call timeout timer
       _startCallTimeout();
-      // Start connection check timer to ensure state updates when media arrives
-      _startConnectionCheck();
       // Get user media
       await _getUserMedia(_currentCallType!);
       // Create peer connection
@@ -231,6 +288,86 @@ class CallService {
       
       // Do NOT send answer automatically. Wait for user to accept.
       // The state is already set to ringing above.
+      
+      // Look up caller details to show in native UI
+      String callerName = "Incoming Call";
+      String? avatarUrl;
+      try {
+        final authService = AuthService();
+        final userId = await authService.getStoredUserId();
+        if (userId != null) {
+          final response = await http.get(
+            Uri.parse('${ApiConstants.apiBase}/user/get_profile.php?user_id=$fromUserId'),
+            headers: {
+              'X-API-KEY': ApiConstants.apiKey,
+              'Authorization': 'Bearer $userId', // Some endpoints expect userId here
+            },
+          );
+          if (response.statusCode == 200) {
+             final data = jsonDecode(response.body);
+             if (data['status'] == 'success') {
+                 callerName = data['data']['nickname']?.isNotEmpty == true ? data['data']['nickname'] : data['data']['username'];
+                 avatarUrl = data['data']['avatar'];
+                 if (avatarUrl != null && avatarUrl.isNotEmpty) {
+                    avatarUrl = UrlHelper.convertUrl(avatarUrl);
+                 }
+             }
+          }
+        }
+      } catch (e) {
+        print("Error fetching caller info for CallKit: $e");
+      }
+
+      // Show native incoming call UI
+      final params = CallKitParams(
+        id: callId,
+        nameCaller: callerName,
+        appName: 'Skybyn',
+        avatar: avatarUrl ?? '',
+        handle: callType == 'video' ? 'Video Call' : 'Audio Call',
+        type: callType == 'video' ? 1 : 0, 
+        duration: 45000, 
+        textAccept: 'Accept',
+        textDecline: 'Decline',
+        missedCallNotification: const NotificationParams(
+          showNotification: true,
+          isShowCallback: true,
+          subtitle: 'Missed call',
+          callbackText: 'Call back',
+        ),
+        extra: <String, dynamic>{'userId': fromUserId},
+        headers: <String, dynamic>{'apiKey': 'xxx', 'apiSecret': 'xxx'},
+        android: const AndroidParams(
+          isCustomNotification: true,
+          isShowLogo: false,
+          ringtonePath: 'system_ringtone_default',
+          backgroundColor: '#0955fa',
+          backgroundUrl: 'assets/test.png',
+          actionColor: '#4CAF50',
+          textColor: '#ffffff',
+          incomingCallNotificationChannelName: "Incoming Call",
+          missedCallNotificationChannelName: "Missed Call",
+          isShowCallID: false
+        ),
+        ios: const IOSParams(
+          iconName: 'CallKitLogo',
+          handleType: 'generic',
+          supportsVideo: true,
+          maximumCallGroups: 2,
+          maximumCallsPerCallGroup: 1,
+          audioSessionMode: 'default',
+          audioSessionActive: true,
+          audioSessionPreferredSampleRate: 44100.0,
+          audioSessionPreferredIOBufferDuration: 0.005,
+          supportsDTMF: true,
+          supportsHolding: true,
+          supportsGrouping: false,
+          supportsUngrouping: false,
+          ringtonePath: 'system_ringtone_default'
+        ),
+      );
+      await FlutterCallkitIncoming.showCallkitIncoming(params);
+      
       
     } catch (e) {
       _updateCallState(CallState.ended);
@@ -296,6 +433,12 @@ class CallService {
         }
         
         debugPrint('📞 [Call] Accepting call $_currentCallId');
+        
+        // Ensure CallKit considers the call answered internally
+        if (_currentCallId != null && !_isCaller) {
+           await FlutterCallkitIncoming.setCallConnected(_currentCallId!);
+        }
+
         // Create and send answer
         final answer = await _peerConnection!.createAnswer({
           'offerToReceiveAudio': true,
@@ -343,14 +486,19 @@ class CallService {
       
       // Cancel timeout timer
       _cancelCallTimeout();
-      // Stop connection check timer
-      _stopConnectionCheck();
 
       if (_currentCallId != null && _otherUserId != null) {
         _signalingService.sendCallEnd(
           callId: _currentCallId!,
           targetUserId: _otherUserId!,
         );
+      }
+
+      // End call in CallKit natively
+      if (_currentCallId != null) {
+          await FlutterCallkitIncoming.endCall(_currentCallId!);
+          // Alternatively ending all calls to be safe
+          await FlutterCallkitIncoming.endAllCalls();
       }
 
       await _localStream?.dispose();
@@ -369,68 +517,6 @@ class CallService {
       _updateCallState(CallState.idle);
     } catch (e) {
     }
-  }
-
-  /// Start call timeout timer
-  void _startConnectionCheck() {
-    _stopConnectionCheck();
-    _connectionCheckTimer = Timer.periodic(_connectionCheckInterval, (timer) {
-      // Try to get remote stream from peer connection if we don't have it yet
-      if (_remoteStream == null && _peerConnection != null) {
-        // Check transceivers for remote streams (async, so use then)
-        _peerConnection!.getTransceivers().then((transceivers) {
-          try {
-            List<MediaStreamTrack> videoTracks = [];
-            List<MediaStreamTrack> audioTracks = [];
-            
-            for (final transceiver in transceivers) {
-              final receiver = transceiver.receiver;
-              if (receiver.track != null) {
-                final track = receiver.track!;
-                if (track.kind == 'video') {
-                  videoTracks.add(track);
-                } else if (track.kind == 'audio') {
-                  audioTracks.add(track);
-                }
-              }
-                        }
-            
-            // If we have tracks but no stream, try to get the stream
-            // The issue is that onTrack might have fired with empty event.streams
-            // We need to wait for onTrack to fire again with the stream, or check if
-            // the stream is available through another mechanism
-            if ((videoTracks.isNotEmpty || audioTracks.isNotEmpty) && _remoteStream == null) {
-              // Tracks exist but no stream - this means onTrack might not have fired
-              // or event.streams was empty when it did fire
-              // We'll wait for an actual stream or PeerConnection state change
-            }
-          } catch (e) {
-            // Ignore errors when checking transceivers
-          }
-        }).catchError((e) {
-          // Ignore errors when getting transceivers
-        });
-      }
-      
-      // Periodically check if we have a remote stream but state isn't connected
-      // This is a fallback in case onTrack doesn't fire or there's a timing issue
-      if (_remoteStream != null && 
-          _callState != CallState.connected && 
-          _callState != CallState.ended &&
-          _callState != CallState.idle) {
-        _updateCallState(CallState.connected);
-        _cancelCallTimeout();
-        // Keep checking for a bit to ensure state stays updated
-      } else if (_callState == CallState.ended || _callState == CallState.idle) {
-        // Stop checking if call has ended
-        _stopConnectionCheck();
-      }
-    });
-  }
-
-  void _stopConnectionCheck() {
-    _connectionCheckTimer?.cancel();
-    _connectionCheckTimer = null;
   }
 
   void _startCallTimeout() {
@@ -511,7 +597,8 @@ class CallService {
   /// Create peer connection
   Future<void> _createPeerConnection() async {
     try {
-      _peerConnection = await createPeerConnection(_configuration);
+      final config = await _configuration;
+      _peerConnection = await createPeerConnection(config);
     debugPrint('📞 [Call] Peer connection created');
 
     // Drain queued remote ICE candidates
@@ -586,33 +673,8 @@ class CallService {
               }
             };
           }
-        } else {
-          // Track exists but no stream in event.streams
-        // This can happen - onTrack might fire multiple times
-        // Wait a bit and check if stream becomes available
-        // Also check receivers periodically to see if we can get the stream
-        Future.delayed(const Duration(milliseconds: 100), () {
-          if (_remoteStream == null && _peerConnection != null) {
-            // Check if onTrack fired again with a stream
-            // If not, check receivers to see if tracks exist
-            _peerConnection!.getTransceivers().then((transceivers) {
-              bool hasVideoTrack = false;
-              bool hasAudioTrack = false;
-              for (final transceiver in transceivers) {
-                if (transceiver.receiver.track != null) {
-                  if (transceiver.receiver.track!.kind == 'video') {
-                    hasVideoTrack = true;
-                  } else if (transceiver.receiver.track!.kind == 'audio') {
-                    hasAudioTrack = true;
-                  }
-                }
-              }
-              // If we have tracks but no stream, we'll wait for an actual stream
-              // or PeerConnection state change. The connection check timer 
-              // will continue to look for streams.
-            });
-          }
-        });
+        } else if (event.track != null) {
+          debugPrint('⚠️ [Call] onTrack fired but no streams available in event.streams. Waiting for later event.');
         }
       
       };
@@ -681,92 +743,30 @@ class CallService {
 
       // Handle connection state changes
       _peerConnection!.onConnectionState = (RTCPeerConnectionState state) {
-        // Check if we have a remote stream - if so, connection might still work
-        // Use a delayed check to ensure onTrack has had time to set the stream
-        Future.delayed(const Duration(milliseconds: 500), () {
-          final hasRemoteStream = _remoteStream != null;
-          
-          // If we have a remote stream, update state to CONNECTED regardless of connection state
-          // This ensures the UI shows the call as connected when media is flowing
-          if (hasRemoteStream && _callState != CallState.connected && _callState != CallState.ended) {
+        final hasRemoteStream = _remoteStream != null;
+        
+        if (hasRemoteStream && _callState != CallState.connected && _callState != CallState.ended) {
+          _updateCallState(CallState.connected);
+          _cancelCallTimeout();
+        }
+        
+        if (state == RTCPeerConnectionState.RTCPeerConnectionStateDisconnected) {
+          debugPrint('⚠️ [Call] Peer connection disconnected');
+        } else if (state == RTCPeerConnectionState.RTCPeerConnectionStateFailed) {
+          if (!hasRemoteStream) {
+            onCallError?.call('Connection failed. Please check your network and try again.');
+            endCall();
+          }
+        } else if (state == RTCPeerConnectionState.RTCPeerConnectionStateClosed) {
+          if (_callState != CallState.ended && _callState != CallState.idle) {
+            endCall();
+          }
+        } else if (state == RTCPeerConnectionState.RTCPeerConnectionStateConnected) {
+          if (_callState != CallState.connected && _callState != CallState.ended) {
             _updateCallState(CallState.connected);
             _cancelCallTimeout();
           }
-          
-          if (state == RTCPeerConnectionState.RTCPeerConnectionStateDisconnected) {
-            // Don't end call immediately on disconnect - wait to see if it reconnects
-            // Especially if we have a stream, it might just be a temporary disconnection
-          } else if (state == RTCPeerConnectionState.RTCPeerConnectionStateConnecting) {
-            // If we have a remote stream while connecting, we're actually connected
-            // Update state to CONNECTED to show the UI correctly
-            if (hasRemoteStream && _callState != CallState.connected && _callState != CallState.ended) {
-              _updateCallState(CallState.connected);
-              _cancelCallTimeout();
-            }
-          } else if (state == RTCPeerConnectionState.RTCPeerConnectionStateFailed) {
-            // Only fail if we don't have a remote stream yet
-            // If we have a stream, the media connection might still work
-            if (!hasRemoteStream) {
-              // Check ICE state before ending - might be able to recover
-              final iceState = _peerConnection?.iceConnectionState;
-              // Give it more time to potentially recover and receive stream
-              Future.delayed(const Duration(seconds: 5), () {
-                final currentState = _peerConnection?.connectionState;
-                // Only end if still failed AND no remote stream
-                if (currentState == RTCPeerConnectionState.RTCPeerConnectionStateFailed &&
-                    _remoteStream == null) {
-                  onCallError?.call('Connection failed. Please check your network and try again.');
-                  endCall();
-                }
-              });
-            }
-            // If we have a stream, don't end the call - media might still work
-            // The connection state can be misleading - if media is flowing, keep the call
-          } else if (state == RTCPeerConnectionState.RTCPeerConnectionStateClosed) {
-            // Only end call if it wasn't already ended AND we don't have a remote stream
-            // If we have a remote stream, the call might still be working
-            // The CLOSED state can sometimes be triggered prematurely or incorrectly
-            if (_callState != CallState.ended && _callState != CallState.idle) {
-              // Check if we have a remote stream - if so, don't end immediately
-              // Give it a moment to see if the stream is still active
-              if (!hasRemoteStream) {
-                // No remote stream - safe to end
-                endCall();
-              } else {
-                // We have a remote stream - check if tracks exist and are enabled
-                final videoTracks = _remoteStream?.getVideoTracks() ?? [];
-                final audioTracks = _remoteStream?.getAudioTracks() ?? [];
-                final hasTracks = videoTracks.isNotEmpty || audioTracks.isNotEmpty;
-                
-                if (!hasTracks) {
-                  // No tracks at all - safe to end
-                  endCall();
-                } else {
-                  // We have tracks - wait a bit to see if they're still working
-                  // The CLOSED state might be a false positive
-                  Future.delayed(const Duration(seconds: 2), () {
-                    // Check again - if call is still in connected state, don't end
-                    if (_callState == CallState.connected && _remoteStream != null) {
-                      // Call is still connected and we have a stream - don't end
-                      // The CLOSED state was likely a false positive
-                    } else if (_callState != CallState.ended && _callState != CallState.idle) {
-                      // Call state changed or stream is gone - safe to end now
-                      endCall();
-                    }
-                  });
-                }
-              }
-            }
-          } else if (state == RTCPeerConnectionState.RTCPeerConnectionStateConnected) {
-            // Also update call state to connected when peer connection is established
-            // This is a backup in case onTrack doesn't fire (e.g., for audio-only calls)
-            if (_callState != CallState.connected && _callState != CallState.ended) {
-              _updateCallState(CallState.connected);
-              // Cancel timeout when call is connected
-              _cancelCallTimeout();
-            }
-          }
-        });
+        }
       };
     } catch (e) {
       onCallError?.call('Failed to create connection: $e');
