@@ -2,6 +2,7 @@
 // import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:async';
 import 'package:http/http.dart' as http;
+import '../utils/api_utils.dart';
 import 'dart:convert';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_database/firebase_database.dart';
@@ -118,7 +119,7 @@ class FirebaseRealtimeService {
       ).timeout(const Duration(seconds: 15));
 
       if (response.statusCode == 200) {
-        final data = json.decode(response.body);
+        final data = safeJsonDecode(response);
         if (data['responseCode'] == 1 && data['token'] != null) {
           String customToken = data['token'];
           
@@ -354,15 +355,7 @@ class FirebaseRealtimeService {
       if (response.statusCode == 200) {
         String responseBody = response.body;
         
-        // Handle HTML warnings mixed with JSON
-        if (responseBody.trim().startsWith('<')) {
-          final jsonMatch = RegExp(r'\[.*\]$', dotAll: true).firstMatch(responseBody);
-          if (jsonMatch != null) {
-            responseBody = jsonMatch.group(0)!;
-          }
-        }
-        
-        final List<dynamic> data = json.decode(responseBody);
+        final dynamic data = safeJsonDecode(response);
         if (data.isNotEmpty && data.first['responseCode'] == '1') {
           final postMap = data.first as Map<String, dynamic>;
           final post = Post.fromJson(postMap);
@@ -388,7 +381,7 @@ class FirebaseRealtimeService {
       );
       
       if (response.statusCode == 200) {
-        final data = json.decode(response.body);
+        final data = safeJsonDecode(response);
         if (data['responseCode'] == '1' && data['message'] != null) {
           final messageData = data['message'];
           final message = messageData['message'] as String? ?? '';

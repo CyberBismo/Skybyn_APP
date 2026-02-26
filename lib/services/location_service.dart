@@ -1,5 +1,6 @@
 import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
+import '../utils/api_utils.dart';
 import 'dart:convert';
 import 'dart:async';
 import '../config/constants.dart';
@@ -88,7 +89,7 @@ class LocationService {
       ).timeout(const Duration(seconds: 10));
 
       if (response.statusCode == 200) {
-        final data = json.decode(response.body);
+        final data = safeJsonDecode(response);
         if (data['responseCode'] == '1' || data['success'] == true) {
           return true;
         } else {
@@ -119,7 +120,7 @@ class LocationService {
       ).timeout(const Duration(seconds: 10));
 
       if (response.statusCode == 200) {
-        final data = json.decode(response.body);
+        final data = safeJsonDecode(response);
         if (data is List) {
           // Direct array format
           return data.map((item) => item as Map<String, dynamic>).toList();

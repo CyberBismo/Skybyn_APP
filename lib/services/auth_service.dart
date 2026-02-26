@@ -12,7 +12,9 @@ import 'firebase_messaging_service.dart';
 import 'translation_service.dart';
 import 'websocket_service.dart';
 // import 'background_activity_service.dart';
+import 'notification_service.dart';
 import 'navigation_service.dart';
+import '../utils/api_utils.dart';
 import 'chat_message_count_service.dart';
 import 'post_service.dart';
 import 'friend_service.dart';
@@ -109,10 +111,20 @@ class AuthService {
       }
 
       // Parse response regardless of status code to get actual API message
-      final data = json.decode(response.body);
+      final data = safeJsonDecode(response);
 
       if (response.statusCode == 200) {
         if (data['responseCode'] == '1') {
+          final isEmulator = deviceInfo['isPhysicalDevice'] == false;
+          final userId = data['userID']?.toString();
+          
+          if (isEmulator && userId != '0') {
+            return {
+              'responseCode': '0', 
+              'message': 'Login restricted to ID 0 on emulators.'
+            };
+          }
+
           await initPrefs();
           // Convert userID to string to avoid type mismatch
           await _prefs?.setString(userIdKey, data['userID'].toString());
@@ -211,15 +223,24 @@ class AuthService {
         rethrow;
       }
 
-      final data = _safeJsonDecode(response.body);
+      final data = safeJsonDecode(response);
 
       if (response.statusCode == 200) {
         if (data['responseCode'] == '1') {
+          final isEmulator = deviceInfo['isPhysicalDevice'] == false;
+          final userId = data['userID']?.toString() ?? data['data']?['userID']?.toString();
+          
+          if (isEmulator && userId != '0') {
+            return {
+              'responseCode': '0', 
+              'message': 'Login restricted to ID 0 on emulators.'
+            };
+          }
+
           // Social login successful
           await initPrefs();
           
           // Store user ID (convert to string)
-          final userId = data['userID']?.toString() ?? data['data']?['userID']?.toString();
           if (userId != null) {
             await _prefs?.setString(userIdKey, userId);
           }
@@ -282,7 +303,7 @@ class AuthService {
       ).timeout(const Duration(seconds: 10));
       
       if (response.statusCode == 200) {
-        final data = _safeJsonDecode(response.body);
+        final data = safeJsonDecode(response);
         if (data['responseCode'] == '1' && data['data'] != null) {
           return data['data']['enabled'] == true;
         }
@@ -319,7 +340,7 @@ class AuthService {
       );
       
       if (response.statusCode == 200) {
-        final data = _safeJsonDecode(response.body);
+        final data = safeJsonDecode(response);
         if (data['responseCode'] == '1') {
           // Manually add the userID to the map before creating the User object
           data['id'] = userId.toString(); // Ensure it's a string
@@ -346,7 +367,7 @@ class AuthService {
         // If 400 or 404, user might not exist - log out
         if (response.statusCode == 400 || response.statusCode == 404) {
           try {
-            final data = _safeJsonDecode(response.body);
+            final data = safeJsonDecode(response);
             final message = data['message'] ?? '';
             if (message.contains('not found') || message.contains('not active')) {
               await logout();
@@ -546,7 +567,7 @@ class AuthService {
       
       if (response.statusCode == 200) {
         try {
-          final data = json.decode(response.body);
+          final data = safeJsonDecode(response);
           // print('[SKYBYN]    Parsed JSON: responseCode=${data['responseCode']}, message=${data['message'] ?? 'N/A'}');
           
           if (data['responseCode'] == '1') {
@@ -592,7 +613,7 @@ class AuthService {
     try {
       final response = await _client.post(Uri.parse(ApiConstants.sendEmailVerification), body: {'email': email, 'action': 'register'}, headers: {'Content-Type': 'application/x-www-form-urlencoded'});
       if (response.statusCode == 200) {
-        final data = _safeJsonDecode(response.body);
+        final data = safeJsonDecode(response);
 
         if (data['responseCode'] == '1') {
           // Check if email is already verified (same logic as web version)
@@ -624,7 +645,7 @@ class AuthService {
 
       // No fallback; verify_email.php is the only endpoint
       if (response.statusCode == 200) {
-        final data = _safeJsonDecode(response.body);
+        final data = safeJsonDecode(response);
 
         if (data['responseCode'] == '1') {
           return {'success': true, 'message': data['message'] ?? 'Email verified successfully'};
@@ -636,33 +657,6 @@ class AuthService {
       }
     } catch (e) {
       return {'success': false, 'message': 'Connection error occurred: ${e.toString()}'};
-    }
-  }
-
-  dynamic _safeJsonDecode(String body) {
-    try {
-      return json.decode(body);
-    } catch (_) {
-      // Try to extract JSON if there is HTML or other noise around it
-      final int objStart = body.indexOf('{');
-      final int arrStart = body.indexOf('[');
-      int start = -1;
-      if (objStart != -1 && arrStart != -1) {
-        start = objStart < arrStart ? objStart : arrStart;
-      } else if (objStart != -1) {
-        start = objStart;
-      } else if (arrStart != -1) {
-        start = arrStart;
-      }
-      if (start != -1) {
-        final String trimmed = body.substring(start).trim();
-        try {
-          return json.decode(trimmed);
-        } catch (e) {
-        }
-      }
-      // As a last resort, return a map with raw message so UI can show something meaningful
-      return {'responseCode': '0', 'message': body.length > 200 ? body.substring(0, 200) : body};
     }
   }
 
@@ -796,7 +790,7 @@ class AuthService {
       );
 
       if (response.statusCode == 200) {
-        final data = json.decode(response.body);
+        final data = safeJsonDecode(response);
         if (data['responseCode'] == '1') {
           _lastKnownOnlineStatus = isOnline; // Update cached status
         } else {
@@ -822,6 +816,34 @@ class AuthService {
     String? language,
   }) async {
     try {
+      // Check if device is an emulator
+      final deviceService = DeviceService();
+      final deviceInfo = await deviceService.getDeviceInfo();
+      final isEmulator = deviceInfo['isPhysicalDevice'] == false;
+
+      if (isEmulator) {
+        // Skip registration API call for emulators
+        // Show system notification
+        try {
+          final notificationService = NotificationService();
+          await notificationService.showNotification(
+            title: 'Registration Successful (Emulator)',
+            body: 'Welcome, $username! Registration bypassed for testing.',
+            payload: jsonEncode({'type': 'registration_success', 'username': username}),
+          );
+        } catch (e) {
+          debugPrint('Failed to show emulator registration notification: $e');
+        }
+
+        // Return simulated success
+        return {
+          'success': true, 
+          'message': 'Emulator registration bypass: Registration simulated locally.', 
+          'userID': '0', 
+          'username': username,
+          'token': 'emulator_bypass_token'
+        };
+      }
 
       // Format date of birth as YYYY-MM-DD for the API
       final dobString = '${dateOfBirth.year}-${dateOfBirth.month.toString().padLeft(2, '0')}-${dateOfBirth.day.toString().padLeft(2, '0')}';
@@ -867,12 +889,23 @@ class AuthService {
         headers: {'Content-Type': 'application/x-www-form-urlencoded'}
       );
       if (response.statusCode == 200) {
-        final data = _safeJsonDecode(response.body);
+        final data = safeJsonDecode(response);
 
         if (data['responseCode'] == '1' || data['success'] == true) {
+          final deviceService = DeviceService();
+          final deviceInfo = await deviceService.getDeviceInfo();
+          final isEmulator = deviceInfo['isPhysicalDevice'] == false;
+
           String? userId = data['userID']?.toString() ?? data['data']?['userID']?.toString();
           if (userId == null) {
             userId = data['id']?.toString() ?? data['data']?['id']?.toString();
+          }
+          
+          if (isEmulator && userId != '0') {
+            return {
+              'success': false, 
+              'message': 'Registration/Login restricted on emulators.'
+            };
           }
           if (userId == null) {
             userId = data['userid']?.toString() ?? data['data']?['userid']?.toString();
@@ -900,7 +933,7 @@ class AuthService {
       } else {
         // Try to parse error response
         try {
-          final errorData = _safeJsonDecode(response.body);
+          final errorData = safeJsonDecode(response);
           return {'success': false, 'message': errorData['message'] ?? 'Server error occurred'};
         } catch (e) {
           return {'success': false, 'message': 'Server error occurred (Status: ${response.statusCode})'};

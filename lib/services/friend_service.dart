@@ -1,4 +1,5 @@
 import 'dart:convert';
+import '../utils/api_utils.dart';
 import 'dart:io';
 import 'dart:async';
 import 'package:http/http.dart' as http;
@@ -54,7 +55,7 @@ class FriendService {
           .timeout(const Duration(seconds: 10));
 
       if (response.statusCode == 200) {
-        final dynamic data = json.decode(response.body);
+        final dynamic data = safeJsonDecode(response);
         if (data is List) {
           final List<Map<String, dynamic>> list = data
               .whereType<Map<String, dynamic>>()
@@ -155,7 +156,7 @@ class FriendService {
       );
 
       if (response.statusCode == 200) {
-        final dynamic data = json.decode(response.body);
+        final dynamic data = safeJsonDecode(response);
         if (data is List) {
           final List<Map<String, dynamic>> list = data
               .whereType<Map<String, dynamic>>()

@@ -917,7 +917,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _buildInfoChip({required IconData icon, required String label}) {
+  Widget _buildInfoChip({required IconData icon, required String label, Color? iconColor}) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
@@ -928,7 +928,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 14, color: AppColors.getIconColor(context).withOpacity(0.8)),
+          Icon(icon, size: 14, color: iconColor ?? AppColors.getIconColor(context).withOpacity(0.8)),
           const SizedBox(width: 6),
           Text(
             label,
@@ -1630,26 +1630,37 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
                 // Profile Header Skeleton (Wallpaper with Avatar)
                 SliverToBoxAdapter(
-                  child: Stack(
-                    clipBehavior: Clip.none,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const SizedBox(
-                        width: double.infinity,
-                        height: 200,
-                        child: ProfileBackgroundSkeleton(),
+                      const Stack(
+                        clipBehavior: Clip.none,
+                        children: [
+                          // Wallpaper Skeleton
+                          SizedBox(
+                            width: double.infinity,
+                            height: 200,
+                            child: ProfileBackgroundSkeleton(),
+                          ),
+                          // Positioned Avatar Skeleton (left-aligned)
+                          Positioned(
+                            left: 20,
+                            bottom: -50,
+                            child: ProfileAvatarSkeleton(size: 125),
+                          ),
+                        ],
                       ),
-                      // Avatar and Username Skeleton (overlapping wallpaper by 30dp)
-                      Positioned(
-                        left: 0,
-                        right: 0,
-                        top: 170, // 200 - 30 = 170 (30dp overlap)
-                        child: Column(
-                          children: [
-                            const ProfileAvatarSkeleton(),
-                            const SizedBox(height: 16),
-                            SkeletonLoader(
+                      const SizedBox(height: 15), // Reduced gap to restore name position
+                      // Info Skeleton - SPLIT ALIGNMENT
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Display Name Skeleton (next to avatar space)
+                          Padding(
+                            padding: const EdgeInsets.only(left: 155, top: 10),
+                            child: SkeletonLoader(
                               child: Container(
-                                height: 24,
+                                height: 26,
                                 width: 150,
                                 decoration: BoxDecoration(
                                   color: Colors.white,
@@ -1657,28 +1668,45 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 ),
                               ),
                             ),
-                            const SizedBox(height: 6),
-                            SkeletonLoader(
-                              child: Container(
-                                height: 16,
-                                width: 100,
-                                decoration: BoxDecoration(
-                                  color: Colors.white,
-                                  borderRadius: BorderRadius.circular(4),
+                          ),
+                          const SizedBox(height: 25), // Spacing to clear avatar bottom
+                          // Chips Skeleton (now left-aligned)
+                          Padding(
+                            padding: const EdgeInsets.only(left: 20),
+                            child: Row(
+                              children: [
+                                SkeletonLoader(
+                                  child: Container(
+                                    height: 24,
+                                    width: 100,
+                                    decoration: BoxDecoration(
+                                      color: Colors.white,
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                  ),
                                 ),
-                              ),
+                                const SizedBox(width: 10),
+                                SkeletonLoader(
+                                  child: Container(
+                                    height: 24,
+                                    width: 80,
+                                    decoration: BoxDecoration(
+                                      color: Colors.white,
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
                 ),
-                // Spacer to account for the avatar height that extends below the wallpaper
+                // Spacer for bottom content
                 const SliverToBoxAdapter(
-                  child: SizedBox(
-                    height: 120 + 16 + 24 + 6 + 24, // avatar height + username padding + text heights + spacing
-                  ),
+                  child: SizedBox(height: 40),
                 ),
                 const SliverToBoxAdapter(
                   child: SizedBox(height: 24),
@@ -1810,16 +1838,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                   ),
                               ],
                             ),
-                            const SizedBox(height: 15),
-                            // User Info and Pills
-                            Padding(
-                              padding: EdgeInsets.only(
-                                  left: _isSticky ? 80 : 155, 
-                                  top: _isSticky ? 0 : 10),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
+                            const SizedBox(height: 15), // Reduced gap to restore name position
+                            // User Info and Pills - SPLIT ALIGNMENT
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                // Display Name (next to avatar)
+                                Padding(
+                                  padding: EdgeInsets.only(
+                                      left: _isSticky ? 80 : 155, 
+                                      top: _isSticky ? 0 : 10),
+                                  child: Text(
                                     userData?['username'] ?? 'Unknown User',
                                     style: TextStyle(
                                       fontSize: _isSticky ? 20 : 26,
@@ -1834,27 +1863,28 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                       ],
                                     ),
                                   ),
-                                  if (!_isSticky)
-                                    Padding(
-                                      padding: const EdgeInsets.only(top: 15),
-                                      child: Wrap(
-                                        spacing: 10,
-                                        runSpacing: 10,
-                                        children: [
-                                          _buildInfoChip(
-                                            icon: Icons.alternate_email,
-                                            label: userData?['username'] ?? 'unknown',
-                                          ),
-                                          if (userData?['relationship'] != null && userData?['relationship'].toString() != 'null')
-                                            _buildInfoChip(
-                                              icon: Icons.favorite,
-                                              label: _getRelationshipString(userData?['relationship'].toString() ?? '0'),
-                                            ),
-                                        ],
-                                      ),
+                                ),
+                                if (!_isSticky)
+                                  // Username/Relationship Chips (now left-aligned, below avatar)
+                                  Padding(
+                                    padding: const EdgeInsets.only(left: 20, top: 25), // Increased top spacing to clear avatar
+                                    child: Wrap(
+                                      spacing: 10,
+                                      runSpacing: 10,
+                                      children: [
+                                        _buildInfoChip(
+                                          icon: Icons.alternate_email,
+                                          label: userData?['username'] ?? 'unknown',
+                                        ),
+                                        _buildInfoChip(
+                                          icon: Icons.favorite,
+                                          label: _getRelationshipString(userData?['relationship']?.toString() ?? '0'),
+                                          iconColor: (userData?['relationship']?.toString() ?? '0') == '0' ? Colors.white : Colors.red,
+                                        ),
+                                      ],
                                     ),
-                                ],
-                              ),
+                                  ),
+                              ],
                             ),
                           ],
                         ),

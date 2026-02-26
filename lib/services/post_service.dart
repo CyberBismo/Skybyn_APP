@@ -1,5 +1,6 @@
 import '../models/post.dart';
 import 'dart:convert';
+import '../utils/api_utils.dart';
 import 'dart:io';
 import 'dart:async';
 import 'package:http/http.dart' as http;
@@ -10,6 +11,27 @@ class PostService {
   static const String _cacheKey = 'cached_timeline_posts';
   static const String _cacheTimestampKey = 'cached_timeline_posts_timestamp';
   static const Duration _cacheExpiry = Duration(minutes: 5); // Cache for 5 minutes
+
+  PostService() {
+    _checkAndClearLegacyCache();
+  }
+
+  /// Checks if we need to clear legacy corrupted cache for the encoding fix
+  Future<void> _checkAndClearLegacyCache() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final bool alreadyFixed = prefs.getBool('encoding_fix_posts_v1_applied') ?? false;
+      
+      if (!alreadyFixed) {
+        // Clear timeline keys
+        await prefs.remove(_cacheKey);
+        await prefs.remove(_cacheTimestampKey);
+        await prefs.setBool('encoding_fix_posts_v1_applied', true);
+      }
+    } catch (e) {
+      // Ignore errors
+    }
+  }
 
   Future<List<Post>> fetchPostsForUser({String? userId}) async {
     final userID = userId;
@@ -94,7 +116,7 @@ class PostService {
     );
   
     if (response.statusCode == 200) {
-      final decoded = json.decode(response.body);
+      final decoded = safeJsonDecode(response);
       
       // Handle API response format: feed API now returns direct array
       // But handle both formats for backward compatibility
@@ -258,7 +280,7 @@ class PostService {
           return [];
         }
         
-        final decoded = json.decode(response.body);
+        final decoded = safeJsonDecode(response);
         
         // Handle different response formats
         List<dynamic> data = [];
@@ -310,33 +332,24 @@ class PostService {
         body: {'postID': postId, 'userID': userID},
       ).timeout(const Duration(seconds: 10));
     if (response.statusCode == 200) {
-      // Check if response contains HTML warnings mixed with JSON
-      String responseBody = response.body;
-      
-      // If response starts with HTML, try to extract JSON from the end
-      if (responseBody.trim().startsWith('<')) {
-        // Look for JSON array at the end of the response
-        final jsonMatch = RegExp(r'\[.*\]$', dotAll: true).firstMatch(responseBody);
-        if (jsonMatch != null) {
-          responseBody = jsonMatch.group(0)!;
-        } else {
-          throw Exception('API returned invalid response format (HTML without JSON)');
-        }
-      }
-      
       try {
-        final List<dynamic> data = json.decode(responseBody);
-        if (data.isNotEmpty && data.first['responseCode'] == '1') {
+        final data = safeJsonDecode(response);
+        if (data is List && data.isNotEmpty && data.first['responseCode'] == '1') {
           final postMap = data.first as Map<String, dynamic>;
           return Post.fromJson(postMap);
+        } else if (data is Map && data['responseCode'] == '1') {
+          return Post.fromJson(data as Map<String, dynamic>);
         } else {
-          final message = data.isNotEmpty ? data.first['message'] : 'Post not found';
+          final message = (data is List && data.isNotEmpty) 
+              ? data.first['message'] 
+              : (data is Map ? data['message'] : 'Post not found');
           throw Exception('Failed to load post: $message');
         }
       } catch (e) {
         throw Exception('Failed to parse API response: $e');
       }
-    } else {
+    }
+ else {
       throw Exception('Failed to load post with status ${response.statusCode}');
     }
     } catch (e) {
@@ -368,7 +381,7 @@ class PostService {
     }
     
     // Parse response to check for success
-    final data = json.decode(response.body);
+    final data = safeJsonDecode(response);
     if (data['responseCode'] != '1') {
       final message = data['message'] ?? 'Failed to delete post';
       throw Exception(message);
@@ -395,7 +408,7 @@ class PostService {
         throw Exception('Failed to create post');
       }
       
-      final data = json.decode(response.body);
+      final data = safeJsonDecode(response);
       if (data['responseCode'] != '1') {
         final message = data['message'] ?? 'Failed to create post';
         throw Exception(message);
@@ -426,7 +439,7 @@ class PostService {
         throw Exception('Failed to create post');
       }
       
-      final data = json.decode(response.body);
+      final data = safeJsonDecode(response);
       if (data['responseCode'] != '1') {
         final message = data['message'] ?? 'Failed to create post';
         throw Exception(message);
@@ -455,7 +468,7 @@ class PostService {
       throw Exception('Failed to update post');
     }
     
-    final data = json.decode(response.body);
+    final data = safeJsonDecode(response);
     if (data['responseCode'] != '1') {
       final message = data['message'] ?? 'Failed to update post';
       throw Exception(message);

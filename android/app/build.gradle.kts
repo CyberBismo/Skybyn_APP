@@ -1,3 +1,6 @@
+import java.util.Properties
+import java.io.FileInputStream
+
 plugins {
     id("com.android.application")
     id("kotlin-android")
@@ -7,20 +10,19 @@ plugins {
 
 android {
     namespace = "no.skybyn.app"
-    // Use compileSdk 36 (Android 16) - required for sqflite_android 2.4.2+ which hardcodes compileSdk 36
-    // Note: targetSdk remains at 34 for compatibility
+    // Use compileSdk 36 (Android 16 / BAKLAVA) - required for sqflite_android 2.4.2+
     compileSdk = 36
     ndkVersion = "27.0.12077973"
 
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_11
-        targetCompatibility = JavaVersion.VERSION_11
-        // Desugaring not needed for minSdk 26+ (Android 8.0+)
-        isCoreLibraryDesugaringEnabled = false
+        sourceCompatibility = JavaVersion.VERSION_21
+        targetCompatibility = JavaVersion.VERSION_21
+        // Desugaring needed for some plugins even with minSdk 26+
+        isCoreLibraryDesugaringEnabled = true
     }
 
     kotlinOptions {
-        jvmTarget = JavaVersion.VERSION_11.toString()
+        jvmTarget = JavaVersion.VERSION_21.toString()
     }
 
     defaultConfig {
@@ -31,8 +33,8 @@ android {
         // minSdk 26 = Android 8.0 (Oreo) - reduces APK size by removing desugaring and compatibility libraries
         // Still covers ~95%+ of active Android devices
         minSdk = 26
-        // targetSdk 36 = Android 16 - updated to match compileSdk for latest compatibility
-        targetSdk = 36
+        // targetSdk 35 remains for broad compatibility, while compileSdk is 36
+        targetSdk = 35
         versionCode = flutter.versionCode
         versionName = flutter.versionName
         
@@ -47,9 +49,9 @@ android {
     // Load keystore properties from key.properties file
     // key.properties is located at the project root (Skybyn_APP/key.properties)
     val keystorePropertiesFile = rootProject.file("../key.properties")
-    val keystoreProperties = java.util.Properties()
+    val keystoreProperties = Properties()
     if (keystorePropertiesFile.exists()) {
-        keystoreProperties.load(java.io.FileInputStream(keystorePropertiesFile))
+        keystoreProperties.load(FileInputStream(keystorePropertiesFile))
     }
 
     signingConfigs {
@@ -127,14 +129,10 @@ configurations.all {
 dependencies {
     // Firebase BOM for version management
     implementation(platform("com.google.firebase:firebase-bom:33.7.0"))
-    // Firebase KTX for app distribution (required by firebase_app_distribution plugin)
-    // firebase-common-ktx provides the base Firebase KTX class
-    implementation("com.google.firebase:firebase-common-ktx")
     // Play Core library for Flutter deferred components (referenced by Flutter engine)
     // This is required to prevent R8 errors when minifyEnabled is true
     implementation("com.google.android.play:core:1.10.3")
-    // Desugaring not needed for minSdk 26+ (Android 8.0+)
-    // coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
 }
 
 flutter {

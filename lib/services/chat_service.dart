@@ -1,4 +1,5 @@
 import 'dart:convert';
+import '../utils/api_utils.dart';
 import 'dart:io';
 import 'dart:async';
 import 'package:http/http.dart' as http;
@@ -71,7 +72,7 @@ class ChatService {
     // Try to parse response body regardless of status code
     Map<String, dynamic>? responseData;
     try {
-      responseData = json.decode(response.body) as Map<String, dynamic>?;
+      responseData = safeJsonDecode(response) as Map<String, dynamic>?;
       if (responseData != null) {
         print('[SKYBYN]    Parsed JSON: responseCode=${responseData['responseCode']}, messageId=${responseData['messageId']}, message=${responseData['message']}');
       }
@@ -618,7 +619,7 @@ class ChatService {
         if (response.statusCode >= 500) {
           // Try to extract error message from response
           try {
-            final errorData = json.decode(response.body) as Map<String, dynamic>?;
+            final errorData = safeJsonDecode(response) as Map<String, dynamic>?;
             if (errorData != null && errorData.containsKey('message')) {
               final errorMsg = errorData['message'] as String?;
               throw HttpException('Server error: ${response.statusCode} - ${errorMsg ?? "Unknown error"}');
@@ -679,7 +680,7 @@ class ChatService {
       );
     
       if (response.statusCode == 200) {
-        final dynamic decoded = json.decode(response.body);
+        final dynamic decoded = safeJsonDecode(response);
         
         // Check if response is an error object (Map) or messages array (List)
         if (decoded is Map<String, dynamic>) {
@@ -770,7 +771,7 @@ class ChatService {
           ).timeout(const Duration(seconds: 15));
 
           if (response.statusCode == 200) {
-            final responseData = json.decode(response.body) as Map<String, dynamic>?;
+            final responseData = safeJsonDecode(response) as Map<String, dynamic>?;
             final responseCode = responseData?['responseCode'];
             if (responseData != null && (responseCode == 1 || responseCode == '1') && responseData['messageId'] != null) {
               final messageId = responseData['messageId'].toString();
@@ -865,7 +866,7 @@ class ChatService {
       developer.log('   Status Code: ${response.statusCode}', name: 'Chat API');
 
       if (response.statusCode == 200) {
-        final responseData = json.decode(response.body) as Map<String, dynamic>?;
+        final responseData = safeJsonDecode(response) as Map<String, dynamic>?;
         if (responseData != null) {
           print('[SKYBYN]    Response: ${responseData['responseCode'] == 1 ? 'Success' : 'Failed'}');
           developer.log('   Response: ${responseData['responseCode'] == 1 ? 'Success' : 'Failed'}', name: 'Chat API');

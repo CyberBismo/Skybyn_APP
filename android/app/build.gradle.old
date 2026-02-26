@@ -228,9 +228,6 @@ dependencies {
     implementation platform('com.google.firebase:firebase-bom:33.7.0')
     implementation 'com.google.firebase:firebase-messaging'
     implementation 'com.google.firebase:firebase-analytics'
-    // Firebase KTX for app distribution (required by firebase_app_distribution plugin)
-    // firebase-common-ktx provides the base Firebase KTX class
-    implementation 'com.google.firebase:firebase-common-ktx'
     // Play Core library for Flutter deferred components (referenced by Flutter engine)
     // This is required to prevent R8 errors when minifyEnabled is true
     implementation 'com.google.android.play:core:1.10.3'
