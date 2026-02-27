@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_map/flutter_map.dart';
+import 'package:flutter_map_marker_cluster/flutter_map_marker_cluster.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
@@ -30,7 +31,7 @@ class MapScreen extends StatefulWidget {
   State<MapScreen> createState() => _MapScreenState();
 }
 
-class _MapScreenState extends State<MapScreen> {
+class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
   final AuthService _authService = AuthService();
   final LocationService _locationService = LocationService();
   final MapController _mapController = MapController();
@@ -62,6 +63,10 @@ class _MapScreenState extends State<MapScreen> {
     ),
   );
 
+  static const String _lastMapLatKey = 'last_map_latitude';
+  static const String _lastMapLngKey = 'last_map_longitude';
+  static const String _lastMapZoomKey = 'last_map_zoom';
+
   @override
   void initState() {
     super.initState();
@@ -74,7 +79,7 @@ class _MapScreenState extends State<MapScreen> {
 
   Future<void> _requestLocationPermission() async {
     try {
-      final hasPermission = await _locationService.requestLocationPermission();
+      final hasPermission = await _locationService.checkAndRequestLocationPermission(context, isStartup: false);
       if (hasPermission) {
         print('Location permission granted');
       } else {
@@ -133,7 +138,6 @@ class _MapScreenState extends State<MapScreen> {
   @override
   void dispose() {
     _refreshTimer?.cancel();
-    _locationService.dispose();
     _mapController.dispose();
     super.dispose();
   }
@@ -237,6 +241,53 @@ class _MapScreenState extends State<MapScreen> {
 
     // Start getting location early (in parallel with other operations)
     print('Getting current user location...');
+    
+    // Check if we have a locally saved map viewpoint state
+    final prefs = await SharedPreferences.getInstance();
+    final double? lastLat = prefs.getDouble(_lastMapLatKey);
+    final double? lastLng = prefs.getDouble(_lastMapLngKey);
+    final double? lastZoom = prefs.getDouble(_lastMapZoomKey);
+
+    // Load friends cache to show them immediately while the API updates
+    final String? cachedFriendsJson = prefs.getString('cached_friends_locations');
+    if (cachedFriendsJson != null && cachedFriendsJson.isNotEmpty) {
+      try {
+        final List<dynamic> decoded = json.decode(cachedFriendsJson);
+        if (mounted) {
+          setState(() {
+            _friendsWithLocations = decoded.map<Friend>((js) => Friend.fromJson(js)).toList();
+          });
+          _cacheFriendAvatars();
+        }
+      } catch (e) {
+        print('Error loading cached friends: $e');
+      }
+    }
+
+    // ALWAYS load the cached position so the user marker appears instantly
+    final cachedPosition = await _locationService.getLastKnownLocation();
+    
+    if (mounted) {
+      setState(() {
+        if (cachedPosition != null) {
+          _currentPosition = cachedPosition;
+        }
+
+        if (cachedPosition != null) {
+          _center = LatLng(cachedPosition.latitude, cachedPosition.longitude);
+        }
+
+        if (lastZoom != null) {
+          _zoom = lastZoom;
+        } else {
+          _zoom = 15.0;
+        }
+        
+        _isLoading = false; // Show map instantly
+      });
+    }
+
+    // Now fetch accurate location in background
     final locationFuture = _locationService.getCurrentLocation();
 
     // Create current user marker image (will be recreated after position is set)
@@ -247,17 +298,20 @@ class _MapScreenState extends State<MapScreen> {
       print('No avatar URL available');
     }
 
-    // Wait for location (may already be ready if preloaded)
+    // Wait for actual location
     final position = await locationFuture;
     if (position != null && mounted) {
       print('Location obtained: ${position.latitude}, ${position.longitude}');
       setState(() {
         _currentPosition = position;
-        _center = LatLng(position.latitude, position.longitude);
-        _zoom = 15.0;
+        
+        // Only override the center if we didn't have a saved viewpoint
+        if (lastLat == null || lastLng == null || lastZoom == null) {
+          _center = LatLng(position.latitude, position.longitude);
+          _zoom = 15.0;
+          _animatedMapMove(_center, _zoom);
+        }
       });
-      // Recreate marker after position is set
-      // Avatar is cached via CachedNetworkImageProvider, markers built dynamically
     } else {
       print('No location obtained');
     }
@@ -274,18 +328,29 @@ class _MapScreenState extends State<MapScreen> {
     await _loadFriendsLocations();
 
     // Set up periodic refresh for live locations
-    _refreshTimer = Timer.periodic(const Duration(seconds: 30), (timer) {
+    // Reduced from 30 seconds to 10 seconds to make it closer to real-time.
+    _refreshTimer = Timer.periodic(const Duration(seconds: 10), (timer) {
       _loadFriendsLocations();
     });
-
-    // Fit bounds after initial load - only once after all data is loaded
-    if (mounted) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _fitBounds();
-        // Force rebuild to show markers
-        setState(() {});
+    
+    // Setup real-time tracking for the local user on the map
+    _locationService.getCurrentLocation().then((_) {
+       Geolocator.getPositionStream(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+          distanceFilter: 10, // Update marker on the map every 10 meters moved
+        ),
+      ).listen((Position position) async {
+        if (mounted) {
+          setState(() {
+            _currentPosition = position;
+          });
+        }
+        
+        // Save newest user location to global cache so the map loads it instantly later
+        _locationService.saveLastKnownLocation(position);
       });
-    }
+    });
   }
 
   Future<void> _loadFriendsLocations() async {
@@ -312,6 +377,10 @@ class _MapScreenState extends State<MapScreen> {
             setState(() {
               _friendsWithLocations = friends;
               // _isLoading already set to false earlier
+            });
+            // Cache locally for instant loading next time
+            SharedPreferences.getInstance().then((prefs) {
+              prefs.setString('cached_friends_locations', json.encode(friendsList));
             });
           }
 
@@ -392,50 +461,62 @@ class _MapScreenState extends State<MapScreen> {
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               // Marker with black background and avatar
-              Container(
-                width: 50,
-                height: 50,
-                decoration: const BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Colors.black,
-                ),
-                child: Center(
-                  child: SizedBox(
-                    width: 45,
-                    height: 45,
-                    child: ClipOval(
-                      child: Padding(
-                        padding: const EdgeInsets.all(2.0),
-                        child: _currentUserAvatar != null && 
-                            _currentUserAvatar!.startsWith('http') &&
-                            !_currentUserAvatar!.contains('logo_faded_clean.png') &&
-                            !_currentUserAvatar!.contains('logo.png') &&
-                            !_currentUserAvatar!.endsWith('/assets/images/logo.png') &&
-                            !_currentUserAvatar!.endsWith('/assets/images/logo_faded_clean.png')
-                            ? CachedNetworkImage(
-                                imageUrl: _currentUserAvatar!.replaceAll('skybyn.com', 'skybyn.no'),
-                                width: 45,
-                                height: 45,
-                                fit: BoxFit.cover,
-                                placeholder: (context, url) => Image.asset(
-                                  'assets/images/logo.png',
-                                  width: 45,
-                                  height: 45,
-                                  fit: BoxFit.cover,
-                                ),
-                                errorWidget: (context, url, error) => Image.asset(
-                                  'assets/images/logo.png',
-                                  width: 45,
-                                  height: 45,
-                                  fit: BoxFit.cover,
-                                ),
-                              )
-                            : Image.asset(
-                                'assets/images/logo.png',
-                                width: 45,
-                                height: 45,
-                                fit: BoxFit.cover,
-                              ),
+              GestureDetector(
+                onTap: () {
+                  // Navigate to Profile using current user id
+                  Navigator.of(context).pushNamed(
+                    '/profile',
+                    arguments: {'userId': _currentUserId, 'username': 'You'},
+                  );
+                },
+                child: Hero(
+                  tag: 'avatar_$_currentUserId',
+                  child: Container(
+                    width: 50,
+                    height: 50,
+                    decoration: const BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Colors.black,
+                    ),
+                    child: Center(
+                      child: SizedBox(
+                        width: 45,
+                        height: 45,
+                        child: ClipOval(
+                          child: Padding(
+                            padding: const EdgeInsets.all(2.0),
+                            child: _currentUserAvatar != null && 
+                                _currentUserAvatar!.startsWith('http') &&
+                                !_currentUserAvatar!.contains('logo_faded_clean.png') &&
+                                !_currentUserAvatar!.contains('logo.png') &&
+                                !_currentUserAvatar!.endsWith('/assets/images/logo.png') &&
+                                !_currentUserAvatar!.endsWith('/assets/images/logo_faded_clean.png')
+                                ? CachedNetworkImage(
+                                    imageUrl: _currentUserAvatar!.replaceAll('skybyn.com', 'skybyn.no'),
+                                    width: 45,
+                                    height: 45,
+                                    fit: BoxFit.cover,
+                                    placeholder: (context, url) => Image.asset(
+                                      'assets/images/logo.png',
+                                      width: 45,
+                                      height: 45,
+                                      fit: BoxFit.cover,
+                                    ),
+                                    errorWidget: (context, url, error) => Image.asset(
+                                      'assets/images/logo.png',
+                                      width: 45,
+                                      height: 45,
+                                      fit: BoxFit.cover,
+                                    ),
+                                  )
+                                : Image.asset(
+                                    'assets/images/logo.png',
+                                    width: 45,
+                                    height: 45,
+                                    fit: BoxFit.cover,
+                                  ),
+                          ),
+                        ),
                       ),
                     ),
                   ),
@@ -493,45 +574,57 @@ class _MapScreenState extends State<MapScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               // Marker with black background and avatar
-              Container(
-                width: 50,
-                height: 50,
-                decoration: const BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Colors.black,
-                ),
-                child: Center(
-                  child: SizedBox(
-                    width: 45,
-                    height: 45,
-                    child: ClipOval(
-                      child: Padding(
-                        padding: const EdgeInsets.all(2.0),
-                        child: hasValidAvatar
-                            ? CachedNetworkImage(
-                                imageUrl: finalAvatarUrl,
-                                width: 45,
-                                height: 45,
-                                fit: BoxFit.cover,
-                                placeholder: (context, url) => Image.asset(
-                                  'assets/images/logo.png',
-                                  width: 45,
-                                  height: 45,
-                                  fit: BoxFit.cover,
-                                ),
-                                errorWidget: (context, url, error) => Image.asset(
-                                  'assets/images/logo.png',
-                                  width: 45,
-                                  height: 45,
-                                  fit: BoxFit.cover,
-                                ),
-                              )
-                            : Image.asset(
-                                'assets/images/logo.png',
-                                width: 45,
-                                height: 45,
-                                fit: BoxFit.cover,
-                              ),
+              GestureDetector(
+                onTap: () {
+                  // Navigate to Profile using friend id
+                  Navigator.of(context).pushNamed(
+                    '/profile',
+                    arguments: {'userId': friend.id, 'username': friend.username},
+                  );
+                },
+                child: Hero(
+                  tag: 'avatar_${friend.id}',
+                  child: Container(
+                    width: 50,
+                    height: 50,
+                    decoration: const BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Colors.black,
+                    ),
+                    child: Center(
+                      child: SizedBox(
+                        width: 45,
+                        height: 45,
+                        child: ClipOval(
+                          child: Padding(
+                            padding: const EdgeInsets.all(2.0),
+                            child: hasValidAvatar
+                                ? CachedNetworkImage(
+                                    imageUrl: finalAvatarUrl,
+                                    width: 45,
+                                    height: 45,
+                                    fit: BoxFit.cover,
+                                    placeholder: (context, url) => Image.asset(
+                                      'assets/images/logo.png',
+                                      width: 45,
+                                      height: 45,
+                                      fit: BoxFit.cover,
+                                    ),
+                                    errorWidget: (context, url, error) => Image.asset(
+                                      'assets/images/logo.png',
+                                      width: 45,
+                                      height: 45,
+                                      fit: BoxFit.cover,
+                                    ),
+                                  )
+                                : Image.asset(
+                                    'assets/images/logo.png',
+                                    width: 45,
+                                    height: 45,
+                                    fit: BoxFit.cover,
+                                  ),
+                          ),
+                        ),
                       ),
                     ),
                   ),
@@ -580,7 +673,7 @@ class _MapScreenState extends State<MapScreen> {
 
     if (positions.isEmpty) {
       // Default to Oslo if no positions
-      _mapController.move(_center, _zoom);
+      _animatedMapMove(_center, _zoom);
       return;
     }
 
@@ -632,17 +725,60 @@ class _MapScreenState extends State<MapScreen> {
       zoom = 13.0;
     }
 
-    _mapController.move(center, zoom);
+    _animatedMapMove(center, zoom);
+  }
+
+  // Create a smooth animation from current map center to destination
+  void _animatedMapMove(LatLng destLocation, double destZoom) {
+    if (!mounted) return;
+    
+    // Create some tweens. These serve to split up the transition from one location to another.
+    // In our case, we want to split the transition be<tween> our current map center and the destination.
+    final latTween = Tween<double>(
+        begin: _mapController.camera.center.latitude, end: destLocation.latitude);
+    final lngTween = Tween<double>(
+        begin: _mapController.camera.center.longitude, end: destLocation.longitude);
+    final zoomTween = Tween<double>(
+        begin: _mapController.camera.zoom, end: destZoom);
+
+    // Create a animation controller that has a duration and a TickerProvider.
+    final controller = AnimationController(
+        duration: const Duration(milliseconds: 1000), vsync: this);
+    // The animation determines what path the animation will take. You can try different Curves values
+    final Animation<double> animation =
+        CurvedAnimation(parent: controller, curve: Curves.fastOutSlowIn);
+
+    controller.addListener(() {
+      _mapController.move(
+        LatLng(latTween.evaluate(animation), lngTween.evaluate(animation)),
+        zoomTween.evaluate(animation),
+      );
+    });
+
+    animation.addStatusListener((status) {
+      if (status == AnimationStatus.completed || status == AnimationStatus.dismissed) {
+        controller.dispose();
+      }
+    });
+
+    controller.forward();
   }
 
   void _centerOnCurrentLocation() async {
     // Use cached position for instant response, fallback to getting new location
     if (_currentPosition != null) {
-      // Move immediately using cached position
-      _mapController.move(
+      _animatedMapMove(
         LatLng(_currentPosition!.latitude, _currentPosition!.longitude),
         15.0,
       );
+      
+      // Save state to preserve on reload
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        prefs.setDouble(_lastMapZoomKey, 15.0);
+      } catch (e) {
+        print('Error saving center state: $e');
+      }
     }
     
     // Optionally update location in background for next time
@@ -782,9 +918,9 @@ class _MapScreenState extends State<MapScreen> {
                         height: 30,
                         child: Center(
                           child: FaIcon(
-                            _locationPrivateMode ? FontAwesomeIcons.userSecret : FontAwesomeIcons.eye,
+                            _locationPrivateMode ? FontAwesomeIcons.ghost : FontAwesomeIcons.streetView,
                             color: _locationPrivateMode ? Colors.orange : Colors.white,
-                            size: 30,
+                            size: 26,
                           ),
                         ),
                       ),
@@ -851,8 +987,9 @@ class _MapScreenState extends State<MapScreen> {
                     child: BackgroundGradient(showClouds: isLoggedIn),
                   ),
                   // Full screen map
-                  SizedBox.expand(
-                child: FlutterMap(
+                  if (!_isLoading)
+                    SizedBox.expand(
+                      child: FlutterMap(
                         mapController: _mapController,
                         options: MapOptions(
                           initialCenter: _center,
@@ -862,18 +999,17 @@ class _MapScreenState extends State<MapScreen> {
                           interactionOptions: const InteractionOptions(
                             flags: InteractiveFlag.pinchZoom | InteractiveFlag.drag | InteractiveFlag.scrollWheelZoom,
                           ),
+                          onPositionChanged: (position, hasGesture) async {
+                            if (hasGesture && position.zoom != null) {
+                               final prefs = await SharedPreferences.getInstance();
+                               prefs.setDouble(_lastMapZoomKey, position.zoom!);
+                            }
+                          },
                           onTap: (tapPosition, point) {
                             print('Map tapped at: ${point.latitude}, ${point.longitude}');
                           },
                           onMapReady: () {
                             print('Map is ready');
-                            // Force map to render
-                            if (mounted && _currentPosition != null) {
-                              _mapController.move(
-                                LatLng(_currentPosition!.latitude, _currentPosition!.longitude),
-                                _zoom,
-                              );
-                            }
                           },
                         ),
                         children: [
@@ -886,9 +1022,42 @@ class _MapScreenState extends State<MapScreen> {
                             // Enable tile caching using custom provider
                             tileProvider: _CachedTileProvider(_tileCacheManager),
                           ),
-                          // Markers layer
-                          MarkerLayer(
-                            markers: _buildMarkers(),
+                          // Markers cluster layer
+                          MarkerClusterLayerWidget(
+                            options: MarkerClusterLayerOptions(
+                              maxClusterRadius: 40,
+                              size: const Size(40, 40),
+                              alignment: Alignment.center,
+                              padding: const EdgeInsets.all(50),
+                              maxZoom: 15,
+                              markers: _buildMarkers(),
+                              builder: (context, markers) {
+                                return Container(
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(20),
+                                    color: Colors.blueAccent.withOpacity(0.9),
+                                    border: Border.all(color: Colors.white, width: 2),
+                                    boxShadow: const [
+                                      BoxShadow(
+                                        color: Colors.black26,
+                                        blurRadius: 4,
+                                        spreadRadius: 1,
+                                      ),
+                                    ],
+                                  ),
+                                  child: Center(
+                                    child: Text(
+                                      '+${markers.length}',
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 14,
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
                           ),
                         ],
                       ),

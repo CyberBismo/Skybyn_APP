@@ -22,6 +22,7 @@ import 'dart:convert';
 import 'dart:io';
 import '../services/friend_service.dart';
 import '../services/chat_message_count_service.dart';
+import '../services/location_service.dart';
 import '../widgets/app_colors.dart';
 import '../widgets/global_search_overlay.dart';
 import '../widgets/update_dialog.dart';
@@ -112,6 +113,18 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     final notificationService = NotificationService();
     notificationService.requestAndroidPermissions();
     notificationService.requestIOSPermissions();
+    
+    // Check and request location permission on app start
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (mounted) {
+        final locationService = LocationService();
+        final hasPermission = await locationService.checkAndRequestLocationPermission(context, isStartup: true);
+        if (hasPermission) {
+          // Preload location into cache early
+          await locationService.getCurrentLocation();
+        }
+      }
+    });
     
     // Safety timeout: ensure loading always completes after max 20 seconds
     Timer(const Duration(seconds: 20), () {

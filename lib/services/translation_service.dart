@@ -483,6 +483,9 @@ class TranslationService extends ChangeNotifier {
           "unfriend": "Unfriend",
           "block": "Block",
           "cancel": "Cancel",
+          "allow": "Allow",
+          "location_permission": "Location Permission",
+          "location_permission_rationale": "Skybyn uses your location to show you on the map and find friends nearby.",
           "accept": "Accept",
           "ignore": "Ignore",
           "unblock": "Unblock",
@@ -1841,4 +1844,7 @@ class TranslationKeys {
   static const String relEngaged = 'rel_engaged';
   static const String relMarried = 'rel_married';
   static const String relSeparated = 'rel_separated';
+
+  static const String allow = 'allow';
+  static const String locationPermissionRationale = 'location_permission_rationale';
 }

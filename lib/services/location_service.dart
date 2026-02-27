@@ -4,12 +4,30 @@ import '../utils/api_utils.dart';
 import 'dart:convert';
 import 'dart:async';
 import '../config/constants.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter/material.dart';
+import '../widgets/translated_text.dart';
+import '../services/translation_service.dart';
 
 class LocationService {
+  static final LocationService _instance = LocationService._internal();
+
+  factory LocationService() {
+    return _instance;
+  }
+
+  LocationService._internal();
+
   StreamSubscription<Position>? _positionStreamSubscription;
   String? _currentUserId;
   Timer? _locationUpdateTimer;
   bool _isLiveTracking = false;
+  Position? _cachedPosition;
+  
+  static const String _lastLatKey = 'last_known_lat';
+  static const String _lastLngKey = 'last_known_lng';
+  static const String _hasAskedPermissionOnStartupKey = 'has_asked_location_permission_startup';
+
   /// Request location permissions
   Future<bool> requestLocationPermission() async {
     // Check if location services are enabled
@@ -32,6 +50,78 @@ class LocationService {
     if (permission == LocationPermission.deniedForever) {
       return false;
     }
+    return true;
+  }
+
+  /// Request location permissions with a rationale dialog
+  Future<bool> checkAndRequestLocationPermission(BuildContext context, {bool isStartup = false}) async {
+    // Check if location services are enabled
+    bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) {
+      return false;
+    }
+
+    // Check location permission status
+    LocationPermission permission = await Geolocator.checkPermission();
+    
+    if (permission == LocationPermission.whileInUse || permission == LocationPermission.always) {
+      return true; // Already granted
+    }
+    
+    // Only ask once on startup
+    if (isStartup) {
+      final prefs = await SharedPreferences.getInstance();
+      final hasAsked = prefs.getBool(_hasAskedPermissionOnStartupKey) ?? false;
+      if (hasAsked) {
+        return false; // Prevent showing logic if already asked on startup
+      }
+      await prefs.setBool(_hasAskedPermissionOnStartupKey, true);
+    }
+    
+    if (permission == LocationPermission.denied) {
+      // Show rationale dialog
+      bool? userAgreed = await showDialog<bool>(
+        context: context,
+        barrierDismissible: false,
+        builder: (BuildContext context) {
+          return AlertDialog(
+            title: const TranslatedText(
+              TranslationKeys.locationPermission,
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            content: const TranslatedText(
+              TranslationKeys.locationPermissionRationale, // We need to add this key in translation service 
+              // Translation: Skybyn uses your location to show you on the map and find friends nearby.
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const TranslatedText(TranslationKeys.cancel),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.of(context).pop(true),
+                child: const TranslatedText(TranslationKeys.allow),
+              ),
+            ],
+          );
+        },
+      );
+      
+      if (userAgreed == true) {
+        // Request permission
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) {
+           return false;
+        }
+      } else {
+        return false;
+      }
+    }
+
+    if (permission == LocationPermission.deniedForever) {
+      return false;
+    }
+    
     return true;
   }
 
@@ -65,10 +155,59 @@ class LocationService {
         desiredAccuracy: LocationAccuracy.high,
         timeLimit: const Duration(seconds: 10),
       );
+      
+      _cachedPosition = position;
+      saveLastKnownLocation(position);
+      
       return position;
     } catch (e) {
-      return null;
+      return _cachedPosition ?? await getLastKnownLocation();
     }
+  }
+  
+  /// Save the last known location to SharedPreferences
+  Future<void> saveLastKnownLocation(Position position) async {
+    _cachedPosition = position;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setDouble(_lastLatKey, position.latitude);
+      await prefs.setDouble(_lastLngKey, position.longitude);
+    } catch (e) {
+      // Silently fail
+    }
+  }
+
+  /// Retrieve the last known location from SharedPreferences
+  Future<Position?> getLastKnownLocation() async {
+    if (_cachedPosition != null) {
+      return _cachedPosition;
+    }
+    
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final lat = prefs.getDouble(_lastLatKey);
+      final lng = prefs.getDouble(_lastLngKey);
+      
+      if (lat != null && lng != null) {
+        // Construct a mock Position object with the saved coordinates
+        _cachedPosition = Position(
+          longitude: lng,
+          latitude: lat,
+          timestamp: DateTime.now(),
+          accuracy: 0.0,
+          altitude: 0.0,
+          altitudeAccuracy: 0.0,
+          heading: 0.0,
+          headingAccuracy: 0.0,
+          speed: 0.0,
+          speedAccuracy: 0.0,
+        );
+        return _cachedPosition;
+      }
+    } catch (e) {
+      // Silently fail
+    }
+    return null;
   }
 
   /// Update user's location on server
@@ -189,6 +328,7 @@ class LocationService {
       ),
     ).listen(
       (Position position) async {
+        saveLastKnownLocation(position);
         if (_isLiveTracking && _currentUserId != null) {
           await updateUserLocation(_currentUserId!, position.latitude, position.longitude);
         }

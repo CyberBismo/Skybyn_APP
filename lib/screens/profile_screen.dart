@@ -1806,38 +1806,41 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                     clipBehavior: Clip.none,
                                     children: [
                                       // Main Avatar
-                                      Container(
-                                        width: _isSticky ? 50 : 125,
-                                        height: _isSticky ? 50 : 125,
-                                        decoration: BoxDecoration(
-                                          shape: BoxShape.circle,
-                                          border: Border.all(
-                                            color: Colors.black.withOpacity(0.5),
-                                            width: _isSticky ? 2 : 3,
-                                          ),
-                                          boxShadow: [
-                                            BoxShadow(
-                                              color: Colors.black.withOpacity(0.3),
-                                              blurRadius: _isSticky ? 5 : 15,
-                                              spreadRadius: _isSticky ? 1 : 2,
+                                      Hero(
+                                        tag: 'avatar_${profileUserId ?? userData?['id'] ?? userData?['userID'] ?? ''}',
+                                        child: Container(
+                                          width: _isSticky ? 50 : 125,
+                                          height: _isSticky ? 50 : 125,
+                                          decoration: BoxDecoration(
+                                            shape: BoxShape.circle,
+                                            border: Border.all(
+                                              color: Colors.black.withOpacity(0.5),
+                                              width: _isSticky ? 2 : 3,
                                             ),
-                                          ],
-                                        ),
-                                        child: ClipOval(
-                                          child: (avatarUrl.isNotEmpty)
-                                              ? CachedNetworkImage(
-                                                  imageUrl: UrlHelper.convertUrl(avatarUrl),
-                                                  fit: BoxFit.cover,
-                                                  placeholder: (context, url) => Image.asset(
-                                                      'assets/images/icon.png',
-                                                      fit: BoxFit.cover),
-                                                  errorWidget: (context, url, error) => Image.asset(
-                                                    'assets/images/icon.png',
+                                            boxShadow: [
+                                              BoxShadow(
+                                                color: Colors.black.withOpacity(0.3),
+                                                blurRadius: _isSticky ? 5 : 15,
+                                                spreadRadius: _isSticky ? 1 : 2,
+                                              ),
+                                            ],
+                                          ),
+                                          child: ClipOval(
+                                            child: (avatarUrl.isNotEmpty)
+                                                ? CachedNetworkImage(
+                                                    imageUrl: UrlHelper.convertUrl(avatarUrl),
                                                     fit: BoxFit.cover,
-                                                  ),
-                                                )
-                                              : Image.asset('assets/images/icon.png',
-                                                  fit: BoxFit.cover),
+                                                    placeholder: (context, url) => Image.asset(
+                                                        'assets/images/icon.png',
+                                                        fit: BoxFit.cover),
+                                                    errorWidget: (context, url, error) => Image.asset(
+                                                      'assets/images/icon.png',
+                                                      fit: BoxFit.cover,
+                                                    ),
+                                                  )
+                                                : Image.asset('assets/images/icon.png',
+                                                    fit: BoxFit.cover),
+                                          ),
                                         ),
                                       ),
                                       // Subprofile Overlay
