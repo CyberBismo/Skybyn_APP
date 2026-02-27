@@ -66,3 +66,4 @@ build/
 **/ios/flutter/app.zip
 **/ios/ServiceDefinitions.json
 **/ios/Runner/k8s/
+/android/.kotlin/sessions
