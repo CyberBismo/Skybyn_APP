@@ -285,8 +285,6 @@ class AutoUpdateService {
         final fileSink = file.openWrite();
         int downloadedBytes = 0;
 
-        double lastReportedProgress = -1.0;
-        int lastReportedBytes = 0;
         DateTime lastUpdateTime = DateTime.now();
         
         try {
@@ -302,16 +300,10 @@ class AutoUpdateService {
               final progress = progressDouble.round().clamp(0, 100);
               
               // Update progress callback more frequently for real-time feedback:
-              // - Every 0.1% change (for smooth progress bar)
-              // - Every 10KB downloaded (for small files)
-              // - At least every 100ms (for UI responsiveness)
-              final bytesSinceLastUpdate = downloadedBytes - lastReportedBytes;
+              // - At least every 500ms (for UI responsiveness and to prevent notification spam)
               final timeSinceLastUpdate = DateTime.now().difference(lastUpdateTime);
-              final progressChange = (progressDouble - lastReportedProgress).abs();
               
-              if (progressChange >= 0.1 || bytesSinceLastUpdate >= 10000 || timeSinceLastUpdate.inMilliseconds >= 100) {
-                lastReportedProgress = progressDouble;
-                lastReportedBytes = downloadedBytes;
+              if (timeSinceLastUpdate.inMilliseconds >= 500) {
                 lastUpdateTime = DateTime.now();
                 
                 // Format progress with one decimal place for more precision
@@ -330,12 +322,10 @@ class AutoUpdateService {
             } else {
               // Content length is unknown - we can't calculate accurate percentage
               // Show indeterminate progress and update based on downloaded bytes only
-              final bytesSinceLastUpdate = downloadedBytes - lastReportedBytes;
               final timeSinceLastUpdate = DateTime.now().difference(lastUpdateTime);
               
-              // Update every 10KB downloaded or every 100ms, whichever comes first
-              if (bytesSinceLastUpdate >= 10000 || timeSinceLastUpdate.inMilliseconds >= 100) {
-                lastReportedBytes = downloadedBytes;
+              // Update every 500ms to prevent notification spam
+              if (timeSinceLastUpdate.inMilliseconds >= 500) {
                 lastUpdateTime = DateTime.now();
                 
                 // Show indeterminate progress (no percentage, just bytes downloaded)
