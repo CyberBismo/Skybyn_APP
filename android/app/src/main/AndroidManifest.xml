@@ -119,6 +119,7 @@
                 <data android:scheme="package"/>
             </intent-filter>
         </receiver>
+        <receiver android:name="com.dexterous.flutterlocalnotifications.ActionBroadcastReceiver" android:exported="false" />
         
         <!-- Background Service -->
         <service
