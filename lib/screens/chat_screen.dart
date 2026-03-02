@@ -211,6 +211,9 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
     if (_firebaseRealtimeService.isConnected && _currentUserId != null) {
       _firebaseRealtimeService.sendTypingStop(widget.friend.id);
     }
+    if (_webSocketService.isConnected && _currentUserId != null) {
+      _webSocketService.sendTypingStop(widget.friend.id);
+    }
     
     // Remove WebSocket callbacks
     if (_webSocketOnlineStatusCallback != null) {
@@ -290,17 +293,20 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
       if (text.isNotEmpty) {
         // Send typing start immediately
         _firebaseRealtimeService.sendTypingStart(widget.friend.id);
+        _webSocketService.sendTypingStart(widget.friend.id);
         
         // Set timer to send typing stop after 2 seconds of no typing
         _typingTimer = Timer(const Duration(seconds: 2), () {
-          if (_firebaseRealtimeService.isConnected && _messageController.text.isNotEmpty) {
+          if (_messageController.text.isNotEmpty) {
             // Only send stop if still typing (text hasn't been cleared)
             _firebaseRealtimeService.sendTypingStop(widget.friend.id);
+            _webSocketService.sendTypingStop(widget.friend.id);
           }
         });
       } else {
         // Text is empty, send typing stop
         _firebaseRealtimeService.sendTypingStop(widget.friend.id);
+        _webSocketService.sendTypingStop(widget.friend.id);
       }
     });
   }
@@ -608,6 +614,31 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
       }
     }
     
+    // Set up WebSocket message read handler
+    void _handleMessageRead(String messageId) {
+      if (mounted) {
+        setState(() {
+          final index = _messages.indexWhere((m) => m.id == messageId);
+          if (index != -1) {
+            final old = _messages[index];
+            _messages[index] = Message(
+              id: old.id,
+              from: old.from,
+              to: old.to,
+              content: old.content,
+              date: old.date,
+              viewed: true,
+              isFromMe: old.isFromMe,
+              attachmentType: old.attachmentType,
+              attachmentUrl: old.attachmentUrl,
+              attachmentName: old.attachmentName,
+              attachmentSize: old.attachmentSize,
+            );
+          }
+        });
+      }
+    }
+
     // Register callbacks with WebSocket service
     _webSocketChatMessageCallback = (messageId, fromUserId, toUserId, message) {
       // Debug: Log received message
@@ -670,6 +701,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
       onOnlineStatus: _webSocketOnlineStatusCallback,
       onChatMessage: _webSocketChatMessageCallback,
       onTypingStatus: _handleTypingStatus,
+      onMessageRead: _handleMessageRead,
     );
     
     debugPrint('🔵 [ChatScreen] WebSocket callbacks registered. Chat callback: ${_webSocketChatMessageCallback != null}, Online callback: ${_webSocketOnlineStatusCallback != null}');
@@ -976,6 +1008,12 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
             }
           }
         });
+
+        // Emit read receipts via WebSocket for immediate real-time update on sender's device
+        for (final message in unreadMessages) {
+          _webSocketService.sendReadReceipt(message.id, widget.friend.id);
+        }
+
         print('[SKYBYN] ✅ Successfully marked ${unreadMessages.length} message(s) as read');
         developer.log('✅ Successfully marked ${unreadMessages.length} message(s) as read', name: 'Chat API');
       } else {
@@ -1034,6 +1072,9 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
       // Send typing stop when message is sent
       if (_firebaseRealtimeService.isConnected) {
         _firebaseRealtimeService.sendTypingStop(widget.friend.id);
+      }
+      if (_webSocketService.isConnected) {
+        _webSocketService.sendTypingStop(widget.friend.id);
       }
       _typingTimer?.cancel();
 
@@ -2424,13 +2465,26 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
                         ),
                       ),
                     const SizedBox(height: 4),
-                    Text(
-                      timeAgo,
-                      style: TextStyle(
-                        color: Colors.white.withOpacity(0.6),
-                        fontSize: 11,
-                        decoration: TextDecoration.none,
-                      ),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          timeAgo,
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.6),
+                            fontSize: 11,
+                            decoration: TextDecoration.none,
+                          ),
+                        ),
+                        if (isFromMe) ...[
+                          const SizedBox(width: 4),
+                          Icon(
+                            message.viewed ? Icons.done_all : Icons.check,
+                            color: message.viewed ? Colors.blue[300] : Colors.white.withOpacity(0.6),
+                            size: 14,
+                          ),
+                        ],
+                      ],
                     ),
                   ],
                 ),

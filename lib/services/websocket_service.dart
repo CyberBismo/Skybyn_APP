@@ -85,6 +85,7 @@ class WebSocketService {
   final Set<int> _registeredChatCallbackHashes = {}; // Track registered callbacks by hash to prevent duplicates
   Function(String, bool)? _onTypingStatus; // userId, isTyping
   final List<Function(String, bool)> _onOnlineStatusCallbacks = []; // Multiple listeners for online status
+  Function(String)? _onMessageRead; // messageId
 
   // Callbacks for WebRTC signaling
   Function(String, String, String, String)? _onCallOffer; // callId, fromUserId, offer, callType
@@ -307,6 +308,7 @@ class WebSocketService {
     Function(String, String, String, String)? onChatMessage, // messageId, fromUserId, toUserId, message
     Function(String, bool)? onTypingStatus, // userId, isTyping
     Function(String, bool)? onOnlineStatus, // userId, isOnline
+    Function(String)? onMessageRead, // messageId
   }) async {
     // Store callbacks (merge - only update if non-null, preserve existing if null)
     if (onNewPost != null) _onNewPost = onNewPost;
@@ -335,6 +337,7 @@ class WebSocketService {
       // Widgets should manage their own callback lifecycle
       _onOnlineStatusCallbacks.add(onOnlineStatus);
     }
+    if (onMessageRead != null) _onMessageRead = onMessageRead;
 
     // Ensure service is initialized before connecting
     if (!_isInitialized) {
@@ -879,6 +882,10 @@ class WebSocketService {
               final fromUserId = data['fromUserId']?.toString() ?? '';
               _onTypingStatus?.call(fromUserId, false);
               break;
+            case 'message_read':
+              final messageId = data['messageId']?.toString() ?? '';
+              _onMessageRead?.call(messageId);
+              break;
             case 'recipient_offline':
               // Check if this is for a call or a chat message
               final callId = data['callId']?.toString();
@@ -1208,6 +1215,21 @@ class WebSocketService {
     _sendMessageInternal(message);
   }
 
+  /// Send read receipt indicator
+  void sendReadReceipt(String messageId, String targetUserId) {
+    if (_userId == null) return;
+    final message = {
+      'type': 'message_read',
+      'messageId': messageId,
+      'toUserId': targetUserId,
+    };
+    try {
+      _sendMessageInternal(message);
+    } catch (e) {
+      developer.log('Failed to send read receipt: $e');
+    }
+  }
+
   /// Send chat message via WebSocket
   /// This is sent in addition to the HTTP API call to ensure real-time delivery
   void sendChatMessage({
@@ -1381,7 +1403,7 @@ class WebSocketService {
   void _startConnectionHealthMonitor() {
     _connectionHealthTimer?.cancel();
     
-    // Check every 20 seconds to detect dead connections faster
+    // Check every 20 seconds to detect dead connections faster and send presence pings
     // If we haven't received a ping from server in 60 seconds (2x interval), connection is likely dead
     _connectionHealthTimer = Timer.periodic(const Duration(seconds: 20), (timer) {
       if (!_isConnected || _channel == null) {
@@ -1389,6 +1411,9 @@ class WebSocketService {
         return;
       }
       
+      // Send presence ping to server
+      _sendPing();
+
       // Test connection health
       if (!_testConnection()) {
         _onConnectionClosed();
@@ -1417,6 +1442,17 @@ class WebSocketService {
         }
       }
     });
+  }
+
+  /// Sends a lightweight ping to the server to maintain presence and update online status
+  void _sendPing() {
+    if (!_isConnected || _channel == null) return;
+    try {
+      final pingMessage = {'type': 'ping'};
+      _channel!.sink.add(jsonEncode(pingMessage));
+    } catch (e) {
+      // Ignore ping errors
+    }
   }
 
   /// Update online status when disconnecting

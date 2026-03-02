@@ -241,7 +241,6 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   final FriendService _friendService = FriendService();
   final ChatMessageCountService _chatMessageCountService = ChatMessageCountService();
   Timer? _serviceCheckTimer;
-  Timer? _activityUpdateTimer;
   Timer? _webSocketConnectionCheckTimer;
   Timer? _profileCheckTimer;
   Timer? _firebaseConnectivityCheckTimer;
@@ -369,8 +368,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       // Set up global chat message listener for badge count
       _setupGlobalChatMessageListener();
 
-      // Start periodic activity updates (every 5 seconds when WebSocket is connected)
-      _startActivityUpdates();
+      // Start periodic activity updates (every 5 seconds      // Cleanly removed early HTTP activity updates
 
       // Start periodic profile checks (every 5 minutes to detect bans/deactivations)
       _startProfileChecks();
@@ -400,63 +398,6 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   /// Preload location and map data on app startup
   /// This makes the map screen load faster when user navigates to it
   Future<void> _preloadLocationAndMapData() async {
-    try {
-      final authService = AuthService();
-      final userId = await authService.getStoredUserId();
-      
-      if (userId == null) {
-        return; // User not logged in, skip preloading
-      }
-
-      // Note: Location permission is now only requested when navigating to map screen
-      // Preloading location removed to avoid requesting permission on app startup
-
-      // Preload friends locations in background (non-blocking)
-      Future.delayed(const Duration(seconds: 2), () async {
-        try {
-          final response = await http.post(
-            Uri.parse(ApiConstants.friendsLocations),
-            body: {'userID': userId},
-            headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-          ).timeout(const Duration(seconds: 10));
-
-
-          if (response.statusCode == 200) {
-            // print('Friends locations preloaded on app startup');
-          }
-        } catch (e) {
-          // Silently handle errors - friends locations preloading is optional
-        }
-      });
-    } catch (e) {
-      // Silently handle errors - preloading is optional
-    }
-  }
-
-  void _startActivityUpdates() {
-    // Cancel any existing timer
-    _activityUpdateTimer?.cancel();
-    
-    // Update activity immediately on startup
-    _updateActivity();
-    
-    // Update activity every 60 seconds
-    _activityUpdateTimer = Timer.periodic(const Duration(seconds: 60), (_) {
-      if (mounted) {
-        _updateActivity();
-      }
-    });
-  }
-
-  Future<void> _updateActivity() async {
-    final authService = AuthService();
-    final userId = await authService.getStoredUserId();
-    if (userId != null && mounted) {
-      await authService.updateActivity();
-    }
-  }
-
-  /// Start periodic profile checks
   /// Checks profile status every 5 minutes to detect bans/deactivations/rank changes
   void _startProfileChecks() {
     // Cancel any existing timer
@@ -576,7 +517,6 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    _activityUpdateTimer?.cancel();
     _webSocketConnectionCheckTimer?.cancel();
     _profileCheckTimer?.cancel();
     _firebaseConnectivityCheckTimer?.cancel();
@@ -612,11 +552,8 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       case AppLifecycleState.inactive:
       case AppLifecycleState.hidden:
         // App is in background - keep WebSocket connected to respond to pings
-        // Activity updates continue while WebSocket is connected
-        // Activity updates every 5 seconds while WebSocket is connected
         // Friends will see user as:
-        // - Online: last_active <= 2 minutes
-        // - Away: last_active > 2 minutes
+        // - Online: As long as WebSocket ping loop is active
         break;
       case AppLifecycleState.detached:
         // App is being terminated - disconnect Firebase
@@ -629,12 +566,11 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   }
 
   /// Set up WebSocket connection state listener
-  /// Manages activity updates based on WebSocket connection state
   void _setupWebSocketConnectionListener() {
     // Cancel any existing timer
     _webSocketConnectionCheckTimer?.cancel();
     
-    // Check WebSocket connection state periodically
+    // Check WebSocket connection state periodically (e.g., to manage UI)
     _webSocketConnectionCheckTimer = Timer.periodic(const Duration(seconds: 2), (timer) {
       if (!mounted) {
         timer.cancel();
@@ -642,19 +578,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         return;
       }
       
-      final isConnected = _webSocketService.isConnected;
-      
-      // Manage activity updates based on WebSocket connection
-      if (isConnected) {
-        // WebSocket is connected - ensure activity updates are running
-        if (_activityUpdateTimer == null || !_activityUpdateTimer!.isActive) {
-          _startActivityUpdates();
-        }
-      } else {
-        // Stop activity updates when disconnected
-        _activityUpdateTimer?.cancel();
-        _activityUpdateTimer = null;
-      }
+      // We removed HTTP polling activity updates here because presence is now driven purely by the WebSocket connection and WebSocket pings.
     });
   }
 
