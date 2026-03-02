@@ -667,7 +667,7 @@ class NotificationService {
         AndroidNotificationAction(
           'install_update',
           'Install',
-          showsUserInterface: false, // Don't open app, launch intent directly via handler
+          showsUserInterface: true, // Allow opening app context to initiate package installer intent
           cancelNotification: true,
         ),
         AndroidNotificationAction(
@@ -684,8 +684,8 @@ class NotificationService {
 
     await _localNotifications.show(
       _updateProgressNotificationId,
-      'Update Ready',
-      'Skybyn $version is ready to install.',
+      'Skybyn $version is ready.',
+      'Click here to install.',
       platformChannelSpecifics,
       payload: jsonEncode({
         'type': 'app_update_ready',
