@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:timezone/timezone.dart' as tz;
 import 'package:timezone/data/latest.dart' as tz;
 import 'package:package_info_plus/package_info_plus.dart';
@@ -244,12 +245,20 @@ class NotificationService {
         }
       } catch (e) {
       }
+    } else if (action == 'install_update' || action == 'update_now') {
+      try {
+        final Map<String, dynamic> data = json.decode(payload);
+        await _handleDynamicAction('install_update', data);
+      } catch (e) {
+        await _handleDynamicAction('install_update', {});
+      }
     }
   }
 
   // Background notification handler (for when app is terminated)
   @pragma('vm:entry-point')
   static Future<void> _onBackgroundNotificationTapped(NotificationResponse response) async {
+    WidgetsFlutterBinding.ensureInitialized();
     // This is a static method that can be called from background
     final payload = response.payload;
     final action = response.actionId;
@@ -729,14 +738,34 @@ class NotificationService {
           try {
              final Directory? directory = await getExternalStorageDirectory();
              if (directory != null) {
-               final File file = File('${directory.path}/app-update.apk');
-             
+               File file = File('${directory.path}/app-update.apk');
+
                if (await file.exists()) {
                    // Open the APK file - this should trigger the system installer
                    await OpenFile.open(file.path);
                  
                    // Cancel the notification
                    await NotificationService().cancelUpdateProgressNotification();
+
+                   bool installed = false;
+                   if (Platform.isAndroid) {
+                     try {
+                       const platform = MethodChannel('no.skybyn.app/installer');
+                       final result = await platform.invokeMethod('installApk', {'apkPath': file.path});
+                       if (result == true) {
+                         installed = true;
+                       }
+                     } on PlatformException catch (e) {
+                       print('[NotificationService] MethodChannel installApk failed: ${e.code} - ${e.message}');
+                     } catch (e) {
+                       print('[NotificationService] MethodChannel installApk error: $e');
+                     }
+                   }
+
+                   if (!installed) {
+                     // Open the APK file - this should trigger the system installer if platform channel failed
+                     await OpenFile.open(file.path);
+                   }
                }
              }
           } catch (e) {
