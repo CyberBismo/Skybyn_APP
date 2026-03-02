@@ -217,7 +217,7 @@ class LocationService {
       final locationString = '$latitude,$longitude';
       
       final response = await http.post(
-        Uri.parse('${ApiConstants.apiBase}/update_location.php'),
+        Uri.parse(ApiConstants.updateLocation),
         body: {
           'userID': userId,
           'location': locationString,
@@ -246,7 +246,7 @@ class LocationService {
   Future<List<Map<String, dynamic>>> findNearbyUsers(String userId, double latitude, double longitude, {double radiusKm = 10.0}) async {
     try {
       final response = await http.post(
-        Uri.parse('${ApiConstants.apiBase}/find_nearby_users.php'),
+        Uri.parse(ApiConstants.findNearbyUsers),
         body: {
           'userID': userId,
           'latitude': latitude.toString(),

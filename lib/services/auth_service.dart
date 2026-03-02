@@ -29,6 +29,12 @@ class AuthService {
   static const String usernameKey = StorageKeys.username;
   SharedPreferences? _prefs;
   
+  static const FlutterSecureStorage _secureStorage = FlutterSecureStorage(
+    aOptions: AndroidOptions(
+      encryptedSharedPreferences: true,
+    ),
+  );
+  
   // HTTP client with standard SSL validation
   static http.Client? _httpClient;
   static http.Client get _client {
@@ -127,8 +133,11 @@ class AuthService {
 
           await initPrefs();
           // Convert userID to string to avoid type mismatch
-          await _prefs?.setString(userIdKey, data['userID'].toString());
+          final userIdStr = data['userID'].toString();
+          await _prefs?.setString(userIdKey, userIdStr);
           await _prefs?.setString(usernameKey, username);
+          await _secureStorage.write(key: userIdKey, value: userIdStr);
+          await _secureStorage.write(key: usernameKey, value: username);
 
           // Try to fetch user profile, but don't fail login if it fails
           try {
@@ -243,6 +252,7 @@ class AuthService {
           // Store user ID (convert to string)
           if (userId != null) {
             await _prefs?.setString(userIdKey, userId);
+            await _secureStorage.write(key: userIdKey, value: userId);
           }
           
           // Store session token if provided (though headers handle cookies usually, 
@@ -259,7 +269,10 @@ class AuthService {
             if (user != null) {
                 await _prefs?.setString(usernameKey, user.username);
                 // Also update stored profile
-                await _prefs?.setString(userProfileKey, json.encode(user.toJson()));
+                final profileJson = json.encode(user.toJson());
+                await _prefs?.setString(userProfileKey, profileJson);
+                await _secureStorage.write(key: usernameKey, value: user.username);
+                await _secureStorage.write(key: userProfileKey, value: profileJson);
             }
           } catch (e) {
             debugPrint('AuthService: Failed to fetch user profile after social login: $e');
@@ -353,7 +366,9 @@ class AuthService {
           
           // Store user profile locally
           await initPrefs();
-          await _prefs?.setString(userProfileKey, json.encode(user.toJson()));
+          final profileJson = json.encode(user.toJson());
+          await _prefs?.setString(userProfileKey, profileJson);
+          await _secureStorage.write(key: userProfileKey, value: profileJson);
           return user;
         } else {
           final message = data['message'] ?? 'Unknown error';
@@ -385,19 +400,41 @@ class AuthService {
 
   Future<String?> getStoredUserId() async {
     await initPrefs();
-    final userId = _prefs?.getString(userIdKey);
+    String? userId = await _secureStorage.read(key: userIdKey);
+    
+    if (userId == null) {
+      userId = _prefs?.getString(userIdKey);
+      if (userId != null) {
+        await _secureStorage.write(key: userIdKey, value: userId);
+      }
+    }
     return userId;
   }
 
   Future<String?> getStoredUsername() async {
     await initPrefs();
-    final username = _prefs?.getString(usernameKey);
+    String? username = await _secureStorage.read(key: usernameKey);
+    
+    if (username == null) {
+      username = _prefs?.getString(usernameKey);
+      if (username != null) {
+        await _secureStorage.write(key: usernameKey, value: username);
+      }
+    }
     return username;
   }
 
   Future<User?> getStoredUserProfile() async {
     await initPrefs();
-    final profileJson = _prefs?.getString(userProfileKey);
+    String? profileJson = await _secureStorage.read(key: userProfileKey);
+    
+    if (profileJson == null) {
+      profileJson = _prefs?.getString(userProfileKey);
+      if (profileJson != null) {
+        await _secureStorage.write(key: userProfileKey, value: profileJson);
+      }
+    }
+    
     if (profileJson != null) {
       try {
         final user = User.fromJson(json.decode(profileJson));
@@ -507,11 +544,9 @@ class AuthService {
     await _prefs?.remove(usernameKey);
 
     // Also clear any data stored in FlutterSecureStorage
-    const storage = FlutterSecureStorage();
-    await storage.delete(key: 'user_profile');
-    await storage.delete(key: userIdKey);
-    await storage.delete(key: userProfileKey);
-    await storage.delete(key: usernameKey);
+    await _secureStorage.delete(key: userIdKey);
+    await _secureStorage.delete(key: userProfileKey);
+    await _secureStorage.delete(key: usernameKey);
 
     // Clear last navigation route on logout
     try {
@@ -537,7 +572,9 @@ class AuthService {
       // TODO: Implement API call to update user profile
       // For now, we'll just update the local storage
       await initPrefs();
-      await _prefs?.setString(userProfileKey, jsonEncode(updatedUser.toJson()));
+      final profileJson = jsonEncode(updatedUser.toJson());
+      await _prefs?.setString(userProfileKey, profileJson);
+      await _secureStorage.write(key: userProfileKey, value: profileJson);
     } catch (e) {
       throw Exception('Failed to update profile');
     }
@@ -953,6 +990,8 @@ class AuthService {
       // Store user ID and username (same as login does)
       await _prefs?.setString(userIdKey, userId);
       await _prefs?.setString(usernameKey, username);
+      await _secureStorage.write(key: userIdKey, value: userId);
+      await _secureStorage.write(key: usernameKey, value: username);
 
       // Try to fetch user profile, but don't fail if it fails
       // Wait a moment for the database to be fully committed

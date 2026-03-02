@@ -77,6 +77,8 @@ class ApiConstants {
   // Location
   static String get friendsLocations => '$apiBase/location/friends_locations.php';
   static String get updateLocationSettings => '$apiBase/location/update_settings.php';
+  static String get updateLocation => '$apiBase/location/update_location.php';
+  static String get findNearbyUsers => '$apiBase/location/find_nearby_users.php';
   
   // Video Feed
   static String get videoFeed => '$apiBase/video/feed.php';

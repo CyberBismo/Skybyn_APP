@@ -191,9 +191,17 @@ class AutoUpdateService {
         return false;
       }
 
-      // Use application documents directory for better compatibility with Android 10+
-      // This location is always accessible without storage permissions
-      final Directory directory = await getApplicationDocumentsDirectory();
+      // Use external storage directory for better compatibility with Android Package Installer
+      // This location is readable by the Package Installer when using OpenFile
+      final Directory? directory = await getExternalStorageDirectory();
+      if (directory == null) {
+        await notificationService.showUpdateProgressNotification(
+          title: 'Update Failed',
+          status: 'Could not access storage directory',
+          progress: 0,
+        );
+        return false;
+      }
       final File file = File('${directory.path}/app-update.apk');
 
       // Delete old APK if exists
@@ -465,8 +473,16 @@ class AutoUpdateService {
           );
           return false;
         }
-        // Use application documents directory (where we downloaded the file)
-        final Directory directory = await getApplicationDocumentsDirectory();
+        // Use external storage directory (where we downloaded the file)
+        final Directory? directory = await getExternalStorageDirectory();
+        if (directory == null) {
+          await notificationService.showUpdateProgressNotification(
+            title: 'Update Failed',
+            status: 'Could not access storage directory',
+            progress: 0,
+          );
+          return false;
+        }
         final File file = File('${directory.path}/app-update.apk');
 
         if (await file.exists()) {
@@ -512,20 +528,6 @@ class AutoUpdateService {
 
           return result;
         } else {
-          // Try alternate location as fallback (for backwards compatibility)
-          final altDirectory = await getExternalStorageDirectory();
-          if (altDirectory != null) {
-            final altFile = File('${altDirectory.path}/app-update.apk');
-            if (await altFile.exists()) {
-              await notificationService.showUpdateProgressNotification(
-                title: 'Updating Skybyn',
-                status: 'Opening installer...',
-                progress: 100,
-              );
-
-              return await _installApk(context, altFile.path);
-            }
-          }
           await notificationService.showUpdateProgressNotification(
             title: 'Update Failed',
             status: 'APK file not found',

@@ -227,6 +227,9 @@ class NotificationService {
         final type = data['type']?.toString();
         if (type == 'app_update') {
           _triggerUpdateCheck();
+        } else if (type == 'app_update_ready') {
+          // Add this block to handle tapping on the notification body!
+          await _handleDynamicAction('install_update', data);
         } else if (type == 'call') {
           print('[SKYBYN] 📞 [NotificationService] Call notification tapped');
           _handleCallNotificationTap(data);
@@ -274,7 +277,7 @@ class NotificationService {
     }
     
     // Handle dynamic actions (buttons)
-    if (action != null && ['update_now', 'dismiss', 'open_url'].contains(action)) {
+    if (action != null && ['update_now', 'dismiss', 'open_url', 'install_update'].contains(action)) {
        if (payload != null && payload.startsWith('{')) {
           try {
              final Map<String, dynamic> data = json.decode(payload);
@@ -724,15 +727,17 @@ class NotificationService {
       if (actionId == 'install_update' || actionId == 'update_now') {
           // Trigger install flow
           try {
-             final Directory directory = await getApplicationDocumentsDirectory();
-             final File file = File('${directory.path}/app-update.apk');
+             final Directory? directory = await getExternalStorageDirectory();
+             if (directory != null) {
+               final File file = File('${directory.path}/app-update.apk');
              
-             if (await file.exists()) {
-                 // Open the APK file - this should trigger the system installer
-                 await OpenFile.open(file.path);
+               if (await file.exists()) {
+                   // Open the APK file - this should trigger the system installer
+                   await OpenFile.open(file.path);
                  
-                 // Cancel the notification
-                 await NotificationService().cancelUpdateProgressNotification();
+                   // Cancel the notification
+                   await NotificationService().cancelUpdateProgressNotification();
+               }
              }
           } catch (e) {
              print('[NotificationService] Failed to open installer from action: $e');
