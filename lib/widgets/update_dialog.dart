@@ -110,7 +110,7 @@ class _UpdateDialogState extends State<UpdateDialog> {
       }
 
       // Install the update automatically
-      final installSuccess = await AutoUpdateService.installUpdate(context,
+      final installSuccess = await AutoUpdateService.installUpdate(
         onProgress: (progress, status) {
           if (mounted) {
             setState(() {

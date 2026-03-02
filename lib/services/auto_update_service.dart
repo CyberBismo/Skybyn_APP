@@ -451,7 +451,7 @@ class AutoUpdateService {
     return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
   }
 
-  static Future<bool> installUpdate(BuildContext context, {Function(int progress, String status)? onProgress}) async {
+  static Future<bool> installUpdate({Function(int progress, String status)? onProgress}) async {
     final notificationService = NotificationService();
 
     try {
@@ -497,9 +497,8 @@ class AutoUpdateService {
             return false;
           }
 
-          // If coming from background download (no context usually), just notify
-          // But since this method requires context, it's called from foreground.
-          // However, we want to support the "Install" button from notification.
+          // If coming from background download, we just notify and proceed with the intent
+          // We no longer require a BuildContext.
           
           await notificationService.showUpdateProgressNotification(
             title: 'Updating Skybyn',
@@ -509,7 +508,7 @@ class AutoUpdateService {
 
           onProgress?.call(100, 'Opening installer...');
 
-          final result = await _installApk(context, file.path);
+          final result = await _installApk(file.path);
 
           if (result) {
             // Keep notification showing until user installs
@@ -611,7 +610,7 @@ class AutoUpdateService {
     }
   }
 
-  static Future<bool> _installApk(BuildContext context, String apkPath) async {
+  static Future<bool> _installApk(String apkPath) async {
     final notificationService = NotificationService();
     
     try {
