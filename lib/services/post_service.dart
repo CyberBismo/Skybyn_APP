@@ -1,6 +1,7 @@
 import '../models/post.dart';
 import 'dart:convert';
 import '../utils/api_utils.dart';
+import '../utils/image_utils.dart';
 import 'dart:io';
 import 'dart:async';
 import 'package:http/http.dart' as http;
@@ -415,19 +416,22 @@ class PostService {
       }
       return data;
     } else {
+      // Compress image before upload
+      final File processedFile = await ImageUtils.compressImage(mediaFile);
+      
       // Use MultipartRequest for file upload
       final request = http.MultipartRequest('POST', Uri.parse(ApiConstants.addPost));
       request.fields['userID'] = userId;
       request.fields['content'] = content;
       
-      final stream = http.ByteStream(mediaFile.openRead());
-      final length = await mediaFile.length();
+      final stream = http.ByteStream(processedFile.openRead());
+      final length = await processedFile.length();
       
       final multipartFile = http.MultipartFile(
         'file',
         stream,
         length,
-        filename: mediaFile.path.split('/').last,
+        filename: processedFile.path.split('/').last,
       );
       
       request.files.add(multipartFile);

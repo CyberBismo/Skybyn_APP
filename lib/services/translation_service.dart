@@ -511,8 +511,9 @@ class TranslationService extends ChangeNotifier {
           "new_password": "New password",
           "confirm_new_password": "Confirm new password",
           "done": "Done",
-          "back": "Back",
-          "select_language": "Select Language",
+          'clear_all_cache': 'Clear all cache',
+      'total_storage_usage': 'Total Storage Usage',
+      'select_language': 'Select language',
           "create_post": "Create Post",
           "edit_post": "Edit Post",
           "nickname": "Nickname",
@@ -1579,6 +1580,7 @@ class TranslationKeys {
   static const String cacheClearedSuccessfully = 'cache_cleared_successfully';
   static const String confirmClearCache = 'confirm_clear_cache';
   static const String confirmClearAllCache = 'confirm_clear_all_cache';
+  static const String totalStorageUsage = 'total_storage_usage';
 
   // Language Settings
   static const String selectLanguage = 'select_language';

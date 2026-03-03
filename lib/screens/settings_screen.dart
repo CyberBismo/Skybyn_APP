@@ -27,6 +27,7 @@ import '../widgets/translated_text.dart';
 import '../widgets/update_dialog.dart';
 
 import '../config/constants.dart';
+import '../utils/cache_utils.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -55,6 +56,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _isLoadingSounds = false;
   String? _customSoundFileName;
   final NotificationSoundService _notificationSoundService = NotificationSoundService();
+  int _totalCacheSize = 0;
+  bool _isCalculatingCache = false;
 
   final _oldPasswordController = TextEditingController();
   final _newPasswordController = TextEditingController();
@@ -141,6 +144,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
         _secATwoController.text = user?.secATwo ?? '';
       });
     });
+    _loadTotalCacheSize();
+  }
+
+  Future<void> _loadTotalCacheSize() async {
+    if (_isCalculatingCache) return;
+    setState(() => _isCalculatingCache = true);
+    
+    try {
+      final size = await CacheUtils.getCacheSize();
+      if (mounted) {
+        setState(() {
+          _totalCacheSize = size;
+          _isCalculatingCache = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isCalculatingCache = false);
+      }
+    }
   }
 
 
@@ -2841,6 +2864,28 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // Total Cache Size Info
+        ListTile(
+          leading: Icon(Icons.storage, color: AppColors.getIconColor(context)),
+          title: const TranslatedText(
+            TranslationKeys.totalStorageUsage,
+            fallback: 'Total Storage Usage',
+          ),
+          subtitle: Text(
+            _isCalculatingCache ? 'Calculating...' : CacheUtils.formatSize(_totalCacheSize),
+            style: TextStyle(
+              color: AppColors.getTextColor(context),
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          trailing: IconButton(
+            icon: Icon(Icons.refresh, color: AppColors.getIconColor(context)),
+            onPressed: _loadTotalCacheSize,
+            tooltip: 'Recalculate',
+          ),
+        ),
+        const Divider(height: 24),
         // Clear Translations Cache
         ListTile(
           leading: Icon(Icons.translate, color: AppColors.getIconColor(context)),
@@ -3070,10 +3115,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
         final friendService = FriendService();
         await friendService.clearCache();
         
+        // Comprehensive Cache Clear (Temp files + Image Cache)
+        await CacheUtils.clearCache();
+        
         // Clear any other cached data
         final prefs = await SharedPreferences.getInstance();
         // Clear cached update info
         await prefs.remove('cached_app_update');
+        
+        // Recalculate size
+        _loadTotalCacheSize();
         
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(

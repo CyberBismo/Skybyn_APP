@@ -12,6 +12,7 @@ import '../config/constants.dart';
 import 'auth_service.dart';
 import 'websocket_service.dart';
 import 'local_message_database.dart';
+import '../utils/image_utils.dart';
 import 'package:crypto/crypto.dart';
 import 'package:uuid/uuid.dart';
 import 'dart:developer' as developer;
@@ -218,6 +219,18 @@ class ChatService {
         throw Exception('Missing required parameters: userId=${userId.isEmpty ? "empty" : "ok"}, toUserId=${toUserId.isEmpty ? "empty" : "ok"}, message=${content.isEmpty ? "empty" : "ok"}');
       }
 
+      // Automatically compress image attachments
+      String? processedAttachmentPath = attachmentPath;
+      if (attachmentType == 'image' && attachmentPath != null) {
+        try {
+          final compressedFile = await ImageUtils.compressImage(File(attachmentPath));
+          processedAttachmentPath = compressedFile.path;
+          developer.log('Chat image attachment compressed: $attachmentPath -> $processedAttachmentPath', name: 'ChatService');
+        } catch (e) {
+          developer.log('Chat image compression failed, using original: $e', name: 'ChatService');
+        }
+      }
+
       // Generate permanent UUID for optimistic UI and server Idempotency
       tempId = _uuid.v4();
       
@@ -231,7 +244,7 @@ class ChatService {
         viewed: false,
         isFromMe: true,
         attachmentType: attachmentType,
-        attachmentUrl: attachmentPath,
+        attachmentUrl: processedAttachmentPath,
         attachmentName: attachmentName,
         attachmentSize: attachmentSize,
       );
@@ -250,7 +263,7 @@ class ChatService {
           toUserId: toUserId,
           content: content,
           attachmentType: attachmentType,
-          attachmentPath: attachmentPath,
+          attachmentPath: processedAttachmentPath,
           attachmentName: attachmentName,
           attachmentSize: attachmentSize,
         );
@@ -406,7 +419,7 @@ class ChatService {
             toUserId: toUserId,
             content: content,
             attachmentType: attachmentType,
-            attachmentPath: attachmentPath,
+            attachmentPath: processedAttachmentPath,
             attachmentName: attachmentName,
             attachmentSize: attachmentSize,
           );
