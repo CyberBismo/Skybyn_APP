@@ -724,7 +724,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
     
     // Additional check: if message ID is empty or invalid, check by content and timestamp
     // This prevents duplicates from messages with missing IDs
-    if (message.id.isEmpty || message.id.startsWith('temp_')) {
+    if (message.id.isEmpty) {
       final existingByContent = _messages.indexWhere((m) => 
         m.content == message.content && 
         m.from == message.from && 
@@ -849,8 +849,8 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
         return; // Message updated, no need to add
       }
       
-      // Check if message already exists with this ID (not a temp message)
-      final existingMessageIndex = _messages.indexWhere((m) => m.id == messageId && !m.id.startsWith('temp_'));
+      // Check if message already exists with this ID
+      final existingMessageIndex = _messages.indexWhere((m) => m.id == messageId);
       if (existingMessageIndex != -1) {
         // Message already exists, don't add duplicate
         debugPrint('🟢 [ChatScreen] Message from self already exists, skipping');
@@ -1036,8 +1036,8 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
       }
       _typingTimer?.cancel();
 
-      // Generate temporary ID for optimistic UI
-      final tempId = 'temp_${DateTime.now().millisecondsSinceEpoch}_${_currentUserId!}';
+      // Generate UUID directly right away for idempotent sending 
+      final tempId = const Uuid().v4();
       final messageDate = DateTime.now();
       
       // Create temporary message and add to UI immediately (optimistic UI)
@@ -1214,8 +1214,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
       }
 
       if (sentMessage != null && mounted) {
-        // Update the temporary message with the real message ID from API
-        _updateMessage(tempId, sentMessage);
+        // (We no longer update tempIds via UI because tempId is already the final UUID)
         
         // Keep keyboard open by maintaining focus
         if (_messageFocusNode.hasFocus) {
@@ -3901,8 +3900,8 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
 
           print('[SKYBYN] ✅ [Chat] File uploaded: $fileUrl');
 
-          // Create message with attachment
-          final tempId = 'temp_${DateTime.now().millisecondsSinceEpoch}_${_currentUserId!}';
+          // Create message with attachment using a UUID
+          final tempId = const Uuid().v4();
           final tempMessage = Message(
             id: tempId,
             from: _currentUserId!,
@@ -3943,7 +3942,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
           try {
             // WebSocket sendChatMessage requires messageId, targetUserId, and content
             // For file attachments, we'll send a text message indicating the attachment
-            final tempMessageId = 'temp_${DateTime.now().millisecondsSinceEpoch}';
+            final tempMessageId = const Uuid().v4();
             _webSocketService.sendChatMessage(
               messageId: tempMessageId,
               targetUserId: widget.friend.id,

@@ -3,6 +3,7 @@ import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 import 'package:path_provider/path_provider.dart';
 import '../models/message.dart';
+import 'package:uuid/uuid.dart';
 import 'dart:developer' as developer;
 
 /// Local SQLite database for offline-first message storage
@@ -11,6 +12,8 @@ class LocalMessageDatabase {
   static final LocalMessageDatabase _instance = LocalMessageDatabase._internal();
   factory LocalMessageDatabase() => _instance;
   LocalMessageDatabase._internal();
+  
+  final Uuid _uuid = const Uuid();
 
   static Database? _database;
   static const String _dbName = 'skybyn_messages.db';
@@ -255,7 +258,7 @@ class LocalMessageDatabase {
   }) async {
     try {
       final db = await database;
-      final tempId = 'temp_${DateTime.now().millisecondsSinceEpoch}_${toUserId}';
+      final tempId = _uuid.v4();
       
       await db.insert(
         'offline_queue',

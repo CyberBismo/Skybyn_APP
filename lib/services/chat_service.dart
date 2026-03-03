@@ -13,6 +13,7 @@ import 'auth_service.dart';
 import 'websocket_service.dart';
 import 'local_message_database.dart';
 import 'package:crypto/crypto.dart';
+import 'package:uuid/uuid.dart';
 import 'dart:developer' as developer;
 
 class ChatService {
@@ -20,6 +21,7 @@ class ChatService {
   final WebSocketService _webSocketService = WebSocketService();
   final LocalMessageDatabase _localDb = LocalMessageDatabase();
   final Connectivity _connectivity = Connectivity();
+  final Uuid _uuid = const Uuid();
   
   // Store protection cookie to bypass bot challenges
   static String? _protectionCookie;
@@ -216,8 +218,8 @@ class ChatService {
         throw Exception('Missing required parameters: userId=${userId.isEmpty ? "empty" : "ok"}, toUserId=${toUserId.isEmpty ? "empty" : "ok"}, message=${content.isEmpty ? "empty" : "ok"}');
       }
 
-      // Generate temporary ID for optimistic UI
-      tempId = 'temp_${DateTime.now().millisecondsSinceEpoch}_${toUserId}';
+      // Generate permanent UUID for optimistic UI and server Idempotency
+      tempId = _uuid.v4();
       
       // Create optimistic message (will be updated with real ID when synced)
       optimisticMessage = Message(
@@ -280,6 +282,7 @@ class ChatService {
         'from': userId.toString(),
         'to': toUserId.toString(),
         'message': encryptedContent,
+        'clientMsgId': tempId,
         'api_key': ApiConstants.apiKey, // Also send in POST body for compatibility
       };
       
@@ -330,6 +333,7 @@ class ChatService {
               'from': userId.toString(),
               'to': toUserId.toString(),
               'message': encryptedContent,
+              'clientMsgId': tempId!,
               'api_key': ApiConstants.apiKey, // Also send in POST body for compatibility
             };
             
@@ -760,6 +764,7 @@ class ChatService {
             'from': userId.toString(),
             'to': toUserId.toString(),
             'message': encryptedContent,
+            'clientMsgId': tempId,
             'api_key': ApiConstants.apiKey,
           };
 
