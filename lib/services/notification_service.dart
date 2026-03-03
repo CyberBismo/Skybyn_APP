@@ -43,8 +43,9 @@ class NotificationService {
   static const String _chatMessagesChannelId = 'chat_messages';
   static const String _callsChannelId = 'calls';
 
-  // Notification ID for update progress (fixed ID so we can update it)
+  // Notification IDs for update
   static const int _updateProgressNotificationId = -9999;
+  static const int _updateReadyNotificationId = -10000;
 
   Future<void> initialize() async {
     try {
@@ -683,7 +684,7 @@ class NotificationService {
         NotificationDetails(android: androidPlatformChannelSpecifics);
 
     await _localNotifications.show(
-      _updateProgressNotificationId,
+      _updateReadyNotificationId,
       'Skybyn $version is ready.',
       'Click here to install.',
       platformChannelSpecifics,

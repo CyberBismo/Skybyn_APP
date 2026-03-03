@@ -29,6 +29,7 @@ import '../widgets/translated_text.dart';
 import '../services/translation_service.dart';
 import 'package:timeago/timeago.dart' as timeago;
 import 'dart:convert';
+import 'package:uuid/uuid.dart';
 import 'package:http/http.dart' as http;
 import 'profile_screen.dart';
 import 'call_screen.dart';
@@ -1037,7 +1038,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
       _typingTimer?.cancel();
 
       // Generate UUID directly right away for idempotent sending 
-      final tempId = const Uuid().v4();
+      final tempId = Uuid().v4();
       final messageDate = DateTime.now();
       
       // Create temporary message and add to UI immediately (optimistic UI)
@@ -3901,7 +3902,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
           print('[SKYBYN] ✅ [Chat] File uploaded: $fileUrl');
 
           // Create message with attachment using a UUID
-          final tempId = const Uuid().v4();
+          final tempId = Uuid().v4();
           final tempMessage = Message(
             id: tempId,
             from: _currentUserId!,
@@ -3942,7 +3943,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
           try {
             // WebSocket sendChatMessage requires messageId, targetUserId, and content
             // For file attachments, we'll send a text message indicating the attachment
-            final tempMessageId = const Uuid().v4();
+            final tempMessageId = Uuid().v4();
             _webSocketService.sendChatMessage(
               messageId: tempMessageId,
               targetUserId: widget.friend.id,

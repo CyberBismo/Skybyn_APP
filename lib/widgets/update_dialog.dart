@@ -129,11 +129,7 @@ class _UpdateDialogState extends State<UpdateDialog> {
       // Cancel progress notification on success
       await AutoUpdateService.cancelUpdateProgressNotification();
 
-      // Close the app when installer opens (installation will complete in background)
       // The app will automatically restart after installation completes
-      if (mounted) {
-        exit(0);
-      }
     } catch (e) {
       // Cancel progress notification on error
       await AutoUpdateService.cancelUpdateProgressNotification();

@@ -398,12 +398,8 @@ class AutoUpdateService {
           }
         }
 
-        // Show download complete - ensure 100% progress
-        await notificationService.showUpdateProgressNotification(
-          title: 'Updating Skybyn',
-          status: 'Download complete! Starting installation...',
-          progress: 100,
-        );
+        // Download complete - cancel progress notification
+        await notificationService.cancelUpdateProgressNotification();
 
         // Call progress callback to notify download is complete
         onProgress?.call(100, 'Downloaded');
@@ -598,6 +594,25 @@ class AutoUpdateService {
     }
   }
 
+  /// Check if an update has already been downloaded and is ready to install
+  static Future<bool> isUpdateDownloaded() async {
+    try {
+      if (!Platform.isAndroid) return false;
+      final Directory? directory = await getExternalStorageDirectory();
+      if (directory == null) return false;
+      
+      final File file = File('${directory.path}/app-update.apk');
+      if (await file.exists()) {
+        final fileSize = await file.length();
+        return fileSize > 0;
+      }
+      return false;
+    } catch (e) {
+      print('[AutoUpdateService] Error checking downloaded update: $e');
+      return false;
+    }
+  }
+
   static Future<bool> hasInstallPermission() async {
     try {
       if (Platform.isAndroid) {
@@ -642,28 +657,6 @@ class AutoUpdateService {
           const platform = MethodChannel('no.skybyn.app/installer');
           final result = await platform.invokeMethod('installApk', {'apkPath': apkPath});
           if (result == true) {
-            await notificationService.showUpdateProgressNotification(
-              title: 'Update Ready',
-              status: 'Tap "Install" in the system dialog. If you see a package conflict error, the APK must be signed with the same key as the installed app.',
-              progress: 100,
-            );
-            
-            // Delete the APK file after opening installer to free up space
-            // The installer has already read the file, so it's safe to delete
-            try {
-              final apkFile = File(apkPath);
-              if (await apkFile.exists()) {
-                await apkFile.delete();
-              }
-            } catch (e) {
-              // Ignore errors when deleting - file will be cleaned up on next update
-            }
-            
-            // Close the app when installer opens
-            // The installer will handle the installation, and the app will restart after installation
-            Future.delayed(const Duration(milliseconds: 500), () {
-              exit(0);
-            });
             return true;
           }
         } on PlatformException catch (e) {
@@ -697,29 +690,6 @@ class AutoUpdateService {
       print('OpenFile result: type=${result.type}, message=${result.message}');
       
       if (result.type == ResultType.done) {
-        await notificationService.showUpdateProgressNotification(
-          title: 'Update Ready',
-          status: 'Tap "Install" in the system dialog. If you see a package conflict error, the APK must be signed with the same key as the installed app.',
-          progress: 100,
-        );
-        
-        // Delete the APK file after opening installer to free up space
-        // The installer has already read the file, so it's safe to delete
-        try {
-          if (await file.exists()) {
-            await file.delete();
-            print('APK file deleted after opening installer');
-          }
-        } catch (e) {
-          print('Error deleting APK file: $e');
-          // Ignore errors when deleting - file will be cleaned up on next update
-        }
-        
-        // Close the app when installer opens
-        // The installer will handle the installation, and the app will restart after installation
-        Future.delayed(const Duration(milliseconds: 500), () {
-          exit(0);
-        });
         return true;
       } else if (result.type == ResultType.noAppToOpen) {
         await notificationService.showUpdateProgressNotification(

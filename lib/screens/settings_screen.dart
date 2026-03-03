@@ -2346,6 +2346,29 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
 
     try {
+      // First, check if an update is already downloaded
+      final isDownloaded = await AutoUpdateService.isUpdateDownloaded();
+      if (isDownloaded) {
+        if (mounted) {
+          setState(() {
+            _updateCheckStatus = 'Update already downloaded, installing...';
+          });
+        }
+        
+        await AutoUpdateService.installUpdate();
+        
+        // Reset status after a delay
+        Future.delayed(const Duration(seconds: 3), () {
+          if (mounted) {
+            setState(() {
+              _isCheckingForUpdates = false;
+              _updateCheckStatus = '';
+            });
+          }
+        });
+        return; // Exit early since we're installing
+      }
+      
       final updateInfo = await AutoUpdateService.checkForUpdates();
       if (mounted) {
         if (updateInfo != null && updateInfo.isAvailable) {
