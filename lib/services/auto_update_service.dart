@@ -13,6 +13,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:open_file/open_file.dart';
 import 'notification_service.dart';
+import 'auth_service.dart';
 
 class AutoUpdateService {
   static String get _updateCheckUrl => ApiConstants.appUpdate;
@@ -72,11 +73,15 @@ class AutoUpdateService {
       final String installedVersion = packageInfo.version;
       print('[Update Check] Current installed version: $installedVersion');
 
-      // Build URL with query parameters: c=android&v={version}
+      // Get stored User ID for staged rollout logic
+      final String? userId = await AuthService().getStoredUserId();
+      
+      // Build URL with query parameters: c=android&v={version}&uid={userId}
       final uri = Uri.parse(_updateCheckUrl).replace(
         queryParameters: {
           'c': 'android',
           'v': installedVersion,
+          'uid': userId ?? '0',
         },
       );
       print('[Update Check] Checking update at: $uri');
