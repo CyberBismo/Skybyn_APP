@@ -21,7 +21,6 @@ import '../models/message.dart';
 import '../services/auth_service.dart';
 import '../services/call_service.dart';
 import '../services/chat_service.dart';
-import '../services/firebase_realtime_service.dart';
 import '../services/websocket_service.dart';
 // Firestore disabled - using WebSocket for real-time features instead
 // import 'package:cloud_firestore/cloud_firestore.dart';
@@ -56,7 +55,6 @@ class ChatScreen extends StatefulWidget {
 class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, WidgetsBindingObserver {
   final AuthService _authService = AuthService();
   final ChatService _chatService = ChatService();
-  final FirebaseRealtimeService _firebaseRealtimeService = FirebaseRealtimeService();
   final WebSocketService _webSocketService = WebSocketService();
   final ChatMessageCountService _chatMessageCountService = ChatMessageCountService();
   final TextEditingController _messageController = TextEditingController();
@@ -207,10 +205,6 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
       _chatMessageCountService.setCurrentOpenChat(null);
     }
     
-    // Send typing stop when leaving screen
-    if (_firebaseRealtimeService.isConnected && _currentUserId != null) {
-      _firebaseRealtimeService.sendTypingStop(widget.friend.id);
-    }
     if (_webSocketService.isConnected && _currentUserId != null) {
       _webSocketService.sendTypingStop(widget.friend.id);
     }
@@ -283,7 +277,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
 
   void _setupTypingListener() {
     _messageController.addListener(() {
-      if (!_firebaseRealtimeService.isConnected || _currentUserId == null) return;
+      if (!_webSocketService.isConnected || _currentUserId == null) return;
       
       final text = _messageController.text;
       
@@ -292,20 +286,17 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
       
       if (text.isNotEmpty) {
         // Send typing start immediately
-        _firebaseRealtimeService.sendTypingStart(widget.friend.id);
         _webSocketService.sendTypingStart(widget.friend.id);
         
         // Set timer to send typing stop after 2 seconds of no typing
         _typingTimer = Timer(const Duration(seconds: 2), () {
           if (_messageController.text.isNotEmpty) {
             // Only send stop if still typing (text hasn't been cleared)
-            _firebaseRealtimeService.sendTypingStop(widget.friend.id);
             _webSocketService.sendTypingStop(widget.friend.id);
           }
         });
       } else {
         // Text is empty, send typing stop
-        _firebaseRealtimeService.sendTypingStop(widget.friend.id);
         _webSocketService.sendTypingStop(widget.friend.id);
       }
     });
@@ -707,36 +698,6 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
     debugPrint('🔵 [ChatScreen] WebSocket callbacks registered. Chat callback: ${_webSocketChatMessageCallback != null}, Online callback: ${_webSocketOnlineStatusCallback != null}');
     debugPrint('🔵 [ChatScreen] Friend ID: ${widget.friend.id}, Current User ID: $_currentUserId');
 
-    // Set up chat message listener (Firebase fallback - only when WebSocket is not connected)
-    _firebaseRealtimeService.setupChatListener(
-      widget.friend.id,
-      (messageId, fromUserId, toUserId, message) {
-        // Only process if WebSocket is NOT connected (Firebase is fallback)
-        if (_webSocketService.isConnected) {
-          debugPrint('🔵 [ChatScreen] Skipping Firebase message - WebSocket is connected');
-          return; // WebSocket handles it, skip Firebase to prevent duplicates
-        }
-        
-        // Only handle messages for this chat
-        final isForThisChat = fromUserId == widget.friend.id || toUserId == widget.friend.id;
-        if (!isForThisChat) {
-          return; // Not for this chat
-        }
-        
-        // Ensure _currentUserId is loaded
-        if (_currentUserId == null) {
-          _loadUserId().then((_) {
-            if (mounted) {
-              _handleIncomingChatMessage(messageId, fromUserId, toUserId, message);
-            }
-          });
-          return;
-        }
-        
-        // Handle the message
-        _handleIncomingChatMessage(messageId, fromUserId, toUserId, message);
-      },
-    );
   }
 
   // Handle incoming chat message (extracted for reuse)
@@ -1070,9 +1031,6 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
       }
       
       // Send typing stop when message is sent
-      if (_firebaseRealtimeService.isConnected) {
-        _firebaseRealtimeService.sendTypingStop(widget.friend.id);
-      }
       if (_webSocketService.isConnected) {
         _webSocketService.sendTypingStop(widget.friend.id);
       }
@@ -1126,7 +1084,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
       Message? sentMessage;
       
       try {
-        // Send message via WebSocket and Firebase concurrently with API call (Optimistic delivery)
+        // Send message via WebSocket concurrently with API call (Optimistic delivery)
         // We use tempId because we don't have the real ID yet, but this ensures instant delivery
         if (_webSocketService.isConnected) {
           try {
@@ -1138,16 +1096,6 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
           } catch (e) {
             print('[SKYBYN] ⚠️ [Chat] WebSocket send failed: $e');
           }
-        }
-
-        if (_firebaseRealtimeService.isConnected) {
-          _firebaseRealtimeService.sendChatMessageNotification(
-            messageId: tempId,
-            targetUserId: widget.friend.id,
-            content: message,
-          ).catchError((e) {
-            print('[SKYBYN] ⚠️ [Chat] Firebase send failed: $e');
-          });
         }
 
         // Send message via API

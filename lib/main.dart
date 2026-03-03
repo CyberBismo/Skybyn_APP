@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:firebase_database/firebase_database.dart';
 // import 'dart:io' show Platform;
 import 'dart:io';
 import 'dart:developer' as developer;
@@ -36,7 +35,6 @@ import 'services/theme_service.dart';
 import 'services/focus_service.dart';
 import 'services/auth_service.dart';
 import 'services/notification_service.dart';
-import 'services/firebase_realtime_service.dart';
 import 'services/firebase_messaging_service.dart';
 import 'services/websocket_service.dart';
 import 'services/translation_service.dart';
@@ -173,7 +171,6 @@ Future<void> _initializeFirebase(bool enableErrorLogging) async {
        * Ideally we would use FirebaseAuth.instance.signInAnonymously() here
        * but we need to import firebase_auth. 
        * Since we can't easily add imports in this block without affecting the whole file,
-       * we will handle this in FirebaseMessagingService or FirebaseRealtimeService
        * which initiates the connection.
        */
     } catch (e) {
@@ -234,7 +231,6 @@ final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   bool _isIncomingCallDialogShowing = false;
   final NotificationService _notificationService = NotificationService();
-  final FirebaseRealtimeService _firebaseRealtimeService = FirebaseRealtimeService();
   final WebSocketService _webSocketService = WebSocketService();
   final BackgroundUpdateScheduler _backgroundUpdateScheduler = BackgroundUpdateScheduler();
   final CallService _callService = CallService();
@@ -243,7 +239,6 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   Timer? _serviceCheckTimer;
   Timer? _webSocketConnectionCheckTimer;
   Timer? _profileCheckTimer;
-  Timer? _firebaseConnectivityCheckTimer;
   
   // Track active incoming call
   String? _activeCallId;
@@ -330,7 +325,6 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       // Initialize notification and Firebase services in parallel (non-blocking)
       await Future.wait([
         _notificationService.initialize(),
-        _firebaseRealtimeService.initialize(),
         _chatMessageCountService.initialize(),
       ]);
 
@@ -373,9 +367,6 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       // Start periodic profile checks (every 5 minutes to detect bans/deactivations)
       _startProfileChecks();
 
-      // Start Firebase connectivity checks (every hour)
-      _startFirebaseConnectivityChecks();
-
       // Preload location and map data (non-blocking, in background)
       _preloadLocationAndMapData();
       
@@ -398,6 +389,39 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   /// Preload location and map data on app startup
   /// This makes the map screen load faster when user navigates to it
   Future<void> _preloadLocationAndMapData() async {
+    try {
+      final authService = AuthService();
+      final userId = await authService.getStoredUserId();
+      
+      if (userId == null) {
+        return; // User not logged in, skip preloading
+      }
+
+      // Note: Location permission is now only requested when navigating to map screen
+      // Preloading location removed to avoid requesting permission on app startup
+
+      // Preload friends locations in background (non-blocking)
+      Future.delayed(const Duration(seconds: 2), () async {
+        try {
+          final response = await http.post(
+            Uri.parse(ApiConstants.friendsLocations),
+            body: {'userID': userId},
+            headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+          ).timeout(const Duration(seconds: 10));
+
+
+          if (response.statusCode == 200) {
+            // print('Friends locations preloaded on app startup');
+          }
+        } catch (e) {
+          // Silently handle errors - friends locations preloading is optional
+        }
+      });
+    } catch (e) {
+      // Silently handle errors - preloading is optional
+    }
+  }
+
   /// Checks profile status every 5 minutes to detect bans/deactivations/rank changes
   void _startProfileChecks() {
     // Cancel any existing timer
@@ -460,66 +484,11 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     }
   }
 
-  /// Start periodic Firebase connectivity checks
-  /// Checks if user is connected to internet via Firebase every hour
-  void _startFirebaseConnectivityChecks() {
-    // Cancel any existing timer
-    _firebaseConnectivityCheckTimer?.cancel();
-    
-    // Check immediately on startup
-    _checkFirebaseConnectivity();
-    
-    // Check every hour
-    _firebaseConnectivityCheckTimer = Timer.periodic(const Duration(hours: 1), (timer) {
-      if (!mounted) {
-        timer.cancel();
-        _firebaseConnectivityCheckTimer = null;
-        return;
-      }
-      _checkFirebaseConnectivity();
-    });
-  }
-
-  /// Check Firebase connectivity to verify internet connection
-  Future<void> _checkFirebaseConnectivity() async {
-    try {
-      // Check if Firebase is initialized
-      if (Firebase.apps.isEmpty) {
-        return; // Firebase not initialized
-      }
-
-      final database = FirebaseDatabase.instance;
-      final connectedRef = database.ref('.info/connected');
-      
-      // Listen to connection state for a short period to check connectivity
-      final subscription = connectedRef.onValue.listen((event) {
-        final isConnected = event.snapshot.value as bool? ?? false;
-        
-        if (!isConnected) {
-          // User is not connected to Firebase (likely no internet)
-          // This means the user is offline - activity will naturally stop updating
-          // The last_active timestamp will reflect this when checked
-        }
-        // If connected, user has internet - activity updates will continue
-      }, onError: (error) {
-        // Silently fail - connectivity checks are not critical
-      });
-
-      // Wait a short time to get the connection state, then cancel
-      await Future.delayed(const Duration(seconds: 2));
-      await subscription.cancel();
-    } catch (e) {
-      // Silently fail - connectivity checks are not critical
-      // Firebase may not be configured or available
-    }
-  }
-
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _webSocketConnectionCheckTimer?.cancel();
     _profileCheckTimer?.cancel();
-    _firebaseConnectivityCheckTimer?.cancel();
     _linkSubscription?.cancel();
     super.dispose();
   }
@@ -531,15 +500,11 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     // Manage foreground service based on app lifecycle
     switch (state) {
       case AppLifecycleState.resumed:
-        // App is in foreground - process offline queue immediately
+        // Process offline queue immediately
         final chatService = ChatService();
         chatService.processOfflineQueue();
         
-        // Ensure Firebase and WebSocket are connected
-        // Reconnect Firebase if not connected (it may have been disconnected in background)
-        if (!_firebaseRealtimeService.isConnected) {
-          _firebaseRealtimeService.connect();
-        }
+        // Ensure WebSocket is connected (it may have been disconnected in background)
         // Always force reconnect WebSocket when app resumes to ensure connection is alive
         // The connection might appear connected but actually be dead after backgrounding
         _webSocketService.forceReconnect().catchError((error) {
@@ -556,8 +521,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         // - Online: As long as WebSocket ping loop is active
         break;
       case AppLifecycleState.detached:
-        // App is being terminated - disconnect Firebase
-        _firebaseRealtimeService.disconnect();
+        // App is being terminated
         // Foreground service will continue running even after app is terminated
         // It will maintain WebSocket connection and perform background checks
         // Online status is now calculated from last_active, no need to update
@@ -693,94 +657,6 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     );
     
     // print('[SKYBYN] ✅ [Main Chat Listener] WebSocket callback registered');
-    
-    // Also listen via Firebase Realtime for messages when WebSocket is NOT available
-    // Only use Firebase as fallback when WebSocket is disconnected
-    _firebaseRealtimeService.setupChatListener(
-      '', // Empty friendId means listen to all chats
-      (messageId, fromUserId, toUserId, message) async {
-        // Only process if WebSocket is NOT connected (Firebase is fallback)
-        if (_webSocketService.isConnected) {
-          // print('[SKYBYN] ⏭️ [Main Chat Listener] Skipping Firebase - WebSocket connected');
-          return; // WebSocket handles it, skip Firebase
-        }
-        
-        // print('[SKYBYN] 🔵 [Main Chat Listener] Firebase message (WebSocket unavailable)');
-        // print('[SKYBYN]    MessageId: $messageId');
-        // print('[SKYBYN]    From: $fromUserId, To: $toUserId');
-        
-        // Get current user ID
-        final authService = AuthService();
-        final currentUserId = await authService.getStoredUserId();
-        
-        print('[SKYBYN]    Current UserId: ${currentUserId ?? "null"}');
-        
-        // Only increment badge if message is for current user and from someone else
-        if (currentUserId == null) {
-          print('[SKYBYN] ⏭️ [Main Chat Listener] Skipping - current user ID is null (Firebase)');
-        } else if (toUserId != currentUserId) {
-          // print('[SKYBYN] ⏭️ [Main Chat Listener] Skipping - message not for current user (To: $toUserId, Current: $currentUserId, Firebase)');
-        } else if (fromUserId == currentUserId) {
-          print('[SKYBYN] ⏭️ [Main Chat Listener] Skipping - message from self (From: $fromUserId, Current: $currentUserId, Firebase)');
-        } else {
-          // Message is for current user and from someone else - process it
-          print('[SKYBYN] 🔵 [Main Chat Listener] Incrementing unread count for: $fromUserId');
-          // Increment unread count for this friend (with messageId and messageContent to prevent duplicates)
-          final wasIncremented = await _chatMessageCountService.incrementUnreadCount(
-            fromUserId, 
-            messageId: messageId,
-            messageContent: message, // Pass message content for content-based deduplication
-          );
-          if (wasIncremented) {
-            print('[SKYBYN] ✅ [Main Chat Listener] Unread count incremented (Firebase)');
-            
-            // Only show notification if chat screen for this friend is NOT currently open
-            if (!_chatMessageCountService.isChatOpenForFriend(fromUserId)) {
-              // Only show system notification if app is in background or closed
-              // If app is in foreground, in-app notifications will be shown instead
-              final appLifecycleState = WidgetsBinding.instance.lifecycleState;
-              final isAppInForeground = appLifecycleState == AppLifecycleState.resumed;
-              
-              if (!isAppInForeground) {
-                // App is in background or closed - show system notification
-                print('[SKYBYN] 🔔 [Main Chat Listener] App is NOT in foreground - will show system notification');
-                try {
-                  // Get friend's name for notification
-                  final friendService = FriendService();
-                  final friends = await friendService.fetchFriendsForUser(userId: currentUserId);
-                  final friend = friends.firstWhere(
-                    (f) => f.id == fromUserId,
-                    orElse: () => Friend(
-                      id: fromUserId,
-                      username: fromUserId,
-                      nickname: '',
-                      avatar: '',
-                      online: false,
-                    ),
-                  );
-                  
-                  final friendName = friend.nickname.isNotEmpty ? friend.nickname : friend.username;
-                  
-                  await _notificationService.showNotification(
-                    title: friendName,
-                    body: message,
-                    payload: jsonEncode({
-                      'type': 'chat',
-                      'from': fromUserId,
-                      'messageId': messageId,
-                      'to': currentUserId,
-                    }),
-                  );
-                  print('[SKYBYN] ✅ [Main Chat Listener] System notification shown for message from $friendName (app in background)');
-                } catch (e) {
-                  print('[SKYBYN] ⚠️ [Main Chat Listener] Failed to show notification: $e');
-                }
-              }
-            }
-          }
-        }
-      },
-    );
   }
 
   /// Set up call handlers (callbacks for incoming calls via WebSocket)

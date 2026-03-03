@@ -4,7 +4,6 @@ import 'dart:async';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../services/friend_service.dart';
 import '../services/auth_service.dart';
-import '../services/firebase_realtime_service.dart';
 import '../services/websocket_service.dart';
 import '../services/chat_message_count_service.dart';
 import '../services/chat_service.dart';
@@ -26,7 +25,6 @@ class ChatListModal extends StatefulWidget {
 class _ChatListModalState extends State<ChatListModal> {
   final FriendService _friendService = FriendService();
   final AuthService _authService = AuthService();
-  final FirebaseRealtimeService _firebaseRealtimeService = FirebaseRealtimeService();
   final ChatMessageCountService _chatMessageCountService = ChatMessageCountService();
   final ChatService _chatService = ChatService();
   final WebSocketService _webSocketService = WebSocketService();
@@ -43,7 +41,6 @@ class _ChatListModalState extends State<ChatListModal> {
     _loadFriends();
     _setupWebSocketListener();
     _setupUnreadCountListener();
-    _setupChatMessageListener();
   }
 
   @override
@@ -108,14 +105,6 @@ class _ChatListModalState extends State<ChatListModal> {
         _sortFriends();
       });
     }
-  }
-
-  void _setupChatMessageListener() {
-    // Listen to Firebase chat messages (Fallback)
-    _firebaseRealtimeService.setupChatListener(
-      '', // Empty friendId means listen to all chats
-      _handleNewMessage,
-    );
   }
   void _sortFriends() {
     _friends.sort((a, b) {

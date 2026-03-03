@@ -4,7 +4,6 @@ import 'dart:async';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../services/friend_service.dart';
 import '../services/auth_service.dart';
-import '../services/firebase_realtime_service.dart';
 import '../services/websocket_service.dart';
 import '../models/friend.dart';
 import '../screens/profile_screen.dart';
@@ -23,7 +22,6 @@ class RightPanel extends StatefulWidget {
 class _RightPanelState extends State<RightPanel> {
   final FriendService _friendService = FriendService();
   final AuthService _authService = AuthService();
-  final FirebaseRealtimeService _firebaseRealtimeService = FirebaseRealtimeService();
   final WebSocketService _webSocketService = WebSocketService();
 
   List<Friend> _friends = [];
@@ -85,24 +83,7 @@ class _RightPanelState extends State<RightPanel> {
   }
 
   void _setupOnlineStatusListenerForFriend(String friendId) {
-    // Cancel existing subscription if any
-    _onlineStatusSubscriptions[friendId]?.cancel();
-    
-    // Set up Firebase listener for this friend
-    _onlineStatusSubscriptions[friendId] = _firebaseRealtimeService.setupOnlineStatusListener(
-      friendId,
-      (userId, isOnline) {
-        if (mounted) {
-          setState(() {
-            final index = _friends.indexWhere((f) => f.id == userId);
-            if (index != -1) {
-              final oldStatus = _friends[index].online;
-              _friends[index] = _friends[index].copyWith(online: isOnline);
-            }
-          });
-        }
-      },
-    );
+    // Note: Firebase realtime fallback was removed, status is now handled exclusively via WebSocket
   }
 
   Future<void> _loadFriends() async {

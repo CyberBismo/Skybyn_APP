@@ -11,7 +11,6 @@ import '../widgets/bottom_nav.dart';
 import '../services/auth_service.dart';
 import '../services/post_service.dart';
 import '../services/notification_service.dart';
-import '../services/firebase_realtime_service.dart';
 import '../services/auto_update_service.dart';
 import '../services/firebase_messaging_service.dart';
 import '../services/websocket_service.dart';
@@ -77,7 +76,6 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   final _authService = AuthService();
-  final _firebaseRealtimeService = FirebaseRealtimeService();
   final _webSocketService = WebSocketService();
   final _scrollController = ScrollController();
   final _scaffoldMessengerKey = GlobalKey<ScaffoldMessengerState>();
@@ -184,63 +182,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
     // Start periodic post refresh (every 5 minutes)
     _startPostRefreshTimer();
-
-    _firebaseRealtimeService.connect(
-      onAppUpdate: _checkForUpdates,
-      onNewPost: (Post newPost) {
-        if (mounted) {
-          setState(() {
-            if (!_posts.any((post) => post.id == newPost.id)) {
-              _posts.insert(0, newPost);
-              // Show indicator if user has scrolled
-              if (_hasScrolled) {
-                _showNewPostIndicator = true;
-              }
-            }
-          });
-        }
-      },
-      onDeletePost: (String postId) {
-        if (mounted) {
-          setState(() {
-            _posts.removeWhere((post) => post.id == postId);
-          });
-        }
-      },
-      onNewComment: (String postId, String commentId) {
-        _addCommentToPost(postId, commentId);
-      },
-      onDeleteComment: (String postId, String commentId) {
-        _removeCommentFromPost(postId, commentId);
-      },
-      onBroadcast: (String message) {
-        if (mounted) {
-          final translationService = TranslationService();
-          final notificationService = NotificationService();
-          notificationService.showNotification(
-            title: translationService.translate(TranslationKeys.broadcast),
-            body: message,
-            payload: 'broadcast',
-          );
-
-          // For iOS Simulator, also show a SnackBar as fallback
-          if (Platform.isIOS) {
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              if (mounted) {
-                _scaffoldMessengerKey.currentState?.showSnackBar(
-                  SnackBar(
-                    content: Text('📢 Broadcast: $message'),
-                    backgroundColor: Colors.blue,
-                    duration: const Duration(seconds: 5),
-                    behavior: SnackBarBehavior.fixed,
-                  ),
-                );
-              }
-            });
-          }
-        }
-      },
-    );
 
     // Connect to WebSocket service
     _connectWebSocket();
@@ -357,7 +298,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   void dispose() {
     _noPostsTimer?.cancel();
     _postRefreshTimer?.cancel();
-    _firebaseRealtimeService.disconnect();
     _webSocketService.disconnect();
     _scrollController.dispose();
     if (_lifecycleEventHandler != null) {
