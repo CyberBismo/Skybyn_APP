@@ -86,6 +86,7 @@ class WebSocketService {
   Function(String, bool)? _onTypingStatus; // userId, isTyping
   final List<Function(String, bool)> _onOnlineStatusCallbacks = []; // Multiple listeners for online status
   Function(String)? _onMessageRead; // messageId
+  final Set<String> _pendingPresenceSubscriptions = {}; // User IDs to subscribe to once connected
 
   // Callbacks for WebRTC signaling
   Function(String, String, String, String)? _onCallOffer; // callId, fromUserId, offer, callType
@@ -404,6 +405,11 @@ class WebSocketService {
 
         // Notify Listeners that a successful connection/reconnection was made
         onWebSocketConnected?.call();
+        
+        // Resync presence subscriptions if any
+        if (_pendingPresenceSubscriptions.isNotEmpty) {
+          subscribeToPresence(_pendingPresenceSubscriptions.toList());
+        }
         
         // Start connection health monitoring
         _startConnectionHealthMonitor();
@@ -1452,6 +1458,52 @@ class WebSocketService {
       _channel!.sink.add(jsonEncode(pingMessage));
     } catch (e) {
       // Ignore ping errors
+    }
+  }
+
+  /// Subscribe to online status updates for specific users
+  void subscribeToPresence(List<String> userIds) {
+    if (userIds.isEmpty) return;
+    
+    // Add to pending set so we can resync on reconnect
+    _pendingPresenceSubscriptions.addAll(userIds);
+    
+    if (!_isConnected || _channel == null) return;
+    
+    try {
+      final message = {
+        'type': 'subscribe_presence',
+        'sessionId': _sessionId,
+        'userIds': userIds,
+      };
+      _channel!.sink.add(jsonEncode(message));
+      developer.log('📡 Subscribed to presence for users: $userIds', name: 'WebSocket');
+    } catch (e) {
+      developer.log('❌ Failed to subscribe to presence: $e', name: 'WebSocket');
+    }
+  }
+
+  /// Unsubscribe from online status updates for specific users
+  void unsubscribeFromPresence(List<String> userIds) {
+    if (userIds.isEmpty) return;
+    
+    // Remove from pending set
+    for (var id in userIds) {
+      _pendingPresenceSubscriptions.remove(id);
+    }
+    
+    if (!_isConnected || _channel == null) return;
+    
+    try {
+      final message = {
+        'type': 'unsubscribe_presence',
+        'sessionId': _sessionId,
+        'userIds': userIds,
+      };
+      _channel!.sink.add(jsonEncode(message));
+      developer.log('📡 Unsubscribed from presence for users: $userIds', name: 'WebSocket');
+    } catch (e) {
+      developer.log('❌ Failed to unsubscribe from presence: $e', name: 'WebSocket');
     }
   }
 

@@ -53,6 +53,11 @@ class _RightPanelState extends State<RightPanel> {
       _webSocketService.removeOnlineStatusCallback(_webSocketOnlineStatusCallback!);
       _webSocketOnlineStatusCallback = null;
     }
+    
+    // Unsubscribe from all friends presence on dispose
+    if (_friends.isNotEmpty) {
+      _webSocketService.unsubscribeFromPresence(_friends.map((f) => f.id).toList());
+    }
     super.dispose();
   }
 
@@ -114,6 +119,11 @@ class _RightPanelState extends State<RightPanel> {
       _friends = friends;
       _isLoading = false;
     });
+
+    // Lazy Presence: Subscribe to online status for the initially loaded friends
+    if (_friends.isNotEmpty) {
+      _webSocketService.subscribeToPresence(_friends.map((f) => f.id).toList());
+    }
     
     // Set up Firebase online status listeners for all friends
     for (var friend in _friends) {
