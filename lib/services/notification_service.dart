@@ -44,7 +44,7 @@ class NotificationService {
   static const String _callsChannelId = 'calls';
 
   // Notification ID for update progress (fixed ID so we can update it)
-  static const int _updateProgressNotificationId = 9999;
+  static const int _updateProgressNotificationId = -9999;
 
   Future<void> initialize() async {
     try {
@@ -959,12 +959,12 @@ class NotificationService {
         channelDescription: channelDescription,
         importance: importance,
         priority: Priority.high,
-        showWhen: !isCall, // Don't show timestamp for calls
+        showWhen: !isCall,
         enableVibration: true,
         playSound: true,
-        icon: '@drawable/notification_icon', // Uses logo.png for notification icon
-        largeIcon: const DrawableResourceAndroidBitmap('@drawable/notification_icon'), // Uses logo.png for large icon
-        color: isCall ? const Color.fromRGBO(76, 175, 80, 1.0) : const Color.fromRGBO(33, 150, 243, 1.0), // Green for calls, blue for others
+        icon: '@drawable/notification_icon',
+        largeIcon: const DrawableResourceAndroidBitmap('@drawable/notification_icon'),
+        color: isCall ? const Color.fromRGBO(76, 175, 80, 1.0) : const Color.fromRGBO(33, 150, 243, 1.0),
         enableLights: true,
         ledColor: isCall ? const Color.fromRGBO(76, 175, 80, 1.0) : const Color.fromRGBO(33, 150, 243, 1.0),
         ledOnMs: 1000,
@@ -972,8 +972,10 @@ class NotificationService {
         ongoing: ongoing,
         autoCancel: autoCancel,
         actions: actions,
+        groupKey: isChat ? 'no.skybyn.app.CHAT_GROUP' : (isCall ? 'no.skybyn.app.CALL_GROUP' : null),
+        setAsGroupSummary: false, // Default shown per message, summary logic handled by system or manual show
         category: isCall ? AndroidNotificationCategory.call : AndroidNotificationCategory.social,
-        fullScreenIntent: isCall, // Show full screen for calls (Android 11+)
+        fullScreenIntent: isCall,
       );
       
       // If large icon URL provided, try to get from cache or download
@@ -982,15 +984,36 @@ class NotificationService {
            final File file = await DefaultCacheManager().getSingleFile(largeIconUrl);
            final String largeIconPath = file.path;
            
-           // Use BigTextStyle for expandable text
-           final BigTextStyleInformation bigTextStyleInformation = BigTextStyleInformation(
-             body,
-             htmlFormatBigText: true,
-             contentTitle: title,
-             htmlFormatContentTitle: true,
-             summaryText: isChat ? 'New Message' : null,
-             htmlFormatSummaryText: true,
-           );
+           // Use MessagingStyle for chats for better scalability/UI
+           StyleInformation? styleInformation;
+           if (isChat) {
+             final personName = title.replaceAll(' sent a message', '');
+             styleInformation = MessagingStyleInformation(
+               Person(
+                 name: personName,
+                 key: title, // Use title as key to group messages from same person
+                 icon: DrawableResourceAndroidBitmap(largeIconPath),
+               ),
+               conversationTitle: 'Chat with $personName',
+               groupConversation: false,
+               messages: [
+                 Message(
+                   body,
+                   DateTime.now(),
+                   null, // Sender is the person above
+                 ),
+               ],
+             );
+           } else {
+             styleInformation = BigTextStyleInformation(
+               body,
+               htmlFormatBigText: true,
+               contentTitle: title,
+               htmlFormatContentTitle: true,
+               summaryText: null,
+               htmlFormatSummaryText: true,
+             );
+           }
            
            androidPlatformChannelSpecifics = AndroidNotificationDetails(
             channelId,
@@ -1003,7 +1026,7 @@ class NotificationService {
             playSound: true,
             icon: '@drawable/notification_icon',
             largeIcon: FilePathAndroidBitmap(largeIconPath),
-            styleInformation: bigTextStyleInformation,
+            styleInformation: styleInformation,
             color: isCall ? const Color.fromRGBO(76, 175, 80, 1.0) : const Color.fromRGBO(33, 150, 243, 1.0),
             enableLights: true,
             ledColor: isCall ? const Color.fromRGBO(76, 175, 80, 1.0) : const Color.fromRGBO(33, 150, 243, 1.0),
@@ -1012,6 +1035,8 @@ class NotificationService {
             ongoing: ongoing,
             autoCancel: autoCancel,
             actions: actions,
+            groupKey: isChat ? 'no.skybyn.app.CHAT_GROUP' : (isCall ? 'no.skybyn.app.CALL_GROUP' : null),
+            setAsGroupSummary: false,
             category: isCall ? AndroidNotificationCategory.call : AndroidNotificationCategory.message,
             fullScreenIntent: isCall,
           );
@@ -1041,7 +1066,17 @@ class NotificationService {
         iOS: iOSPlatformChannelSpecifics,
       );
 
-      final int id = notificationId ?? (DateTime.now().millisecondsSinceEpoch ~/ 1000);
+      int id;
+      if (notificationId != null) {
+        id = notificationId;
+      } else if (isChat || isCall || (payload != null && payload.contains('friend_request'))) {
+        // Use positive IDs for user-related notifications (usually derived from user IDs)
+        id = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+      } else {
+        // Use negative IDs for system/admin notifications to avoid collisions with User IDs
+        // Shift range to -1 to -50000
+        id = -((DateTime.now().millisecondsSinceEpoch ~/ 1000) % 50000 + 1);
+      }
       // Show the notification
       await _localNotifications.show(
         id,

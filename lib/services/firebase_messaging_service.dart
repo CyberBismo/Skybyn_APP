@@ -110,6 +110,8 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
         }
 
         final senderId = message.data['sender']?.toString() ?? message.data['senderId']?.toString() ?? '0';
+        // notificationId logic is now internalized in showNotification, but we can pass it if we want to override.
+        // For chat we derive from sender ID to allow updates.
         final notificationId = int.tryParse(senderId) ?? senderId.hashCode;
         
         await NotificationService().showNotification(
@@ -408,8 +410,7 @@ class FirebaseMessagingService {
          return;
        }
 
-       // Show System Notification (Tray) instead of In-App Overlay
-       // Use consistent ID based on senderId to allow updating/cancelling
+       // Show System Notification (Tray)
        final notificationId = int.tryParse(senderId) ?? senderId.hashCode;
        
        NotificationService().showNotification(
