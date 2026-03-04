@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:math' as math;
 import 'package:path_provider/path_provider.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'dart:developer' as developer;
@@ -27,7 +28,7 @@ class CacheUtils {
     if (bytes <= 0) return "0 B";
     const suffixes = ["B", "KB", "MB", "GB", "TB"];
     var i = (bytes > 0) ? (bytes.toString().length - 1) ~/ 3 : 0;
-    return '${(bytes / (1024 * (i > 0 ? i : 0 + 1) == 0 ? 1 : Math.pow(1024, i))).toStringAsFixed(decimals)} ${suffixes[i]}';
+    return '${(bytes / (1024 * (i > 0 ? i : 0 + 1) == 0 ? 1 : math.pow(1024, i))).toStringAsFixed(decimals)} ${suffixes[i]}';
   }
   
   // Custom manual format to avoid dependency on dart:math if possible or just use it

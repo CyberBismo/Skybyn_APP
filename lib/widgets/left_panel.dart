@@ -17,6 +17,8 @@ import '../screens/groups_screen.dart';
 import '../screens/pages_screen.dart';
 import '../screens/markets_screen.dart';
 import '../screens/feedback_screen.dart';
+import '../utils/color_utils.dart';
+import 'background_gradient.dart';
 
 class LeftPanel extends StatefulWidget {
   const LeftPanel({super.key});
@@ -254,11 +256,11 @@ class _LeftPanelState extends State<LeftPanel> {
     }
   }
 
-  Widget _buildDiscordSection() {
+  Widget _buildDiscordSection(Color contentColor, Color panelBgColor, bool isDarkBackground) {
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.10),
+        color: panelBgColor,
         borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
@@ -285,27 +287,27 @@ class _LeftPanelState extends State<LeftPanel> {
                         'https://cdn.jsdelivr.net/npm/simple-icons@v9/icons/discord.svg',
                         width: 20,
                         height: 20,
-                        colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn),
+                        colorFilter: ColorFilter.mode(contentColor, BlendMode.srcIn),
                         placeholderBuilder: (context) => Container(
                           width: 20,
                           height: 20,
-                          color: Colors.white.withOpacity(0.1),
+                          color: contentColor.withOpacity(0.1),
                         ),
                       ),
                     ),
                     const SizedBox(width: 12),
-                    const Expanded(
+                    Expanded(
                       child: TranslatedText(
                         TranslationKeys.discord,
                         style: TextStyle(
-                          color: Colors.white,
+                          color: contentColor,
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
                           decoration: TextDecoration.none,
                         ),
                       ),
                     ),
-                    const Icon(Icons.open_in_new, color: Colors.white70, size: 18),
+                    Icon(Icons.open_in_new, color: contentColor.withOpacity(0.7), size: 18),
                   ],
                 ),
               ),
@@ -317,13 +319,13 @@ class _LeftPanelState extends State<LeftPanel> {
             child: _discordOnlineMembers != null
                 ? Text(
                     'Online Members: $_discordOnlineMembers',
-                    style: const TextStyle(
-                      color: Colors.white70,
+                    style: TextStyle(
+                      color: contentColor.withOpacity(0.7),
                       fontSize: 14,
                       decoration: TextDecoration.none,
                     ),
                   )
-                : const SizedBox(
+                : SizedBox(
                     height: 20,
                     child: Center(
                       child: SizedBox(
@@ -331,7 +333,7 @@ class _LeftPanelState extends State<LeftPanel> {
                         height: 16,
                         child: CircularProgressIndicator(
                           strokeWidth: 2,
-                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white70),
+                          valueColor: AlwaysStoppedAnimation<Color>(contentColor.withOpacity(0.7)),
                         ),
                       ),
                     ),
@@ -393,7 +395,7 @@ class _LeftPanelState extends State<LeftPanel> {
     }
   }
 
-  Widget _buildShortcutItem(Map<String, dynamic> shortcut) {
+  Widget _buildShortcutItem(Map<String, dynamic> shortcut, Color contentColor, Color panelBgColor) {
     final name = shortcut['name']?.toString() ?? '';
     final icon = shortcut['icon']?.toString() ?? '';
     final url = shortcut['url']?.toString();
@@ -432,7 +434,7 @@ class _LeftPanelState extends State<LeftPanel> {
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.10),
+        color: panelBgColor,
         borderRadius: BorderRadius.circular(12),
       ),
       child: Material(
@@ -454,26 +456,26 @@ class _LeftPanelState extends State<LeftPanel> {
             }
           },
           borderRadius: BorderRadius.circular(12),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            child: Row(
-              children: [
-                Icon(iconData, color: Colors.white, size: 24),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Text(
-                    name,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      decoration: TextDecoration.none,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              child: Row(
+                children: [
+                  Icon(iconData, color: contentColor, size: 24),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Text(
+                      name,
+                      style: TextStyle(
+                        color: contentColor,
+                        fontSize: 16,
+                        decoration: TextDecoration.none,
+                      ),
                     ),
                   ),
-                ),
-                const Icon(Icons.chevron_right, color: Colors.white70, size: 18),
-              ],
+                  Icon(Icons.chevron_right, color: contentColor.withOpacity(0.7), size: 18),
+                ],
+              ),
             ),
-          ),
         ),
       ),
     );
@@ -481,6 +483,15 @@ class _LeftPanelState extends State<LeftPanel> {
 
   @override
   Widget build(BuildContext context) {
+    final bgTheme = BackgroundTheme.of(context);
+    final contentColor = bgTheme != null 
+        ? ColorUtils.getContrastingColor(bgTheme.topColor)
+        : (Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black);
+    final isDarkBackground = bgTheme?.isDark ?? Theme.of(context).brightness == Brightness.dark;
+    final panelBgColor = isDarkBackground
+        ? Colors.white.withOpacity(0.10)
+        : Colors.black.withOpacity(0.10);
+
     // Get screen dimensions once - these won't change during animation
     final mediaQuery = MediaQuery.of(context);
     final screenWidth = mediaQuery.size.width;
@@ -514,7 +525,7 @@ class _LeftPanelState extends State<LeftPanel> {
             child: BackdropFilter(
               filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
               child: Container(
-                color: Colors.white.withOpacity(0.05),
+                color: isDarkBackground ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.05),
                 child: Column(
                   children: [
                     // Title with close button
@@ -523,10 +534,10 @@ class _LeftPanelState extends State<LeftPanel> {
                       child: Stack(
                         alignment: Alignment.center,
                         children: [
-                          const TranslatedText(
+                          TranslatedText(
                             TranslationKeys.shortcuts,
                             style: TextStyle(
-                              color: Colors.white,
+                              color: contentColor,
                               fontSize: 24,
                               fontWeight: FontWeight.bold,
                               decoration: TextDecoration.none,
@@ -535,7 +546,7 @@ class _LeftPanelState extends State<LeftPanel> {
                           Align(
                             alignment: Alignment.centerLeft,
                             child: IconButton(
-                              icon: const Icon(Icons.close, color: Colors.white),
+                              icon: Icon(Icons.close, color: contentColor),
                               onPressed: () => Navigator.of(context).pop(),
                             ),
                           ),
@@ -559,15 +570,15 @@ class _LeftPanelState extends State<LeftPanel> {
                                     })
                                     .toList();
                                 
-                                final children = <Widget>[
-                                  // Discord section (always shown, like on website)
-                                  _buildDiscordSection(),
-                                  const SizedBox(height: 16),
-                                ];
+                                  final children = <Widget>[
+                                    // Discord section (always shown, like on website)
+                                    _buildDiscordSection(contentColor, panelBgColor, isDarkBackground),
+                                    const SizedBox(height: 16),
+                                  ];
                                 
                                 // Add shortcuts
                                 for (var shortcut in filteredShortcuts) {
-                                  children.add(_buildShortcutItem(shortcut));
+                                  children.add(_buildShortcutItem(shortcut, contentColor, panelBgColor));
                                 }
                                 
                                 if (filteredShortcuts.isEmpty && _shortcuts.isNotEmpty) {

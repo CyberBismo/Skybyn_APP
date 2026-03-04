@@ -14,6 +14,15 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:open_file/open_file.dart';
 import 'notification_service.dart';
 import 'auth_service.dart';
+import 'package:flutter_downloader/flutter_downloader.dart';
+import 'dart:isolate';
+import 'dart:ui';
+
+@pragma('vm:entry-point')
+void downloadCallback(String id, int status, int progress) {
+  final SendPort? send = IsolateNameServer.lookupPortByName('downloader_send_port');
+  send?.send([id, status, progress]);
+}
 
 class AutoUpdateService {
   static String get _updateCheckUrl => ApiConstants.appUpdate;
@@ -174,32 +183,44 @@ class AutoUpdateService {
 
   static Future<bool> downloadUpdate(String downloadUrl, {Function(int progress, String status)? onProgress}) async {
     final notificationService = NotificationService();
-    // Declare client outside try block so it's accessible in catch block
-    http.Client? client;
 
     try {
-      // Show initial progress notification
-      await notificationService.showUpdateProgressNotification(
-        title: 'Updating Skybyn',
-        status: 'Preparing download...',
-        progress: 0,
-        indeterminate: true,
-      );
+      // 1. Prepare for download tracking
+      final ReceivePort port = ReceivePort();
+      IsolateNameServer.registerPortWithName(port.sendPort, 'downloader_send_port');
+      
+      final Completer<bool> downloadCompleter = Completer<bool>();
+      
+      port.listen((dynamic data) {
+        // [id, status, progress]
+        final int statusInt = data[1] as int;
+        final int progress = data[2] as int;
+        
+        // Convert int to enum for safer comparison in 1.12.0+
+        final DownloadTaskStatus status = DownloadTaskStatus.values[statusInt];
 
-      // Validate URL
-      if (downloadUrl.isEmpty) {
-        await notificationService.showUpdateProgressNotification(
-          title: 'Update Failed',
-          status: 'Download URL is empty',
-          progress: 0,
-        );
-        return false;
-      }
+        if (status == DownloadTaskStatus.running) {
+          onProgress?.call(progress, 'Downloading... $progress%');
+        } else if (status == DownloadTaskStatus.complete) {
+          IsolateNameServer.removePortNameMapping('downloader_send_port');
+          port.close();
+          downloadCompleter.complete(true);
+        } else if (status == DownloadTaskStatus.failed) {
+          IsolateNameServer.removePortNameMapping('downloader_send_port');
+          port.close();
+          downloadCompleter.complete(false);
+        } else if (status == DownloadTaskStatus.canceled) {
+          IsolateNameServer.removePortNameMapping('downloader_send_port');
+          port.close();
+          downloadCompleter.complete(false);
+        }
+      });
 
-      // Use external storage directory for better compatibility with Android Package Installer
-      // This location is readable by the Package Installer when using OpenFile
+      // 2. Start the download using flutter_downloader
       final Directory? directory = await getExternalStorageDirectory();
       if (directory == null) {
+        IsolateNameServer.removePortNameMapping('downloader_send_port');
+        port.close();
         await notificationService.showUpdateProgressNotification(
           title: 'Update Failed',
           status: 'Could not access storage directory',
@@ -207,243 +228,63 @@ class AutoUpdateService {
         );
         return false;
       }
-      final File file = File('${directory.path}/app-update.apk');
 
-      // Delete old APK if exists
-      if (await file.exists()) {
-        await file.delete();
+      // Ensure the directory exists
+      final savedDir = Directory(directory.path);
+      if (!await savedDir.exists()) {
+        await savedDir.create(recursive: true);
       }
 
-      // Update notification
-      await notificationService.showUpdateProgressNotification(
-        title: 'Updating Skybyn',
-        status: 'Connecting to server...',
-        progress: 5,
+      // Cleanup old APK if exists
+      final oldApk = File('${directory.path}/app-update.apk');
+      if (await oldApk.exists()) {
+        await oldApk.delete();
+      }
+
+      final taskId = await FlutterDownloader.enqueue(
+        url: downloadUrl,
+        savedDir: directory.path,
+        fileName: 'app-update.apk',
+        showNotification: true, // Use system notification
+        openFileFromNotification: false, // We'll handle installation manually
+        requiresStorageNotLow: true,
       );
 
-      // Create GET request for actual download
-      // Use a client with extended timeout for large file downloads (up to 10 minutes)
-      client = http.Client();
-      http.StreamedResponse? streamedResponse;
-      
-      try {
-        final request = http.Request('GET', Uri.parse(downloadUrl));
-        streamedResponse = await client!.send(request).timeout(
-          const Duration(minutes: 10),
-          onTimeout: () {
-            client?.close();
-            throw TimeoutException('Download timeout after 10 minutes');
-          },
-        );
-      } catch (e) {
-        client?.close();
-        rethrow;
-      }
-
-      if (streamedResponse!.statusCode == 200) {
-        // Get content length for progress tracking from the actual download response
-        // The server sets Content-Length dynamically based on the actual file size
-        int? contentLength = streamedResponse.contentLength;
-        
-        // Try to get from Content-Length header if contentLength is null or -1
-        if (contentLength == -1) {
-          final contentLengthHeader = streamedResponse.headers['content-length'];
-          if (contentLengthHeader != null && contentLengthHeader.isNotEmpty) {
-            contentLength = int.tryParse(contentLengthHeader.trim());
-            if (contentLength != null && contentLength <= 0) {
-              contentLength = null; // Invalid size, treat as unknown
-            }
-          }
-        }
-        
-        // Also check for Content-Range header (for partial downloads/resumable downloads)
-        if ((contentLength == null || contentLength == -1) && streamedResponse.headers.containsKey('content-range')) {
-          final contentRange = streamedResponse.headers['content-range'];
-          if (contentRange != null && contentRange.isNotEmpty) {
-            // Parse "bytes 0-12345/67890" format
-            final match = RegExp(r'bytes \d+-\d+/(\d+)').firstMatch(contentRange);
-            if (match != null) {
-              final totalSize = match.group(1);
-              if (totalSize != null && totalSize.isNotEmpty) {
-                contentLength = int.tryParse(totalSize.trim());
-                if (contentLength != null && contentLength <= 0) {
-                  contentLength = null; // Invalid size, treat as unknown
-                }
-              }
-            }
-          }
-        }
-        
-        // Log the detected file size for debugging
-        if (contentLength != null && contentLength > 0) {
-        } else {
-        }
-
-        // Update notification with initial progress
-        await notificationService.showUpdateProgressNotification(
-          title: 'Updating Skybyn',
-          status: contentLength != null ? 'Downloading... (${_formatBytes(contentLength)})' : 'Downloading...',
-          progress: 0,
-        );
-        
-        // Report initial progress to callback
-        if (contentLength != null && contentLength > 0) {
-          onProgress?.call(0, 'Downloading... 0 / ${_formatBytes(contentLength)} (0%)');
-        } else {
-          onProgress?.call(0, 'Downloading... 0 bytes');
-        }
-
-        // Stream the response directly to file to handle large files efficiently
-        // Open file in write mode (append) to stream chunks directly to disk
-        final fileSink = file.openWrite();
-        int downloadedBytes = 0;
-
-        DateTime lastUpdateTime = DateTime.now();
-        
-        try {
-          await for (var chunk in streamedResponse.stream) {
-            // Write chunk directly to file instead of buffering in memory
-            fileSink.add(chunk);
-            downloadedBytes += chunk.length;
-
-            // Update progress based on actual download progress (0-100%)
-            if (contentLength != null && contentLength > 0) {
-              // Calculate progress with decimal precision for smoother updates
-              final progressDouble = (downloadedBytes / contentLength) * 100;
-              final progress = progressDouble.round().clamp(0, 100);
-              
-              // Update progress callback more frequently for real-time feedback:
-              // - At least every 500ms (for UI responsiveness and to prevent notification spam)
-              final timeSinceLastUpdate = DateTime.now().difference(lastUpdateTime);
-              
-              if (timeSinceLastUpdate.inMilliseconds >= 500) {
-                lastUpdateTime = DateTime.now();
-                
-                // Format progress with one decimal place for more precision
-                final progressFormatted = progressDouble.toStringAsFixed(1);
-                
-                await notificationService.showUpdateProgressNotification(
-                  title: 'Updating Skybyn',
-                  status: 'Downloading... ${_formatBytes(downloadedBytes)} / ${_formatBytes(contentLength)} ($progressFormatted%)',
-                  progress: progress,
-                );
-
-                // Call progress callback with precise percentage and detailed status
-                final statusText = 'Downloading... ${_formatBytes(downloadedBytes)} / ${_formatBytes(contentLength)} ($progressFormatted%)';
-                onProgress?.call(progress, statusText);
-              }
-            } else {
-              // Content length is unknown - we can't calculate accurate percentage
-              // Show indeterminate progress and update based on downloaded bytes only
-              final timeSinceLastUpdate = DateTime.now().difference(lastUpdateTime);
-              
-              // Update every 500ms to prevent notification spam
-              if (timeSinceLastUpdate.inMilliseconds >= 500) {
-                lastUpdateTime = DateTime.now();
-                
-                // Show indeterminate progress (no percentage, just bytes downloaded)
-                await notificationService.showUpdateProgressNotification(
-                  title: 'Updating Skybyn',
-                  status: 'Downloading... ${_formatBytes(downloadedBytes)}',
-                  progress: 0, // 0 means indeterminate
-                  indeterminate: true,
-                );
-                
-                // Call progress callback with 0 (indeterminate)
-                onProgress?.call(0, 'Downloading... ${_formatBytes(downloadedBytes)}');
-              }
-            }
-          }
-          
-          // Close the file stream after all chunks are written
-          await fileSink.flush();
-          await fileSink.close();
-        } catch (e) {
-          // Ensure file is closed even if there's an error
-          try {
-            await fileSink.close();
-          } catch (_) {
-            // Ignore errors when closing
-          }
-          // Delete partial file on error
-          if (await file.exists()) {
-            await file.delete();
-          }
-          rethrow;
-        } finally {
-          // Ensure client is closed
-          client?.close();
-        }
-
-        // Verify file was written correctly
-        final fileSize = await file.length();
-        
-        // Check if file is empty
-        if (fileSize == 0) {
-          await file.delete();
-          await notificationService.showUpdateProgressNotification(
-            title: 'Update Failed',
-            status: 'Downloaded file is empty',
-            progress: 0,
-          );
-          return false;
-        }
-        
-        // Verify file size matches expected content length (if available)
-        if (contentLength != null && contentLength > 0) {
-          if (fileSize != contentLength) {
-            // File size mismatch - might be incomplete download
-            await file.delete();
-            await notificationService.showUpdateProgressNotification(
-              title: 'Update Failed',
-              status: 'File size mismatch. Expected ${_formatBytes(contentLength)}, got ${_formatBytes(fileSize)}',
-              progress: 0,
-            );
-            return false;
-          }
-        }
-
-        // Download complete - cancel progress notification
-        await notificationService.cancelUpdateProgressNotification();
-
-        // Call progress callback to notify download is complete
-        onProgress?.call(100, 'Downloaded');
-
-        // Automatically start installation after download completes
-        // Note: This requires the caller to provide a BuildContext
-        // For now, we'll return true and let the caller handle installation
-        return true;
-      } else {
-        client?.close();
+      if (taskId == null) {
+        IsolateNameServer.removePortNameMapping('downloader_send_port');
+        port.close();
         await notificationService.showUpdateProgressNotification(
           title: 'Update Failed',
-          status: 'Download failed (HTTP ${streamedResponse.statusCode})',
+          status: 'Failed to enqueue download task',
           progress: 0,
         );
-        // Consume the response stream to avoid memory leaks
-        try {
-          await streamedResponse.stream.drain();
-        } catch (_) {
-          // Ignore errors
-        }
+        return false;
+      }
+
+      // Register the static callback for progress
+      await FlutterDownloader.registerCallback(downloadCallback);
+
+      // Wait for completion (if not background download)
+      if (!_isBackgroundDownload) {
+        return await downloadCompleter.future;
+      } else {
+        // In background, we don't wait - flutter_downloader handles it
+        // We close the port early but let the system handle the download
+        IsolateNameServer.removePortNameMapping('downloader_send_port');
+        port.close();
+        return true; 
       }
     } catch (e) {
-      // Ensure client is closed on error
-      try {
-        client?.close();
-      } catch (_) {
-        // Ignore errors when closing
-      }
-      
-      // Download failed
+      print('[AutoUpdateService] Error downloading update: $e');
       await notificationService.showUpdateProgressNotification(
         title: 'Update Failed',
         status: 'Error: ${e.toString()}',
         progress: 0,
       );
+      return false;
     }
-    return false;
   }
+
 
   /// Format bytes to human-readable string
   static String _formatBytes(int bytes) {
@@ -492,7 +333,7 @@ class AutoUpdateService {
           if (fileSize == 0) {
             await notificationService.showUpdateProgressNotification(
               title: 'Update Failed',
-              status: 'APK file is empty',
+              status: 'Installation file is empty',
               progress: 0,
             );
             return false;
@@ -514,8 +355,8 @@ class AutoUpdateService {
           if (result) {
             // Keep notification showing until user installs
             await notificationService.showUpdateProgressNotification(
-              title: 'Update Ready',
-              status: 'Tap to install in the system dialog',
+              title: 'App Update Available',
+              status: 'Tap to install',
               progress: 100,
             );
           } else {
@@ -530,7 +371,7 @@ class AutoUpdateService {
         } else {
           await notificationService.showUpdateProgressNotification(
             title: 'Update Failed',
-            status: 'APK file not found',
+            status: 'Installation file not found',
             progress: 0,
           );
           return false;
@@ -639,7 +480,7 @@ class AutoUpdateService {
       if (!await file.exists()) {
         await notificationService.showUpdateProgressNotification(
           title: 'Update Failed',
-          status: 'APK file not found',
+          status: 'Installation file not found',
           progress: 0,
         );
         return false;
@@ -649,7 +490,7 @@ class AutoUpdateService {
       if (fileSize == 0) {
         await notificationService.showUpdateProgressNotification(
           title: 'Update Failed',
-          status: 'APK file is empty',
+          status: 'Installation file is empty',
           progress: 0,
         );
         return false;
@@ -681,7 +522,7 @@ class AutoUpdateService {
       if (!await file.exists()) {
         await notificationService.showUpdateProgressNotification(
           title: 'Update Failed',
-          status: 'APK file not found at: $apkPath',
+          status: 'Installation file not found at: $apkPath',
           progress: 0,
         );
         return false;
@@ -699,14 +540,14 @@ class AutoUpdateService {
       } else if (result.type == ResultType.noAppToOpen) {
         await notificationService.showUpdateProgressNotification(
           title: 'Update Failed',
-          status: 'No app available to install APK. Please enable "Install unknown apps" permission.',
+          status: 'No app available to install. Please enable "Install unknown apps" permission.',
           progress: 0,
         );
         return false;
       } else if (result.type == ResultType.fileNotFound) {
         await notificationService.showUpdateProgressNotification(
           title: 'Update Failed',
-          status: 'APK file not found: $apkPath',
+          status: 'Installation file not found: $apkPath',
           progress: 0,
         );
         return false;

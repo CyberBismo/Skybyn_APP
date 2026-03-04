@@ -31,6 +31,7 @@ import 'screens/pages_screen.dart';
 import 'screens/feedback_screen.dart';
 import 'screens/map_screen.dart';
 // Services
+import 'package:flutter_downloader/flutter_downloader.dart';
 import 'services/theme_service.dart';
 import 'services/focus_service.dart';
 import 'services/auth_service.dart';
@@ -69,6 +70,18 @@ Future<void> main() async {
     () async {
       // Ensure Flutter is initialized first
       WidgetsFlutterBinding.ensureInitialized();
+
+      // Initialize FlutterDownloader for background update downloads
+      if (Platform.isAndroid) {
+        try {
+          await FlutterDownloader.initialize(
+            debug: true, // set to false in production
+            ignoreSsl: true, // option: set to false to disable HTTP links (default: false)
+          );
+        } catch (e) {
+          print('FlutterDownloader initialization error: $e');
+        }
+      }
 
       // Set up Flutter error handler to log all errors
       FlutterError.onError = (FlutterErrorDetails details) {

@@ -10,6 +10,8 @@ import '../screens/profile_screen.dart';
 import '../services/translation_service.dart';
 import 'find_friends_widget.dart';
 import '../config/constants.dart';
+import '../utils/color_utils.dart';
+import 'background_gradient.dart';
 
 
 class RightPanel extends StatefulWidget {
@@ -133,6 +135,15 @@ class _RightPanelState extends State<RightPanel> {
 
   @override
   Widget build(BuildContext context) {
+    final bgTheme = BackgroundTheme.of(context);
+    final isDarkBackground = bgTheme?.isDark ?? Theme.of(context).brightness == Brightness.dark;
+    final contentColor = bgTheme != null 
+        ? ColorUtils.getContrastingColor(bgTheme.topColor)
+        : (Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black);
+    final panelBgColor = isDarkBackground
+        ? Colors.white.withOpacity(0.10)
+        : Colors.black.withOpacity(0.10);
+
     // Get screen dimensions once - these won't change during animation
     final mediaQuery = MediaQuery.of(context);
     final screenWidth = mediaQuery.size.width;
@@ -166,7 +177,7 @@ class _RightPanelState extends State<RightPanel> {
             child: BackdropFilter(
               filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
               child: Container(
-                color: Colors.white.withOpacity(0.05),
+                color: isDarkBackground ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.05),
                 child: Column(
                   children: [
                     // Title with find friends button and close button
@@ -176,7 +187,7 @@ class _RightPanelState extends State<RightPanel> {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         IconButton(
-                          icon: const Icon(Icons.my_location, color: Colors.white),
+                          icon: Icon(Icons.my_location, color: contentColor),
                           onPressed: () {
                             setState(() {
                               _showFindFriendsBox = !_showFindFriendsBox;
@@ -205,7 +216,7 @@ class _RightPanelState extends State<RightPanel> {
                           ),
                         ),
                         IconButton(
-                          icon: const Icon(Icons.close, color: Colors.white),
+                          icon: Icon(Icons.close, color: contentColor),
                           onPressed: () => Navigator.of(context).pop(),
                         ),
                       ],
@@ -255,7 +266,7 @@ class _RightPanelState extends State<RightPanel> {
                                     final friend = _friends[index];
                                     return Container(
                                       decoration: BoxDecoration(
-                                        color: Colors.white.withOpacity(0.10),
+                                        color: panelBgColor,
                                         borderRadius: BorderRadius.circular(14),
                                       ),
                                       child: Material(
@@ -263,7 +274,7 @@ class _RightPanelState extends State<RightPanel> {
                                         child: ListTile(
                                         leading: CircleAvatar(
                                           radius: 22,
-                                          backgroundColor: Colors.white.withOpacity(0.2),
+                                          backgroundColor: contentColor.withOpacity(0.2),
                                           child: friend.avatar.isNotEmpty
                                               ? ClipOval(
                                                   child: CachedNetworkImage(
@@ -277,9 +288,9 @@ class _RightPanelState extends State<RightPanel> {
                                                     ),
                                                     errorWidget: (context, url, error) {
                                                       // Handle all errors including 404 (HttpExceptionWithStatus)
-                                                      return const Icon(
+                                                      return Icon(
                                                         Icons.person,
-                                                        color: Colors.white,
+                                                        color: contentColor,
                                                       );
                                                     },
                                                   ),
@@ -288,8 +299,8 @@ class _RightPanelState extends State<RightPanel> {
                                         ),
                                         title: Text(
                                           friend.nickname.isNotEmpty ? friend.nickname : friend.username,
-                                          style: const TextStyle(
-                                            color: Colors.white,
+                                          style: TextStyle(
+                                            color: contentColor,
                                             decoration: TextDecoration.none,
                                           ),
                                         ),

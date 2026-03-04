@@ -9,6 +9,8 @@ import '../widgets/translated_text.dart';
 import '../services/translation_service.dart';
 import '../config/constants.dart';
 import '../screens/profile_screen.dart';
+import '../utils/color_utils.dart';
+import 'background_gradient.dart';
 
 class FindFriendsWidget extends StatefulWidget {
   final VoidCallback? onFriendsFound;
@@ -277,15 +279,26 @@ class _FindFriendsWidgetState extends State<FindFriendsWidget> {
 
   @override
   Widget build(BuildContext context) {
-    // Removed debug print to reduce unnecessary work during rebuilds
+    final bgTheme = BackgroundTheme.of(context);
+    final isDarkBackground = bgTheme?.isDark ?? Theme.of(context).brightness == Brightness.dark;
+    final contentColor = bgTheme != null 
+        ? ColorUtils.getContrastingColor(bgTheme.topColor)
+        : (Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black);
+    final panelBgColor = isDarkBackground
+        ? Colors.white.withOpacity(0.12)
+        : Colors.black.withOpacity(0.12);
+    final borderColor = isDarkBackground
+        ? Colors.white.withOpacity(0.2)
+        : Colors.black.withOpacity(0.2);
+
     return RepaintBoundary(
       child: Container(
       margin: const EdgeInsets.all(16.0),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.12),
+        color: panelBgColor,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: Colors.white.withOpacity(0.2),
+          color: borderColor,
           width: 1,
         ),
       ),
@@ -301,18 +314,18 @@ class _FindFriendsWidgetState extends State<FindFriendsWidget> {
               children: [
                 Row(
                   children: [
-                    const Icon(
+                    Icon(
                       Icons.location_on,
-                      color: Colors.white,
+                      color: contentColor,
                       size: 28,
                     ),
                     const SizedBox(width: 12),
-                    const Expanded(
+                    Expanded(
                       child: TranslatedText(
                         TranslationKeys.findFriendsInArea,
                         fallback: 'Find friends in the area',
                         style: TextStyle(
-                          color: Colors.white,
+                          color: contentColor,
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
                           decoration: TextDecoration.none,
@@ -321,7 +334,7 @@ class _FindFriendsWidgetState extends State<FindFriendsWidget> {
                     ),
                     if (widget.onDismiss != null)
                       IconButton(
-                        icon: const Icon(Icons.close, color: Colors.white),
+                        icon: Icon(Icons.close, color: contentColor),
                         onPressed: widget.onDismiss,
                         padding: EdgeInsets.zero,
                         constraints: const BoxConstraints(),
@@ -334,7 +347,7 @@ class _FindFriendsWidgetState extends State<FindFriendsWidget> {
                   TranslationKeys.findFriendsDescription,
                   fallback: 'Discover and connect with users nearby using your location',
                   style: TextStyle(
-                    color: Colors.white.withOpacity(0.8),
+                    color: contentColor.withOpacity(0.8),
                     fontSize: 14,
                     decoration: TextDecoration.none,
                   ),
@@ -347,8 +360,8 @@ class _FindFriendsWidgetState extends State<FindFriendsWidget> {
                     child: ElevatedButton(
                       onPressed: _isLoading ? null : _findFriendsInArea,
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.white.withOpacity(0.2),
-                        foregroundColor: Colors.white,
+                        backgroundColor: contentColor.withOpacity(0.2),
+                        foregroundColor: contentColor,
                         padding: const EdgeInsets.symmetric(vertical: 14),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
@@ -396,17 +409,17 @@ class _FindFriendsWidgetState extends State<FindFriendsWidget> {
                     TranslationKeys.noNearbyUsers,
                     fallback: 'No users found nearby.',
                     style: TextStyle(
-                      color: Colors.white.withOpacity(0.8),
+                      color: contentColor.withOpacity(0.8),
                       fontSize: 14,
                       decoration: TextDecoration.none,
                     ),
                   ),
                   const SizedBox(height: 20),
-                  const TranslatedText(
+                  TranslatedText(
                     TranslationKeys.addFriendByUsername,
                     fallback: 'Add Friend by Username',
                     style: TextStyle(
-                      color: Colors.white,
+                      color: contentColor,
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
                       decoration: TextDecoration.none,
@@ -417,23 +430,23 @@ class _FindFriendsWidgetState extends State<FindFriendsWidget> {
                     color: Colors.transparent,
                     child: TextField(
                       controller: _referralController,
-                      style: const TextStyle(color: Colors.white),
+                      style: TextStyle(color: contentColor),
                       decoration: InputDecoration(
                         hintText: TranslationService().translate(TranslationKeys.enterUsernameOrCode),
-                        hintStyle: TextStyle(color: Colors.white.withOpacity(0.6)),
+                        hintStyle: TextStyle(color: contentColor.withOpacity(0.6)),
                         filled: true,
-                        fillColor: Colors.white.withOpacity(0.1),
+                        fillColor: contentColor.withOpacity(0.1),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(color: Colors.white.withOpacity(0.3)),
+                          borderSide: BorderSide(color: contentColor.withOpacity(0.3)),
                         ),
                         enabledBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(color: Colors.white.withOpacity(0.3)),
+                          borderSide: BorderSide(color: contentColor.withOpacity(0.3)),
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(color: Colors.white.withOpacity(0.5)),
+                          borderSide: BorderSide(color: contentColor.withOpacity(0.5)),
                         ),
                         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                       ),
@@ -475,10 +488,10 @@ class _FindFriendsWidgetState extends State<FindFriendsWidget> {
                             )
                           : Text(
                               TranslationService().translate(TranslationKeys.sendFriendRequest),
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.bold,
-                                color: Colors.white,
+                                color: isDarkBackground ? Colors.white : Colors.white, // Keep white for filled button
                                 decoration: TextDecoration.none,
                               ),
                             ),
@@ -489,11 +502,11 @@ class _FindFriendsWidgetState extends State<FindFriendsWidget> {
                   const SizedBox(height: 20),
                   const Divider(color: Colors.white30),
                   const SizedBox(height: 16),
-                  const TranslatedText(
+                  TranslatedText(
                     TranslationKeys.nearbyUsers,
                     fallback: 'Nearby Users',
                     style: TextStyle(
-                      color: Colors.white,
+                      color: contentColor,
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
                       decoration: TextDecoration.none,
@@ -531,12 +544,12 @@ class _FindFriendsWidgetState extends State<FindFriendsWidget> {
                             children: [
                               CircleAvatar(
                                 radius: 20,
-                                backgroundColor: Colors.white.withOpacity(0.2),
+                                backgroundColor: contentColor.withOpacity(0.2),
                                 backgroundImage: user['avatar'] != null && user['avatar'].toString().isNotEmpty
                                     ? NetworkImage(UrlHelper.convertUrl(user['avatar'].toString()))
                                     : null,
                                 child: user['avatar'] == null || user['avatar'].toString().isEmpty
-                                    ? const Icon(Icons.person, color: Colors.white)
+                                    ? Icon(Icons.person, color: contentColor)
                                     : null,
                               ),
                               const SizedBox(width: 12),
@@ -546,8 +559,8 @@ class _FindFriendsWidgetState extends State<FindFriendsWidget> {
                                   children: [
                                     Text(
                                       displayName.isNotEmpty ? displayName : 'Unknown',
-                                      style: const TextStyle(
-                                        color: Colors.white,
+                                      style: TextStyle(
+                                        color: contentColor,
                                         fontSize: 16,
                                         fontWeight: FontWeight.w500,
                                       ),

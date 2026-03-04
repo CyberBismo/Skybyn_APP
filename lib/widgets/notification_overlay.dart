@@ -11,6 +11,7 @@ import 'package:intl/intl.dart';
 import 'app_colors.dart';
 import '../screens/profile_screen.dart';
 import '../screens/home_screen.dart';
+import 'background_gradient.dart';
 
 class Notification {
   final String id;
@@ -98,9 +99,11 @@ class UnifiedNotificationOverlay {
     final bottomOffset = bottomPadding + 80.0; // Bottom nav height + padding + gap
     final overlayTop = screenHeight - overlayHeight - bottomOffset;
     
+    final bgTheme = BackgroundTheme.of(context);
+    
     _currentOverlayEntry = OverlayEntry(
       builder: (BuildContext context) {
-        return Stack(
+        Widget child = Stack(
           children: [
             // Full screen gesture detector to close overlay when tapping outside
             Positioned.fill(
@@ -132,6 +135,23 @@ class UnifiedNotificationOverlay {
             ),
           ],
         );
+
+        if (bgTheme != null) {
+          // The overlay itself has a background color (the card's tint).
+          // We must disable `isDefaultBackground` so child text doesn't forcefully default
+          // to white when the card tint might require black text. We also pass the card 
+          // color as the 'background' color for the children to contrast against.
+          final cardColor = AppColors.getCardBackgroundColor(context);
+          
+          return BackgroundTheme(
+            topColor: cardColor,
+            bottomColor: cardColor,
+            isDark: bgTheme.isDark,
+            isDefaultBackground: false,
+            child: child,
+          );
+        }
+        return child;
       },
     );
 
@@ -447,7 +467,7 @@ class _NotificationOverlayState extends State<NotificationOverlayContent> {
           color: Colors.transparent,
           child: Container(
             decoration: BoxDecoration(
-              color: Colors.transparent,
+              color: AppColors.getCardBackgroundColor(context),
               borderRadius: BorderRadius.circular(10),
               border: Border.all(
                 color: AppColors.getMenuBorderColor(context),

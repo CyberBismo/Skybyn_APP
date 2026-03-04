@@ -993,7 +993,7 @@ class NotificationService {
                Person(
                  name: personName,
                  key: title, // Use title as key to group messages from same person
-                 icon: DrawableResourceAndroidBitmap(largeIconPath),
+                 icon: BitmapFilePathAndroidIcon(largeIconPath),
                ),
                conversationTitle: 'Chat with $personName',
                groupConversation: false,

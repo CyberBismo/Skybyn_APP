@@ -118,22 +118,21 @@ class AuthService {
 
       // Parse response regardless of status code to get actual API message
       final data = safeJsonDecode(response);
+      print('DEBUG: AuthService.login response body: ${response.body}');
 
       if (response.statusCode == 200) {
         if (data['responseCode'] == '1') {
           final isEmulator = deviceInfo['isPhysicalDevice'] == false;
           final userId = data['userID']?.toString();
+          print('DEBUG: AuthService.login success. Received userID: $userId');
           
-          if (isEmulator && userId != '0') {
-            return {
-              'responseCode': '0', 
-              'message': 'Login restricted to ID 0 on emulators.'
-            };
-          }
+          // Removed emulator restriction to allow real user testing
+
 
           await initPrefs();
           // Convert userID to string to avoid type mismatch
           final userIdStr = data['userID'].toString();
+          print('DEBUG: AuthService.login storing userID: $userIdStr');
           await _prefs?.setString(userIdKey, userIdStr);
           await _prefs?.setString(usernameKey, username);
           await _secureStorage.write(key: userIdKey, value: userIdStr);
@@ -209,7 +208,7 @@ class AuthService {
       final client = _client;
       // Note: Make sure ApiConstants.socialLogin is defined in your constants file. 
       // If not, use '${ApiConstants.apiBase}social_login.php'
-      final socialLoginUrl = '${ApiConstants.apiBase}social_login.php'; 
+      final socialLoginUrl = '${ApiConstants.apiBase}/social_login.php'; 
       
       http.Response response;
       try {
@@ -239,12 +238,8 @@ class AuthService {
           final isEmulator = deviceInfo['isPhysicalDevice'] == false;
           final userId = data['userID']?.toString() ?? data['data']?['userID']?.toString();
           
-          if (isEmulator && userId != '0') {
-            return {
-              'responseCode': '0', 
-              'message': 'Login restricted to ID 0 on emulators.'
-            };
-          }
+          // Removed emulator restriction to allow real user testing
+
 
           // Social login successful
           await initPrefs();
@@ -309,7 +304,7 @@ class AuthService {
       final client = _client;
       // Note: Make sure ApiConstants.socialLogin is defined in your constants file. 
       // If not, use '${ApiConstants.apiBase}social_login.php'
-      final socialLoginUrl = '${ApiConstants.apiBase}social_login.php'; 
+      final socialLoginUrl = '${ApiConstants.apiBase}/social_login.php'; 
       
       final response = await client.get(
         Uri.parse(socialLoginUrl),
@@ -858,29 +853,8 @@ class AuthService {
       final deviceInfo = await deviceService.getDeviceInfo();
       final isEmulator = deviceInfo['isPhysicalDevice'] == false;
 
-      if (isEmulator) {
-        // Skip registration API call for emulators
-        // Show system notification
-        try {
-          final notificationService = NotificationService();
-          await notificationService.showNotification(
-            title: 'Registration Successful (Emulator)',
-            body: 'Welcome, $username! Registration bypassed for testing.',
-            payload: jsonEncode({'type': 'registration_success', 'username': username}),
-          );
-        } catch (e) {
-          debugPrint('Failed to show emulator registration notification: $e');
-        }
+      // Removed emulator restriction to allow real user testing
 
-        // Return simulated success
-        return {
-          'success': true, 
-          'message': 'Emulator registration bypass: Registration simulated locally.', 
-          'userID': '0', 
-          'username': username,
-          'token': 'emulator_bypass_token'
-        };
-      }
 
       // Format date of birth as YYYY-MM-DD for the API
       final dobString = '${dateOfBirth.year}-${dateOfBirth.month.toString().padLeft(2, '0')}-${dateOfBirth.day.toString().padLeft(2, '0')}';
@@ -938,12 +912,7 @@ class AuthService {
             userId = data['id']?.toString() ?? data['data']?['id']?.toString();
           }
           
-          if (isEmulator && userId != '0') {
-            return {
-              'success': false, 
-              'message': 'Registration/Login restricted on emulators.'
-            };
-          }
+          // Removed emulator restriction to allow real user testing
           if (userId == null) {
             userId = data['userid']?.toString() ?? data['data']?['userid']?.toString();
           }

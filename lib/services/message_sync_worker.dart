@@ -1,4 +1,7 @@
+import 'dart:io';
+import 'package:flutter_downloader/flutter_downloader.dart';
 import 'package:workmanager/workmanager.dart';
+
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'chat_service.dart';
 import 'auth_service.dart';
@@ -40,6 +43,7 @@ void callbackDispatcher() {
           developer.log('Offline queue processed', name: 'MessageSyncWorker');
           break;
         
+        case 'syncAllMessages':
           await chatService.processOfflineQueue();
           developer.log('Full sync completed', name: 'MessageSyncWorker');
           break;
@@ -47,9 +51,17 @@ void callbackDispatcher() {
         case 'download_update':
           // Background update download
           developer.log('Starting background update download...', name: 'MessageSyncWorker');
+          if (Platform.isAndroid) {
+            try {
+              await FlutterDownloader.initialize(debug: true, ignoreSsl: true);
+            } catch (e) {
+              developer.log('FlutterDownloader init error in worker: $e');
+            }
+          }
           await AutoUpdateService.triggerBackgroundUpdate();
           developer.log('Background update task completed', name: 'MessageSyncWorker');
           break;
+
         
         default:
           developer.log('Unknown task: $task', name: 'MessageSyncWorker');

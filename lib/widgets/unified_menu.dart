@@ -12,6 +12,7 @@ import '../utils/navigation_helper.dart';
 import '../services/translation_service.dart';
 import '../services/auth_service.dart';
 import '../config/constants.dart';
+import 'background_gradient.dart';
 
 /// Menu item definition
 class MenuItem {
@@ -155,6 +156,7 @@ class UnifiedMenu {
     required GlobalKey menuKey,
     VoidCallback? onSearchFormToggle,
     bool isSearchFormVisible = false,
+    required Color contentColor,
   }) {
     return GestureDetector(
       key: menuKey,
@@ -259,28 +261,28 @@ class UnifiedMenu {
           final avatarUrl = user?.avatar ?? '';
           final hasAvatar = avatarUrl.isNotEmpty && 
               !avatarUrl.contains('logo_faded_clean.png') &&
-              !avatarUrl.contains('logo.png');
+              !avatarUrl.contains('icon.png');
 
           return CircleAvatar(
-            radius: 12.0,
-            backgroundColor: Colors.white.withOpacity(0.2),
+            radius: 18.0,
+            backgroundColor: contentColor.withOpacity(0.2),
             child: hasAvatar
                 ? ClipOval(
                     child: CachedNetworkImage(
                       imageUrl: UrlHelper.convertUrl(avatarUrl),
-                      width: 24.0,
-                      height: 24.0,
+                      width: 36.0,
+                      height: 36.0,
                       fit: BoxFit.cover,
                       placeholder: (context, url) => Image.asset(
                         'assets/images/icon.png',
-                        width: 24.0,
-                        height: 24.0,
+                        width: 36.0,
+                        height: 36.0,
                         fit: BoxFit.cover,
                       ),
                       errorWidget: (context, url, error) => Image.asset(
                         'assets/images/icon.png',
-                        width: 24.0,
-                        height: 24.0,
+                        width: 36.0,
+                        height: 36.0,
                         fit: BoxFit.cover,
                       ),
                     ),
@@ -288,8 +290,8 @@ class UnifiedMenu {
                 : ClipOval(
                     child: Image.asset(
                       'assets/images/icon.png',
-                      width: 24.0,
-                      height: 24.0,
+                      width: 36.0,
+                      height: 36.0,
                       fit: BoxFit.cover,
                     ),
                   ),
@@ -331,9 +333,11 @@ class UnifiedMenu {
     final RenderBox renderBox = context.findRenderObject() as RenderBox;
     final buttonPosition = renderBox.localToGlobal(Offset.zero);
     
+    final bgTheme = BackgroundTheme.of(context);
+    
     _currentOverlayEntry = OverlayEntry(
       builder: (BuildContext context) {
-        return Stack(
+        Widget child = Stack(
           children: [
             // Full screen gesture detector to close menu when tapping outside
             Positioned.fill(
@@ -364,7 +368,7 @@ class UnifiedMenu {
                       child: Container(
                         width: 200,
                         decoration: BoxDecoration(
-                          color: Colors.transparent,
+                          color: AppColors.getCardBackgroundColor(context),
                           borderRadius: BorderRadius.circular(10),
                           border: Border.all(
                             color: AppColors.getMenuBorderColor(context),
@@ -391,6 +395,22 @@ class UnifiedMenu {
             ),
           ],
         );
+        
+        if (bgTheme != null) {
+          // The overlay itself has a background color (the card's tint).
+          // We must disable `isDefaultBackground` so child text doesn't forcefully default
+          // to white when the card tint might require black text. We also pass the card 
+          // color as the 'background' color for the children to contrast against.
+          final cardColor = AppColors.getCardBackgroundColor(context);
+          return BackgroundTheme(
+            topColor: cardColor,
+            bottomColor: cardColor,
+            isDark: bgTheme.isDark,
+            isDefaultBackground: false,
+            child: child,
+          );
+        }
+        return child;
       },
     );
 

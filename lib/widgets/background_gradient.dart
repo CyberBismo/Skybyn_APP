@@ -3,6 +3,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/services.dart';
 import 'dart:async';
 import 'dart:math';
+import '../utils/color_utils.dart';
 
 class CloudData {
   final double x;
@@ -26,6 +27,34 @@ class CloudData {
     required this.scale,
     required this.isFlipped,
   });
+}
+
+class BackgroundTheme extends InheritedWidget {
+  final Color topColor;
+  final Color bottomColor;
+  final bool isDark;
+  final bool isDefaultBackground;
+
+  const BackgroundTheme({
+    super.key,
+    required this.topColor,
+    required this.bottomColor,
+    required this.isDark,
+    this.isDefaultBackground = true,
+    required super.child,
+  });
+
+  static BackgroundTheme? of(BuildContext context) {
+    return context.dependOnInheritedWidgetOfExactType<BackgroundTheme>();
+  }
+
+  @override
+  bool updateShouldNotify(BackgroundTheme oldWidget) {
+    return topColor != oldWidget.topColor ||
+        bottomColor != oldWidget.bottomColor ||
+        isDark != oldWidget.isDark ||
+        isDefaultBackground != oldWidget.isDefaultBackground;
+  }
 }
 
 class BackgroundGradient extends StatefulWidget {
@@ -194,8 +223,8 @@ class _BackgroundGradientState extends State<BackgroundGradient>
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
 
     final lightColors = [
-      const Color.fromRGBO(72, 198, 239, 1.0), // Light blue (web light mode)
-      const Color.fromRGBO(111, 134, 214, 1.0), // Blue (web light mode)
+      const Color.fromRGBO(112, 207, 253, 1.0), // Light blue (web light mode)
+      const Color.fromRGBO(19, 155, 255, 1.0), // Blue (web light mode)
     ];
 
     final midnightColors = [
@@ -206,50 +235,77 @@ class _BackgroundGradientState extends State<BackgroundGradient>
     final gradientColors =
         isDarkMode ? midnightColors : (_imageGradientColors ?? lightColors);
 
-    return Stack(
-      children: [
-        // Background gradient
-        Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: gradientColors,
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
+    return BackgroundTheme(
+      topColor: gradientColors.first,
+      bottomColor: gradientColors.last,
+      isDark: gradientColors.first.computeLuminance() < 0.5,
+      child: Stack(
+        children: [
+          // Background gradient
+          Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: gradientColors,
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+              ),
             ),
+            child: widget.child != null ? Builder(
+              builder: (context) {
+                final isDefaultBackground = true;
+                final textColor = isDefaultBackground 
+                    ? Colors.white 
+                    : ColorUtils.getContrastingColor(gradientColors.first);
+                final iconColor = isDefaultBackground 
+                    ? Colors.white 
+                    : ColorUtils.getContrastingColor(gradientColors.last);
+                
+                final theme = Theme.of(context);
+                return Theme(
+                  data: theme.copyWith(
+                    textTheme: theme.textTheme.apply(
+                      bodyColor: textColor,
+                      displayColor: textColor,
+                    ),
+                    iconTheme: theme.iconTheme.copyWith(color: iconColor),
+                  ),
+                  child: widget.child!,
+                );
+              }
+            ) : null,
           ),
-          child: widget.child,
-        ),
 
-        // Random cloud overlays (only if showClouds is true)
-        // Clouds are positioned above the background but below child content
-        if (widget.showClouds && _clouds.isNotEmpty)
-          IgnorePointer(
-            ignoring: true, // Allow touches to pass through clouds
-            child: Stack(
-              children: _clouds.map((cloud) {
-                return Positioned(
-                  left: cloud.x,
-                  top: cloud.y,
-                  child: Opacity(
-                    opacity: cloud.opacity,
-                    child: Transform.scale(
-                      scale: cloud.scale,
-                      child: Transform.flip(
-                        flipX: cloud.isFlipped,
-                        child: Image.asset(
-                          'assets/images/cloud.png',
-                          width: cloud.width,
-                          height: cloud.height,
-                          fit: BoxFit.contain,
+          // Random cloud overlays (only if showClouds is true)
+          // Clouds are positioned above the background but below child content
+          if (widget.showClouds && _clouds.isNotEmpty)
+            IgnorePointer(
+              ignoring: true, // Allow touches to pass through clouds
+              child: Stack(
+                children: _clouds.map((cloud) {
+                  return Positioned(
+                    left: cloud.x,
+                    top: cloud.y,
+                    child: Opacity(
+                      opacity: cloud.opacity,
+                      child: Transform.scale(
+                        scale: cloud.scale,
+                        child: Transform.flip(
+                          flipX: cloud.isFlipped,
+                          child: Image.asset(
+                            'assets/images/cloud.png',
+                            width: cloud.width,
+                            height: cloud.height,
+                            fit: BoxFit.contain,
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                );
-              }).toList(),
+                  );
+                }).toList(),
+              ),
             ),
-          ),
-      ],
+        ],
+      ),
     );
   }
 

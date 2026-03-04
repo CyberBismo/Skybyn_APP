@@ -254,11 +254,25 @@ class _LoginScreenState extends State<LoginScreen> {
                   children: [
                     const SizedBox(height: 60),
                     // Logo
-                    Image.asset(
-                      'assets/images/logo.png',
-                      width: 150,
-                      height: 150,
-                    ),
+                    Theme.of(context).brightness == Brightness.dark
+                        ? Image.asset(
+                            'assets/images/logo.png',
+                            width: 150,
+                            height: 150,
+                          )
+                        : ColorFiltered(
+                            colorFilter: const ColorFilter.matrix(<double>[
+                              -1,  0,  0, 0, 255,
+                               0, -1,  0, 0, 255,
+                               0,  0, -1, 0, 255,
+                               0,  0,  0, 1,   0,
+                            ]),
+                            child: Image.asset(
+                              'assets/images/logo.png',
+                              width: 150,
+                              height: 150,
+                            ),
+                          ),
                     // Welcome text
                     Column(
                       children: [

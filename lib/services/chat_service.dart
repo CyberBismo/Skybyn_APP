@@ -207,6 +207,7 @@ class ChatService {
     // Declare variables outside try block for use in catch block
     String? tempId;
     Message? optimisticMessage;
+    String? processedAttachmentPath = attachmentPath;
     
     try {
       final userId = await _authService.getStoredUserId();
@@ -220,7 +221,6 @@ class ChatService {
       }
 
       // Automatically compress image attachments
-      String? processedAttachmentPath = attachmentPath;
       if (attachmentType == 'image' && attachmentPath != null) {
         try {
           final compressedFile = await ImageUtils.compressImage(File(attachmentPath));

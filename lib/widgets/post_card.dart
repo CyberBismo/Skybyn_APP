@@ -126,15 +126,15 @@ class PostCardStyles {
   }
 
   static Color getTextColor(BuildContext context) {
-    return Colors.white; // Always white
+    return AppColors.getTextColor(context);
   }
 
   static Color getHintColor(BuildContext context) {
-    return Colors.white; // Always white
+    return AppColors.getHintColor(context);
   }
 
   static Color getAvatarBorderColor(BuildContext context) {
-    return Colors.white; // Always white
+    return AppColors.getAvatarBorderColor(context);
   }
 }
 

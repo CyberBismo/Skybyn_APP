@@ -34,6 +34,7 @@ class CustomAppBarStyles {
   // Sizes
   static const double searchIconSize = 24.0;
   static const double menuIconSize = 24.0;
+  static const double buttonWidth = 100.0;
   static const double blurSigma = 5.0; // Match web platform blur
   
   // Padding and margins
@@ -140,65 +141,85 @@ class _CustomAppBarState extends State<CustomAppBar> {
                 top: false, // Don't add top padding to move closer to status bar
                 child: Padding(
                   padding: EdgeInsets.only(top: statusBarHeight),
-                  child: SizedBox(
-                    height: appBarHeight,
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                      Row(
-                        children: [
-                          // Search button - fixed width with padding
-                          SizedBox(
-                            width: 72.0,
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                              child: IconButton(
-                                onPressed: _handleSearchPressed,
-                                icon: const Icon(
-                                  Icons.search, 
-                                  color: AppColors.iconColor, // White color, not affected by dark mode
-                                  size: CustomAppBarStyles.searchIconSize,
+                  child: Builder(
+                    builder: (context) {
+                      final contentColor = AppColors.getIconColor(context);
+                      final isDarkBackground = contentColor == Colors.white;
+
+                      return SizedBox(
+                        height: appBarHeight,
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                          Row(
+                            children: [
+                              // Search button - fixed width with padding
+                              SizedBox(
+                                width: CustomAppBarStyles.buttonWidth,
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                                  child: IconButton(
+                                    onPressed: _handleSearchPressed,
+                                    icon: Icon(
+                                      Icons.search, 
+                                      color: contentColor, 
+                                      size: CustomAppBarStyles.searchIconSize,
+                                    ),
+                                  ),
                                 ),
                               ),
-                            ),
-                          ),
-                          // Logo - centered with flex
-                          Expanded(
-                            child: Center(
-                              child: GestureDetector(
-                                onTap: widget.onLogoPressed,
-                                child: Image.asset(
-                                  widget.logoPath,
-                                  height: appBarHeight * CustomAppBarStyles.logoHeightMultiplier,
-                                  fit: CustomAppBarStyles.logoFit,
-                                  color: null, // Ensure no color overlay
-                                  colorBlendMode: null, // Ensure no blend mode
+                              // Logo - centered with flex
+                              Expanded(
+                                child: Center(
+                                  child: GestureDetector(
+                                    onTap: widget.onLogoPressed,
+                                    child: isDarkBackground
+                                        ? Image.asset(
+                                            widget.logoPath,
+                                            height: appBarHeight * CustomAppBarStyles.logoHeightMultiplier,
+                                            fit: CustomAppBarStyles.logoFit,
+                                          )
+                                        : ColorFiltered(
+                                            colorFilter: const ColorFilter.matrix(<double>[
+                                              -1,  0,  0, 0, 255,
+                                               0, -1,  0, 0, 255,
+                                               0,  0, -1, 0, 255,
+                                               0,  0,  0, 1,   0,
+                                            ]),
+                                            child: Image.asset(
+                                              widget.logoPath,
+                                              height: appBarHeight * CustomAppBarStyles.logoHeightMultiplier,
+                                              fit: CustomAppBarStyles.logoFit,
+                                            ),
+                                          ),
+                                  ),
                                 ),
                               ),
-                            ),
-                          ),
-                          // Menu button - fixed width with padding, same height as header
-                          SizedBox(
-                            width: 72.0,
-                            height: appBarHeight,
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                              child: Center(
-                                child: UnifiedMenu.createUserMenuButton(
-                                  context: context,
-                                  appBarHeight: appBarHeight,
-                                  onLogout: widget.onLogout ?? _handleLogout,
-                                  menuKey: _menuKey,
-                                  onSearchFormToggle: widget.onSearchFormToggle,
-                                  isSearchFormVisible: widget.isSearchFormVisible,
+                              // Menu button - fixed width with padding, same height as header
+                              SizedBox(
+                                width: CustomAppBarStyles.buttonWidth,
+                                height: appBarHeight,
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                                  child: Center(
+                                    child: UnifiedMenu.createUserMenuButton(
+                                      context: context,
+                                      appBarHeight: appBarHeight,
+                                      onLogout: widget.onLogout ?? _handleLogout,
+                                      menuKey: _menuKey,
+                                      onSearchFormToggle: widget.onSearchFormToggle,
+                                      isSearchFormVisible: widget.isSearchFormVisible,
+                                      contentColor: contentColor,
+                                    ),
+                                  ),
                                 ),
                               ),
-                            ),
+                            ],
                           ),
                         ],
                       ),
-                    ],
-                  ),
+                      );
+                    }
                   ),
                 ),
               ),

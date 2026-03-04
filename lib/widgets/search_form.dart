@@ -8,6 +8,8 @@ import '../services/translation_service.dart';
 import '../services/auth_service.dart';
 import '../screens/profile_screen.dart';
 import '../config/constants.dart';
+import '../utils/color_utils.dart';
+import 'background_gradient.dart';
 
 /// Centralized styling for the SearchForm widget
 class SearchFormStyles {
@@ -125,9 +127,18 @@ class SearchFormState extends State<SearchForm> with SingleTickerProviderStateMi
 
   @override
   Widget build(BuildContext context) {
-    final formColor = AppColors.getFormColor(context);
-    final textColor = AppColors.getTextColor(context);
-    final hintColor = AppColors.getHintColor(context);
+    final bgTheme = BackgroundTheme.of(context);
+    final isDarkBackground = bgTheme?.isDark ?? Theme.of(context).brightness == Brightness.dark;
+    
+    // Use dynamic colors based on background
+    final formColor = isDarkBackground 
+        ? Colors.white.withOpacity(0.05) 
+        : Colors.black.withOpacity(0.05);
+    final contentColor = bgTheme != null 
+        ? ColorUtils.getContrastingColor(bgTheme.topColor)
+        : (Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black);
+    final textColor = contentColor;
+    final hintColor = contentColor.withOpacity(0.6);
 
     return SlideTransition(
       position: _animation,
@@ -238,7 +249,7 @@ class SearchFormState extends State<SearchForm> with SingleTickerProviderStateMi
                           itemCount: widget.searchResults!.length,
                           itemBuilder: (context, index) {
                             final user = widget.searchResults![index];
-                            return _buildSearchResultCard(user);
+                            return _buildSearchResultCard(user, contentColor, isDarkBackground);
                           },
                         ),
                       )
@@ -257,7 +268,7 @@ class SearchFormState extends State<SearchForm> with SingleTickerProviderStateMi
     );
   }
 
-  Widget _buildSearchResultCard(Map<String, dynamic> user) {
+  Widget _buildSearchResultCard(Map<String, dynamic> user, Color contentColor, bool isDarkBackground) {
     final username = user['username']?.toString() ?? '';
     final nickname = user['nickname']?.toString() ?? username;
     final avatar = user['avatar']?.toString() ?? '';
@@ -266,7 +277,7 @@ class SearchFormState extends State<SearchForm> with SingleTickerProviderStateMi
 
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
-      color: Colors.white.withOpacity(0.1),
+      color: isDarkBackground ? Colors.white.withOpacity(0.1) : Colors.black.withOpacity(0.1),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
       ),
@@ -308,9 +319,9 @@ class SearchFormState extends State<SearchForm> with SingleTickerProviderStateMi
                         width: 50,
                         height: 50,
                         color: Colors.grey.withOpacity(0.3),
-                        child: const Icon(
+                        child: Icon(
                           Icons.person,
-                          color: Colors.white,
+                          color: contentColor,
                           size: 25,
                         ),
                       ),
@@ -320,9 +331,9 @@ class SearchFormState extends State<SearchForm> with SingleTickerProviderStateMi
                           width: 50,
                           height: 50,
                           color: Colors.grey.withOpacity(0.3),
-                          child: const Icon(
+                          child: Icon(
                             Icons.person,
-                            color: Colors.white,
+                            color: contentColor,
                             size: 25,
                           ),
                         );
@@ -357,8 +368,8 @@ class SearchFormState extends State<SearchForm> with SingleTickerProviderStateMi
                   children: [
                     Text(
                       nickname,
-                      style: const TextStyle(
-                        color: Colors.white,
+                      style: TextStyle(
+                        color: contentColor,
                         fontSize: 15,
                         fontWeight: FontWeight.bold,
                         height: 1.0,
@@ -372,7 +383,7 @@ class SearchFormState extends State<SearchForm> with SingleTickerProviderStateMi
                         child: Text(
                           '@$username',
                           style: TextStyle(
-                            color: Colors.white.withOpacity(0.7),
+                            color: contentColor.withOpacity(0.7),
                             fontSize: 13,
                             height: 1.0,
                           ),
@@ -384,7 +395,7 @@ class SearchFormState extends State<SearchForm> with SingleTickerProviderStateMi
                 ),
               ),
               // Friend status icon
-              _buildFriendStatusIcon(friendStatus),
+              _buildFriendStatusIcon(friendStatus, contentColor),
             ],
             ),
           ),
@@ -393,7 +404,7 @@ class SearchFormState extends State<SearchForm> with SingleTickerProviderStateMi
     );
   }
 
-  Widget _buildFriendStatusIcon(String friendStatus) {
+  Widget _buildFriendStatusIcon(String friendStatus, Color contentColor) {
     switch (friendStatus) {
       case '1': // Friends
         return const Icon(
@@ -416,7 +427,7 @@ class SearchFormState extends State<SearchForm> with SingleTickerProviderStateMi
       default: // Not friends
         return Icon(
           Icons.person_add,
-          color: Colors.white.withOpacity(0.5),
+          color: contentColor.withOpacity(0.5),
           size: 20,
         );
     }

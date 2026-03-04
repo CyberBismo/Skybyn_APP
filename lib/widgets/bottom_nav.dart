@@ -14,7 +14,7 @@ class BottomNavBarStyles {
   static const double addButtonIconSize = 30.0;
   
   // Padding and margins
-  static const EdgeInsets barPadding = EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0);
+  static const EdgeInsets barPadding = EdgeInsets.symmetric(horizontal: 20.0, vertical: 8.0);
   static const EdgeInsets buttonPadding = EdgeInsets.symmetric(horizontal: 8.0);
   
   // Border radius
@@ -157,8 +157,9 @@ class CustomBottomNavigationBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const navBarColor = AppColors.lightNavBarColor; // Using light nav bar color for consistency
-    const iconColor = Colors.white; // All icons are white and not affected by dark mode
+    // Choose icon color based on global AppColors logic
+    final iconColor = AppColors.getIconColor(context);
+    final navBarColor = AppColors.getNavBarColor(context); 
 
     return Stack(
       children: [
@@ -186,7 +187,7 @@ class CustomBottomNavigationBar extends StatelessWidget {
                       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                       children: [
                         IconButton(
-                          icon: const Icon(Icons.star, color: iconColor, size: BottomNavBarStyles.iconSize),
+                          icon: Icon(Icons.star, color: iconColor, size: BottomNavBarStyles.iconSize),
                           onPressed: () => _openLeftPanel(context),
                           padding: BottomNavBarStyles.buttonPadding,
                           constraints: const BoxConstraints(),
@@ -226,7 +227,7 @@ class CustomBottomNavigationBar extends StatelessWidget {
                           ),
                         ),
                         IconButton(
-                          icon: const Icon(Icons.group, color: iconColor, size: BottomNavBarStyles.iconSize),
+                          icon: Icon(Icons.group, color: iconColor, size: BottomNavBarStyles.iconSize),
                           onPressed: () => _openFriendsModal(context),
                           padding: BottomNavBarStyles.buttonPadding,
                           constraints: const BoxConstraints(),
@@ -262,7 +263,7 @@ class CustomBottomNavigationBar extends StatelessWidget {
                     clipBehavior: Clip.none,
                     children: [
                       IconButton(
-                        icon: const Icon(Icons.chat_bubble, color: iconColor, size: BottomNavBarStyles.iconSize),
+                        icon: Icon(Icons.chat_bubble, color: iconColor, size: BottomNavBarStyles.iconSize),
                         onPressed: () => _openChatListModal(context),
                       ),
                       if (unreadChatCount > 0)
@@ -321,7 +322,7 @@ class CustomBottomNavigationBar extends StatelessWidget {
                     children: [
                       IconButton(
                         key: notificationButtonKey,
-                        icon: const Icon(Icons.notifications, color: iconColor, size: BottomNavBarStyles.iconSize),
+                        icon: Icon(Icons.notifications, color: iconColor, size: BottomNavBarStyles.iconSize),
                         onPressed: () => _toggleNotificationOverlay(context),
                       ),
                       if (unreadNotificationCount > 0)

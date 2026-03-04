@@ -35,8 +35,12 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
   final AuthService _authService = AuthService();
   final LocationService _locationService = LocationService();
   final MapController _mapController = MapController();
+  final Completer<void> _mapReadyCompleter = Completer<void>();
+  bool _isMapMenuOpen = false;
   String? _currentUserId;
+
   Position? _currentPosition;
+
   String? _currentUserAvatar;
   List<Friend> _friendsWithLocations = [];
   bool _isLoading = true;
@@ -309,9 +313,13 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
         if (lastLat == null || lastLng == null || lastZoom == null) {
           _center = LatLng(position.latitude, position.longitude);
           _zoom = 15.0;
-          _animatedMapMove(_center, _zoom);
+          // Wait for map to be ready before animating
+          _mapReadyCompleter.future.then((_) {
+            _animatedMapMove(_center, _zoom);
+          });
         }
       });
+
     } else {
       print('No location obtained');
     }
@@ -478,47 +486,70 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
                       shape: BoxShape.circle,
                       color: Colors.black,
                     ),
-                    child: Center(
-                      child: SizedBox(
-                        width: 45,
-                        height: 45,
-                        child: ClipOval(
-                          child: Padding(
-                            padding: const EdgeInsets.all(2.0),
-                            child: _currentUserAvatar != null && 
-                                _currentUserAvatar!.startsWith('http') &&
-                                !_currentUserAvatar!.contains('logo_faded_clean.png') &&
-                                !_currentUserAvatar!.contains('logo.png') &&
-                                !_currentUserAvatar!.endsWith('/assets/images/logo.png') &&
-                                !_currentUserAvatar!.endsWith('/assets/images/logo_faded_clean.png')
-                                ? CachedNetworkImage(
-                                    imageUrl: _currentUserAvatar!.replaceAll('skybyn.com', 'skybyn.no'),
-                                    width: 45,
-                                    height: 45,
-                                    fit: BoxFit.cover,
-                                    placeholder: (context, url) => Image.asset(
-                                      'assets/images/logo.png',
-                                      width: 45,
-                                      height: 45,
-                                      fit: BoxFit.cover,
-                                    ),
-                                    errorWidget: (context, url, error) => Image.asset(
-                                      'assets/images/logo.png',
-                                      width: 45,
-                                      height: 45,
-                                      fit: BoxFit.cover,
-                                    ),
-                                  )
-                                : Image.asset(
-                                    'assets/images/logo.png',
-                                    width: 45,
-                                    height: 45,
-                                    fit: BoxFit.cover,
-                                  ),
+                    child: Stack(
+                      children: [
+                        Center(
+                          child: SizedBox(
+                            width: 45,
+                            height: 45,
+                            child: ClipOval(
+                              child: Padding(
+                                padding: const EdgeInsets.all(2.0),
+                                child: _currentUserAvatar != null && 
+                                    _currentUserAvatar!.startsWith('http') &&
+                                    !_currentUserAvatar!.contains('logo_faded_clean.png') &&
+                                    !_currentUserAvatar!.contains('logo.png') &&
+                                    !_currentUserAvatar!.endsWith('/assets/images/logo.png') &&
+                                    !_currentUserAvatar!.endsWith('/assets/images/logo_faded_clean.png')
+                                    ? CachedNetworkImage(
+                                        imageUrl: _currentUserAvatar!.replaceAll('skybyn.com', 'skybyn.no'),
+                                        width: 45,
+                                        height: 45,
+                                        fit: BoxFit.cover,
+                                        placeholder: (context, url) => Image.asset(
+                                          'assets/images/logo.png',
+                                          width: 45,
+                                          height: 45,
+                                          fit: BoxFit.cover,
+                                        ),
+                                        errorWidget: (context, url, error) => Image.asset(
+                                          'assets/images/logo.png',
+                                          width: 45,
+                                          height: 45,
+                                          fit: BoxFit.cover,
+                                        ),
+                                      )
+                                    : Image.asset(
+                                        'assets/images/logo.png',
+                                        width: 45,
+                                        height: 45,
+                                        fit: BoxFit.cover,
+                                      ),
+                              ),
+                            ),
                           ),
                         ),
-                      ),
+                        if (_locationPrivateMode)
+                          Positioned.fill(
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: Colors.black.withOpacity(0.6),
+                                shape: BoxShape.circle,
+                                border: Border.all(color: Colors.white, width: 2),
+                              ),
+                              child: const Center(
+                                child: FaIcon(
+                                  FontAwesomeIcons.ghost,
+                                  color: Colors.white,
+                                  size: 28,
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
                     ),
+
+
                   ),
                 ),
               ),
@@ -729,7 +760,12 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
   }
 
   // Create a smooth animation from current map center to destination
-  void _animatedMapMove(LatLng destLocation, double destZoom) {
+  Future<void> _animatedMapMove(LatLng destLocation, double destZoom) async {
+    if (!mounted) return;
+    
+    // Ensure map is ready before accessing _mapController.camera
+    await _mapReadyCompleter.future;
+    
     if (!mounted) return;
     
     // Create some tweens. These serve to split up the transition from one location to another.
@@ -866,74 +902,106 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
     final headerHeight = statusBarHeight;
     
     return Positioned(
-      top: headerHeight + 8, // Position just below the header with 8px spacing
-      left: 0,
-      right: 0,
-      child: Center(
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(32),
-          child: BackdropFilter(
-            filter: ui.ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-            child: Container(
-              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
-              decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.2),
-                borderRadius: BorderRadius.circular(32),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // Satellite/Roadmap toggle
-                  Material(
-                    color: Colors.transparent,
-                    child: InkWell(
-                      onTap: () {
-                        setState(() {
-                          _useSatelliteView = !_useSatelliteView;
-                        });
-                        // Save the preference when user toggles
-                        _saveMapLayerPreference();
-                      },
-                      borderRadius: BorderRadius.circular(24),
-                      child: Container(
-                        width: 30,
-                        height: 30,
-                        child: Icon(
-                          _useSatelliteView ? Icons.satellite : Icons.map,
-                          color: _useSatelliteView ? Colors.green : Colors.white,
-                          size: 30,
-                        ),
-                      ),
-                    ),
+      top: headerHeight + 8,
+      right: 16, // Positioned in top right
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          // Gear icon button (Toggle)
+          GestureDetector(
+            onTap: () {
+              setState(() {
+                _isMapMenuOpen = !_isMapMenuOpen;
+              });
+            },
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(32),
+              child: BackdropFilter(
+                filter: ui.ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                child: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(32),
                   ),
-                  const SizedBox(width: 30),
-                  // Privacy mode button
-                  Material(
-                    color: Colors.transparent,
-                    child: InkWell(
-                      onTap: _togglePrivacyMode,
-                      borderRadius: BorderRadius.circular(24),
-                      child: Container(
-                        width: 30,
-                        height: 30,
-                        child: Center(
-                          child: FaIcon(
-                            _locationPrivateMode ? FontAwesomeIcons.ghost : FontAwesomeIcons.streetView,
-                            color: _locationPrivateMode ? Colors.orange : Colors.white,
-                            size: 26,
-                          ),
-                        ),
-                      ),
-                    ),
+                  child: Icon(
+                    Icons.settings,
+                    color: _isMapMenuOpen ? Colors.blue : Colors.white,
+                    size: 28,
                   ),
-                ],
+                ),
               ),
             ),
           ),
-        ),
+          
+          if (_isMapMenuOpen) ...[
+            const SizedBox(height: 8),
+            // Vertical dropdown menu
+            ClipRRect(
+              borderRadius: BorderRadius.circular(24),
+              child: BackdropFilter(
+                filter: ui.ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(24),
+                  ),
+                  child: Column(
+                    children: [
+                      // Satellite/Roadmap toggle
+                      Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          onTap: () {
+                            setState(() {
+                              _useSatelliteView = !_useSatelliteView;
+                            });
+                            _saveMapLayerPreference();
+                          },
+                          borderRadius: BorderRadius.circular(20),
+                          child: Container(
+                            width: 40,
+                            height: 40,
+                            child: Icon(
+                              _useSatelliteView ? Icons.satellite : Icons.map,
+                              color: _useSatelliteView ? Colors.green : Colors.white,
+                              size: 26,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      // Privacy mode button
+                      Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          onTap: _togglePrivacyMode,
+                          borderRadius: BorderRadius.circular(20),
+                          child: Container(
+                            width: 40,
+                            height: 40,
+                            child: Center(
+                              child: FaIcon(
+                                _locationPrivateMode ? FontAwesomeIcons.ghost : FontAwesomeIcons.streetView,
+                                color: _locationPrivateMode ? Colors.white : Colors.white,
+                                size: 22,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }
+
 
   @override
   Widget build(BuildContext context) {
@@ -1010,7 +1078,11 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
                           },
                           onMapReady: () {
                             print('Map is ready');
+                            if (!_mapReadyCompleter.isCompleted) {
+                              _mapReadyCompleter.complete();
+                            }
                           },
+
                         ),
                         children: [
                           // Google Maps tile layer - switches between roadmap and satellite
@@ -1216,11 +1288,11 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
                   colors: Theme.of(context).brightness == Brightness.dark
                       ? [
                           const Color.fromRGBO(11, 19, 43, 1.0), // Midnight navy (matches BackgroundGradient)
-                          const Color.fromRGBO(0, 8, 20, 1.0), // Near-black midnight blue
+                          const Color.fromRGBO(11, 19, 43, 1.0), // Midnight navy (matches BackgroundGradient)
                         ]
                       : [
-                          const Color.fromRGBO(72, 198, 239, 1.0), // Light blue (webLightPrimary)
-                          const Color.fromRGBO(111, 134, 214, 1.0), // Blue (webLightSecondary)
+                          const Color.fromRGBO(19, 155, 255, 1.0), // Blue (web light mode)
+                          const Color.fromRGBO(19, 155, 255, 1.0), // Blue (web light mode)
                         ],
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
@@ -1240,12 +1312,12 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
                 gradient: LinearGradient(
                   colors: Theme.of(context).brightness == Brightness.dark
                       ? [
-                          const Color.fromRGBO(11, 19, 43, 1.0), // Midnight navy (matches BackgroundGradient)
+                          const Color.fromRGBO(0, 8, 20, 1.0), // Near-black midnight blue
                           const Color.fromRGBO(0, 8, 20, 1.0), // Near-black midnight blue
                         ]
                       : [
-                          const Color.fromRGBO(72, 198, 239, 1.0), // Light blue (webLightPrimary)
-                          const Color.fromRGBO(111, 134, 214, 1.0), // Blue (webLightSecondary)
+                          const Color.fromRGBO(112, 207, 253, 1.0), // Blue (web light mode)
+                          const Color.fromRGBO(112, 207, 253, 1.0), // Blue (web light mode)
                         ],
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
