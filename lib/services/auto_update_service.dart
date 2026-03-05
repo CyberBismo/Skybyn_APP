@@ -214,6 +214,14 @@ class AutoUpdateService {
 
         if (status == DownloadTaskStatus.running) {
           onProgress?.call(progress, 'Downloading... $progress%');
+          // Update system notification in real-time if in background
+          if (_isBackgroundDownload) {
+             notificationService.showUpdateProgressNotification(
+              title: 'Update in progress',
+              status: 'Downloading update... $progress%',
+              progress: progress,
+            );
+          }
         } else if (status == DownloadTaskStatus.complete) {
           IsolateNameServer.removePortNameMapping('downloader_send_port');
           port.close();
@@ -223,6 +231,9 @@ class AutoUpdateService {
           if (version != null) {
             final prefs = await SharedPreferences.getInstance();
             await prefs.setString(_downloadedUpdateVersionKey, version);
+            
+            // Show "Ready to Install" notification
+            await notificationService.showUpdateReadyNotification(version);
           }
           
           downloadCompleter.complete(true);
@@ -347,9 +358,8 @@ class AutoUpdateService {
               progress: 100,
             );
             
-            // Delete APK after 1 use (triggering intent)
-            // We wait a bit to ensure the intent is sent
-            Future.delayed(const Duration(seconds: 1), () => deleteDownloadedApk());
+            // Notification remains showing until user installs or dismisses
+            // Deletion is now handled by validateAndCleanupApk() on next startup
           } else {
             await notificationService.showUpdateProgressNotification(
               title: 'Update Failed',
@@ -398,12 +408,8 @@ class AutoUpdateService {
       
       if (updateInfo != null && updateInfo.isAvailable && updateInfo.downloadUrl.isNotEmpty) {
         // 2. Download update
-        final success = await downloadUpdate(updateInfo.downloadUrl, version: updateInfo.version);
-        
-        if (success) {
-          // 3. Show "Ready to Install" notification with actions
-          await notificationService.showUpdateReadyNotification(updateInfo.version);
-        }
+        // downloadUpdate now internally triggers showUpdateReadyNotification on completion
+        await downloadUpdate(updateInfo.downloadUrl, version: updateInfo.version);
       }
     } catch (e) {
       print('[AutoUpdateService] Background update failed: $e');

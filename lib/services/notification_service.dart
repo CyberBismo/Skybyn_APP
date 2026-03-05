@@ -735,42 +735,12 @@ class NotificationService {
       // Since actionId is passed directly, we can check known types
       
       if (actionId == 'install_update' || actionId == 'update_now') {
-          // Trigger install flow
+          // Trigger install flow using the centralized service
           try {
-             final Directory? directory = await getExternalStorageDirectory();
-             if (directory != null) {
-               File file = File('${directory.path}/app-update.apk');
-
-               if (await file.exists()) {
-                   // Open the APK file - this should trigger the system installer
-                   await OpenFile.open(file.path);
-                 
-                   // Cancel the notification
-                   await NotificationService().cancelUpdateProgressNotification();
-
-                   bool installed = false;
-                   if (Platform.isAndroid) {
-                     try {
-                       const platform = MethodChannel('no.skybyn.app/installer');
-                       final result = await platform.invokeMethod('installApk', {'apkPath': file.path});
-                       if (result == true) {
-                         installed = true;
-                       }
-                     } on PlatformException catch (e) {
-                       print('[NotificationService] MethodChannel installApk failed: ${e.code} - ${e.message}');
-                     } catch (e) {
-                       print('[NotificationService] MethodChannel installApk error: $e');
-                     }
-                   }
-
-                   if (!installed) {
-                     // Open the APK file - this should trigger the system installer if platform channel failed
-                     await OpenFile.open(file.path);
-                   }
-               }
-             }
+             await AutoUpdateService.installUpdate();
+             // The progress notification is handled within installUpdate
           } catch (e) {
-             print('[NotificationService] Failed to open installer from action: $e');
+             print('[NotificationService] Failed to trigger install from action: $e');
           }
       } else if (actionId == 'ignore_update' || actionId == 'dismiss') {
           // Handled by cancelNotification: true
