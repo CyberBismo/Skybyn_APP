@@ -42,7 +42,8 @@ android {
         // Support only modern 64-bit ARM architecture (covers 99% of modern devices)
         // This significantly reduces APK size compared to universal builds
         ndk {
-            abiFilters += listOf("arm64-v8a")
+            abiFilters.clear()
+            abiFilters.add("arm64-v8a")
         }
     }
 
@@ -116,6 +117,16 @@ android {
     lint {
         checkReleaseBuilds = false
         abortOnError = false
+    }
+
+    // Forcefully exclude unused native architectures from the final binary
+    // This is required when plugins (like WebRTC) include multiple ABIs that ignore abiFilters
+    packaging {
+        jniLibs {
+            excludes.add("lib/armeabi-v7a/**")
+            excludes.add("lib/x86/**")
+            excludes.add("lib/x86_64/**")
+        }
     }
 
     // Suppress deprecation warnings from third-party dependencies (flutter_webrtc uses deprecated APIs)
