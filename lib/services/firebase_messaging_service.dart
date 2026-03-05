@@ -1,4 +1,4 @@
-import 'dart:async';
+  import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:developer' as developer;
@@ -64,8 +64,20 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
     );
   } else if (type == 'app_update') {
     // Handle App Update (Background Download)
-    developer.log('🚀 FCM: Received App Update Signal', name: 'FCM');
+    developer.log('🚀 FCM: Received App Update Signal (Type: $type)', name: 'FCM');
     MessageSyncWorker.scheduleUpdateDownload();
+    
+    // Show notification for data-only messages to ensure user is aware
+    if (!hasNotificationPayload) {
+      final title = message.data['title']?.toString() ?? 'New Update Available';
+      final body = message.data['body']?.toString() ?? 'A new version of Skybyn is ready to download.';
+      
+      await NotificationService().showNotification(
+        title: title,
+        body: body,
+        payload: jsonEncode(message.data),
+      );
+    }
   } else if (type == 'chat') {
       // Explicitly handle Chat messages to ensuring they "wake up" the device
       if (!hasNotificationPayload) {
@@ -383,7 +395,7 @@ class FirebaseMessagingService {
   // Internal Handlers
   // ---------------------------------------------------------------------------
 
-  void _handleForegroundMessage(RemoteMessage message) {
+  Future<void> _handleForegroundMessage(RemoteMessage message) async {
     final type = message.data['type']?.toString();
 
     developer.log('📨 Foreground Message: Type=$type', name: 'FCM');
@@ -422,8 +434,18 @@ class FirebaseMessagingService {
        );
     } else if (type == 'app_update') {
        // Handle App Update (Background Download)
-       developer.log('🚀 FCM: Received App Update Signal (Foreground)', name: 'FCM');
+       developer.log('🚀 FCM: Received App Update Signal ($type) (Foreground)', name: 'FCM');
        MessageSyncWorker.scheduleUpdateDownload();
+
+       // Show foreground notification
+       final title = message.data['title']?.toString() ?? 'New Update Available';
+       final body = message.data['body']?.toString() ?? 'A new version of Skybyn is ready to download.';
+       
+       await NotificationService().showNotification(
+          title: title,
+          body: body,
+          payload: jsonEncode(message.data),
+       );
     } else {
       // Generic System Notification as fallback
       final title = message.notification?.title ?? message.data['title']?.toString();

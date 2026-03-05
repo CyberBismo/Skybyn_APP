@@ -38,12 +38,11 @@ android {
         targetSdk = 35
         versionCode = flutter.versionCode
         versionName = flutter.versionName
-        
-        // Support only ARM architectures (covers 99%+ of devices)
-        // x86/x86_64 are mainly for emulators and very old devices
-        // Removing them reduces APK size by ~50%
+
+        // Support only modern 64-bit ARM architecture (covers 99% of modern devices)
+        // This significantly reduces APK size compared to universal builds
         ndk {
-            abiFilters += listOf("armeabi-v7a", "arm64-v8a")
+            abiFilters += listOf("arm64-v8a")
         }
     }
 
@@ -103,7 +102,7 @@ android {
         }
     }
     
-    // Disable APK splits to ensure a single universal APK installable on all devices
+    // Disable APK splits to ensure a clean build with focused architectures
     splits {
         abi {
             isEnable = false

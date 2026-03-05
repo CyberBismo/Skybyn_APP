@@ -48,6 +48,7 @@ import 'services/chat_message_count_service.dart';
 import 'services/navigation_service.dart';
 import 'services/location_service.dart';
 import 'services/chat_service.dart';
+import 'services/auto_update_service.dart';
 import 'config/constants.dart';
 // Widgets and Models
 import 'widgets/incoming_call_notification.dart';
@@ -70,6 +71,11 @@ Future<void> main() async {
     () async {
       // Ensure Flutter is initialized first
       WidgetsFlutterBinding.ensureInitialized();
+
+      // Cleanup stale APKs on startup
+      if (Platform.isAndroid) {
+        AutoUpdateService.validateAndCleanupApk();
+      }
 
       // Initialize FlutterDownloader for background update downloads
       if (Platform.isAndroid) {

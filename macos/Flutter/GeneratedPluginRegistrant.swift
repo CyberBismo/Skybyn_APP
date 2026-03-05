@@ -5,7 +5,6 @@
 import FlutterMacOS
 import Foundation
 
-import agora_rtc_engine
 import app_links
 import audio_session
 import cloud_firestore
@@ -25,7 +24,6 @@ import flutter_timezone
 import flutter_webrtc
 import geolocator_apple
 import google_sign_in_ios
-import iris_method_channel
 import just_audio
 import local_auth_darwin
 import mobile_scanner
@@ -40,7 +38,6 @@ import video_player_avfoundation
 import webview_flutter_wkwebview
 
 func RegisterGeneratedPlugins(registry: FlutterPluginRegistry) {
-  AgoraRtcNgPlugin.register(with: registry.registrar(forPlugin: "AgoraRtcNgPlugin"))
   AppLinksMacosPlugin.register(with: registry.registrar(forPlugin: "AppLinksMacosPlugin"))
   AudioSessionPlugin.register(with: registry.registrar(forPlugin: "AudioSessionPlugin"))
   FLTFirebaseFirestorePlugin.register(with: registry.registrar(forPlugin: "FLTFirebaseFirestorePlugin"))
@@ -60,7 +57,6 @@ func RegisterGeneratedPlugins(registry: FlutterPluginRegistry) {
   FlutterWebRTCPlugin.register(with: registry.registrar(forPlugin: "FlutterWebRTCPlugin"))
   GeolocatorPlugin.register(with: registry.registrar(forPlugin: "GeolocatorPlugin"))
   FLTGoogleSignInPlugin.register(with: registry.registrar(forPlugin: "FLTGoogleSignInPlugin"))
-  IrisMethodChannelPlugin.register(with: registry.registrar(forPlugin: "IrisMethodChannelPlugin"))
   JustAudioPlugin.register(with: registry.registrar(forPlugin: "JustAudioPlugin"))
   LocalAuthPlugin.register(with: registry.registrar(forPlugin: "LocalAuthPlugin"))
   MobileScannerPlugin.register(with: registry.registrar(forPlugin: "MobileScannerPlugin"))

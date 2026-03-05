@@ -604,6 +604,7 @@ class TranslationService extends ChangeNotifier {
           "checking_for_updates": "Checking for updates...",
           "no_updates_available": "No updates available",
           "error_checking_updates": "Error checking for updates",
+          "update_check_failed": "Failed to check for updates",
           "install_permission_required": "Install Permission Required",
           "install_permission_denied_message": "This permission has been permanently denied. Please enable \"Install unknown apps\" for Skybyn in your device settings.",
           "permission_not_granted": "Permission not granted",
@@ -1742,6 +1743,7 @@ class TranslationKeys {
   static const String checkForUpdates = 'check_for_updates';
   static const String noUpdatesAvailable = 'no_updates_available';
   static const String errorCheckingUpdates = 'error_checking_updates';
+  static const String updateCheckFailed = 'update_check_failed';
   static const String updateSize = 'update_size';
   static const String downloadProgress = 'download_progress';
   static const String installProgress = 'install_progress';

@@ -28,6 +28,7 @@ class AutoUpdateService {
   static String get _updateCheckUrl => ApiConstants.appUpdate;
   static const String _lastShownUpdateVersionKey = 'last_shown_update_version';
   static const String _lastShownUpdateTimestampKey = 'last_shown_update_timestamp';
+  static const String _downloadedUpdateVersionKey = 'downloaded_update_version';
   static bool _isDialogShowing = false;
   static bool _isBackgroundDownload = false; // Flag to track if running in background
 
@@ -181,17 +182,29 @@ class AutoUpdateService {
     return null;
   }
 
-  static Future<bool> downloadUpdate(String downloadUrl, {Function(int progress, String status)? onProgress}) async {
+  static Future<bool> downloadUpdate(String downloadUrl, {String? version, Function(int progress, String status)? onProgress}) async {
     final notificationService = NotificationService();
 
+    // 1. Prepare for download tracking
+    final ReceivePort port = ReceivePort();
+    IsolateNameServer.registerPortWithName(port.sendPort, 'downloader_send_port');
+    
+    final Completer<bool> downloadCompleter = Completer<bool>();
+
     try {
-      // 1. Prepare for download tracking
-      final ReceivePort port = ReceivePort();
-      IsolateNameServer.registerPortWithName(port.sendPort, 'downloader_send_port');
-      
-      final Completer<bool> downloadCompleter = Completer<bool>();
-      
-      port.listen((dynamic data) {
+      // Cleanup old APK if exists
+      await deleteDownloadedApk();
+
+      // Show initial notification
+      if (_isBackgroundDownload) {
+        await notificationService.showUpdateProgressNotification(
+          title: 'Updating Skybyn...',
+          status: 'Downloading update...',
+          progress: 0,
+        );
+      }
+
+      port.listen((dynamic data) async {
         // [id, status, progress]
         final int statusInt = data[1] as int;
         final int progress = data[2] as int;
@@ -204,14 +217,19 @@ class AutoUpdateService {
         } else if (status == DownloadTaskStatus.complete) {
           IsolateNameServer.removePortNameMapping('downloader_send_port');
           port.close();
+          
+          await notificationService.cancelUpdateProgressNotification();
+          
+          if (version != null) {
+            final prefs = await SharedPreferences.getInstance();
+            await prefs.setString(_downloadedUpdateVersionKey, version);
+          }
+          
           downloadCompleter.complete(true);
-        } else if (status == DownloadTaskStatus.failed) {
+        } else if (status == DownloadTaskStatus.failed || status == DownloadTaskStatus.canceled) {
           IsolateNameServer.removePortNameMapping('downloader_send_port');
           port.close();
-          downloadCompleter.complete(false);
-        } else if (status == DownloadTaskStatus.canceled) {
-          IsolateNameServer.removePortNameMapping('downloader_send_port');
-          port.close();
+          await notificationService.cancelUpdateProgressNotification();
           downloadCompleter.complete(false);
         }
       });
@@ -221,66 +239,35 @@ class AutoUpdateService {
       if (directory == null) {
         IsolateNameServer.removePortNameMapping('downloader_send_port');
         port.close();
-        await notificationService.showUpdateProgressNotification(
-          title: 'Update Failed',
-          status: 'Could not access storage directory',
-          progress: 0,
-        );
         return false;
-      }
-
-      // Ensure the directory exists
-      final savedDir = Directory(directory.path);
-      if (!await savedDir.exists()) {
-        await savedDir.create(recursive: true);
-      }
-
-      // Cleanup old APK if exists
-      final oldApk = File('${directory.path}/app-update.apk');
-      if (await oldApk.exists()) {
-        await oldApk.delete();
       }
 
       final taskId = await FlutterDownloader.enqueue(
         url: downloadUrl,
         savedDir: directory.path,
         fileName: 'app-update.apk',
-        showNotification: true, // Use system notification
-        openFileFromNotification: false, // We'll handle installation manually
+        showNotification: true,
+        openFileFromNotification: false,
         requiresStorageNotLow: true,
       );
 
       if (taskId == null) {
         IsolateNameServer.removePortNameMapping('downloader_send_port');
         port.close();
-        await notificationService.showUpdateProgressNotification(
-          title: 'Update Failed',
-          status: 'Failed to enqueue download task',
-          progress: 0,
-        );
         return false;
       }
 
-      // Register the static callback for progress
       await FlutterDownloader.registerCallback(downloadCallback);
 
-      // Wait for completion (if not background download)
       if (!_isBackgroundDownload) {
         return await downloadCompleter.future;
       } else {
-        // In background, we don't wait - flutter_downloader handles it
-        // We close the port early but let the system handle the download
-        IsolateNameServer.removePortNameMapping('downloader_send_port');
-        port.close();
         return true; 
       }
     } catch (e) {
       print('[AutoUpdateService] Error downloading update: $e');
-      await notificationService.showUpdateProgressNotification(
-        title: 'Update Failed',
-        status: 'Error: ${e.toString()}',
-        progress: 0,
-      );
+      IsolateNameServer.removePortNameMapping('downloader_send_port');
+      port.close();
       return false;
     }
   }
@@ -359,6 +346,10 @@ class AutoUpdateService {
               status: 'Tap to install',
               progress: 100,
             );
+            
+            // Delete APK after 1 use (triggering intent)
+            // We wait a bit to ensure the intent is sent
+            Future.delayed(const Duration(seconds: 1), () => deleteDownloadedApk());
           } else {
             await notificationService.showUpdateProgressNotification(
               title: 'Update Failed',
@@ -407,7 +398,7 @@ class AutoUpdateService {
       
       if (updateInfo != null && updateInfo.isAvailable && updateInfo.downloadUrl.isNotEmpty) {
         // 2. Download update
-        final success = await downloadUpdate(updateInfo.downloadUrl);
+        final success = await downloadUpdate(updateInfo.downloadUrl, version: updateInfo.version);
         
         if (success) {
           // 3. Show "Ready to Install" notification with actions
@@ -441,7 +432,7 @@ class AutoUpdateService {
   }
 
   /// Check if an update has already been downloaded and is ready to install
-  static Future<bool> isUpdateDownloaded() async {
+  static Future<bool> isUpdateDownloaded({String? version}) async {
     try {
       if (!Platform.isAndroid) return false;
       final Directory? directory = await getExternalStorageDirectory();
@@ -450,12 +441,99 @@ class AutoUpdateService {
       final File file = File('${directory.path}/app-update.apk');
       if (await file.exists()) {
         final fileSize = await file.length();
-        return fileSize > 0;
+        if (fileSize == 0) return false;
+
+        // If version provided, verify it
+        if (version != null) {
+          final downloadedVersion = await getDownloadedVersion();
+          if (downloadedVersion != version) {
+            print('[AutoUpdateService] Local APK version ($downloadedVersion) mismatch with requested ($version). Cleaning up.');
+            await deleteDownloadedApk();
+            return false;
+          }
+        }
+        return true;
       }
       return false;
     } catch (e) {
       print('[AutoUpdateService] Error checking downloaded update: $e');
       return false;
+    }
+  }
+
+  /// Get the version of the downloaded APK from SharedPreferences
+  static Future<String?> getDownloadedVersion() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getString(_downloadedUpdateVersionKey);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  /// Delete the downloaded APK and clear the stored version
+  static Future<void> deleteDownloadedApk() async {
+    try {
+      final Directory? directory = await getExternalStorageDirectory();
+      if (directory != null) {
+        final File file = File('${directory.path}/app-update.apk');
+        if (await file.exists()) {
+          await file.delete();
+          print('[AutoUpdateService] Deleted downloaded APK');
+        }
+      }
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_downloadedUpdateVersionKey);
+    } catch (e) {
+      print('[AutoUpdateService] Error deleting APK: $e');
+    }
+  }
+
+  /// Validate the downloaded APK against current installed version and cleanup if stale
+  static Future<void> validateAndCleanupApk() async {
+    try {
+      if (!Platform.isAndroid) return;
+
+      final PackageInfo packageInfo = await PackageInfo.fromPlatform();
+      final String installedVersion = packageInfo.version;
+      final String? downloadedVersion = await getDownloadedVersion();
+
+      if (downloadedVersion != null) {
+        // Simplified version comparison for purge logic
+        // If versions are same, or installed is newer, the APK is stale
+        if (_isVersionGreaterOrEqual(installedVersion, downloadedVersion)) {
+          print('[AutoUpdateService] Cleanup: Installed version ($installedVersion) >= Downloaded version ($downloadedVersion). Deleting APK.');
+          await deleteDownloadedApk();
+        }
+      } else {
+        // If no version recorded but file exists, delete it to be safe
+        final Directory? directory = await getExternalStorageDirectory();
+        if (directory != null) {
+          final File file = File('${directory.path}/app-update.apk');
+          if (await file.exists()) {
+            print('[AutoUpdateService] Cleanup: No version record for existing APK. Deleting.');
+            await deleteDownloadedApk();
+          }
+        }
+      }
+    } catch (e) {
+      print('[AutoUpdateService] Error during cleanup: $e');
+    }
+  }
+
+  /// Helper to compare semantic versions (e.g., "1.0.1" vs "1.0.0")
+  static bool _isVersionGreaterOrEqual(String v1, String v2) {
+    try {
+      final parts1 = v1.split('.').map(int.parse).toList();
+      final parts2 = v2.split('.').map(int.parse).toList();
+
+      for (var i = 0; i < parts1.length && i < parts2.length; i++) {
+        if (parts1[i] > parts2[i]) return true;
+        if (parts1[i] < parts2[i]) return false;
+      }
+      return parts1.length >= parts2.length;
+    } catch (e) {
+      return v1 == v2; // Fallback to string comparison
     }
   }
 
@@ -559,8 +637,8 @@ class AutoUpdateService {
         );
         return false;
       } else {
-        final errorMsg = result.message?.isNotEmpty == true 
-            ? result.message! 
+        final errorMsg = result.message.isNotEmpty
+            ? result.message
             : 'Unknown error (type: ${result.type})';
         await notificationService.showUpdateProgressNotification(
           title: 'Update Failed',
@@ -569,7 +647,6 @@ class AutoUpdateService {
         );
         return false;
       }
-      return true;
     } catch (e) {
       await notificationService.showUpdateProgressNotification(
         title: 'Update Failed',

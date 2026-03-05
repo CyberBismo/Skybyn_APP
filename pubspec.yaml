@@ -9,7 +9,6 @@ dependencies:
   flutter:
     sdk: flutter
   intl: ^0.20.2
-  agora_rtc_engine: ^6.3.2
   web_socket_channel: ^3.0.0
   flutter_downloader: ^1.11.8
   http: ^1.6.0
