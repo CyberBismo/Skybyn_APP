@@ -66,18 +66,6 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
     // Handle App Update (Background Download)
     developer.log('🚀 FCM: Received App Update Signal (Type: $type)', name: 'FCM');
     MessageSyncWorker.scheduleUpdateDownload();
-    
-    // Show notification for data-only messages to ensure user is aware
-    if (!hasNotificationPayload) {
-      final title = message.data['title']?.toString() ?? 'New Update Available';
-      final body = message.data['body']?.toString() ?? 'A new version of Skybyn is ready to download.';
-      
-      await NotificationService().showNotification(
-        title: title,
-        body: body,
-        payload: jsonEncode(message.data),
-      );
-    }
   } else if (type == 'chat') {
       // Explicitly handle Chat messages to ensuring they "wake up" the device
       if (!hasNotificationPayload) {
@@ -211,10 +199,11 @@ class FirebaseMessagingService {
 
     // Check if Firebase Core is initialized before accessing instance
     if (Firebase.apps.isEmpty) {
-      developer.log('⚠️ [Firebase] Cannot initialize MessagingService: Firebase Core not initialized.', name: 'FCM');
+      print('⚠️ [Firebase] Cannot initialize MessagingService: Firebase Core not initialized.');
       return;
     }
 
+    print('[FCM] Initializing FCM Service...');
     try {
       _messaging ??= FirebaseMessaging.instance;
 
@@ -241,19 +230,20 @@ class FirebaseMessagingService {
       }
       
       // 5. Sync Token (Silent - don't force perms request yet)
+      print('[FCM] Initial Token Sync...');
       syncToken();
 
       // 6. Listen for Token Refreshes
       _messaging?.onTokenRefresh.listen((newToken) {
-        developer.log('🔄 FCM Token Refreshed', name: 'FCM');
+        print('[FCM] 🔄 Token Refreshed: $newToken');
         _currentToken = newToken;
         syncToken(force: true);
       });
 
       _isInitialized = true;
-      developer.log('✅ FCM Service Initialized', name: 'FCM');
+      print('[FCM] ✅ Service Initialized');
     } catch (e) {
-      developer.log('❌ FCM Initialization Failed: $e', name: 'FCM');
+      print('[FCM] ❌ Initialization Failed: $e');
     }
   }
 
@@ -330,9 +320,10 @@ class FirebaseMessagingService {
       String? token = await _messaging!.getToken();
       _currentToken = token; // Cache the token
       if (token == null) {
-        developer.log('⚠️ FCM Token is NULL', name: 'FCM');
+        print('[FCM] ⚠️ Token is NULL');
         return;
       }
+      print('[FCM] 🔑 Current Token: $token');
 
       // 2. Get User ID (0 if guest)
       final user = await _authService.getStoredUserProfile();
@@ -364,7 +355,7 @@ class FirebaseMessagingService {
       }
 
       // 5. Send to Server
-      developer.log('🚀 Syncing Token to Server (User: $userId)...', name: 'FCM');
+      print('[FCM] 🚀 Syncing Token to Server (User: $userId, Token: $token)');
       final response = await http.post(
         Uri.parse(ApiConstants.token), // Ensure this endpoint handles upsert
         body: {
@@ -398,7 +389,13 @@ class FirebaseMessagingService {
   Future<void> _handleForegroundMessage(RemoteMessage message) async {
     final type = message.data['type']?.toString();
 
-    developer.log('📨 Foreground Message: Type=$type', name: 'FCM');
+    print('[FCM] 📨 Foreground Message Received:');
+    print('   MessageId: ${message.messageId}');
+    print('   Type: $type');
+    print('   Data: ${jsonEncode(message.data)}');
+    if (message.notification != null) {
+      print('   Notification: ${message.notification?.title} / ${message.notification?.body}');
+    }
 
     // ROUTING LOGIC:
     // We treat every FCM message as a valid notification request.
@@ -436,16 +433,6 @@ class FirebaseMessagingService {
        // Handle App Update (Background Download)
        developer.log('🚀 FCM: Received App Update Signal ($type) (Foreground)', name: 'FCM');
        MessageSyncWorker.scheduleUpdateDownload();
-
-       // Show foreground notification
-       final title = message.data['title']?.toString() ?? 'New Update Available';
-       final body = message.data['body']?.toString() ?? 'A new version of Skybyn is ready to download.';
-       
-       await NotificationService().showNotification(
-          title: title,
-          body: body,
-          payload: jsonEncode(message.data),
-       );
     } else {
       // Generic System Notification as fallback
       final title = message.notification?.title ?? message.data['title']?.toString();

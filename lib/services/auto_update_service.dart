@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'dart:convert';
+import 'dart:developer' as developer;
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -20,7 +21,11 @@ import 'dart:ui';
 
 @pragma('vm:entry-point')
 void downloadCallback(String id, int status, int progress) {
+  print('[AutoUpdateService] Callback: task=$id, status=$status, progress=$progress');
   final SendPort? send = IsolateNameServer.lookupPortByName('downloader_send_port');
+  if (send == null) {
+    print('[AutoUpdateService] Error: Could not find downloader_send_port');
+  }
   send?.send([id, status, progress]);
 }
 
@@ -173,6 +178,7 @@ class AutoUpdateService {
         }
       } else {
         print('[Update Check] Error: HTTP ${response.statusCode} - ${response.reasonPhrase}');
+        print('[Update Check] Response Body: ${response.body}');
       }
     } catch (e, stackTrace) {
       // Update check failed
@@ -187,7 +193,10 @@ class AutoUpdateService {
 
     // 1. Prepare for download tracking
     final ReceivePort port = ReceivePort();
-    IsolateNameServer.registerPortWithName(port.sendPort, 'downloader_send_port');
+    // Use a unique suffix if possible or be very sure about cleanup
+    const portName = 'downloader_send_port';
+    IsolateNameServer.removePortNameMapping(portName);
+    IsolateNameServer.registerPortWithName(port.sendPort, portName);
     
     final Completer<bool> downloadCompleter = Completer<bool>();
 
@@ -196,32 +205,31 @@ class AutoUpdateService {
       await deleteDownloadedApk();
 
       // Show initial notification
-      if (_isBackgroundDownload) {
-        await notificationService.showUpdateProgressNotification(
-          title: 'Updating Skybyn...',
-          status: 'Downloading update...',
-          progress: 0,
-        );
-      }
+      await notificationService.showUpdateProgressNotification(
+        title: 'Updating Skybyn...',
+        status: 'Downloading update...',
+        progress: 0,
+      );
 
       port.listen((dynamic data) async {
         // [id, status, progress]
+        final String taskId = data[0] as String;
         final int statusInt = data[1] as int;
         final int progress = data[2] as int;
+        
+        print('[AutoUpdateService] Listener: task=$taskId, status=$statusInt, progress=$progress');
         
         // Convert int to enum for safer comparison in 1.12.0+
         final DownloadTaskStatus status = DownloadTaskStatus.values[statusInt];
 
         if (status == DownloadTaskStatus.running) {
           onProgress?.call(progress, 'Downloading... $progress%');
-          // Update system notification in real-time if in background
-          if (_isBackgroundDownload) {
-             notificationService.showUpdateProgressNotification(
-              title: 'Update in progress',
-              status: 'Downloading update... $progress%',
-              progress: progress,
-            );
-          }
+          // Update system notification in real-time
+          notificationService.showUpdateProgressNotification(
+            title: 'Update in progress',
+            status: 'Downloading update... $progress%',
+            progress: progress,
+          );
         } else if (status == DownloadTaskStatus.complete) {
           IsolateNameServer.removePortNameMapping('downloader_send_port');
           port.close();
@@ -253,27 +261,24 @@ class AutoUpdateService {
         return false;
       }
 
+      await FlutterDownloader.registerCallback(downloadCallback);
+
       final taskId = await FlutterDownloader.enqueue(
         url: downloadUrl,
         savedDir: directory.path,
         fileName: 'app-update.apk',
-        showNotification: true,
+        showNotification: false, // Unified notification handled by NotificationService
         openFileFromNotification: false,
         requiresStorageNotLow: true,
       );
 
-      if (taskId == null) {
-        IsolateNameServer.removePortNameMapping('downloader_send_port');
-        port.close();
-        return false;
-      }
-
-      await FlutterDownloader.registerCallback(downloadCallback);
-
       if (!_isBackgroundDownload) {
         return await downloadCompleter.future;
       } else {
-        return true; 
+        // Even for background downloads, we MUST wait for completion
+        // so the WorkManager worker doesn't finish and kill this isolate (and its port listener)
+        developer.log('App Update: Waiting for background download to complete...', name: 'AutoUpdateService');
+        return await downloadCompleter.future;
       }
     } catch (e) {
       print('[AutoUpdateService] Error downloading update: $e');
@@ -661,6 +666,20 @@ class AutoUpdateService {
       );
       await Future.delayed(const Duration(seconds: 5));
       return false;
+    }
+  }
+
+  /// Manually trigger an update check and show dialog if available
+  /// Useful for debugging and forcing the check from UI or background tasks
+  static Future<void> manualTriggerUpdateCheck() async {
+    print('[AutoUpdateService] Manual update check triggered');
+    final info = await checkForUpdates();
+    if (info != null && info.isAvailable) {
+      print('[AutoUpdateService] Manual check found update: ${info.version}');
+      // We don't show the dialog here because this might be called from background,
+      // but we log it. The UI should use checkForUpdates() directly.
+    } else {
+      print('[AutoUpdateService] Manual check: No update available or check failed');
     }
   }
 }

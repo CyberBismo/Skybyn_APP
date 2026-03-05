@@ -81,7 +81,7 @@ Future<void> main() async {
       if (Platform.isAndroid) {
         try {
           await FlutterDownloader.initialize(
-            debug: true, // set to false in production
+            debug: false, // set to false in production
             ignoreSsl: true, // option: set to false to disable HTTP links (default: false)
           );
         } catch (e) {
@@ -206,8 +206,10 @@ Future<void> _initializeFirebase(bool enableErrorLogging) async {
 
     // Initialize Firebase Messaging for push notifications (Android release only)
     try {
+      print('[SKYBYN] [Firebase] Initializing Firebase Messaging Service...');
       final firebaseMessagingService = FirebaseMessagingService();
       await firebaseMessagingService.initialize();
+      print('[SKYBYN] [Firebase] Firebase Messaging Service initialization complete.');
 
       // Token is already registered on app start in initialize() method
       // If user is logged in, it will be updated with user ID in auth_service.dart after login

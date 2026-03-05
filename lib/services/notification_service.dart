@@ -44,8 +44,7 @@ class NotificationService {
   static const String _callsChannelId = 'calls';
 
   // Notification IDs for update
-  static const int _updateProgressNotificationId = -9999;
-  static const int _updateReadyNotificationId = -10000;
+  static const int _updateNotificationId = -10000;
 
   Future<void> initialize() async {
     try {
@@ -684,7 +683,7 @@ class NotificationService {
         NotificationDetails(android: androidPlatformChannelSpecifics);
 
     await _localNotifications.show(
-      _updateReadyNotificationId,
+      _updateNotificationId,
       'Skybyn $version is ready.',
       'Click here to install.',
       platformChannelSpecifics,
@@ -745,7 +744,7 @@ class NotificationService {
       } else if (actionId == 'ignore_update' || actionId == 'dismiss') {
           // Handled by cancelNotification: true
           // Also cancel the "Ready" notification specifically if ID differs
-           await _localNotifications.cancel(_updateProgressNotificationId);
+           await _localNotifications.cancel(_updateNotificationId);
       } else if (actionId == 'open_url') {
            // We'd need a URL associated with this button.
            // Since Android actions don't pass extra data per button click easily besides the original payload,
@@ -1134,7 +1133,7 @@ class NotificationService {
     );
     
     await _localNotifications.show(
-      _updateProgressNotificationId,
+      _updateNotificationId,
       title,
       status,
       platformChannelSpecifics,
@@ -1143,7 +1142,7 @@ class NotificationService {
   }
 
   Future<void> cancelUpdateProgressNotification() async {
-    await _localNotifications.cancel(_updateProgressNotificationId);
+    await _localNotifications.cancel(_updateNotificationId);
   }
 
   /// Cancel a specific notification by ID
