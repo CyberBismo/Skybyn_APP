@@ -1092,7 +1092,7 @@ class NotificationService {
         }
       }
       
-      if (shouldAutoDismiss) {
+      if (shouldAutoDismiss && !isAppUpdate) {
         Timer(const Duration(seconds: 3), () {
           cancelNotification(id);
         });

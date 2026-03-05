@@ -145,7 +145,7 @@ class MessageSyncWorker {
         _downloadUpdateTask,
         constraints: Constraints(
           networkType: NetworkType.connected,
-          requiresBatteryNotLow: true, 
+          requiresBatteryNotLow: false, 
         ),
         existingWorkPolicy: ExistingWorkPolicy.replace,
         initialDelay: const Duration(seconds: 1),
