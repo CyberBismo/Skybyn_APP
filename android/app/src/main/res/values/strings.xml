@@ -1,5 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Skybyn</string>
-    <string name="facebook_app_id">1470582868119072</string>
+    <string name="biometric_prompt_title">Skybyn</string>
+    <string name="biometric_prompt_subtitle">Use your fingerprint to securely log in</string>
+    <string name="biometric_prompt_description">Place your finger on the sensor to continue</string>
+    <string name="biometric_prompt_negative_button">Cancel</string>
 </resources>

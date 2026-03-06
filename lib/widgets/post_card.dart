@@ -948,7 +948,7 @@ class _PostCardState extends State<PostCard> {
                                           child: Align(
                                             alignment: Alignment.centerLeft,
                                             child: Text(
-                                              _currentPost.author,
+                                              _decodeHtmlEntities(_currentPost.author),
                                               style: PostCardStyles
                                                   .getAuthorTextStyle(context),
                                             ),

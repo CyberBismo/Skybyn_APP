@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
 import 'package:google_sign_in/google_sign_in.dart';
-import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'dart:io';
 import 'dart:async'; // For Timer
@@ -122,50 +121,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     }
   }
 
-  Future<void> _handleFacebookLogin() async {
-    setState(() {
-      _isLoading = true;
-      _errorMessage = null;
-    });
-
-    try {
-      final LoginResult result = await FacebookAuth.instance.login(
-        permissions: ['public_profile', 'email'],
-      );
-
-      if (result.status == LoginStatus.success) {
-        final AccessToken accessToken = result.accessToken!;
-        final response = await _authService.loginWithSocial('facebook', accessToken.tokenString);
-        
-        if (!mounted) return;
-
-        if (response['responseCode'] == '1') {
-          await _onLoginSuccess();
-        } else {
-          setState(() {
-             _errorMessage = response['message'] ?? 'Facebook Login failed';
-          });
-        }
-      } else if (result.status == LoginStatus.cancelled) {
-         // User cancelled
-      } else {
-         setState(() {
-           _errorMessage = result.message ?? 'Facebook Login failed';
-         });
-      }
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _errorMessage = 'Facebook Sign-In Error: $e';
-      });
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
-    }
-  }
+  /* Facebook login removed */
 
   final _firstNameFocusNode = FocusNode();
   final _middleNameFocusNode = FocusNode();

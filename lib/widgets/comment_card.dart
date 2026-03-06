@@ -270,7 +270,7 @@ class CommentCard extends StatelessWidget {
                     children: [
                       // Username without background
                       Text(
-                        comment.username,
+                        _decodeHtmlEntities(comment.username),
                         style: TextStyle(
                           fontSize: CommentCardStyles.fontSize,
                           fontWeight: FontWeight.bold,

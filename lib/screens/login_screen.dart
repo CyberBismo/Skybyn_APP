@@ -8,14 +8,12 @@ import 'dart:io';
 import '../widgets/background_gradient.dart';
 import '../widgets/app_colors.dart';
 import '../widgets/translated_text.dart';
-
 import '../services/translation_service.dart';
 import '../services/navigation_service.dart';
 import 'home_screen.dart';
 import 'register_screen.dart';
 import 'forgot_password_screen.dart';
 import 'package:google_sign_in/google_sign_in.dart';
-import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -143,6 +141,7 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
+  /*
   Future<void> _handleFacebookLogin() async {
     setState(() {
       _isLoading = true;
@@ -187,6 +186,7 @@ class _LoginScreenState extends State<LoginScreen> {
       }
     }
   }
+  */
 
   Future<void> _handleLogin() async {
     if (_usernameController.text.isEmpty || _passwordController.text.isEmpty) {
@@ -548,31 +548,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           onPressed: _isLoading ? null : _handleGoogleLogin,
                         ),
                       ),
-                      // Facebook Login Button - Removed per user request to restrict to Google only
-                      /*
-                      SizedBox(
-                        width: double.infinity,
-                        child: OutlinedButton.icon(
-                          icon: const Icon(FontAwesomeIcons.facebook, color: Colors.blue),
-                          label: const TranslatedText(
-                            'Sign in with Facebook',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 16,
-                            ),
-                          ),
-                          style: OutlinedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            side: BorderSide(color: Colors.white.withValues(alpha: 0.5)),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            backgroundColor: Colors.white.withValues(alpha: 0.1),
-                          ),
-                          onPressed: _isLoading ? null : _handleFacebookLogin,
-                        ),
-                      ),
-                      */
+                      // Facebook Login Button - Removed per user request
                     ],
                     // Forgot password text
                     Align(

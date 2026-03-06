@@ -1,6 +1,6 @@
 package no.skybyn.app
 
-import io.flutter.embedding.android.FlutterActivity
+import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 import android.content.Intent
@@ -14,7 +14,7 @@ import android.media.AudioManager
 import android.media.MediaPlayer
 import java.io.File
 
-class MainActivity: FlutterActivity() {
+class MainActivity: FlutterFragmentActivity() {
     private val CHANNEL = "no.skybyn.app/background_service"
     private val NOTIFICATION_CHANNEL = "no.skybyn.app/notification"
     private val INSTALLER_CHANNEL = "no.skybyn.app/installer"

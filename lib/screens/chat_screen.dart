@@ -22,15 +22,12 @@ import '../services/auth_service.dart';
 import '../services/call_service.dart';
 import '../services/chat_service.dart';
 import '../services/websocket_service.dart';
-// Firestore disabled - using WebSocket for real-time features instead
-// import 'package:cloud_firestore/cloud_firestore.dart';
-
 import '../widgets/translated_text.dart';
 import '../services/translation_service.dart';
 import 'package:timeago/timeago.dart' as timeago;
 import 'dart:convert';
 import 'package:uuid/uuid.dart';
-import 'package:http/http.dart' as http;
+import 'package:http/io_client.dart';
 import 'profile_screen.dart';
 import 'call_screen.dart';
 import '../config/constants.dart';
@@ -3866,7 +3863,18 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
 
       // Upload file
       final uploadUrl = '${ApiConstants.apiBase}/chat/upload.php';
+      
+      // Use custom HttpClient with SSL bypass and API Key
+      final httpClient = HttpClient()
+        ..badCertificateCallback = ((X509Certificate cert, String host, int port) => true)
+        ..connectionTimeout = const Duration(seconds: 30);
+      
+      final ioClient = IOClient(httpClient);
+      
       final request = http.MultipartRequest('POST', Uri.parse(uploadUrl));
+      
+      // Add API Key header to bypass bot protection
+      request.headers['X-API-Key'] = ApiConstants.apiKey;
       
       request.fields['userID'] = _currentUserId!;
       request.fields['to'] = widget.friend.id;
@@ -3876,15 +3884,16 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
         await http.MultipartFile.fromPath('file', file.path, filename: fileName),
       );
 
-      final streamedResponse = await request.send();
+      final streamedResponse = await ioClient.send(request);
       final response = await http.Response.fromStream(streamedResponse);
+      
+      // Close the client after use
+      ioClient.close();
 
       if (response.statusCode == 200) {
         print('[SKYBYN] 📥 [Chat] Upload response received');
         print('[SKYBYN]    Response body: ${response.body}');
         final data = json.decode(response.body);
-        print('[SKYBYN]    Parsed data: $data');
-        print('[SKYBYN]    responseCode: ${data['responseCode']}, type: ${data['responseCode'].runtimeType}');
         
         // Check for success (responseCode can be 1, "1", or true)
         final responseCode = data['responseCode'];
@@ -3902,7 +3911,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
           print('[SKYBYN] ✅ [Chat] File uploaded: $fileUrl');
 
           // Create message with attachment using a UUID
-          final tempId = Uuid().v4();
+          final tempId = const Uuid().v4();
           final tempMessage = Message(
             id: tempId,
             from: _currentUserId!,
@@ -3943,7 +3952,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
           try {
             // WebSocket sendChatMessage requires messageId, targetUserId, and content
             // For file attachments, we'll send a text message indicating the attachment
-            final tempMessageId = Uuid().v4();
+            final tempMessageId = const Uuid().v4();
             _webSocketService.sendChatMessage(
               messageId: tempMessageId,
               targetUserId: widget.friend.id,

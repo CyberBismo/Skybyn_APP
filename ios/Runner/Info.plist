@@ -80,5 +80,7 @@
 				</array>
 			</dict>
 		</array>
+		<key>NSFaceIDUsageDescription</key>
+		<string>Skybyn uses Face ID to provide a secure and convenient way to unlock the app.</string>
 	</dict>
 </plist>
