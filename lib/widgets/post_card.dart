@@ -5,6 +5,7 @@ import '../models/post.dart';
 import '../widgets/comment_card.dart';
 import '../services/comment_service.dart';
 import '../services/auth_service.dart';
+import '../models/comment.dart';
 import '../services/post_service.dart';
 import 'package:flutter/services.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -187,6 +188,7 @@ class _PostCardState extends State<PostCard> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         _commentFocusNode.addListener(_onFocusChange);
+        _loadCurrentUserId();
       }
     });
   }
@@ -212,20 +214,16 @@ class _PostCardState extends State<PostCard> {
 
   Future<void> _loadCurrentUserId() async {
     final username = await _authService.getStoredUsername();
-    setState(() {
-      _currentUsername = username;
-    });
+    if (mounted) {
+      setState(() {
+        _currentUsername = username;
+      });
+    }
   }
 
-  /// Clean post content by replacing HTML <br /> tags with newlines and decoding HTML entities
-  /// This handles both new API format (plain text with \n) and old format (HTML <br /> tags)
   String _cleanPostContent(String content) {
     if (content.isEmpty) return content;
-
-    // First, decode HTML entities (this handles &NewLine;, &amp;excl;, etc.)
     String cleaned = _decodeHtmlEntities(content);
-
-    // Then replace various forms of <br> tags with newlines
     cleaned = cleaned
         .replaceAll(RegExp(r'<br\s*/?>', caseSensitive: false), '\n')
         .replaceAll(RegExp(r'<br\s+/>', caseSensitive: false), '\n');
@@ -233,50 +231,35 @@ class _PostCardState extends State<PostCard> {
     return cleaned;
   }
 
-  /// Decode HTML entities to their actual characters
-  /// Handles named entities (&excl;, &quot;, &amp;, etc.), numeric entities (&#33;, &#34;, etc.), and hex entities (&#x21;, &#x22;, etc.)
-  /// Also handles double-encoded entities (like &amp;excl; which should decode to &excl; then to !)
   String _decodeHtmlEntities(String text) {
     if (text.isEmpty) return text;
 
     String result = text;
-
-    // First, handle double-encoded entities (like &amp;excl; -> &excl;)
-    // This must be done first before decoding the actual entities
-    // Handle multiple levels of encoding (e.g., &amp;amp;excl; -> &amp;excl; -> &excl;)
     String previousResult;
     int iterations = 0;
     do {
       previousResult = result;
-      // Handle &amp;entity; -> &entity; (use replaceAllMapped for proper capture group handling)
       result = result.replaceAllMapped(
           RegExp(r'&amp;([a-zA-Z]+);', caseSensitive: false), (match) {
         return '&${match.group(1)};';
       });
-      // Also handle &amp;amp; -> &amp; (double-encoded ampersand)
       result = result.replaceAll(
           RegExp(r'&amp;amp;', caseSensitive: false), '&amp;');
-      // Handle &amp;#123; -> &#123; (double-encoded numeric entities)
       result = result.replaceAllMapped(
           RegExp(r'&amp;#(\d+);', caseSensitive: false), (match) {
         return '&#${match.group(1)};';
       });
-      // Handle &amp;#x21; -> &#x21; (double-encoded hex entities)
       result = result.replaceAllMapped(
           RegExp(r'&amp;#x([0-9a-fA-F]+);', caseSensitive: false), (match) {
         return '&#x${match.group(1)};';
       });
       iterations++;
-      if (iterations > 10) break; // Safety limit
-    } while (result != previousResult); // Keep going until no more changes
+      if (iterations > 10) break;
+    } while (result != previousResult);
 
-    // Clean up any malformed entities that might have been created (like &$1;)
-    // This handles cases where regex replacement might have failed
     result = result.replaceAll(RegExp(r'&\$1;', caseSensitive: false), '');
     result = result.replaceAll(RegExp(r'&\$[0-9]+;', caseSensitive: false), '');
 
-    // Common HTML named entities (including NewLine and other common ones)
-    // Note: &amp; must be decoded LAST to avoid conflicts with other entities
     final namedEntities = {
       '&excl;': '!',
       '&quot;': '"',
@@ -322,16 +305,13 @@ class _PostCardState extends State<PostCard> {
       '&darr;': '↓',
     };
 
-    // Replace named entities (case-insensitive) - decode &amp; LAST
     for (final entry in namedEntities.entries) {
       result = result.replaceAll(
           RegExp(entry.key, caseSensitive: false), entry.value);
     }
 
-    // Decode &amp; LAST to avoid conflicts
     result = result.replaceAll(RegExp(r'&amp;', caseSensitive: false), '&');
 
-    // Decode numeric entities (&#33; format)
     result = result.replaceAllMapped(RegExp(r'&#(\d+);'), (match) {
       final code = int.tryParse(match.group(1) ?? '');
       if (code != null && code >= 0 && code <= 0x10FFFF) {
@@ -340,7 +320,6 @@ class _PostCardState extends State<PostCard> {
       return match.group(0) ?? '';
     });
 
-    // Decode hex entities (&#x21; format, case-insensitive)
     result = result.replaceAllMapped(RegExp(r'&#x([0-9a-fA-F]+);'), (match) {
       final code = int.tryParse(match.group(1) ?? '', radix: 16);
       if (code != null && code >= 0 && code <= 0x10FFFF) {
@@ -357,8 +336,6 @@ class _PostCardState extends State<PostCard> {
       _showComments = !_showComments;
     });
 
-    // Fetch full post details only when opening the comment section
-    // and only if they haven't been fetched already.
     if (_showComments &&
         _currentPost.commentsList.isEmpty &&
         _currentPost.comments > 0) {
@@ -370,29 +347,31 @@ class _PostCardState extends State<PostCard> {
         if (userId == null) throw Exception('User not logged in');
         final updatedPost = await _postService.fetchPost(
             postId: _currentPost.id, userId: userId);
-        setState(() {
-          _currentPost = updatedPost;
-        });
+        if (mounted) {
+          setState(() {
+            _currentPost = updatedPost;
+          });
+        }
       } catch (e) {
-        // Optionally, hide comments section on error
-        setState(() {
-          _showComments = false;
-        });
+        if (mounted) {
+          setState(() {
+            _showComments = false;
+          });
+        }
       } finally {
-        setState(() {
-          _isFetchingDetails = false;
-        });
+        if (mounted) {
+          setState(() {
+            _isFetchingDetails = false;
+          });
+        }
       }
     }
   }
 
   Future<void> _postComment() async {
     final commentText = _commentController.text.trim();
-    if (commentText.isEmpty) {
-      return;
-    }
+    if (commentText.isEmpty) return;
 
-    // Show a loading indicator
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -401,28 +380,21 @@ class _PostCardState extends State<PostCard> {
 
     try {
       final userId = await _authService.getStoredUserId();
-      if (userId == null) {
-        throw Exception('User not logged in');
-      }
+      if (userId == null) throw Exception('User not logged in');
+
       await _commentService.postComment(
         postId: _currentPost.id,
         userId: userId,
         content: commentText,
         onSuccess: (String commentId) async {
-          // Send WebSocket message to notify other clients
           if (commentId.isNotEmpty) {
             WebSocketService().sendNewComment(_currentPost.id, commentId);
           }
 
-          // Hide loading indicator
-          Navigator.pop(context);
-
-          // Clear the text field
+          Navigator.pop(context); // Dismiss loading indicador
           _commentController.clear();
 
-          // If we have a valid comment ID, try to fetch it immediately
           if (commentId.isNotEmpty) {
-            // Try to fetch the new comment and add it to the UI immediately
             try {
               final newComment = await _commentService.getComment(
                 commentId: commentId,
@@ -430,38 +402,31 @@ class _PostCardState extends State<PostCard> {
               );
               if (mounted) {
                 setState(() {
-                  // Add the new comment to the end of the list (oldest position) since we reversed the order
                   _currentPost = _currentPost.copyWith(
                     comments: _currentPost.comments + 1,
                     commentsList: [..._currentPost.commentsList, newComment],
                   );
-                  // Don't change the comment display state - keep it as it was
                 });
               }
             } catch (e) {
-              // Fallback: refresh the entire post
               _refreshPostAsFallback(userId);
             }
           } else {
-            // No comment ID available, refresh the entire post
             _refreshPostAsFallback(userId);
           }
         },
       );
     } catch (e) {
-      // Hide loading indicator
-      Navigator.pop(context);
-      // Show error message
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: ListenableBuilder(
-            listenable: TranslationService(),
-            builder: (context, _) => Text(
+      Navigator.pop(context); // Dismiss loading indicador
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
                 '${TranslationKeys.failedToPostComment.tr}: ${e.toString()}'),
+            backgroundColor: Colors.red,
           ),
-          backgroundColor: Colors.red,
-        ),
-      );
+        );
+      }
     }
   }
 
@@ -472,11 +437,9 @@ class _PostCardState extends State<PostCard> {
       if (mounted) {
         setState(() {
           _currentPost = updatedPost;
-          // Don't change the comment display state - keep it as it was
         });
       }
     } catch (refreshError) {
-      // Show error to user
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -492,23 +455,62 @@ class _PostCardState extends State<PostCard> {
   Future<void> _deleteComment(String commentId) async {
     showDialog(
       context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: Colors.grey[900],
+        title: const TranslatedText(
+          TranslationKeys.delete,
+          style: TextStyle(color: Colors.white),
+        ),
+        content: const TranslatedText(
+          TranslationKeys.confirmDeleteComment,
+          style: TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const TranslatedText(
+              TranslationKeys.cancel,
+              style: TextStyle(color: Colors.white),
+            ),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.of(context).pop();
+              await _performDeleteComment(commentId);
+            },
+            child: const TranslatedText(
+              TranslationKeys.delete,
+              style: TextStyle(color: Colors.red),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _performDeleteComment(String commentId) async {
+    showDialog(
+      context: context,
       barrierDismissible: false,
       builder: (context) => const Center(child: CircularProgressIndicator()),
     );
-
     try {
       final userId = await _authService.getStoredUserId();
-      if (userId == null) throw Exception('User not logged in');
+      if (userId == null) return;
 
-      await _commentService.deleteComment(commentId: commentId, userId: userId);
+      await _commentService.deleteComment(
+        commentId: commentId,
+        userId: userId,
+      );
 
-      // Send WebSocket message to notify other clients
-      WebSocketService().sendDeleteComment(_currentPost.id, commentId);
+      // Refresh post details to get updated comment list
+      final updatedPost = await _postService.fetchPost(
+        postId: _currentPost.id,
+        userId: userId,
+      );
 
       Navigator.pop(context); // Dismiss loading indicator
 
-      final updatedPost =
-          await _postService.fetchPost(postId: _currentPost.id, userId: userId);
       if (mounted) {
         setState(() {
           _currentPost = updatedPost;
@@ -516,16 +518,195 @@ class _PostCardState extends State<PostCard> {
       }
     } catch (e) {
       Navigator.pop(context); // Dismiss loading indicator
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: ListenableBuilder(
-            listenable: TranslationService(),
-            builder: (context, _) => Text(
-                '${TranslationKeys.failedToDeleteComment.tr}: ${e.toString()}'),
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to delete comment: ${e.toString()}'),
+            backgroundColor: Colors.red,
           ),
-          backgroundColor: Colors.red,
+        );
+      }
+    }
+  }
+
+  void _editComment(Comment comment) {
+    final TextEditingController controller =
+        TextEditingController(text: _decodeHtmlEntities(comment.content));
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: Colors.grey[900],
+        title: const TranslatedText(
+          TranslationKeys.editComment,
+          style: TextStyle(color: Colors.white),
         ),
+        content: TextField(
+          controller: controller,
+          maxLines: 5,
+          style: const TextStyle(color: Colors.white),
+          decoration: const InputDecoration(
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const TranslatedText(
+              TranslationKeys.cancel,
+              style: TextStyle(color: Colors.white),
+            ),
+          ),
+          TextButton(
+            onPressed: () async {
+              final content = controller.text.trim();
+              if (content.isEmpty) return;
+              Navigator.of(context).pop();
+              await _updateComment(comment.id, content);
+            },
+            child: const TranslatedText(
+              TranslationKeys.save,
+              style: TextStyle(color: Colors.blue),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _updateComment(String commentId, String content) async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(child: CircularProgressIndicator()),
+    );
+    try {
+      final userId = await _authService.getStoredUserId();
+      if (userId == null) throw Exception('User not logged in');
+
+      await _commentService.updateComment(
+        commentId: commentId,
+        userId: userId,
+        content: content,
       );
+
+      final updatedPost = await _postService.fetchPost(
+        postId: _currentPost.id,
+        userId: userId,
+      );
+
+      Navigator.pop(context); // Dismiss loading indicator
+
+      if (mounted) {
+        setState(() {
+          _currentPost = updatedPost;
+        });
+      }
+    } catch (e) {
+      Navigator.pop(context); // Dismiss loading indicator
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to update comment: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  void _reportComment(Comment comment) {
+    final TextEditingController reasonController = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: Colors.grey[900],
+        title: const TranslatedText(
+          TranslationKeys.reportComment,
+          style: TextStyle(color: Colors.white),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const TranslatedText(
+              TranslationKeys.confirmReportCommentMessage,
+              style: TextStyle(color: Colors.white70),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: reasonController,
+              style: const TextStyle(color: Colors.white),
+              decoration: InputDecoration(
+                hintText: 'Reason...',
+                hintStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const TranslatedText(
+              TranslationKeys.cancel,
+              style: TextStyle(color: Colors.white),
+            ),
+          ),
+          TextButton(
+            onPressed: () async {
+              final reason = reasonController.text.trim();
+              if (reason.isEmpty) return;
+              Navigator.of(context).pop();
+              await _performReportComment(comment.id, reason);
+            },
+            child: const TranslatedText(
+              TranslationKeys.report,
+              style: TextStyle(color: Colors.orange),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _performReportComment(String commentId, String reason) async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(child: CircularProgressIndicator()),
+    );
+    try {
+      final userId = await _authService.getStoredUserId();
+      if (userId == null) throw Exception('User not logged in');
+
+      await _commentService.reportComment(
+        commentId: commentId,
+        userId: userId,
+        reason: reason,
+      );
+
+      Navigator.pop(context); // Dismiss loading indicator
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content:
+                TranslatedText(TranslationKeys.commentReportedSuccessfully),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      Navigator.pop(context); // Dismiss loading indicator
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to report comment: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 
@@ -604,32 +785,7 @@ class _PostCardState extends State<PostCard> {
     }
   }
 
-  void _onMenuSelected(String value) async {
-    switch (value) {
-      case 'share':
-        // Implement share logic (copy link to clipboard for now)
-        final postUrl = '${ApiConstants.webBase}/post/${_currentPost.id}';
-        await Clipboard.setData(ClipboardData(text: postUrl));
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-              content:
-                  TranslatedText(TranslationKeys.postLinkCopiedToClipboard)),
-        );
-        break;
-      case 'view_comments':
-        if (!_showComments) {
-          await _toggleComments();
-        }
-        break;
-      case 'delete':
-        // Show confirmation dialog before deleting
-        _showDeleteDialog();
-        break;
-    }
-  }
-
   void _onShare() async {
-    // Implement share logic (copy link to clipboard for now)
     final postUrl = '${ApiConstants.webBase}/post/${_currentPost.id}';
     await Clipboard.setData(ClipboardData(text: postUrl));
     if (mounted) {
@@ -641,7 +797,7 @@ class _PostCardState extends State<PostCard> {
   }
 
   void _onReport() {
-    // Show report dialog
+    final TextEditingController reasonController = TextEditingController();
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -650,9 +806,26 @@ class _PostCardState extends State<PostCard> {
           TranslationKeys.reportPost,
           style: TextStyle(color: Colors.white),
         ),
-        content: const TranslatedText(
-          TranslationKeys.confirmReportPostMessage,
-          style: TextStyle(color: Colors.white70),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const TranslatedText(
+              TranslationKeys.confirmReportPostMessage,
+              style: TextStyle(color: Colors.white70),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: reasonController,
+              style: const TextStyle(color: Colors.white),
+              decoration: InputDecoration(
+                hintText: 'Reason...',
+                hintStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+            ),
+          ],
         ),
         actions: [
           TextButton(
@@ -664,13 +837,10 @@ class _PostCardState extends State<PostCard> {
           ),
           TextButton(
             onPressed: () {
+              final reason = reasonController.text.trim();
+              if (reason.isEmpty) return;
               Navigator.of(context).pop();
-              // TODO: Implement actual report functionality
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                    content: TranslatedText(
-                        TranslationKeys.postReportedSuccessfully)),
-              );
+              _performReportPost(reason);
             },
             child: const TranslatedText(
               TranslationKeys.report,
@@ -682,15 +852,131 @@ class _PostCardState extends State<PostCard> {
     );
   }
 
+  Future<void> _performReportPost(String reason) async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(child: CircularProgressIndicator()),
+    );
+
+    try {
+      final userId = await _authService.getStoredUserId();
+      if (userId == null) throw Exception('User not logged in');
+
+      await _postService.reportPost(
+          postId: _currentPost.id, userId: userId, reason: reason);
+
+      Navigator.pop(context); // Dismiss loading indicator
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: TranslatedText(TranslationKeys.postReportedSuccessfully),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      Navigator.pop(context); // Dismiss loading indicator
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: ListenableBuilder(
+              listenable: TranslationService(),
+              builder: (context, _) => Text(
+                  '${TranslationKeys.failedToReportPost.tr}: ${e.toString()}'),
+            ),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  void _onHide() async {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: Colors.grey[900],
+        title: const TranslatedText(
+          TranslationKeys.hidePost,
+          style: TextStyle(color: Colors.white),
+        ),
+        content: const TranslatedText(
+          TranslationKeys.confirmHidePostMessage,
+          style: TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const TranslatedText(
+              TranslationKeys.cancel,
+              style: TextStyle(color: Colors.white),
+            ),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.of(context).pop();
+              await _performHidePost();
+            },
+            child: const TranslatedText(
+              TranslationKeys.hide,
+              style: TextStyle(color: Colors.orange),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _performHidePost() async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(child: CircularProgressIndicator()),
+    );
+
+    try {
+      final userId = await _authService.getStoredUserId();
+      if (userId == null) throw Exception('User not logged in');
+
+      await _postService.hidePost(postId: _currentPost.id, userId: userId);
+
+      Navigator.pop(context); // Dismiss loading indicator
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: TranslatedText(TranslationKeys.postHiddenSuccessfully),
+            backgroundColor: Colors.green,
+          ),
+        );
+        widget.onPostDeleted?.call(_currentPost.id);
+      }
+    } catch (e) {
+      Navigator.pop(context); // Dismiss loading indicator
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: ListenableBuilder(
+              listenable: TranslationService(),
+              builder: (context, _) => Text(
+                  '${TranslationKeys.failedToHidePost.tr}: ${e.toString()}'),
+            ),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
   void _onEdit() async {
-    // Show edit post modal
     final result = await CreatePostWidget.show<String>(
       context: context,
       isEditing: true,
       postToEdit: _currentPost,
     );
 
-    // Handle the result
     if (result == 'updated' && widget.onPostUpdated != null) {
       widget.onPostUpdated!(_currentPost.id);
     }
@@ -701,44 +987,43 @@ class _PostCardState extends State<PostCard> {
       final userId = await _authService.getStoredUserId();
       if (userId == null) throw Exception('User not logged in');
 
-      // Optimistically update the UI
+      final wasLiked = _currentPost.isLiked;
+      final originalLikes = _currentPost.likes;
+
       setState(() {
-        _currentPost = Post(
-          id: _currentPost.id,
-          author: _currentPost.author,
-          avatar: _currentPost.avatar,
-          content: _currentPost.content,
-          image: _currentPost.image,
-          likes: _currentPost.isLiked
-              ? _currentPost.likes - 1
-              : _currentPost.likes + 1,
-          comments: _currentPost.comments,
-          commentsList: _currentPost.commentsList,
-          createdAt: _currentPost.createdAt,
-          isLiked: !_currentPost.isLiked,
+        _currentPost = _currentPost.copyWith(
+          likes: wasLiked ? _currentPost.likes - 1 : _currentPost.likes + 1,
+          isLiked: !wasLiked,
         );
       });
 
-      // TODO: Implement actual like/unlike API call
-      // await _postService.toggleLike(postId: _currentPost.id, userId: userId);
+      try {
+        await _postService.toggleLike(postId: _currentPost.id, userId: userId);
+      } catch (e) {
+        if (mounted) {
+          setState(() {
+            _currentPost = _currentPost.copyWith(
+              likes: originalLikes,
+              isLiked: wasLiked,
+            );
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Failed to update like: ${e.toString()}'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
     } catch (e) {
-      // Revert the optimistic update on error
-      setState(() {
-        _currentPost = Post(
-          id: _currentPost.id,
-          author: _currentPost.author,
-          avatar: _currentPost.avatar,
-          content: _currentPost.content,
-          image: _currentPost.image,
-          likes: _currentPost.isLiked
-              ? _currentPost.likes + 1
-              : _currentPost.likes - 1,
-          comments: _currentPost.comments,
-          commentsList: _currentPost.commentsList,
-          createdAt: _currentPost.createdAt,
-          isLiked: !_currentPost.isLiked,
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
         );
-      });
+      }
     }
   }
 
@@ -991,6 +1276,7 @@ class _PostCardState extends State<PostCard> {
                                 onEdit: _onEdit,
                                 onShare: _onShare,
                                 onReport: _onReport,
+                                onHide: _onHide,
                               );
                             },
                           ),
@@ -1083,6 +1369,11 @@ class _PostCardState extends State<PostCard> {
                       currentUserId: _currentUserId,
                       onDelete: () =>
                           _deleteComment(_currentPost.commentsList.first.id),
+                      onEdit: () =>
+                          _editComment(_currentPost.commentsList.first),
+                      onReport: () =>
+                          _reportComment(_currentPost.commentsList.first),
+                      textColor: textColor,
                     ),
                   ),
                 // Collapsible list of comments
@@ -1160,6 +1451,7 @@ class _PostCardState extends State<PostCard> {
     showDialog(
       context: context,
       builder: (context) {
+        final textColor = PostCardStyles.getTextColor(context);
         return Dialog(
           backgroundColor: Colors.black.withOpacity(0.95),
           shape:
@@ -1198,6 +1490,9 @@ class _PostCardState extends State<PostCard> {
                           comment: comment,
                           currentUserId: _currentUserId,
                           onDelete: () => _deleteComment(comment.id),
+                          onEdit: () => _editComment(comment),
+                          onReport: () => _reportComment(comment),
+                          textColor: textColor,
                         );
                       },
                     ),
@@ -1300,6 +1595,8 @@ class _PostCardState extends State<PostCard> {
                   comment: comment,
                   currentUserId: _currentUserId,
                   onDelete: () => _deleteComment(comment.id),
+                  onEdit: () => _editComment(comment),
+                  onReport: () => _reportComment(comment),
                 )),
         ],
       ),

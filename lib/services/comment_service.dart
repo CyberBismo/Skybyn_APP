@@ -34,7 +34,7 @@ class CommentService {
         final message = data['message'] ?? 'Failed to add comment';
         throw Exception('Failed to add comment: $message');
       }
-      
+
       final commentId = data['commentID']?.toString();
       // Call the success callback with the comment ID
       if (commentId != null && commentId.isNotEmpty && onSuccess != null) {
@@ -45,7 +45,6 @@ class CommentService {
           onSuccess('');
         }
       }
-      
     } catch (e) {
       throw Exception('Failed to parse comment add response: $e');
     }
@@ -74,7 +73,7 @@ class CommentService {
       }
 
       final data = safeJsonDecode(response);
-      
+
       // Handle both array and object responses
       Map<String, dynamic> commentData;
       if (data is List && data.isNotEmpty) {
@@ -89,8 +88,6 @@ class CommentService {
         final message = commentData['message'] ?? 'Failed to get comment';
         throw Exception('Failed to get comment: $message');
       }
-
-
 
       return Comment.fromJson(commentData);
     } catch (e) {
@@ -109,9 +106,10 @@ class CommentService {
       );
 
       if (response.statusCode != 200) {
-        throw Exception('Failed to delete comment: HTTP ${response.statusCode}');
+        throw Exception(
+            'Failed to delete comment: HTTP ${response.statusCode}');
       }
-      
+
       try {
         final data = safeJsonDecode(response);
         if (data['responseCode'] != '1') {
@@ -125,4 +123,55 @@ class CommentService {
       rethrow;
     }
   }
-} 
+
+  Future<void> updateComment({
+    required String commentId,
+    required String userId,
+    required String content,
+  }) async {
+    final response = await http.post(
+      Uri.parse(ApiConstants.updateComment),
+      body: {
+        'commentID': commentId,
+        'userID': userId,
+        'content': content,
+      },
+    );
+
+    if (response.statusCode != 200) {
+      throw Exception('Failed to update comment');
+    }
+
+    final data = safeJsonDecode(response);
+    if (data['responseCode'] != '1') {
+      final message = data['message'] ?? 'Failed to update comment';
+      throw Exception(message);
+    }
+  }
+
+  Future<void> reportComment({
+    required String commentId,
+    required String userId,
+    required String reason,
+  }) async {
+    final response = await http.post(
+      Uri.parse(ApiConstants.report),
+      body: {
+        'commentID': commentId,
+        'userID': userId,
+        'reason': reason,
+        'type': 'comment'
+      },
+    );
+
+    if (response.statusCode != 200) {
+      throw Exception('Failed to report comment');
+    }
+
+    final data = safeJsonDecode(response);
+    if (data['responseCode'] != '1') {
+      final message = data['message'] ?? 'Failed to report comment';
+      throw Exception(message);
+    }
+  }
+}

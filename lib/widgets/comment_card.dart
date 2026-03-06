@@ -17,19 +17,20 @@ class CommentCardStyles {
   static const double iconSize = 16.0;
   static const double fontSize = 14.0;
   static const double smallFontSize = 12.0;
-  
+
   // Padding and margins
   static const EdgeInsets cardPadding = EdgeInsets.all(12.0);
   static const EdgeInsets contentPadding = EdgeInsets.symmetric(vertical: 4.0);
-  static const EdgeInsets actionPadding = EdgeInsets.symmetric(horizontal: 4.0, vertical: 2.0);
-  
+  static const EdgeInsets actionPadding =
+      EdgeInsets.symmetric(horizontal: 4.0, vertical: 2.0);
+
   // Border radius
   static const double cardRadius = 10.0;
-  
+
   // Shadows and effects
   static const double blurSigma = 8.0;
   static const double elevation = 0.0;
-  
+
   // Animation
   static const Duration likeAnimationDuration = Duration(milliseconds: 150);
   static const Curve likeAnimationCurve = Curves.easeInOut;
@@ -39,6 +40,8 @@ class CommentCard extends StatelessWidget {
   final Comment comment;
   final String? currentUserId;
   final VoidCallback? onDelete;
+  final VoidCallback? onEdit;
+  final VoidCallback? onReport;
   final Color? textColor;
 
   const CommentCard({
@@ -46,6 +49,8 @@ class CommentCard extends StatelessWidget {
     required this.comment,
     this.currentUserId,
     this.onDelete,
+    this.onEdit,
+    this.onReport,
     this.textColor,
   });
 
@@ -54,12 +59,12 @@ class CommentCard extends StatelessWidget {
   static String _cleanCommentContent(String content) {
     // First, decode HTML entities
     String cleaned = _decodeHtmlEntities(content);
-    
+
     // Then replace various forms of <br> tags with newlines
     cleaned = cleaned
         .replaceAll(RegExp(r'<br\s*/?>', caseSensitive: false), '\n')
         .replaceAll(RegExp(r'<br\s+/>', caseSensitive: false), '\n');
-    
+
     return cleaned;
   }
 
@@ -68,9 +73,9 @@ class CommentCard extends StatelessWidget {
   /// Also handles double-encoded entities (like &amp;excl; which should decode to &excl; then to !)
   static String _decodeHtmlEntities(String text) {
     if (text.isEmpty) return text;
-    
+
     String result = text;
-    
+
     // First, handle double-encoded entities (like &amp;excl; -> &excl;)
     // This must be done first before decoding the actual entities
     // Handle multiple levels of encoding (e.g., &amp;amp;excl; -> &amp;excl; -> &excl;)
@@ -79,28 +84,32 @@ class CommentCard extends StatelessWidget {
     do {
       previousResult = result;
       // Handle &amp;entity; -> &entity; (use replaceAllMapped for proper capture group handling)
-      result = result.replaceAllMapped(RegExp(r'&amp;([a-zA-Z]+);', caseSensitive: false), (match) {
+      result = result.replaceAllMapped(
+          RegExp(r'&amp;([a-zA-Z]+);', caseSensitive: false), (match) {
         return '&${match.group(1)};';
       });
       // Also handle &amp;amp; -> &amp; (double-encoded ampersand)
-      result = result.replaceAll(RegExp(r'&amp;amp;', caseSensitive: false), '&amp;');
+      result = result.replaceAll(
+          RegExp(r'&amp;amp;', caseSensitive: false), '&amp;');
       // Handle &amp;#123; -> &#123; (double-encoded numeric entities)
-      result = result.replaceAllMapped(RegExp(r'&amp;#(\d+);', caseSensitive: false), (match) {
+      result = result.replaceAllMapped(
+          RegExp(r'&amp;#(\d+);', caseSensitive: false), (match) {
         return '&#${match.group(1)};';
       });
       // Handle &amp;#x21; -> &#x21; (double-encoded hex entities)
-      result = result.replaceAllMapped(RegExp(r'&amp;#x([0-9a-fA-F]+);', caseSensitive: false), (match) {
+      result = result.replaceAllMapped(
+          RegExp(r'&amp;#x([0-9a-fA-F]+);', caseSensitive: false), (match) {
         return '&#x${match.group(1)};';
       });
       iterations++;
       if (iterations > 10) break; // Safety limit
     } while (result != previousResult); // Keep going until no more changes
-    
+
     // Clean up any malformed entities that might have been created (like &$1;)
     // This handles cases where regex replacement might have failed
     result = result.replaceAll(RegExp(r'&\$1;', caseSensitive: false), '');
     result = result.replaceAll(RegExp(r'&\$[0-9]+;', caseSensitive: false), '');
-    
+
     // Common HTML named entities (including NewLine and other common ones)
     // Note: &amp; must be decoded LAST to avoid conflicts with other entities
     final namedEntities = {
@@ -147,15 +156,16 @@ class CommentCard extends StatelessWidget {
       '&uarr;': '↑',
       '&darr;': '↓',
     };
-    
+
     // Replace named entities (case-insensitive) - decode &amp; LAST
     for (final entry in namedEntities.entries) {
-      result = result.replaceAll(RegExp(entry.key, caseSensitive: false), entry.value);
+      result = result.replaceAll(
+          RegExp(entry.key, caseSensitive: false), entry.value);
     }
-    
+
     // Decode &amp; LAST to avoid conflicts
     result = result.replaceAll(RegExp(r'&amp;', caseSensitive: false), '&');
-    
+
     // Decode numeric entities (&#33; format)
     result = result.replaceAllMapped(RegExp(r'&#(\d+);'), (match) {
       final code = int.tryParse(match.group(1) ?? '');
@@ -164,7 +174,7 @@ class CommentCard extends StatelessWidget {
       }
       return match.group(0) ?? '';
     });
-    
+
     // Decode hex entities (&#x21; format, case-insensitive)
     result = result.replaceAllMapped(RegExp(r'&#x([0-9a-fA-F]+);'), (match) {
       final code = int.tryParse(match.group(1) ?? '', radix: 16);
@@ -173,7 +183,7 @@ class CommentCard extends StatelessWidget {
       }
       return match.group(0) ?? '';
     });
-    
+
     return result;
   }
 
@@ -186,16 +196,14 @@ class CommentCard extends StatelessWidget {
     } catch (e) {
       // Provider not available, fallback to Theme.of(context)
     }
-    
-    final isDarkMode = themeService?.themeMode == ThemeMode.dark || 
-                       (themeService?.themeMode == ThemeMode.system && 
-                        Theme.of(context).brightness == Brightness.dark);
-    
+
+    final isDarkMode = themeService?.themeMode == ThemeMode.dark ||
+        (themeService?.themeMode == ThemeMode.system &&
+            Theme.of(context).brightness == Brightness.dark);
+
     final commentTextColor = textColor ?? AppColors.getTextColor(context);
     final secondaryTextColor = AppColors.getSecondaryTextColor(context);
     final iconColor = AppColors.getIconColor(context);
-    
-
 
     Widget avatarWidget;
     if (comment.avatar != null && comment.avatar!.isNotEmpty) {
@@ -205,8 +213,7 @@ class CommentCard extends StatelessWidget {
         height: CommentCardStyles.avatarSize,
         fit: BoxFit.cover,
         httpHeaders: const {},
-        placeholder: (context, url) => Image.asset(
-            'assets/images/icon.png',
+        placeholder: (context, url) => Image.asset('assets/images/icon.png',
             width: CommentCardStyles.avatarSize,
             height: CommentCardStyles.avatarSize,
             fit: BoxFit.cover),
@@ -221,8 +228,7 @@ class CommentCard extends StatelessWidget {
         },
       );
     } else {
-      avatarWidget = Image.asset(
-          'assets/images/icon.png',
+      avatarWidget = Image.asset('assets/images/icon.png',
           width: CommentCardStyles.avatarSize,
           height: CommentCardStyles.avatarSize,
           fit: BoxFit.cover);
@@ -255,18 +261,23 @@ class CommentCard extends StatelessWidget {
                   height: CommentCardStyles.avatarSize,
                   decoration: BoxDecoration(
                     color: AppColors.avatarBackgroundColor,
-                    borderRadius: BorderRadius.circular(CommentCardStyles.borderRadius),
-                    border: Border.all(color: AppColors.getAvatarBorderColor(context), width: CommentCardStyles.avatarBorderWidth),
+                    borderRadius:
+                        BorderRadius.circular(CommentCardStyles.borderRadius),
+                    border: Border.all(
+                        color: AppColors.getAvatarBorderColor(context),
+                        width: CommentCardStyles.avatarBorderWidth),
                   ),
                   child: ClipRRect(
-                    borderRadius: BorderRadius.circular(CommentCardStyles.borderRadius),
+                    borderRadius:
+                        BorderRadius.circular(CommentCardStyles.borderRadius),
                     child: avatarWidget,
                   ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.center, // Center vertically
+                    crossAxisAlignment:
+                        CrossAxisAlignment.center, // Center vertically
                     children: [
                       // Username without background
                       Text(
@@ -281,10 +292,14 @@ class CommentCard extends StatelessWidget {
                       // Comment text with background
                       Expanded(
                         child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8.0, vertical: 4.0),
                           decoration: BoxDecoration(
-                            color: AppColors.getBackgroundColor(context).withOpacity(0.1), // Theme-aware background
-                            borderRadius: BorderRadius.circular(CommentCardStyles.borderRadius), // Rounded corners
+                            color: AppColors.getBackgroundColor(context)
+                                .withOpacity(0.1), // Theme-aware background
+                            borderRadius: BorderRadius.circular(
+                                CommentCardStyles
+                                    .borderRadius), // Rounded corners
                           ),
                           child: Text(
                             _cleanCommentContent(comment.content),
@@ -306,7 +321,8 @@ class CommentCard extends StatelessWidget {
         // Comment menu button
         if (currentUserId != null && onDelete != null)
           Padding(
-            padding: const EdgeInsets.only(right: 8.0), // Add horizontal padding
+            padding:
+                const EdgeInsets.only(right: 8.0), // Add horizontal padding
             child: Builder(
               builder: (context) {
                 return UnifiedMenu.createCommentMenuButton(
@@ -315,6 +331,8 @@ class CommentCard extends StatelessWidget {
                   currentUserId: currentUserId!,
                   commentUserId: comment.userId,
                   onDelete: onDelete!,
+                  onEdit: onEdit ?? () {},
+                  onReport: onReport ?? () {},
                 );
               },
             ),
@@ -322,4 +340,4 @@ class CommentCard extends StatelessWidget {
       ],
     );
   }
-} 
+}

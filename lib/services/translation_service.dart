@@ -18,7 +18,20 @@ class TranslationService extends ChangeNotifier {
   bool _isInitialized = false;
 
   // Supported languages
-  static const List<String> supportedLanguages = ['en', 'no', 'dk', 'se', 'de', 'fr', 'pl', 'es', 'it', 'pt', 'nl', 'fi'];
+  static const List<String> supportedLanguages = [
+    'en',
+    'no',
+    'dk',
+    'se',
+    'de',
+    'fr',
+    'pl',
+    'es',
+    'it',
+    'pt',
+    'nl',
+    'fi'
+  ];
 
   // Language names for display
   static const Map<String, String> languageNames = {
@@ -39,7 +52,8 @@ class TranslationService extends ChangeNotifier {
   // Country to language mapping
   static const Map<String, String> countryToLanguageMap = {
     // English
-    'US': 'en', 'GB': 'en', 'AU': 'en', 'CA': 'en', 'NZ': 'en', 'IE': 'en', 'ZA': 'en',
+    'US': 'en', 'GB': 'en', 'AU': 'en', 'CA': 'en', 'NZ': 'en', 'IE': 'en',
+    'ZA': 'en',
     // Norwegian
     'NO': 'no', 'SJ': 'no', 'BV': 'no',
     // Danish
@@ -51,22 +65,29 @@ class TranslationService extends ChangeNotifier {
     // French
     'FR': 'fr', 'MC': 'fr', 'SN': 'fr', 'CI': 'fr', 'ML': 'fr',
     'BF': 'fr', 'NE': 'fr', 'TD': 'fr', 'MG': 'fr', 'CM': 'fr',
-    'CD': 'fr', 'CG': 'fr', 'CF': 'fr', 'GA': 'fr', 'DJ': 'fr', 'KM': 'fr', 'RE': 'fr', 'YT': 'fr',
-    'NC': 'fr', 'PF': 'fr', 'WF': 'fr', 'VU': 'fr', 'BI': 'fr', 'RW': 'fr', 'SC': 'fr',
-    'MU': 'fr', 'HT': 'fr', 'GP': 'fr', 'MQ': 'fr', 'GF': 'fr', 'BL': 'fr', 'MF': 'fr', 'PM': 'fr',
+    'CD': 'fr', 'CG': 'fr', 'CF': 'fr', 'GA': 'fr', 'DJ': 'fr', 'KM': 'fr',
+    'RE': 'fr', 'YT': 'fr',
+    'NC': 'fr', 'PF': 'fr', 'WF': 'fr', 'VU': 'fr', 'BI': 'fr', 'RW': 'fr',
+    'SC': 'fr',
+    'MU': 'fr', 'HT': 'fr', 'GP': 'fr', 'MQ': 'fr', 'GF': 'fr', 'BL': 'fr',
+    'MF': 'fr', 'PM': 'fr',
     // Polish
     'PL': 'pl',
     // Spanish
-    'ES': 'es', 'MX': 'es', 'AR': 'es', 'CO': 'es', 'PE': 'es', 'VE': 'es', 'CL': 'es',
-    'EC': 'es', 'GT': 'es', 'CU': 'es', 'BO': 'es', 'DO': 'es', 'HN': 'es', 'PY': 'es',
+    'ES': 'es', 'MX': 'es', 'AR': 'es', 'CO': 'es', 'PE': 'es', 'VE': 'es',
+    'CL': 'es',
+    'EC': 'es', 'GT': 'es', 'CU': 'es', 'BO': 'es', 'DO': 'es', 'HN': 'es',
+    'PY': 'es',
     'SV': 'es', 'NI': 'es', 'CR': 'es', 'PA': 'es', 'UY': 'es', 'PR': 'es',
     // Italian
     'IT': 'it', 'SM': 'it', 'VA': 'it',
     // Portuguese
-    'PT': 'pt', 'BR': 'pt', 'AO': 'pt', 'MZ': 'pt', 'GW': 'pt', 'CV': 'pt', 'ST': 'pt',
+    'PT': 'pt', 'BR': 'pt', 'AO': 'pt', 'MZ': 'pt', 'GW': 'pt', 'CV': 'pt',
+    'ST': 'pt',
     'TL': 'pt', 'MO': 'pt',
     // Dutch
-    'NL': 'nl', 'BE': 'nl', 'SR': 'nl', 'AW': 'nl', 'CW': 'nl', 'SX': 'nl', 'BQ': 'nl',
+    'NL': 'nl', 'BE': 'nl', 'SR': 'nl', 'AW': 'nl', 'CW': 'nl', 'SX': 'nl',
+    'BQ': 'nl',
     // Finnish
     'FI': 'fi',
   };
@@ -77,7 +98,6 @@ class TranslationService extends ChangeNotifier {
 
     // One-time cache clear for the encoding fix
     await _checkAndClearLegacyCache();
-
 
     // Load fallback translations first so they're always available
     await _loadFallbackTranslations();
@@ -129,9 +149,9 @@ class TranslationService extends ChangeNotifier {
     if (error is TimeoutException) return true;
     if (error is HttpException) {
       final message = error.message.toLowerCase();
-      return message.contains('connection') || 
-             message.contains('timeout') ||
-             message.contains('reset');
+      return message.contains('connection') ||
+          message.contains('timeout') ||
+          message.contains('reset');
     }
     return false;
   }
@@ -144,7 +164,7 @@ class TranslationService extends ChangeNotifier {
   }) async {
     int attempt = 0;
     Duration delay = initialDelay;
-    
+
     while (attempt < maxRetries) {
       try {
         final response = await request();
@@ -161,7 +181,8 @@ class TranslationService extends ChangeNotifier {
           rethrow;
         }
         await Future.delayed(delay);
-        delay = Duration(milliseconds: (delay.inMilliseconds * 2).clamp(500, 4000));
+        delay =
+            Duration(milliseconds: (delay.inMilliseconds * 2).clamp(500, 4000));
       }
     }
     throw Exception('Retry logic error');
@@ -172,7 +193,7 @@ class TranslationService extends ChangeNotifier {
     try {
       final authService = AuthService();
       final userId = await authService.getStoredUserId();
-      
+
       if (userId == null) {
         return null;
       }
@@ -197,8 +218,7 @@ class TranslationService extends ChangeNotifier {
     } catch (e) {
       if (e is HandshakeException) {
         // Silently fail for SSL issues
-      } else {
-      }
+      } else {}
     }
     return null;
   }
@@ -208,8 +228,8 @@ class TranslationService extends ChangeNotifier {
     Future.delayed(const Duration(milliseconds: 100), () async {
       try {
         final apiLanguage = await _fetchLanguageFromAPI();
-        if (apiLanguage != null && 
-            supportedLanguages.contains(apiLanguage) && 
+        if (apiLanguage != null &&
+            supportedLanguages.contains(apiLanguage) &&
             apiLanguage != _currentLanguage) {
           _currentLanguage = apiLanguage;
           await _saveLanguage(_currentLanguage);
@@ -269,7 +289,7 @@ class TranslationService extends ChangeNotifier {
     if (cachedTranslations.isNotEmpty) {
       _translations = cachedTranslations;
       notifyListeners(); // Notify listeners that cached translations are loaded
-      
+
       // Refresh translations in background
       _refreshTranslationsInBackground();
       return;
@@ -296,7 +316,8 @@ class TranslationService extends ChangeNotifier {
           // Handle both Map<String, dynamic> and Map<dynamic, dynamic>
           if (responseData is Map) {
             // Convert the response to the expected format
-            final Map<String, dynamic> stringMap = Map<String, dynamic>.from(responseData);
+            final Map<String, dynamic> stringMap =
+                Map<String, dynamic>.from(responseData);
 
             _translations = <String, Map<String, String>>{};
 
@@ -304,11 +325,11 @@ class TranslationService extends ChangeNotifier {
               if (entry.value is Map) {
                 // Convert inner Map to Map<String, String>
                 final innerMap = Map<String, dynamic>.from(entry.value as Map);
-                _translations[entry.key] = Map<String, String>.from(innerMap.map((k, v) => MapEntry(k.toString(), v.toString())));
+                _translations[entry.key] = Map<String, String>.from(innerMap
+                    .map((k, v) => MapEntry(k.toString(), v.toString())));
               } else {
                 // If value is not a Map, it might be an error message
-                if (entry.key == 'error' || entry.key == 'message') {
-                }
+                if (entry.key == 'error' || entry.key == 'message') {}
               }
             }
 
@@ -335,8 +356,7 @@ class TranslationService extends ChangeNotifier {
     } catch (e) {
       // Silently fall back to cached/fallback translations
       if (e is HandshakeException) {
-      } else {
-      }
+      } else {}
       await _loadFallbackTranslations();
       notifyListeners(); // Notify listeners that fallback translations are loaded
     }
@@ -357,7 +377,8 @@ class TranslationService extends ChangeNotifier {
   static const String _cacheKey = 'cached_translations';
   static const String _cacheTimestampKey = 'cached_translations_timestamp';
 
-  Future<void> _saveTranslationsToCache(Map<String, Map<String, String>> translations) async {
+  Future<void> _saveTranslationsToCache(
+      Map<String, Map<String, String>> translations) async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final translationsJson = <String, dynamic>{};
@@ -365,28 +386,29 @@ class TranslationService extends ChangeNotifier {
         translationsJson[entry.key] = entry.value;
       }
       await prefs.setString(_cacheKey, jsonEncode(translationsJson));
-      await prefs.setInt(_cacheTimestampKey, DateTime.now().millisecondsSinceEpoch);
-    } catch (e) {
-    }
+      await prefs.setInt(
+          _cacheTimestampKey, DateTime.now().millisecondsSinceEpoch);
+    } catch (e) {}
   }
 
   Future<Map<String, Map<String, String>>> _loadTranslationsFromCache() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      
+
       final translationsJson = prefs.getString(_cacheKey);
       if (translationsJson == null) return {};
 
       final Map<String, dynamic> decoded = jsonDecode(translationsJson);
       final Map<String, Map<String, String>> result = {};
-      
+
       for (final entry in decoded.entries) {
         if (entry.value is Map) {
           final innerMap = Map<String, dynamic>.from(entry.value as Map);
-          result[entry.key] = Map<String, String>.from(innerMap.map((k, v) => MapEntry(k.toString(), v.toString())));
+          result[entry.key] = Map<String, String>.from(
+              innerMap.map((k, v) => MapEntry(k.toString(), v.toString())));
         }
       }
-      
+
       return result;
     } catch (e) {
       return {};
@@ -397,8 +419,9 @@ class TranslationService extends ChangeNotifier {
   Future<void> _checkAndClearLegacyCache() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final bool alreadyFixed = prefs.getBool('encoding_fix_v2_applied') ?? false;
-      
+      final bool alreadyFixed =
+          prefs.getBool('encoding_fix_v2_applied') ?? false;
+
       if (!alreadyFixed) {
         // Clear all translation caching keys
         await prefs.remove(_cacheKey);
@@ -416,612 +439,662 @@ class TranslationService extends ChangeNotifier {
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove(_cacheKey);
       await prefs.remove(_cacheTimestampKey);
-    } catch (e) {
-    }
+    } catch (e) {}
   }
 
   // Load fallback translations (English only)
   Future<void> _loadFallbackTranslations() async {
     _translations = {
-        'en': {
-          "intro": "Welcome to ",
-          "intro_read_more": "Click to read more",
-          "intro_short": "Be safe online",
-          "intro_long": "Skybyn does not share or sell your information to any parties. Your information is encrypted and stored safely for only you to administrate.",
-          "btn_login": "Login",
-          "btn_register": "Register",
-          "btn_forgot": "Forgot password?",
-          "btn_login_with_username": "Login with username",
-          "username": "Username",
-          "qr_login_text": "Scan the QR code using the Skybyn app to login.",
-          "email": "Email",
-          "password": "Password",
-          "remember_me": "Remember me",
-          "qr_login": "Login using app",
-          "forgot_header": "Forgot your password?",
-          "enter_username": "Enter your username",
-          "request_pw_reset": "Request password reset",
-          "go_back": "Go back",
-          "language": "Language",
-          "language_name": "English",
-          "your_information": "Your information:",
-          "terms_and_conditions": "Terms and Conditions",
-          "new_post": "New post",
-          "notifications": "Notifications",
-          "read_all": "Read all",
-          "delete_all": "Delete all",
-          "beta_feedback": "BETA Feedback",
-          "help_improve_skybyn": "Help us improve Skybyn!",
-          "feedback_description": "Share your thoughts, report bugs, or suggest new features. Your feedback helps us make Skybyn better for everyone.",
-          "enter_feedback_placeholder": "Enter your feedback here...",
-          "please_enter_feedback": "Please enter your feedback",
-          "user_not_authenticated": "User not authenticated",
-          "failed_to_submit_feedback": "Failed to submit feedback",
-          "error_submitting_feedback": "Error submitting feedback",
-          "feedback_submitted_success": "Feedback submitted successfully! Thank you for your input.",
-          "submit_feedback": "Submit Feedback",
-          "what_to_include_feedback": "What to include in your feedback:",
-          "bug_reports_info": "Bug reports: Describe what happened and steps to reproduce",
-          "feature_requests_info": "Feature requests: Explain what you'd like to see",
-          "general_feedback_info": "General feedback: Share your thoughts and suggestions",
-          "unable_to_open_discord": "Unable to open Discord. Please try again.",
-          "discord": "Discord",
-          "discord_server": "Discord Server",
-          "go_to_server": "Go to server",
-          "home": "Home",
-          "profile": "Profile",
-          "settings": "Settings",
-          "shortcuts": "Shortcuts",
-          "sign_up": "Sign up",
-          "enter_dob_to_start": "Enter your date of birth to get started",
-          "your_full_name": "Your full name",
-          "first_name": "First name",
-          "middle_name": "Middle name",
-          "last_name": "Last name",
-          "chat": "Chat",
-          "actions": "Actions",
-          "unfriend": "Unfriend",
-          "block": "Block",
-          "cancel": "Cancel",
-          "allow": "Allow",
-          "location_permission": "Location Permission",
-          "location_permission_rationale": "Skybyn uses your location to show you on the map and find friends nearby.",
-          "accept": "Accept",
-          "ignore": "Ignore",
-          "unblock": "Unblock",
-          "add_friend": "Add Friend",
-          "report": "Report",
-          "groups": "Groups",
-          "edit": "Edit",
-          "delete": "Delete",
-          "unknown_user": "Unknown User",
-          "general": "General",
-          "security": "Security",
-          "ip_history": "IP History",
-          "visibility": "Visibility",
-          "account": "Account",
-          "name": "Name",
-          "pin_code": "PIN code",
-          "no_pin_set": "No PIN set",
-          "change_avatar": "Change avatar",
-          "code_expired": "This code has expired",
-          "enter_reset_code": "Enter your reset code",
-          "set_new_password": "Set a new password",
-          "enter_code_here": "Enter it here..",
-          "new_password": "New password",
-          "confirm_new_password": "Confirm new password",
-          "done": "Done",
-          'clear_all_cache': 'Clear all cache',
-      'total_storage_usage': 'Total Storage Usage',
-      'select_language': 'Select language',
-          "create_post": "Create Post",
-          "edit_post": "Edit Post",
-          "nickname": "Nickname",
-          "save_changes": "Save Changes",
-          "confirm_password": "Confirm Password",
-          "change_password": "Change Password",
-          "field_required": "This field is required",
-          "password_too_short": "Password must be at least 8 characters",
-          "passwords_do_not_match": "Passwords do not match",
-          "invalid_email": "Please enter a valid email address",
-          "connection_error": "Connection error. Please check your internet and try again.",
-          "error": "Error",
-          "success": "Success",
-          "loading": "Loading...",
-          "save": "Save",
-          "apply": "Apply",
-          "ok": "OK",
-          "yes": "Yes",
-          "no": "No",
-          "next": "Next",
-          "previous": "Previous",
-          "open": "Open",
-          "refresh": "Refresh",
-          "filter": "Filter",
-          "sort": "Sort",
-          "search": "Search",
-          "search_results": "Search results",
-          "warning": "Warning",
-          "info": "Info",
-          "confirm": "Confirm",
-          "retry": "Retry",
-          "try_again": "Try again",
-          "no_data": "No data available",
-          "no_results_found": "No results found",
-          "no_internet": "No internet connection",
-          "server_error": "Server error",
-          "unknown_error": "Unknown error",
-          "create_account": "Create Account",
-          "already_have_account": "Already have an account? ",
-          "dont_have_account": "Don't have an account? ",
-          "sign_out": "Sign out",
-          "date_of_birth": "Date of Birth",
-          "select_date_of_birth": "Select Date of Birth",
-          "select_date_birth_desc": "Please select your date of birth. You must be at least 15 years old.",
-          "full_name": "Full Name",
-          "full_name_desc": "Please enter your full name as it appears on official documents.",
-          "middle_name_text": "Middle Name (Optional)",
-          "enter_first_name": "Enter your first name",
-          "enter_middle_name": "Enter your middle name (optional)",
-          "enter_last_name": "Enter your last name",
-          "email_address": "Email Address",
-          "email_desc": "Please enter your email address. We'll send a verification code to confirm it's yours.",
-          "enter_email": "Enter your email address",
-          "email_sent": "Email Sent",
-          "verification_code_sent_to": "Verification code sent to ",
-          "email_verification": "Email Verification",
-          "enter_code_sent_to": "Enter the verification code sent to ",
-          "verification_code": "Verification Code",
-          "enter_verification_code": "Enter verification code",
-          "resend_code": "Resend Code",
-          "username_label": "Username",
-          "username_desc": "Choose a unique username for your account.",
-          "choose_username": "Choose a username",
-          "password_label": "Password",
-          "password_desc": "Create a strong password for your account security.",
-          "create_password": "Create a password",
-          "reenter_password": "Re-enter your password",
-          "continue": "Continue",
-          "go_back_text": "Go Back",
-          "based_on_selection": "Based on your selection, you are",
-          "years_old": "years old",
-          "at_least_8_chars": "At least 8 characters.",
-          "alpha_char_used": "Alphabetic character used.",
-          "numeric_char_used": "Numeric character used.",
-          "special_char_used": "Special character used.",
-          "passwords_match": "Passwords match.",
-          "password_requirements": "Password Requirements",
-          "no_posts_display": "No posts to display",
-          "pull_to_refresh": "Pull down to refresh",
-          "refreshed_found_posts": "Refreshed! Found {count} posts",
-          "refreshed_no_posts": "Refreshed! No new posts found",
-          "please_login_to_refresh": "Please log in to refresh posts",
-          "failed_to_refresh": "Failed to refresh",
-          "theme": "Theme",
-          "update_available": "Update Available",
-          "auto_updates_only_android": "Auto-updates are only available on Android",
-          "check_for_updates": "Check for updates",
-          "checking_for_updates": "Checking for updates...",
-          "no_updates_available": "No updates available",
-          "error_checking_updates": "Error checking for updates",
-          "update_check_failed": "Failed to check for updates",
-          "install_permission_required": "Install Permission Required",
-          "install_permission_denied_message": "This permission has been permanently denied. Please enable \"Install unknown apps\" for Skybyn in your device settings.",
-          "permission_not_granted": "Permission not granted",
-          "download_url_not_available": "Download URL not available. Cannot install update.",
-          "update_failed": "Update Failed",
-          "failed_to_install_update": "Failed to install update",
-          "permission_denied_cannot_check_updates": "Permission denied. Cannot check for updates.",
-          "update_dialog_already_open": "Update dialog is already open.",
-          "select_date": "Select Date",
-          "new_version_available": "A new version of Skybyn is available!",
-          "installing_update": "Installing...",
-          "test_snackbar": "Test SnackBar",
-          "test_notification": "Test Notification",
-          "test_refresh": "Test Refresh",
-          "broadcast": "Broadcast",
-          "must_be_15_years_old": "You must be at least 15 years old",
-          "registration_successful": "Registration successful! Please check your email to verify your account.",
-          "registration_failed": "Registration failed. Please try again.",
-          "login_successful": "Login successful",
-          "welcome_to_skybyn": "Welcome to Skybyn",
-          "login_failed_check_credentials": "Login failed. Please check your credentials and try again.",
-          "scan_qr_code": "Scan QR Code",
-          "camera_error": "Camera Error",
-          "camera_init_failed": "Camera initialization failed",
-          "qr_code_invalid_length": "QR code must be exactly 10 characters long",
-          "error_communicating_server": "Error communicating with server",
-          "scanning": "Scanning..",
-          "skybyn_qr_detected": "Skybyn QR detected",
-          "valid": "VALID",
-          "scan_again": "Scan Again",
-          "what_on_mind": "What is on your mind?",
-          "update_avatar": "Update Avatar",
-          "update_wallpaper": "Update Wallpaper",
-          "take_photo": "Take Photo",
-          "choose_from_gallery": "Choose from Gallery",
-          "crop_image": "Crop Image",
-          "password_current": "Password (Current)",
-          "pin_code_current": "PIN code (Current)",
-          "pin_code_new": "PIN code (New)",
-          "confirm_pin_code": "Confirm PIN code",
-          "save_pin_code": "Save PIN code",
-          "security_questions": "Security Questions",
-          "security_question_1": "Security Question 1",
-          "security_question_2": "Security Question 2",
-          "answer_1": "Answer 1",
-          "answer_2": "Answer 2",
-          "save_security_questions": "Save Security Questions",
-          "about": "About",
-          "about_description": "Skybyn is a social networking platform that connects people from around the world. Share your moments, connect with friends, and discover new communities.",
-          "app_version": "App version",
-          "preferences": "Preferences",
-          "enable_notifications": "Enable Notifications",
-          "private_profile": "Private Profile",
-          "biometric_lock": "Biometric Lock",
-          "notification_sound": "Notification Sound",
-          "sound_effect": "Sound Effect",
-          "custom_sound": "Custom Sound",
-          "no_custom_sound_selected": "No custom sound selected",
-          "remove_custom_sound": "Remove Custom Sound",
-          "select_sound_effect": "Select Sound Effect",
-          "tap_to_change": "Tap to change",
-          "custom_sound_set": "Custom sound set",
-          "error_selecting_sound_file": "Error selecting sound file",
-          "default_sound": "Default",
-          "appearance": "Appearance",
-          "theme_mode": "Theme Mode",
-          "choose_theme_mode": "Choose Theme Mode",
-          "system_recommended": "System (Recommended)",
-          "automatically_follow_device_theme": "Automatically follow device theme",
-          "light": "Light",
-          "always_use_light_theme": "Always use light theme",
-          "dark": "Dark",
-          "always_use_dark_theme": "Always use dark theme",
-          "post": "Post",
-          "server_error_occurred": "Server error occurred",
-          "invalid_verification_code": "Invalid verification code. Please try again.",
-          "verification_code_too_short": "Verification code must be at least 4 characters",
-          "pin_update_success": "PIN updated successfully",
-          "pin_update_error": "Error updating PIN",
-          "profile_update_success": "Profile updated successfully",
-          "profile_update_error": "Error updating profile",
-          "error_checking_permissions": "Error checking permissions",
-          "open_settings": "Open Settings",
-          "security_questions_update_success": "Security questions updated successfully",
-          "security_questions_update_error": "Error updating security questions",
-          "pin_confirmation_mismatch": "New PIN and confirmation do not match",
-          "pins_do_not_match": "PINs do not match",
-          "no_posts_yet": "No posts yet",
-          "post_created_but_could_not_load_details": "Post created but could not load details",
-          "share_app": "Share App",
-          "delete_post": "Delete Post",
-          "confirm_delete_post_message": "Are you sure you want to delete this post?",
-          "report_post": "Report Post",
-          "confirm_report_post_message": "Are you sure you want to report this post?",
-          "post_reported_successfully": "Post reported successfully",
-          "post_link_copied_to_clipboard": "Post link copied to clipboard!",
-          "comment_posted_but_could_not_load_details": "Comment posted but could not load details",
-          "failed_to_post_comment": "Failed to post comment",
-          "failed_to_delete_comment": "Failed to delete comment",
-          "failed_to_delete_post": "Failed to delete post",
-          "expand": "Expand",
-          "all_comments": "All Comments",
-          "add_comment": "Add a comment...",
-          "add_comment_placeholder": "Add a comment...",
-          "minutes_ago": "minutes ago",
-          "hours_ago": "hours ago",
-          "days_ago": "days ago",
-          "call_error": "Call error",
-          "enter_valid_email": "Please enter a valid e-mail address",
-          "enter_here": "Enter here",
-          "create_new_code": "Create new code",
-          "enter_text": "Enter text",
-          "page_name_placeholder": "Name of page",
-          "page_desc_placeholder": "Who is this page for",
-          "set_password": "Set Password",
-          "set_pin_code": "Set PIN code",
-          "market_name": "Market name",
-          "market_description": "Description",
-          "enter_login_code": "Enter login code",
-          "enter_confirmation_code": "Enter the confirmation code",
-          "share": "Share",
-          "view_profile": "View profile",
-          "close": "Close",
-          "new_year_in": "New Year In",
-          "happy_new_year": "Happy New Year",
-          "my_pet": "My Pet",
-          "my_car": "My Car",
-          "logout": "Logout",
-          "qr_scanner": "QR Scanner",
-          "coming_soon": "Coming Soon",
-          "search_friends": "Search friends...",
-          "no_friends_found": "No friends found",
-          "find_friends_in_area": "Find friends in the area",
-          "find_friends_description": "Discover and connect with users nearby using your location",
-          "find_friends_button": "Find Friends",
-          "nearby_users": "Nearby Users",
-          "no_nearby_users": "No users found nearby.",
-          "enter_username_or_code": "Enter username or referral code",
-          "add_friend_by_username": "Add Friend by Username",
-          "user_not_found": "User not found",
-          "failed_to_add_friend": "Failed to add friend. User may have a private profile.",
-          "error_occurred": "An error occurred. Please try again.",
-          "send_friend_request": "Send Friend Request",
-          "friend_request_sent": "Friend request sent successfully",
-          "friends_only": "Friends Only",
-          "public": "Public",
-          "pages": "Pages",
-          "music": "Music",
-          "games": "Games",
-          "events": "Events",
-          "market": "Market",
-          "markets": "Markets",
-          "browse_groups": "Browse Groups",
-          "browse_pages": "Browse Pages",
-          "browse_music": "Browse Music",
-          "browse_games": "Browse Games",
-          "browse_events": "Browse Events",
-          "browse_market": "Browse Market",
-          "search_placeholder": "Search...",
-          "users": "Users",
-          "posts": "Posts",
-          "friends": "Friends",
-          "friend_code": "Friend code",
-          "generate_code": "Generate code",
-          "how_to_use": "How to use?",
-          "friend_code_help": "Share this code to instantly find you. When they sign up, you will become friends and earn 10 points.",
-          "points": "points",
-          "search_chats": "Search chats...",
-          "type_your_message": "Type your message...",
-          "welcome_to": "Welcome to",
-          "show_more": "Show more",
-          "show_more_text": "Skybyn does not share or sell your information to any parties. Your information is encrypted and stored safely for only you to administrate.",
-          "write_a_comment": "Write a comment",
-          "profile_private": "This profile is private",
-          "profile_not_exist": "This profile does not exist",
-          "search_in_messages": "Search in messages",
-          "pin_required": "PIN required",
-          "password_required": "Password required",
-          "enter": "ENTER",
-          "message_placeholder": "Message..",
-          "join_group": "Join Group",
-          "private": "Private",
-          "locked": "Locked",
-          "create_new_group": "Create New Group",
-          "what_are_groups_for": "What are groups for",
-          "groups_benefit_meeting_ground": "Meeting ground for people",
-          "groups_benefit_share_many": "Share with many at once",
-          "groups_benefit_plan_party": "Plan a party",
-          "groups_benefit_discussions": "Make discussions easier",
-          "groups_benefit_own_rules": "Make your own rules",
-          "group_name_placeholder": "Name of group",
-          "group_desc_placeholder": "Who is this group for",
-          "please_select_image": "Please select an image file.",
-          "no_new_notifications": "No new notifications",
-          "noti_from_system": "System update",
-          "noti_sent_friend_request": "wants to be your friend",
-          "noti_friend_accepted": "You're now friends with",
-          "noti_commented": "New comment from",
-          "noti_you_referred": "You referred a new user",
-          "no_messages": "No messages yet",
-          "email_required": "Email is required",
-          "email_invalid_format": "Please enter a valid email address",
-          "verification_code_required": "Please enter the verification code",
-          "password_must_contain_number": "Password must contain at least one number",
-          "confirm_password_required": "Please confirm your password",
-          "email_already_verified": "Email already verified",
-          "verification_code_sent_successfully": "Verification code sent successfully",
-          "profile_privacy": "Profile Privacy",
-          "open_profile": "Open Profile",
-          "set_each_setting_manually": "Set each setting manually",
-          "microphone_permission_required": "Microphone Permission Required",
-          "microphone_permission_message": "Skybyn needs microphone access to make voice and video calls. Please enable it in settings.",
-          "camera_permission_required": "Camera Permission Required",
-          "camera_permission_message": "Skybyn needs camera access to make video calls. Please enable it in settings.",
-          "current_version": "Current",
-          "latest_version": "Latest",
-          "whats_new": "What's new",
-          "later": "Later",
-          "please_log_in_to_find_friends": "Please log in to find friends",
-          "unable_to_get_location": "Unable to get your location. Please enable location services.",
-          "found_users_nearby": "Found {count} user{plural} nearby",
-          "error_finding_friends": "Error finding friends",
-          "no_pin": "No PIN",
-          "pin_must_be_digits": "PIN must be {digits} digits",
-          "security_question_required": "Security question {number} and answer are required",
-          "error_clearing_cache": "Error clearing cache",
-          "update_check_disabled_debug": "Update check disabled in debug mode",
-          "update_check_in_progress": "Update check already in progress",
-          "you_are_using_latest_version": "You are using the latest version",
-          "permission_required_title": "{permission} Required",
-          "permission_permanently_denied_message": "This permission has been permanently denied. Please enable it in your device settings to use this feature.",
-          "permission_granted": "Permission granted!",
-          "error_requesting_permission": "Error requesting permission",
-          "feature_coming_soon": "{feature} feature coming soon",
-          "just_now": "Just now",
-          "rel_single": "Single",
-          "rel_in_relationship": "In a relationship",
-          "rel_complicated": "It's complicated",
-          "rel_divorced": "Divorced",
-          "rel_other": "Other",
-          "rel_widowed": "Widowed",
-          "rel_engaged": "Engaged",
-          "rel_married": "Married",
-          "rel_separated": "Separated",
-          "system": "System",
-          "unknown": "Unknown",
-          "month_jan": "Jan",
-          "month_feb": "Feb",
-          "month_mar": "Mar",
-          "month_apr": "Apr",
-          "month_may": "May",
-          "month_jun": "Jun",
-          "month_jul": "Jul",
-          "month_aug": "Aug",
-          "month_sep": "Sep",
-          "month_oct": "Oct",
-          "month_nov": "Nov",
-          "month_dec": "Dec",
-          "close_shortcuts_panel": "Close shortcuts panel",
-          "close_friends_list": "Close friends list",
-          "failed_to_send_message": "Failed to send message",
-          "failed_to_create_post": "Failed to create post",
-          "failed_to_update_post": "Failed to update post",
-          "about_skybyn": "Skybyn is a social networking platform that connects people from around the world. Share your moments, connect with friends, and discover new communities.",
-          "display_name": "Display Name",
-          "change_cover": "Change Cover",
-          "discard_changes": "Discard Changes",
-          "profile_updated": "Profile updated",
-          "profile_update_failed": "Profile update failed",
-          "title": "Title",
-          "bio": "Bio",
-          "clear_translations_cache": "Clear cached translation data",
-          "clear_posts_cache": "Clear cached posts and timeline data",
-          "clear_friends_cache": "Clear cached friends list data",
-          "cache_cleared": "Cache cleared",
-          "cache_cleared_successfully": "Cache cleared successfully",
-          "confirm_clear_cache": "Are you sure you want to clear this cache?",
-          "confirm_clear_all_cache": "Are you sure you want to clear all cache?",
-          "reset_password": "Reset Password",
-          "invalid_credentials": "Invalid credentials",
-          "account_created": "Account created",
-          "login_failed": "Login failed",
-          "username_taken": "Username is already taken",
-          "email_already_exists": "Email already exists",
-          "edit_profile": "Edit Profile",
-          "location": "Location",
-          "location_sharing": "Location Sharing",
-          "share_location": "Share Location",
-          "location_share_mode": "Location Share Mode",
-          "location_sharing_disabled": "Location sharing disabled",
-          "share_last_active_location": "Share last active location",
-          "share_live_location": "Share live location",
-          "location_sharing_mode": "Location Sharing Mode",
-          "dont_share_location": "Don't share location",
-          "share_last_known_location": "Share last known location",
-          "share_live_location_updates": "Share live location updates",
-          "location_private_mode": "Private Mode",
-          "hide_location_from_friends": "Hide your location from friends on the map",
-          "no_locations_available": "No locations available",
-          "live_location": "Live location",
-          "last_active_location": "Last active location",
-          "last_active": "Last Active",
-          "you": "You",
-          "off": "Off",
-          "map": "Map",
-          "website": "Website",
-          "phone": "Phone",
-          "birthday": "Birthday",
-          "gender": "Gender",
-          "post_created": "Post created",
-          "post_updated": "Post updated",
-          "post_deleted": "Post deleted",
-          "post_failed": "Post failed",
-          "post_update_failed": "Post update failed",
-          "post_delete_failed": "Post delete failed",
-          "confirm_delete_post": "Delete Post",
-          "post_deleted_successfully": "Post deleted successfully",
-          "share_post": "Share Post",
-          "like_post": "Like Post",
-          "unlike_post": "Unlike Post",
-          "comment_post": "Comment on Post",
-          "view_comments": "View Comments",
-          "hide_comments": "Hide Comments",
-          "post_content": "Post Content",
-          "add_photo": "Add Photo",
-          "add_video": "Add Video",
-          "add_location": "Add Location",
-          "edit_comment": "Edit Comment",
-          "delete_comment": "Delete Comment",
-          "reply_to_comment": "Reply to Comment",
-          "comment_added": "Comment added",
-          "comment_updated": "Comment updated",
-          "comment_deleted": "Comment deleted",
-          "comment_failed": "Comment failed",
-          "comment_update_failed": "Comment update failed",
-          "comment_delete_failed": "Comment delete failed",
-          "confirm_delete_comment": "Delete Comment",
-          "write_comment": "Write a comment",
-          "comment_placeholder": "Write a comment...",
-          "friend_request": "Friend Request",
-          "friend_requests": "Friend Requests",
-          "pending_requests": "Pending Requests",
-          "sent_requests": "Sent Requests",
-          "mutual_friends": "Mutual Friends",
-          "friend_added": "Friend added",
-          "friend_removed": "Friend removed",
-          "friend_request_accepted": "Friend request accepted",
-          "friend_request_declined": "Friend request declined",
-          "user_blocked": "User blocked",
-          "user_unblocked": "User unblocked",
-          "user_reported": "User reported",
-          "clear_chat_history": "Clear Chat History",
-          "clear_chat_history_title": "Clear Chat History",
-          "clear_chat_history_message": "Are you sure you want to clear all messages in this chat? This action cannot be undone.",
-          "clear_chat_history_button": "Clear",
-          "chat_history_cleared": "Chat history cleared",
-          "error_clearing_chat": "Error clearing chat",
-          "block_user_confirmation": "Are you sure you want to block {name}? You will not receive messages from this user.",
-          "block_user_button": "Block",
-          "error_blocking_user": "Error blocking user",
-          "unfriend_title": "Unfriend",
-          "unfriend_confirmation": "Are you sure you want to unfriend {name}?",
-          "unfriend_button": "Unfriend",
-          "user_unfriended": "User unfriended",
-          "error_unfriending_user": "Error unfriending user",
-          "decline": "Decline",
-          "privacy": "Privacy",
-          "help": "Help",
-          "support": "Support",
-          "terms_of_service": "Terms of Service",
-          "privacy_policy": "Privacy Policy",
-          "last_updated": "Last Updated",
-          "developer": "Developer",
-          "contact_us": "Contact Us",
-          "feedback": "Feedback",
-          "rate_app": "Rate App",
-          "logout_all_devices": "Logout All Devices",
-          "delete_account": "Delete Account",
-          "confirm_delete_account": "Confirm Delete Account",
-          "account_deleted": "Account deleted",
-          "update_required": "Update Required",
-          "update_optional": "Update Optional",
-          "update_now": "Update Now",
-          "update_downloading": "Downloading update",
-          "update_installing": "Installing update",
-          "update_completed": "Update completed",
-          "update_cancelled": "Update cancelled",
-          "update_size": "Update Size",
-          "download_progress": "Download Progress",
-          "install_progress": "Install Progress",
-          "field_too_short": "Field is too short",
-          "field_too_long": "Field is too long",
-          "invalid_format": "Invalid format",
-          "password_too_weak": "Password is too weak",
-          "username_too_short": "Username is too short",
-          "username_too_long": "Username is too long",
-          "username_invalid": "Invalid username",
-          "email_invalid": "Invalid email",
-          "phone_invalid": "Invalid phone number",
-          "url_invalid": "Invalid URL",
-          "date_invalid": "Invalid date",
-          "time_invalid": "Invalid time",
-          "number_invalid": "Invalid number",
-          "value_too_small": "Value is too small",
-          "value_too_large": "Value is too large",
-          "away": "Away",
-          "busy": "Busy",
-          "invisible": "Invisible",
-          "available": "Available",
-          "unavailable": "Unavailable",
-          "typing": "Typing",
-          "last_seen": "Last seen",
-          "active_now": "Active now",
-          "hidden": "Hidden",
-          "no_one": "No one",
-          "only_me": "Only me",
-        }
+      'en': {
+        "intro": "Welcome to ",
+        "intro_read_more": "Click to read more",
+        "intro_short": "Be safe online",
+        "intro_long":
+            "Skybyn does not share or sell your information to any parties. Your information is encrypted and stored safely for only you to administrate.",
+        "btn_login": "Login",
+        "btn_register": "Register",
+        "btn_forgot": "Forgot password?",
+        "btn_login_with_username": "Login with username",
+        "username": "Username",
+        "qr_login_text": "Scan the QR code using the Skybyn app to login.",
+        "email": "Email",
+        "password": "Password",
+        "remember_me": "Remember me",
+        "qr_login": "Login using app",
+        "forgot_header": "Forgot your password?",
+        "enter_username": "Enter your username",
+        "request_pw_reset": "Request password reset",
+        "go_back": "Go back",
+        "language": "Language",
+        "language_name": "English",
+        "your_information": "Your information:",
+        "terms_and_conditions": "Terms and Conditions",
+        "new_post": "New post",
+        "notifications": "Notifications",
+        "read_all": "Read all",
+        "delete_all": "Delete all",
+        "beta_feedback": "BETA Feedback",
+        "help_improve_skybyn": "Help us improve Skybyn!",
+        "feedback_description":
+            "Share your thoughts, report bugs, or suggest new features. Your feedback helps us make Skybyn better for everyone.",
+        "enter_feedback_placeholder": "Enter your feedback here...",
+        "please_enter_feedback": "Please enter your feedback",
+        "user_not_authenticated": "User not authenticated",
+        "failed_to_submit_feedback": "Failed to submit feedback",
+        "error_submitting_feedback": "Error submitting feedback",
+        "feedback_submitted_success":
+            "Feedback submitted successfully! Thank you for your input.",
+        "submit_feedback": "Submit Feedback",
+        "what_to_include_feedback": "What to include in your feedback:",
+        "bug_reports_info":
+            "Bug reports: Describe what happened and steps to reproduce",
+        "feature_requests_info":
+            "Feature requests: Explain what you'd like to see",
+        "general_feedback_info":
+            "General feedback: Share your thoughts and suggestions",
+        "unable_to_open_discord": "Unable to open Discord. Please try again.",
+        "discord": "Discord",
+        "discord_server": "Discord Server",
+        "go_to_server": "Go to server",
+        "home": "Home",
+        "profile": "Profile",
+        "settings": "Settings",
+        "shortcuts": "Shortcuts",
+        "sign_up": "Sign up",
+        "enter_dob_to_start": "Enter your date of birth to get started",
+        "your_full_name": "Your full name",
+        "first_name": "First name",
+        "middle_name": "Middle name",
+        "last_name": "Last name",
+        "chat": "Chat",
+        "actions": "Actions",
+        "unfriend": "Unfriend",
+        "block": "Block",
+        "cancel": "Cancel",
+        "allow": "Allow",
+        "location_permission": "Location Permission",
+        "location_permission_rationale":
+            "Skybyn uses your location to show you on the map and find friends nearby.",
+        "accept": "Accept",
+        "ignore": "Ignore",
+        "unblock": "Unblock",
+        "add_friend": "Add Friend",
+        "report": "Report",
+        "groups": "Groups",
+        "edit": "Edit",
+        "delete": "Delete",
+        "unknown_user": "Unknown User",
+        "general": "General",
+        "security": "Security",
+        "ip_history": "IP History",
+        "visibility": "Visibility",
+        "account": "Account",
+        "name": "Name",
+        "pin_code": "PIN code",
+        "no_pin_set": "No PIN set",
+        "change_avatar": "Change avatar",
+        "code_expired": "This code has expired",
+        "enter_reset_code": "Enter your reset code",
+        "set_new_password": "Set a new password",
+        "enter_code_here": "Enter it here..",
+        "new_password": "New password",
+        "confirm_new_password": "Confirm new password",
+        "done": "Done",
+        'clear_all_cache': 'Clear all cache',
+        'total_storage_usage': 'Total Storage Usage',
+        'select_language': 'Select language',
+        "create_post": "Create Post",
+        "edit_post": "Edit Post",
+        "nickname": "Nickname",
+        "save_changes": "Save Changes",
+        "confirm_password": "Confirm Password",
+        "change_password": "Change Password",
+        "field_required": "This field is required",
+        "password_too_short": "Password must be at least 8 characters",
+        "passwords_do_not_match": "Passwords do not match",
+        "invalid_email": "Please enter a valid email address",
+        "connection_error":
+            "Connection error. Please check your internet and try again.",
+        "error": "Error",
+        "success": "Success",
+        "loading": "Loading...",
+        "save": "Save",
+        "apply": "Apply",
+        "ok": "OK",
+        "yes": "Yes",
+        "no": "No",
+        "next": "Next",
+        "previous": "Previous",
+        "open": "Open",
+        "refresh": "Refresh",
+        "filter": "Filter",
+        "sort": "Sort",
+        "search": "Search",
+        "search_results": "Search results",
+        "warning": "Warning",
+        "info": "Info",
+        "confirm": "Confirm",
+        "retry": "Retry",
+        "try_again": "Try again",
+        "no_data": "No data available",
+        "no_results_found": "No results found",
+        "no_internet": "No internet connection",
+        "server_error": "Server error",
+        "unknown_error": "Unknown error",
+        "create_account": "Create Account",
+        "already_have_account": "Already have an account? ",
+        "dont_have_account": "Don't have an account? ",
+        "sign_out": "Sign out",
+        "date_of_birth": "Date of Birth",
+        "select_date_of_birth": "Select Date of Birth",
+        "select_date_birth_desc":
+            "Please select your date of birth. You must be at least 15 years old.",
+        "full_name": "Full Name",
+        "full_name_desc":
+            "Please enter your full name as it appears on official documents.",
+        "middle_name_text": "Middle Name (Optional)",
+        "enter_first_name": "Enter your first name",
+        "enter_middle_name": "Enter your middle name (optional)",
+        "enter_last_name": "Enter your last name",
+        "email_address": "Email Address",
+        "email_desc":
+            "Please enter your email address. We'll send a verification code to confirm it's yours.",
+        "enter_email": "Enter your email address",
+        "email_sent": "Email Sent",
+        "verification_code_sent_to": "Verification code sent to ",
+        "email_verification": "Email Verification",
+        "enter_code_sent_to": "Enter the verification code sent to ",
+        "verification_code": "Verification Code",
+        "enter_verification_code": "Enter verification code",
+        "resend_code": "Resend Code",
+        "username_label": "Username",
+        "username_desc": "Choose a unique username for your account.",
+        "choose_username": "Choose a username",
+        "password_label": "Password",
+        "password_desc": "Create a strong password for your account security.",
+        "create_password": "Create a password",
+        "reenter_password": "Re-enter your password",
+        "continue": "Continue",
+        "go_back_text": "Go Back",
+        "based_on_selection": "Based on your selection, you are",
+        "years_old": "years old",
+        "at_least_8_chars": "At least 8 characters.",
+        "alpha_char_used": "Alphabetic character used.",
+        "numeric_char_used": "Numeric character used.",
+        "special_char_used": "Special character used.",
+        "passwords_match": "Passwords match.",
+        "password_requirements": "Password Requirements",
+        "no_posts_display": "No posts to display",
+        "pull_to_refresh": "Pull down to refresh",
+        "refreshed_found_posts": "Refreshed! Found {count} posts",
+        "refreshed_no_posts": "Refreshed! No new posts found",
+        "please_login_to_refresh": "Please log in to refresh posts",
+        "failed_to_refresh": "Failed to refresh",
+        "theme": "Theme",
+        "update_available": "Update Available",
+        "auto_updates_only_android":
+            "Auto-updates are only available on Android",
+        "check_for_updates": "Check for updates",
+        "checking_for_updates": "Checking for updates...",
+        "no_updates_available": "No updates available",
+        "error_checking_updates": "Error checking for updates",
+        "update_check_failed": "Failed to check for updates",
+        "install_permission_required": "Install Permission Required",
+        "install_permission_denied_message":
+            "This permission has been permanently denied. Please enable \"Install unknown apps\" for Skybyn in your device settings.",
+        "permission_not_granted": "Permission not granted",
+        "download_url_not_available":
+            "Download URL not available. Cannot install update.",
+        "update_failed": "Update Failed",
+        "failed_to_install_update": "Failed to install update",
+        "permission_denied_cannot_check_updates":
+            "Permission denied. Cannot check for updates.",
+        "update_dialog_already_open": "Update dialog is already open.",
+        "select_date": "Select Date",
+        "new_version_available": "A new version of Skybyn is available!",
+        "installing_update": "Installing...",
+        "test_snackbar": "Test SnackBar",
+        "test_notification": "Test Notification",
+        "test_refresh": "Test Refresh",
+        "broadcast": "Broadcast",
+        "must_be_15_years_old": "You must be at least 15 years old",
+        "registration_successful":
+            "Registration successful! Please check your email to verify your account.",
+        "registration_failed": "Registration failed. Please try again.",
+        "login_successful": "Login successful",
+        "welcome_to_skybyn": "Welcome to Skybyn",
+        "login_failed_check_credentials":
+            "Login failed. Please check your credentials and try again.",
+        "scan_qr_code": "Scan QR Code",
+        "camera_error": "Camera Error",
+        "camera_init_failed": "Camera initialization failed",
+        "qr_code_invalid_length": "QR code must be exactly 10 characters long",
+        "error_communicating_server": "Error communicating with server",
+        "scanning": "Scanning..",
+        "skybyn_qr_detected": "Skybyn QR detected",
+        "valid": "VALID",
+        "scan_again": "Scan Again",
+        "what_on_mind": "What is on your mind?",
+        "update_avatar": "Update Avatar",
+        "update_wallpaper": "Update Wallpaper",
+        "take_photo": "Take Photo",
+        "choose_from_gallery": "Choose from Gallery",
+        "crop_image": "Crop Image",
+        "password_current": "Password (Current)",
+        "pin_code_current": "PIN code (Current)",
+        "pin_code_new": "PIN code (New)",
+        "confirm_pin_code": "Confirm PIN code",
+        "save_pin_code": "Save PIN code",
+        "security_questions": "Security Questions",
+        "security_question_1": "Security Question 1",
+        "security_question_2": "Security Question 2",
+        "answer_1": "Answer 1",
+        "answer_2": "Answer 2",
+        "save_security_questions": "Save Security Questions",
+        "about": "About",
+        "about_description":
+            "Skybyn is a social networking platform that connects people from around the world. Share your moments, connect with friends, and discover new communities.",
+        "app_version": "App version",
+        "preferences": "Preferences",
+        "enable_notifications": "Enable Notifications",
+        "private_profile": "Private Profile",
+        "biometric_lock": "Biometric Lock",
+        "notification_sound": "Notification Sound",
+        "sound_effect": "Sound Effect",
+        "custom_sound": "Custom Sound",
+        "no_custom_sound_selected": "No custom sound selected",
+        "remove_custom_sound": "Remove Custom Sound",
+        "select_sound_effect": "Select Sound Effect",
+        "tap_to_change": "Tap to change",
+        "custom_sound_set": "Custom sound set",
+        "error_selecting_sound_file": "Error selecting sound file",
+        "default_sound": "Default",
+        "appearance": "Appearance",
+        "theme_mode": "Theme Mode",
+        "choose_theme_mode": "Choose Theme Mode",
+        "system_recommended": "System (Recommended)",
+        "automatically_follow_device_theme":
+            "Automatically follow device theme",
+        "light": "Light",
+        "always_use_light_theme": "Always use light theme",
+        "dark": "Dark",
+        "always_use_dark_theme": "Always use dark theme",
+        "post": "Post",
+        "server_error_occurred": "Server error occurred",
+        "invalid_verification_code":
+            "Invalid verification code. Please try again.",
+        "verification_code_too_short":
+            "Verification code must be at least 4 characters",
+        "pin_update_success": "PIN updated successfully",
+        "pin_update_error": "Error updating PIN",
+        "profile_update_success": "Profile updated successfully",
+        "profile_update_error": "Error updating profile",
+        "error_checking_permissions": "Error checking permissions",
+        "open_settings": "Open Settings",
+        "security_questions_update_success":
+            "Security questions updated successfully",
+        "security_questions_update_error": "Error updating security questions",
+        "pin_confirmation_mismatch": "New PIN and confirmation do not match",
+        "pins_do_not_match": "PINs do not match",
+        "no_posts_yet": "No posts yet",
+        "post_created_but_could_not_load_details":
+            "Post created but could not load details",
+        "delete_post": "Delete Post",
+        "confirm_delete_post_message":
+            "Are you sure you want to delete this post?",
+        "report_post": "Report Post",
+        "confirm_report_post_message":
+            "Are you sure you want to report this post?",
+        "post_reported_successfully": "Post reported successfully",
+        "post_link_copied_to_clipboard": "Post link copied to clipboard!",
+        "comment_posted_but_could_not_load_details":
+            "Comment posted but could not load details",
+        "failed_to_post_comment": "Failed to post comment",
+        "failed_to_delete_comment": "Failed to delete comment",
+        "failed_to_delete_post": "Failed to delete post",
+        "failed_to_hide_post": "Failed to hide post",
+        "failed_to_report_post": "Failed to report post",
+        "failed_to_report_comment": "Failed to report comment",
+        "failed_to_update_comment": "Failed to update comment",
+        "hide_post": "Hide post",
+        "confirm_hide_post_message":
+            "Are you sure you want to hide this post? It will be removed from your feed.",
+        "post_hidden_successfully": "Post hidden successfully",
+        "report_comment": "Report Comment",
+        "confirm_report_comment_message":
+            "Are you sure you want to report this comment?",
+        "comment_reported_successfully": "Comment reported successfully",
+        "edit_comment": "Edit Comment",
+        "expand": "Expand",
+        "all_comments": "All Comments",
+        "add_comment": "Add a comment...",
+        "add_comment_placeholder": "Add a comment...",
+        "minutes_ago": "minutes ago",
+        "hours_ago": "hours ago",
+        "days_ago": "days ago",
+        "call_error": "Call error",
+        "enter_valid_email": "Please enter a valid e-mail address",
+        "enter_here": "Enter here",
+        "create_new_code": "Create new code",
+        "enter_text": "Enter text",
+        "page_name_placeholder": "Name of page",
+        "page_desc_placeholder": "Who is this page for",
+        "set_password": "Set Password",
+        "set_pin_code": "Set PIN code",
+        "market_name": "Market name",
+        "market_description": "Description",
+        "enter_login_code": "Enter login code",
+        "enter_confirmation_code": "Enter the confirmation code",
+        "share": "Share",
+        "hide": "Hide",
+        "view_profile": "View profile",
+        "close": "Close",
+        "new_year_in": "New Year In",
+        "happy_new_year": "Happy New Year",
+        "my_pet": "My Pet",
+        "my_car": "My Car",
+        "logout": "Logout",
+        "qr_scanner": "QR Scanner",
+        "coming_soon": "Coming Soon",
+        "search_friends": "Search friends...",
+        "no_friends_found": "No friends found",
+        "find_friends_in_area": "Find friends in the area",
+        "find_friends_description":
+            "Discover and connect with users nearby using your location",
+        "find_friends_button": "Find Friends",
+        "nearby_users": "Nearby Users",
+        "no_nearby_users": "No users found nearby.",
+        "enter_username_or_code": "Enter username or referral code",
+        "add_friend_by_username": "Add Friend by Username",
+        "user_not_found": "User not found",
+        "failed_to_add_friend":
+            "Failed to add friend. User may have a private profile.",
+        "error_occurred": "An error occurred. Please try again.",
+        "send_friend_request": "Send Friend Request",
+        "friend_request_sent": "Friend request sent successfully",
+        "friends_only": "Friends Only",
+        "public": "Public",
+        "pages": "Pages",
+        "music": "Music",
+        "games": "Games",
+        "events": "Events",
+        "market": "Market",
+        "markets": "Markets",
+        "browse_groups": "Browse Groups",
+        "browse_pages": "Browse Pages",
+        "browse_music": "Browse Music",
+        "browse_games": "Browse Games",
+        "browse_events": "Browse Events",
+        "browse_market": "Browse Market",
+        "search_placeholder": "Search...",
+        "users": "Users",
+        "posts": "Posts",
+        "friends": "Friends",
+        "friend_code": "Friend code",
+        "generate_code": "Generate code",
+        "how_to_use": "How to use?",
+        "friend_code_help":
+            "Share this code to instantly find you. When they sign up, you will become friends and earn 10 points.",
+        "points": "points",
+        "search_chats": "Search chats...",
+        "type_your_message": "Type your message...",
+        "welcome_to": "Welcome to",
+        "show_more": "Show more",
+        "show_more_text":
+            "Skybyn does not share or sell your information to any parties. Your information is encrypted and stored safely for only you to administrate.",
+        "write_a_comment": "Write a comment",
+        "profile_private": "This profile is private",
+        "profile_not_exist": "This profile does not exist",
+        "search_in_messages": "Search in messages",
+        "pin_required": "PIN required",
+        "password_required": "Password required",
+        "enter": "ENTER",
+        "message_placeholder": "Message..",
+        "join_group": "Join Group",
+        "private": "Private",
+        "locked": "Locked",
+        "create_new_group": "Create New Group",
+        "what_are_groups_for": "What are groups for",
+        "groups_benefit_meeting_ground": "Meeting ground for people",
+        "groups_benefit_share_many": "Share with many at once",
+        "groups_benefit_plan_party": "Plan a party",
+        "groups_benefit_discussions": "Make discussions easier",
+        "groups_benefit_own_rules": "Make your own rules",
+        "group_name_placeholder": "Name of group",
+        "group_desc_placeholder": "Who is this group for",
+        "please_select_image": "Please select an image file.",
+        "no_new_notifications": "No new notifications",
+        "noti_from_system": "System update",
+        "noti_sent_friend_request": "wants to be your friend",
+        "noti_friend_accepted": "You're now friends with",
+        "noti_commented": "New comment from",
+        "noti_you_referred": "You referred a new user",
+        "no_messages": "No messages yet",
+        "email_required": "Email is required",
+        "email_invalid_format": "Please enter a valid email address",
+        "verification_code_required": "Please enter the verification code",
+        "password_must_contain_number":
+            "Password must contain at least one number",
+        "confirm_password_required": "Please confirm your password",
+        "email_already_verified": "Email already verified",
+        "verification_code_sent_successfully":
+            "Verification code sent successfully",
+        "profile_privacy": "Profile Privacy",
+        "open_profile": "Open Profile",
+        "set_each_setting_manually": "Set each setting manually",
+        "microphone_permission_required": "Microphone Permission Required",
+        "microphone_permission_message":
+            "Skybyn needs microphone access to make voice and video calls. Please enable it in settings.",
+        "camera_permission_required": "Camera Permission Required",
+        "camera_permission_message":
+            "Skybyn needs camera access to make video calls. Please enable it in settings.",
+        "current_version": "Current",
+        "latest_version": "Latest",
+        "whats_new": "What's new",
+        "later": "Later",
+        "please_log_in_to_find_friends": "Please log in to find friends",
+        "unable_to_get_location":
+            "Unable to get your location. Please enable location services.",
+        "found_users_nearby": "Found {count} user{plural} nearby",
+        "error_finding_friends": "Error finding friends",
+        "no_pin": "No PIN",
+        "pin_must_be_digits": "PIN must be {digits} digits",
+        "security_question_required":
+            "Security question {number} and answer are required",
+        "error_clearing_cache": "Error clearing cache",
+        "update_check_disabled_debug": "Update check disabled in debug mode",
+        "update_check_in_progress": "Update check already in progress",
+        "you_are_using_latest_version": "You are using the latest version",
+        "permission_required_title": "{permission} Required",
+        "permission_permanently_denied_message":
+            "This permission has been permanently denied. Please enable it in your device settings to use this feature.",
+        "permission_granted": "Permission granted!",
+        "error_requesting_permission": "Error requesting permission",
+        "feature_coming_soon": "{feature} feature coming soon",
+        "just_now": "Just now",
+        "rel_single": "Single",
+        "rel_in_relationship": "In a relationship",
+        "rel_complicated": "It's complicated",
+        "rel_divorced": "Divorced",
+        "rel_other": "Other",
+        "rel_widowed": "Widowed",
+        "rel_engaged": "Engaged",
+        "rel_married": "Married",
+        "rel_separated": "Separated",
+        "system": "System",
+        "unknown": "Unknown",
+        "month_jan": "Jan",
+        "month_feb": "Feb",
+        "month_mar": "Mar",
+        "month_apr": "Apr",
+        "month_may": "May",
+        "month_jun": "Jun",
+        "month_jul": "Jul",
+        "month_aug": "Aug",
+        "month_sep": "Sep",
+        "month_oct": "Oct",
+        "month_nov": "Nov",
+        "month_dec": "Dec",
+        "close_shortcuts_panel": "Close shortcuts panel",
+        "close_friends_list": "Close friends list",
+        "failed_to_send_message": "Failed to send message",
+        "failed_to_create_post": "Failed to create post",
+        "failed_to_update_post": "Failed to update post",
+        "about_skybyn":
+            "Skybyn is a social networking platform that connects people from around the world. Share your moments, connect with friends, and discover new communities.",
+        "display_name": "Display Name",
+        "change_cover": "Change Cover",
+        "profile_updated": "Profile updated",
+        "profile_update_failed": "Profile update failed",
+        "title": "Title",
+        "bio": "Bio",
+        "clear_translations_cache": "Clear cached translation data",
+        "clear_posts_cache": "Clear cached posts and timeline data",
+        "clear_friends_cache": "Clear cached friends list data",
+        "cache_cleared": "Cache cleared",
+        "cache_cleared_successfully": "Cache cleared successfully",
+        "confirm_clear_cache": "Are you sure you want to clear this cache?",
+        "confirm_clear_all_cache": "Are you sure you want to clear all cache?",
+        "reset_password": "Reset Password",
+        "invalid_credentials": "Invalid credentials",
+        "account_created": "Account created",
+        "login_failed": "Login failed",
+        "username_taken": "Username is already taken",
+        "email_already_exists": "Email already exists",
+        "edit_profile": "Edit Profile",
+        "location": "Location",
+        "location_sharing": "Location Sharing",
+        "share_location": "Share Location",
+        "location_share_mode": "Location Share Mode",
+        "location_sharing_disabled": "Location sharing disabled",
+        "share_last_active_location": "Share last active location",
+        "share_live_location": "Share live location",
+        "location_sharing_mode": "Location Sharing Mode",
+        "dont_share_location": "Don't share location",
+        "share_last_known_location": "Share last known location",
+        "share_live_location_updates": "Share live location updates",
+        "location_private_mode": "Private Mode",
+        "hide_location_from_friends":
+            "Hide your location from friends on the map",
+        "no_locations_available": "No locations available",
+        "live_location": "Live location",
+        "last_active_location": "Last active location",
+        "last_active": "Last Active",
+        "you": "You",
+        "off": "Off",
+        "map": "Map",
+        "website": "Website",
+        "phone": "Phone",
+        "birthday": "Birthday",
+        "gender": "Gender",
+        "post_created": "Post created",
+        "post_updated": "Post updated",
+        "post_deleted": "Post deleted",
+        "post_failed": "Post failed",
+        "post_update_failed": "Post update failed",
+        "post_delete_failed": "Post delete failed",
+        "confirm_delete_post": "Delete Post",
+        "post_deleted_successfully": "Post deleted successfully",
+        "share_post": "Share Post",
+        "like_post": "Like Post",
+        "unlike_post": "Unlike Post",
+        "comment_post": "Comment on Post",
+        "view_comments": "View Comments",
+        "hide_comments": "Hide Comments",
+        "post_content": "Post Content",
+        "add_photo": "Add Photo",
+        "add_video": "Add Video",
+        "add_location": "Add Location",
+        "reply_to_comment": "Reply to Comment",
+        "comment_added": "Comment added",
+        "comment_updated": "Comment updated",
+        "comment_deleted": "Comment deleted",
+        "comment_failed": "Comment failed",
+        "comment_update_failed": "Comment update failed",
+        "comment_delete_failed": "Comment delete failed",
+        "confirm_delete_comment": "Delete Comment",
+        "write_comment": "Write a comment",
+        "comment_placeholder": "Write a comment...",
+        "friend_request": "Friend Request",
+        "friend_requests": "Friend Requests",
+        "pending_requests": "Pending Requests",
+        "sent_requests": "Sent Requests",
+        "mutual_friends": "Mutual Friends",
+        "friend_added": "Friend added",
+        "friend_removed": "Friend removed",
+        "friend_request_accepted": "Friend request accepted",
+        "friend_request_declined": "Friend request declined",
+        "user_blocked": "User blocked",
+        "user_unblocked": "User unblocked",
+        "user_reported": "User reported",
+        "clear_chat_history": "Clear Chat History",
+        "clear_chat_history_title": "Clear Chat History",
+        "clear_chat_history_message":
+            "Are you sure you want to clear all messages in this chat? This action cannot be undone.",
+        "clear_chat_history_button": "Clear",
+        "chat_history_cleared": "Chat history cleared",
+        "error_clearing_chat": "Error clearing chat",
+        "block_user_confirmation":
+            "Are you sure you want to block {name}? You will not receive messages from this user.",
+        "block_user_button": "Block",
+        "error_blocking_user": "Error blocking user",
+        "unfriend_title": "Unfriend",
+        "unfriend_confirmation": "Are you sure you want to unfriend {name}?",
+        "unfriend_button": "Unfriend",
+        "user_unfriended": "User unfriended",
+        "error_unfriending_user": "Error unfriending user",
+        "decline": "Decline",
+        "privacy": "Privacy",
+        "help": "Help",
+        "support": "Support",
+        "terms_of_service": "Terms of Service",
+        "privacy_policy": "Privacy Policy",
+        "last_updated": "Last Updated",
+        "developer": "Developer",
+        "contact_us": "Contact Us",
+        "feedback": "Feedback",
+        "rate_app": "Rate App",
+        "logout_all_devices": "Logout All Devices",
+        "delete_account": "Delete Account",
+        "confirm_delete_account": "Confirm Delete Account",
+        "account_deleted": "Account deleted",
+        "update_required": "Update Required",
+        "update_optional": "Update Optional",
+        "update_now": "Update Now",
+        "update_downloading": "Downloading update",
+        "update_installing": "Installing update",
+        "update_completed": "Update completed",
+        "update_cancelled": "Update cancelled",
+        "update_size": "Update Size",
+        "download_progress": "Download Progress",
+        "install_progress": "Install Progress",
+        "field_too_short": "Field is too short",
+        "field_too_long": "Field is too long",
+        "invalid_format": "Invalid format",
+        "password_too_weak": "Password is too weak",
+        "username_too_short": "Username is too short",
+        "username_too_long": "Username is too long",
+        "username_invalid": "Invalid username",
+        "email_invalid": "Invalid email",
+        "phone_invalid": "Invalid phone number",
+        "url_invalid": "Invalid URL",
+        "date_invalid": "Invalid date",
+        "time_invalid": "Invalid time",
+        "number_invalid": "Invalid number",
+        "value_too_small": "Value is too small",
+        "value_too_large": "Value is too large",
+        "away": "Away",
+        "busy": "Busy",
+        "invisible": "Invisible",
+        "available": "Available",
+        "unavailable": "Unavailable",
+        "typing": "Typing",
+        "last_seen": "Last seen",
+        "active_now": "Active now",
+        "hidden": "Hidden",
+        "no_one": "No one",
+        "only_me": "Only me",
+      }
     };
   }
 
@@ -1029,7 +1102,7 @@ class TranslationService extends ChangeNotifier {
   String translate(String key) {
     // Always try to get translation, even if not initialized
     // This ensures we have fallback translations available immediately
-    
+
     // First try current language
     final languageTranslations = _translations[_currentLanguage];
     if (languageTranslations != null && languageTranslations.containsKey(key)) {
@@ -1057,8 +1130,8 @@ class TranslationService extends ChangeNotifier {
     // Replace underscores with spaces and capitalize first letter of each word
     return key
         .split('_')
-        .map((word) => word.isEmpty 
-            ? '' 
+        .map((word) => word.isEmpty
+            ? ''
             : word[0].toUpperCase() + word.substring(1).toLowerCase())
         .join(' ');
   }
@@ -1079,10 +1152,10 @@ class TranslationService extends ChangeNotifier {
     if (supportedLanguages.contains(languageCode)) {
       _currentLanguage = languageCode;
       await _saveLanguage(languageCode);
-      
+
       // Sync to API in background
       _saveLanguageToAPI(languageCode);
-      
+
       notifyListeners(); // Notify listeners that the language has changed
     }
   }
@@ -1092,7 +1165,7 @@ class TranslationService extends ChangeNotifier {
     try {
       final authService = AuthService();
       final userId = await authService.getStoredUserId();
-      
+
       if (userId == null) {
         return;
       }
@@ -1109,10 +1182,8 @@ class TranslationService extends ChangeNotifier {
       if (response.statusCode == 200) {
         final data = safeJsonDecode(response);
         if (data['responseCode'] == '1') {
-        } else {
-        }
-      } else {
-      }
+        } else {}
+      } else {}
     } catch (e) {
       // Don't throw - language is already saved locally
     }
@@ -1123,8 +1194,7 @@ class TranslationService extends ChangeNotifier {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('language', languageCode);
-    } catch (e) {
-    }
+    } catch (e) {}
   }
 
   // Check if translations are loaded
@@ -1163,7 +1233,8 @@ class TranslationKeys {
   static const String joinGroup = 'join_group';
   static const String createNewGroup = 'create_new_group';
   static const String whatAreGroupsFor = 'what_are_groups_for';
-  static const String groupsBenefitMeetingGround = 'groups_benefit_meeting_ground';
+  static const String groupsBenefitMeetingGround =
+      'groups_benefit_meeting_ground';
   static const String groupsBenefitShareMany = 'groups_benefit_share_many';
   static const String groupsBenefitPlanParty = 'groups_benefit_plan_party';
   static const String groupsBenefitDiscussions = 'groups_benefit_discussions';
@@ -1242,7 +1313,8 @@ class TranslationKeys {
   static const String passwordResetSent = 'password_reset_sent';
   static const String loginSuccessful = 'login_successful';
   static const String welcomeToSkybyn = 'welcome_to_skybyn';
-  static const String loginFailedCheckCredentials = 'login_failed_check_credentials';
+  static const String loginFailedCheckCredentials =
+      'login_failed_check_credentials';
   static const String confirmPassword = 'confirm_password';
   static const String rememberMe = 'remember_me';
   static const String signUp = 'sign_up';
@@ -1270,8 +1342,10 @@ class TranslationKeys {
   static const String pinUpdateError = 'pin_update_error';
   static const String profileUpdateSuccess = 'profile_update_success';
   static const String profileUpdateError = 'profile_update_error';
-  static const String securityQuestionsUpdateSuccess = 'security_questions_update_success';
-  static const String securityQuestionsUpdateError = 'security_questions_update_error';
+  static const String securityQuestionsUpdateSuccess =
+      'security_questions_update_success';
+  static const String securityQuestionsUpdateError =
+      'security_questions_update_error';
   static const String pinConfirmationMismatch = 'pin_confirmation_mismatch';
 
   static const String verificationCodeSentTo = 'verification_code_sent_to';
@@ -1282,7 +1356,6 @@ class TranslationKeys {
   static const String emailVerification = 'email_verification';
   static const String emailSent = 'email_sent';
   static const String mustBe15YearsOld = 'must_be_15_years_old';
-
 
   // User Profile
   static const String firstName = 'first_name';
@@ -1357,18 +1430,33 @@ class TranslationKeys {
   static const String discardChanges = 'discard_changes';
   static const String profileUpdated = 'profile_updated';
   static const String profileUpdateFailed = 'profile_update_failed';
-  
+
   // Status
   static const String active = 'active';
   static const String inactive = 'inactive';
-
-
 
   // Posts
   static const String newPost = 'new_post';
   static const String createPost = 'create_post';
   static const String editPost = 'edit_post';
   static const String deletePost = 'delete_post';
+  static const String hide = 'hide';
+  static const String hidePost = 'hide_post';
+  static const String confirmHidePostMessage = 'confirm_hide_post_message';
+  static const String postHiddenSuccessfully = 'post_hidden_successfully';
+  static const String editComment = 'edit_comment';
+  static const String reportPost = 'report_post';
+  static const String confirmReportPostMessage = 'confirm_report_post_message';
+  static const String postReportedSuccessfully = 'post_reported_successfully';
+  static const String reportComment = 'report_comment';
+  static const String confirmReportCommentMessage =
+      'confirm_report_comment_message';
+  static const String commentReportedSuccessfully =
+      'comment_reported_successfully';
+  static const String failedToHidePost = 'failed_to_hide_post';
+  static const String failedToReportPost = 'failed_to_report_post';
+  static const String failedToReportComment = 'failed_to_report_comment';
+  static const String failedToUpdateComment = 'failed_to_update_comment';
   static const String sharePost = 'share_post';
   static const String likePost = 'like_post';
   static const String unlikePost = 'unlike_post';
@@ -1392,11 +1480,10 @@ class TranslationKeys {
   static const String postDeletedSuccessfully = 'post_deleted_successfully';
   static const String confirmDeletePostMessage = 'confirm_delete_post_message';
   static const String signInWithGoogle = 'sign_in_with_google';
-  static const String reportPost = 'report_post';
-  static const String confirmReportPostMessage = 'confirm_report_post_message';
-  static const String postReportedSuccessfully = 'post_reported_successfully';
-  static const String postLinkCopiedToClipboard = 'post_link_copied_to_clipboard';
-  static const String commentPostedButCouldNotLoadDetails = 'comment_posted_but_could_not_load_details';
+  static const String postLinkCopiedToClipboard =
+      'post_link_copied_to_clipboard';
+  static const String commentPostedButCouldNotLoadDetails =
+      'comment_posted_but_could_not_load_details';
   static const String failedToPostComment = 'failed_to_post_comment';
   static const String failedToDeleteComment = 'failed_to_delete_comment';
   static const String failedToDeletePost = 'failed_to_delete_post';
@@ -1405,7 +1492,6 @@ class TranslationKeys {
 
   // Comments
   static const String addComment = 'add_comment';
-  static const String editComment = 'edit_comment';
   static const String deleteComment = 'delete_comment';
   static const String replyToComment = 'reply_to_comment';
   static const String commentAdded = 'comment_added';
@@ -1446,7 +1532,7 @@ class TranslationKeys {
   static const String userBlocked = 'user_blocked';
   static const String userUnblocked = 'user_unblocked';
   static const String userReported = 'user_reported';
-  
+
   // Chat Actions
   static const String clearChatHistory = 'clear_chat_history';
   static const String clearChatHistoryTitle = 'clear_chat_history_title';
@@ -1475,7 +1561,8 @@ class TranslationKeys {
   static const String themeMode = 'theme_mode';
   static const String chooseThemeMode = 'choose_theme_mode';
   static const String systemRecommended = 'system_recommended';
-  static const String automaticallyFollowDeviceTheme = 'automatically_follow_device_theme';
+  static const String automaticallyFollowDeviceTheme =
+      'automatically_follow_device_theme';
   static const String light = 'light';
   static const String alwaysUseLightTheme = 'always_use_light_theme';
   static const String dark = 'dark';
@@ -1536,7 +1623,8 @@ class TranslationKeys {
   static const String confirmDeleteAccount = 'confirm_delete_account';
   static const String accountDeleted = 'account_deleted';
   static const String callError = 'call_error';
-  static const String postCreatedButCouldNotLoadDetails = 'post_created_but_could_not_load_details';
+  static const String postCreatedButCouldNotLoadDetails =
+      'post_created_but_could_not_load_details';
   static const String qrScanner = 'qr_scanner';
   static const String createNewCode = 'create_new_code';
   static const String adminPanel = 'admin_panel';
@@ -1553,23 +1641,26 @@ class TranslationKeys {
   static const String findFriendsButton = 'find_friends_button';
   static const String nearbyUsers = 'nearby_users';
   static const String noNearbyUsers = 'no_nearby_users';
-  static const String pleaseLogInToFindFriends = 'please_log_in_to_find_friends';
+  static const String pleaseLogInToFindFriends =
+      'please_log_in_to_find_friends';
   static const String unableToGetLocation = 'unable_to_get_location';
   static const String foundUsersNearby = 'found_users_nearby';
   static const String errorFindingFriends = 'error_finding_friends';
   static const String noMessages = 'no_messages';
   static const String installPermissionRequired = 'install_permission_required';
-  static const String installPermissionDeniedMessage = 'install_permission_denied_message';
+  static const String installPermissionDeniedMessage =
+      'install_permission_denied_message';
   static const String permissionNotGranted = 'permission_not_granted';
   static const String downloadUrlNotAvailable = 'download_url_not_available';
   static const String updateFailed = 'update_failed';
   static const String failedToInstallUpdate = 'failed_to_install_update';
-  static const String permissionDeniedCannotCheckUpdates = 'permission_denied_cannot_check_updates';
+  static const String permissionDeniedCannotCheckUpdates =
+      'permission_denied_cannot_check_updates';
   static const String updateDialogAlreadyOpen = 'update_dialog_already_open';
   static const String selectDate = 'select_date';
   static const String newVersionAvailable = 'new_version_available';
   static const String installingUpdate = 'installing_update';
-  
+
   // Cache Management
   static const String cache = 'cache';
   static const String clearCache = 'clear_cache';
@@ -1609,7 +1700,7 @@ class TranslationKeys {
   static const String favorites = 'favorites';
   static const String bookmarks = 'bookmarks';
   static const String history = 'history';
-  
+
   // Browsing & Market
   static const String pages = 'pages';
   static const String music = 'music';
@@ -1703,12 +1794,15 @@ class TranslationKeys {
   static const String goToSettings = 'go_to_settings';
   static const String errorCheckingPermissions = 'error_checking_permissions';
   static const String openSettings = 'open_settings';
-  static const String microphonePermissionRequired = 'microphone_permission_required';
-  static const String microphonePermissionMessage = 'microphone_permission_message';
+  static const String microphonePermissionRequired =
+      'microphone_permission_required';
+  static const String microphonePermissionMessage =
+      'microphone_permission_message';
   static const String cameraPermissionRequired = 'camera_permission_required';
   static const String cameraPermissionMessage = 'camera_permission_message';
   static const String permissionRequiredTitle = 'permission_required_title';
-  static const String permissionPermanentlyDeniedMessage = 'permission_permanently_denied_message';
+  static const String permissionPermanentlyDeniedMessage =
+      'permission_permanently_denied_message';
 
   // QR Code
   static const String qrCode = 'qr_code';
@@ -1850,5 +1944,6 @@ class TranslationKeys {
   static const String relSeparated = 'rel_separated';
 
   static const String allow = 'allow';
-  static const String locationPermissionRationale = 'location_permission_rationale';
+  static const String locationPermissionRationale =
+      'location_permission_rationale';
 }

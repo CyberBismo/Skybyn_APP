@@ -12,7 +12,8 @@ import '../config/constants.dart';
 class PostService {
   static const String _cacheKey = 'cached_timeline_posts';
   static const String _cacheTimestampKey = 'cached_timeline_posts_timestamp';
-  static const Duration _cacheExpiry = Duration(minutes: 5); // Cache for 5 minutes
+  static const Duration _cacheExpiry =
+      Duration(minutes: 5); // Cache for 5 minutes
 
   PostService() {
     _checkAndClearLegacyCache();
@@ -22,8 +23,9 @@ class PostService {
   Future<void> _checkAndClearLegacyCache() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final bool alreadyFixed = prefs.getBool('encoding_fix_posts_v1_applied') ?? false;
-      
+      final bool alreadyFixed =
+          prefs.getBool('encoding_fix_posts_v1_applied') ?? false;
+
       if (!alreadyFixed) {
         // Clear timeline keys
         await prefs.remove(_cacheKey);
@@ -37,7 +39,7 @@ class PostService {
 
   Future<List<Post>> fetchPostsForUser({String? userId}) async {
     final userID = userId;
-    
+
     try {
       // Try to load from cache first
       final cachedPosts = await loadTimelineFromCache();
@@ -49,12 +51,12 @@ class PostService {
 
       // If no cache, fetch from API
       final posts = await _fetchTimelineFromAPI(userID);
-      
+
       // Cache the posts
       if (posts.isNotEmpty) {
         await _saveTimelineToCache(posts);
       }
-      
+
       return posts;
     } catch (e) {
       // If API fails, try to return cached data as fallback
@@ -70,9 +72,9 @@ class PostService {
     if (error is TimeoutException) return true;
     if (error is HttpException) {
       final message = error.message.toLowerCase();
-      return message.contains('connection') || 
-             message.contains('timeout') ||
-             message.contains('reset');
+      return message.contains('connection') ||
+          message.contains('timeout') ||
+          message.contains('reset');
     }
     return false;
   }
@@ -85,7 +87,7 @@ class PostService {
   }) async {
     int attempt = 0;
     Duration delay = initialDelay;
-    
+
     while (attempt < maxRetries) {
       try {
         final response = await request();
@@ -102,7 +104,8 @@ class PostService {
           rethrow;
         }
         await Future.delayed(delay);
-        delay = Duration(milliseconds: (delay.inMilliseconds * 2).clamp(500, 4000));
+        delay =
+            Duration(milliseconds: (delay.inMilliseconds * 2).clamp(500, 4000));
       }
     }
     throw Exception('Retry logic error');
@@ -113,17 +116,18 @@ class PostService {
     final response = await _retryHttpRequest(
       () => http.post(
         Uri.parse(ApiConstants.timeline),
-        body: {'userID': userID}, 
+        body: {'userID': userID},
       ).timeout(const Duration(seconds: 10)),
       maxRetries: 2,
     );
 
-    debugPrint('PostService: Timeline API Response Status: ${response.statusCode}');
+    debugPrint(
+        'PostService: Timeline API Response Status: ${response.statusCode}');
     debugPrint('PostService: Timeline API Response Body: ${response.body}');
-  
+
     if (response.statusCode == 200) {
       final decoded = safeJsonDecode(response);
-      
+
       // Handle API response format: feed API now returns direct array
       // But handle both formats for backward compatibility
       List<dynamic> data = [];
@@ -144,33 +148,33 @@ class PostService {
           throw Exception(decoded['message'] ?? 'Failed to load posts');
         }
       }
-      
+
       debugPrint('PostService: Decoded timeline data length: ${data.length}');
-      
+
       // Detailed log of first post structure if available
       if (data.isNotEmpty) {
         final firstPost = data.first;
         debugPrint('PostService: First post structure: $firstPost');
       }
-      
+
       final List<Post> posts = [];
       for (final item in data) {
         if (item is Map<String, dynamic>) {
           // Debug: Log post data before parsing
           final userData = item['user'];
-          final username = userData is Map 
-              ? userData['username']?.toString() 
+          final username = userData is Map
+              ? userData['username']?.toString()
               : (item['username']?.toString());
           final content = item['content']?.toString() ?? '';
           // Filter out posts with empty username or empty content
           if (username == null || username.isEmpty || username.trim().isEmpty) {
             continue;
           }
-          
+
           if (content.isEmpty || content.trim().isEmpty) {
             continue;
           }
-          
+
           try {
             final post = Post.fromJson(item);
             // Double-check after parsing
@@ -181,15 +185,16 @@ class PostService {
               continue;
             }
             posts.add(post);
-          } catch (e) {
-          }
+          } catch (e) {}
         }
       }
-      
-      debugPrint('PostService: Successfully parsed ${posts.length} timeline posts');
+
+      debugPrint(
+          'PostService: Successfully parsed ${posts.length} timeline posts');
       return posts;
     } else {
-      debugPrint('PostService: Error fetching timeline: Status ${response.statusCode}');
+      debugPrint(
+          'PostService: Error fetching timeline: Status ${response.statusCode}');
       throw Exception('Failed to load posts: ${response.statusCode}');
     }
   }
@@ -213,7 +218,8 @@ class PostService {
       final prefs = await SharedPreferences.getInstance();
       final postsJson = posts.map((p) => p.toJson()).toList();
       await prefs.setString(_cacheKey, jsonEncode(postsJson));
-      await prefs.setInt(_cacheTimestampKey, DateTime.now().millisecondsSinceEpoch);
+      await prefs.setInt(
+          _cacheTimestampKey, DateTime.now().millisecondsSinceEpoch);
     } catch (e) {
       // Silently fail if caching fails
     }
@@ -223,10 +229,11 @@ class PostService {
     try {
       final prefs = await SharedPreferences.getInstance();
       final timestamp = prefs.getInt(_cacheTimestampKey);
-      
+
       // Check if cache is expired
-      if (timestamp == null || 
-          DateTime.now().millisecondsSinceEpoch - timestamp > _cacheExpiry.inMilliseconds) {
+      if (timestamp == null ||
+          DateTime.now().millisecondsSinceEpoch - timestamp >
+              _cacheExpiry.inMilliseconds) {
         return [];
       }
 
@@ -235,7 +242,7 @@ class PostService {
 
       final List<dynamic> decoded = jsonDecode(postsJson);
       final List<Post> posts = [];
-      
+
       // Filter out posts with empty usernames or content when loading from cache
       for (final item in decoded) {
         if (item is Map<String, dynamic>) {
@@ -249,11 +256,10 @@ class PostService {
               continue;
             }
             posts.add(post);
-          } catch (e) {
-          }
+          } catch (e) {}
         }
       }
-      
+
       return posts;
     } catch (e) {
       return [];
@@ -270,23 +276,30 @@ class PostService {
     }
   }
 
-  Future<List<Post>> fetchUserTimeline({required String userId, String? currentUserId}) async {
+  Future<List<Post>> fetchUserTimeline(
+      {required String userId, String? currentUserId}) async {
     try {
-      debugPrint('PostService: Fetching user timeline for user: $userId, currentUserID: $currentUserId');
+      debugPrint(
+          'PostService: Fetching user timeline for user: $userId, currentUserID: $currentUserId');
       final requestBody = {
         'userID': userId,
         if (currentUserId != null) 'currentUserID': currentUserId,
       };
-      debugPrint('PostService: User Timeline API Request URL: ${ApiConstants.userTimeline}');
+      debugPrint(
+          'PostService: User Timeline API Request URL: ${ApiConstants.userTimeline}');
       debugPrint('PostService: User Timeline API Request Body: $requestBody');
 
-      final response = await http.post(
-        Uri.parse(ApiConstants.userTimeline),
-        body: requestBody,
-      ).timeout(const Duration(seconds: 10));
+      final response = await http
+          .post(
+            Uri.parse(ApiConstants.userTimeline),
+            body: requestBody,
+          )
+          .timeout(const Duration(seconds: 10));
 
-      debugPrint('PostService: User Timeline API Response Status: ${response.statusCode}');
-      debugPrint('PostService: User Timeline API Response Body: ${response.body}');
+      debugPrint(
+          'PostService: User Timeline API Response Status: ${response.statusCode}');
+      debugPrint(
+          'PostService: User Timeline API Response Body: ${response.body}');
 
       if (response.statusCode == 200) {
         // Handle empty response
@@ -294,9 +307,9 @@ class PostService {
           debugPrint('PostService: User Timeline API returned empty body.');
           return [];
         }
-        
+
         final decoded = safeJsonDecode(response);
-        
+
         // Handle different response formats
         List<dynamic> data = [];
         if (decoded is List) {
@@ -313,7 +326,8 @@ class PostService {
             }
           } else {
             // Error response
-            final message = decoded['message'] ?? 'Failed to load user timeline';
+            final message =
+                decoded['message'] ?? 'Failed to load user timeline';
             throw Exception(message);
           }
         }
@@ -324,8 +338,7 @@ class PostService {
               final post = Post.fromJson(item);
               // Log post details for debugging
               posts.add(post);
-            } catch (e) {
-            }
+            } catch (e) {}
           }
         }
         return posts;
@@ -340,33 +353,35 @@ class PostService {
   Future<Post> fetchPost({required String postId, String? userId}) async {
     // Use a default user ID for testing if none provided
     final userID = userId;
-    
+
     try {
       final response = await http.post(
         Uri.parse(ApiConstants.getPost),
         body: {'postID': postId, 'userID': userID},
       ).timeout(const Duration(seconds: 10));
-    if (response.statusCode == 200) {
-      try {
-        final data = safeJsonDecode(response);
-        if (data is List && data.isNotEmpty && data.first['responseCode'] == '1') {
-          final postMap = data.first as Map<String, dynamic>;
-          return Post.fromJson(postMap);
-        } else if (data is Map && data['responseCode'] == '1') {
-          return Post.fromJson(data as Map<String, dynamic>);
-        } else {
-          final message = (data is List && data.isNotEmpty) 
-              ? data.first['message'] 
-              : (data is Map ? data['message'] : 'Post not found');
-          throw Exception('Failed to load post: $message');
+      if (response.statusCode == 200) {
+        try {
+          final data = safeJsonDecode(response);
+          if (data is List &&
+              data.isNotEmpty &&
+              data.first['responseCode'] == '1') {
+            final postMap = data.first as Map<String, dynamic>;
+            return Post.fromJson(postMap);
+          } else if (data is Map && data['responseCode'] == '1') {
+            return Post.fromJson(data as Map<String, dynamic>);
+          } else {
+            final message = (data is List && data.isNotEmpty)
+                ? data.first['message']
+                : (data is Map ? data['message'] : 'Post not found');
+            throw Exception('Failed to load post: $message');
+          }
+        } catch (e) {
+          throw Exception('Failed to parse API response: $e');
         }
-      } catch (e) {
-        throw Exception('Failed to parse API response: $e');
+      } else {
+        throw Exception(
+            'Failed to load post with status ${response.statusCode}');
       }
-    }
- else {
-      throw Exception('Failed to load post with status ${response.statusCode}');
-    }
     } catch (e) {
       // Return a default post instead of throwing to prevent app from hanging
       return Post(
@@ -394,7 +409,7 @@ class PostService {
     if (response.statusCode != 200) {
       throw Exception('Failed to delete post');
     }
-    
+
     // Parse response to check for success
     final data = safeJsonDecode(response);
     if (data['responseCode'] != '1') {
@@ -422,7 +437,7 @@ class PostService {
       if (response.statusCode != 200) {
         throw Exception('Failed to create post');
       }
-      
+
       final data = safeJsonDecode(response);
       if (data['responseCode'] != '1') {
         final message = data['message'] ?? 'Failed to create post';
@@ -432,31 +447,32 @@ class PostService {
     } else {
       // Compress image before upload
       final File processedFile = await ImageUtils.compressImage(mediaFile);
-      
+
       // Use MultipartRequest for file upload
-      final request = http.MultipartRequest('POST', Uri.parse(ApiConstants.addPost));
+      final request =
+          http.MultipartRequest('POST', Uri.parse(ApiConstants.addPost));
       request.fields['userID'] = userId;
       request.fields['content'] = content;
-      
+
       final stream = http.ByteStream(processedFile.openRead());
       final length = await processedFile.length();
-      
+
       final multipartFile = http.MultipartFile(
         'file',
         stream,
         length,
         filename: processedFile.path.split('/').last,
       );
-      
+
       request.files.add(multipartFile);
-      
+
       final streamedResponse = await request.send();
       final response = await http.Response.fromStream(streamedResponse);
-      
+
       if (response.statusCode != 200) {
         throw Exception('Failed to create post');
       }
-      
+
       final data = safeJsonDecode(response);
       if (data['responseCode'] != '1') {
         final message = data['message'] ?? 'Failed to create post';
@@ -485,7 +501,7 @@ class PostService {
     if (response.statusCode != 200) {
       throw Exception('Failed to update post');
     }
-    
+
     final data = safeJsonDecode(response);
     if (data['responseCode'] != '1') {
       final message = data['message'] ?? 'Failed to update post';
@@ -493,4 +509,69 @@ class PostService {
     }
   }
 
-} 
+  Future<void> toggleLike({
+    required String postId,
+    required String userId,
+  }) async {
+    final response = await http.post(
+      Uri.parse(ApiConstants.likePost),
+      body: {'postID': postId, 'userID': userId},
+    );
+
+    if (response.statusCode != 200) {
+      throw Exception('Failed to toggle like');
+    }
+
+    final data = safeJsonDecode(response);
+    if (data['responseCode'] != '1') {
+      final message = data['message'] ?? 'Failed to toggle like';
+      throw Exception(message);
+    }
+  }
+
+  Future<void> hidePost({
+    required String postId,
+    required String userId,
+  }) async {
+    final response = await http.post(
+      Uri.parse(ApiConstants.hidePost),
+      body: {'postID': postId, 'userID': userId},
+    );
+
+    if (response.statusCode != 200) {
+      throw Exception('Failed to hide post');
+    }
+
+    final data = safeJsonDecode(response);
+    if (data['responseCode'] != '1') {
+      final message = data['message'] ?? 'Failed to hide post';
+      throw Exception(message);
+    }
+  }
+
+  Future<void> reportPost({
+    required String postId,
+    required String userId,
+    required String reason,
+  }) async {
+    final response = await http.post(
+      Uri.parse(ApiConstants.report),
+      body: {
+        'postID': postId,
+        'userID': userId,
+        'reason': reason,
+        'type': 'post'
+      },
+    );
+
+    if (response.statusCode != 200) {
+      throw Exception('Failed to report post');
+    }
+
+    final data = safeJsonDecode(response);
+    if (data['responseCode'] != '1') {
+      final message = data['message'] ?? 'Failed to report post';
+      throw Exception(message);
+    }
+  }
+}

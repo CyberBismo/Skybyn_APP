@@ -1,4 +1,3 @@
-
 class ApiConstants {
   // Production URLs
   static const String _prodAppBase = 'https://app.skybyn.no';
@@ -18,7 +17,8 @@ class ApiConstants {
   // Auth
   static String get login => '$apiBase/login.php';
   static String get profile => '$apiBase/profile.php';
-  static String get sendEmailVerification => '$apiBase/sendEmailVerification.php';
+  static String get sendEmailVerification =>
+      '$apiBase/sendEmailVerification.php';
   static String get verifyEmail => '$apiBase/verify_email.php';
   static String get register => '$apiBase/register.php';
   static String get token => '$apiBase/firebase/registerFirebaseToken.php';
@@ -33,11 +33,14 @@ class ApiConstants {
   static String get deletePost => '$apiBase/post/delete.php';
   static String get addPost => '$apiBase/post/add.php';
   static String get updatePost => '$apiBase/post/update.php';
+  static String get hidePost => '$apiBase/post/hide.php';
+  static String get likePost => '$apiBase/post/like.php';
 
   // Comments
   static String get addComment => '$apiBase/comment/add.php';
   static String get getComment => '$apiBase/comment/get_comment.php';
   static String get deleteComment => '$apiBase/comment/delete.php';
+  static String get updateComment => '$apiBase/comment/update.php';
 
   // Languages
   static String get language => '$apiBase/translations.php';
@@ -48,7 +51,7 @@ class ApiConstants {
   // Friends
   static String get friend => '$apiBase/friend/friend.php';
   static String get friends => '$apiBase/friend/friends.php';
-  
+
   // Reports
   static String get report => '$apiBase/report.php';
 
@@ -58,12 +61,14 @@ class ApiConstants {
   static String get deleteNotification => '$apiBase/notification/delete.php';
   static String get readNotification => '$apiBase/notification/read.php';
   static String get notificationCount => '$apiBase/notification/count.php';
-  static String get readAllNotifications => '$apiBase/notification/read_all.php';
-  static String get deleteAllNotifications => '$apiBase/notification/delete_all.php';
+  static String get readAllNotifications =>
+      '$apiBase/notification/read_all.php';
+  static String get deleteAllNotifications =>
+      '$apiBase/notification/delete_all.php';
 
   // Updates
   static String get appUpdate => '$apiBase/app_update.php';
-  
+
   // Error Reporting
   static String get reportError => '$apiBase/report_error.php';
 
@@ -76,20 +81,23 @@ class ApiConstants {
 
   // Activity
   static String get updateActivity => '$apiBase/update_activity.php';
-  
+
   // Location
-  static String get friendsLocations => '$apiBase/location/friends_locations.php';
-  static String get updateLocationSettings => '$apiBase/location/update_settings.php';
+  static String get friendsLocations =>
+      '$apiBase/location/friends_locations.php';
+  static String get updateLocationSettings =>
+      '$apiBase/location/update_settings.php';
   static String get updateLocation => '$apiBase/location/update_location.php';
-  static String get findNearbyUsers => '$apiBase/location/find_nearby_users.php';
-  
+  static String get findNearbyUsers =>
+      '$apiBase/location/find_nearby_users.php';
+
   // Video Feed
   static String get videoFeed => '$apiBase/video/feed.php';
-  
+
   // Admin
   static String get adminUsers => '$apiBase/admin/users.php';
   static String get adminReports => '$apiBase/admin/reports.php';
-  
+
   // API Key for unrestricted access (bypasses bot protection)
   static const String apiKey = 'DP4HOA9PYSUAPFP1SHEMHNPJ0S6QZF3X';
 }
@@ -108,14 +116,12 @@ class UrlHelper {
     if (url.isEmpty) {
       return url;
     }
-    
-
 
     // If URL starts with "/uploads/", prepend the web base URL
     if (url.startsWith('/uploads/')) {
       return '${ApiConstants.webBase}$url';
     }
-    
+
     // Return URL as-is (already has full URL or other format)
     return url;
   }

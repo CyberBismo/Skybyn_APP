@@ -17,7 +17,8 @@ import 'background_gradient.dart';
 /// Menu item definition
 class MenuItem {
   final IconData icon;
-  final String translationKey; // Store translation key instead of translated label
+  final String
+      translationKey; // Store translation key instead of translated label
   final VoidCallback onTap;
   final bool isDestructive;
 
@@ -32,9 +33,9 @@ class MenuItem {
 /// Unified menu system that can handle different types of menus
 class UnifiedMenu {
   static OverlayEntry? _currentOverlayEntry;
-  
+
   static bool get isMenuOpen => _currentOverlayEntry != null;
-  
+
   static void closeCurrentMenu() {
     if (_currentOverlayEntry != null) {
       _currentOverlayEntry?.remove();
@@ -52,26 +53,32 @@ class UnifiedMenu {
     required VoidCallback onEdit,
     required VoidCallback onShare,
     required VoidCallback onReport,
+    required VoidCallback onHide,
   }) {
     return _createMenuButton(
       context: context,
       onTap: () async {
         final bool isAuthor = currentUserId == postUserId;
-        
+
         // Check user rank for admin access
         final authService = AuthService();
         final user = await authService.getStoredUserProfile();
         final userRank = user?.rank != null ? int.tryParse(user!.rank) : 0;
         final isAdmin = userRank != null && userRank > 5;
-        
+
         final bool canDelete = isAuthor || isAdmin;
         final bool canEdit = isAuthor; // Only author can edit
-        
+
         final List<MenuItem> items = [
           MenuItem(
             icon: Icons.share,
             translationKey: TranslationKeys.share,
             onTap: onShare,
+          ),
+          MenuItem(
+            icon: Icons.visibility_off,
+            translationKey: TranslationKeys.hide,
+            onTap: onHide,
           ),
           MenuItem(
             icon: Icons.report,
@@ -89,7 +96,7 @@ class UnifiedMenu {
             ),
           );
         }
-        
+
         if (canDelete) {
           items.add(
             MenuItem(
@@ -113,6 +120,8 @@ class UnifiedMenu {
     required String? currentUserId,
     required String commentUserId,
     required VoidCallback onDelete,
+    required VoidCallback onEdit,
+    required VoidCallback onReport,
   }) {
     return FutureBuilder(
       future: AuthService().getStoredUserProfile(),
@@ -122,7 +131,7 @@ class UnifiedMenu {
         final isAdmin = userRank != null && userRank > 5;
         final bool isAuthor = currentUserId == commentUserId;
         final bool canDelete = isAuthor || isAdmin;
-        
+
         // Only show menu button if user can delete (owns comment or has rank > 5)
         if (currentUserId == null || !canDelete) {
           return const SizedBox.shrink();
@@ -133,12 +142,32 @@ class UnifiedMenu {
           onTap: () {
             final List<MenuItem> items = [
               MenuItem(
-                icon: Icons.delete_outline,
-                translationKey: TranslationKeys.delete,
-                onTap: onDelete,
-                isDestructive: true,
+                icon: Icons.report,
+                translationKey: TranslationKeys.report,
+                onTap: onReport,
               ),
             ];
+
+            if (isAuthor) {
+              items.add(
+                MenuItem(
+                  icon: Icons.edit,
+                  translationKey: TranslationKeys.edit,
+                  onTap: onEdit,
+                ),
+              );
+            }
+
+            if (canDelete) {
+              items.add(
+                MenuItem(
+                  icon: Icons.delete_outline,
+                  translationKey: TranslationKeys.delete,
+                  onTap: onDelete,
+                  isDestructive: true,
+                ),
+              );
+            }
 
             _showMenu(context, items, position: 'left');
           },
@@ -168,13 +197,13 @@ class UnifiedMenu {
           if (isSearchFormVisible && onSearchFormToggle != null) {
             onSearchFormToggle();
           }
-          
+
           // Check user rank for admin access
           final authService = AuthService();
           final user = await authService.getStoredUserProfile();
           final userRank = user?.rank != null ? int.tryParse(user!.rank) : 0;
           final isAdmin = userRank != null && userRank > 5;
-          
+
           final List<MenuItem> items = [
             MenuItem(
               icon: Icons.home,
@@ -251,7 +280,8 @@ class UnifiedMenu {
             ),
           ];
 
-          _showMenu(context, items, position: 'right', topOffset: appBarHeight + 70);
+          _showMenu(context, items,
+              position: 'right', topOffset: appBarHeight + 70);
         }
       },
       child: FutureBuilder(
@@ -259,7 +289,7 @@ class UnifiedMenu {
         builder: (context, snapshot) {
           final user = snapshot.data;
           final avatarUrl = user?.avatar ?? '';
-          final hasAvatar = avatarUrl.isNotEmpty && 
+          final hasAvatar = avatarUrl.isNotEmpty &&
               !avatarUrl.contains('logo_faded_clean.png') &&
               !avatarUrl.contains('icon.png');
 
@@ -313,7 +343,8 @@ class UnifiedMenu {
         padding: const EdgeInsets.all(4),
         child: Icon(
           Icons.more_vert,
-          color: AppColors.getIconColor(context), // Theme-aware: black in light mode, white in dark mode
+          color: AppColors.getIconColor(
+              context), // Theme-aware: black in light mode, white in dark mode
           size: iconSize,
         ),
       ),
@@ -328,13 +359,13 @@ class UnifiedMenu {
     double? topOffset,
   }) {
     closeCurrentMenu();
-    
+
     // Get the button position relative to the screen
     final RenderBox renderBox = context.findRenderObject() as RenderBox;
     final buttonPosition = renderBox.localToGlobal(Offset.zero);
-    
+
     final bgTheme = BackgroundTheme.of(context);
-    
+
     _currentOverlayEntry = OverlayEntry(
       builder: (BuildContext context) {
         Widget child = Stack(
@@ -354,7 +385,8 @@ class UnifiedMenu {
             Positioned(
               left: position == 'left' ? buttonPosition.dx - 150 : null,
               right: position == 'right' ? 10 : null,
-              top: topOffset ?? (buttonPosition.dy + (position == 'left' ? 20 : 30)),
+              top: topOffset ??
+                  (buttonPosition.dy + (position == 'left' ? 20 : 30)),
               child: GestureDetector(
                 onTap: () {
                   // Prevent closing when tapping on the menu itself
@@ -380,7 +412,8 @@ class UnifiedMenu {
                           children: [
                             for (int i = 0; i < items.length; i++) ...[
                               _buildMenuItem(context, items[i]),
-                              if (i < items.length - 1 && items[i + 1].isDestructive)
+                              if (i < items.length - 1 &&
+                                  items[i + 1].isDestructive)
                                 Divider(
                                   color: AppColors.getMenuDividerColor(context),
                                 ),
@@ -395,11 +428,11 @@ class UnifiedMenu {
             ),
           ],
         );
-        
+
         if (bgTheme != null) {
           // The overlay itself has a background color (the card's tint).
           // We must disable `isDefaultBackground` so child text doesn't forcefully default
-          // to white when the card tint might require black text. We also pass the card 
+          // to white when the card tint might require black text. We also pass the card
           // color as the 'background' color for the children to contrast against.
           final cardColor = AppColors.getCardBackgroundColor(context);
           return BackgroundTheme(
@@ -430,7 +463,9 @@ class UnifiedMenu {
           children: [
             Icon(
               item.icon,
-              color: item.isDestructive ? Colors.red : AppColors.getIconColor(context),
+              color: item.isDestructive
+                  ? Colors.red
+                  : AppColors.getIconColor(context),
               size: 20,
             ),
             const SizedBox(width: 8),
@@ -439,7 +474,9 @@ class UnifiedMenu {
               builder: (context, _) => Text(
                 TranslationService().translate(item.translationKey),
                 style: TextStyle(
-                  color: item.isDestructive ? Colors.red : AppColors.getTextColor(context),
+                  color: item.isDestructive
+                      ? Colors.red
+                      : AppColors.getTextColor(context),
                 ),
               ),
             ),
@@ -448,4 +485,4 @@ class UnifiedMenu {
       ),
     );
   }
-} 
+}
