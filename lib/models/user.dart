@@ -31,6 +31,8 @@ class User {
   final String wallpaperMargin;
   final String avatarMargin;
   final String? language;
+  final String locationShareMode;
+  final String locationPrivateMode;
 
   User({
     required this.id,
@@ -65,6 +67,8 @@ class User {
     required this.wallpaperMargin,
     required this.avatarMargin,
     this.language,
+    required this.locationShareMode,
+    required this.locationPrivateMode,
   });
 
   factory User.fromJson(Map<String, dynamic> json) {
@@ -101,6 +105,8 @@ class User {
       wallpaperMargin: json['wallpaper_margin']?.toString() ?? '',
       avatarMargin: json['avatar_margin']?.toString() ?? '',
       language: json['language']?.toString(),
+      locationShareMode: json['location_share_mode']?.toString() ?? 'off',
+      locationPrivateMode: json['location_private_mode']?.toString() ?? '0',
     );
   }
 
@@ -138,6 +144,8 @@ class User {
       'wallpaper_margin': wallpaperMargin,
       'avatar_margin': avatarMargin,
       'language': language,
+      'location_share_mode': locationShareMode,
+      'location_private_mode': locationPrivateMode,
     };
   }
-} 
+}

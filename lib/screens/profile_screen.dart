@@ -14,7 +14,7 @@ import '../widgets/app_colors.dart';
 import '../widgets/global_search_overlay.dart';
 import '../services/auth_service.dart';
 import '../services/post_service.dart';
-import 'create_post_screen.dart';
+import '../widgets/create_post_widget.dart';
 import '../config/constants.dart';
 
 import '../widgets/translated_text.dart';
@@ -47,7 +47,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   String? _friendshipStatus; // 'none', 'sent', 'received', 'friends', 'blocked'
   bool _isSendingRequest = false;
   String? _errorMessage; // Store error message to show in popup
-  
+
   // Scroll tracking for sticky header
   late ScrollController _scrollController;
   double _scrollOffset = 0.0;
@@ -75,7 +75,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     });
   }
 
-
   Future<void> _loadProfile() async {
     try {
       setState(() {
@@ -91,13 +90,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
         userId = currentUserId;
         username = await authService.getStoredUsername();
       }
-      
+
       // Store the userId we're using to fetch the profile
       profileUserId = userId;
-      
+
       // Check if viewing own profile
-      final isOwnProfile = userId != null && currentUserId != null && userId == currentUserId;
-      
+      final isOwnProfile =
+          userId != null && currentUserId != null && userId == currentUserId;
+
       // Create default userData structure with available info
       Map<String, dynamic> defaultUserData = {
         'id': userId ?? '',
@@ -107,27 +107,33 @@ class _ProfileScreenState extends State<ProfileScreen> {
         'wallpaper': '',
         'online': '0',
       };
-      
+
       User? profile;
-      
+
       // If viewing own profile, try to load from cache first (works offline)
       if (isOwnProfile) {
-        print('[SKYBYN] 📦 [Profile] Loading own profile - checking cache first');
-        developer.log('📦 [Profile] Loading own profile - checking cache first', name: 'Profile API');
-        
+        print(
+            '[SKYBYN] 📦 [Profile] Loading own profile - checking cache first');
+        developer.log('📦 [Profile] Loading own profile - checking cache first',
+            name: 'Profile API');
+
         try {
           final cachedProfile = await authService.getStoredUserProfile();
           if (cachedProfile != null) {
-            print('[SKYBYN] ✅ [Profile] Using cached profile data (offline support)');
-            developer.log('✅ [Profile] Using cached profile data (offline support)', name: 'Profile API');
+            print(
+                '[SKYBYN] ✅ [Profile] Using cached profile data (offline support)');
+            developer.log(
+                '✅ [Profile] Using cached profile data (offline support)',
+                name: 'Profile API');
             profile = cachedProfile;
-            
+
             // Update UI immediately with cached data
             setState(() {
               if (profile != null) {
                 userData = profile.toJson();
                 // Ensure userData has the id field set
-                if (userData!['id'] == null || userData!['id'].toString().isEmpty) {
+                if (userData!['id'] == null ||
+                    userData!['id'].toString().isEmpty) {
                   if (profileUserId != null) {
                     userData!['id'] = profileUserId;
                     userData!['userID'] = profileUserId;
@@ -137,30 +143,36 @@ class _ProfileScreenState extends State<ProfileScreen> {
               isLoading = false;
               _errorMessage = null;
             });
-            
+
             // Try to refresh from API in background (non-blocking)
             // This keeps the cache updated but doesn't block the UI
-            _refreshProfileFromAPI(authService, userId, username).catchError((e) {
+            _refreshProfileFromAPI(authService, userId, username)
+                .catchError((e) {
               // Silently fail - we already have cached data
-              print('[SKYBYN] ⚠️ [Profile] Background refresh failed (using cached data): $e');
+              print(
+                  '[SKYBYN] ⚠️ [Profile] Background refresh failed (using cached data): $e');
             });
-            
+
             // Load posts and return early (we have the profile data)
             if (userData != null) {
               _loadUserPosts();
             }
             return; // Exit early - we have cached data
           } else {
-            print('[SKYBYN] ⚠️ [Profile] No cached profile found, fetching from API');
-            developer.log('⚠️ [Profile] No cached profile found, fetching from API', name: 'Profile API');
+            print(
+                '[SKYBYN] ⚠️ [Profile] No cached profile found, fetching from API');
+            developer.log(
+                '⚠️ [Profile] No cached profile found, fetching from API',
+                name: 'Profile API');
           }
         } catch (e) {
           print('[SKYBYN] ⚠️ [Profile] Error loading cached profile: $e');
-          developer.log('⚠️ [Profile] Error loading cached profile: $e', name: 'Profile API');
+          developer.log('⚠️ [Profile] Error loading cached profile: $e',
+              name: 'Profile API');
           // Continue to API fetch if cache fails
         }
       }
-      
+
       // If not own profile, or cache failed, or no cache available - fetch from API
       // Log API request details
       final apiUrl = ApiConstants.profile;
@@ -170,68 +182,85 @@ class _ProfileScreenState extends State<ProfileScreen> {
       } else if (username != null) {
         requestParams['username'] = username;
       }
-      
+
       print('[SKYBYN] ═══════════════════════════════════════════════════════');
       print('[SKYBYN] 📤 [Profile] Sending request to API');
       print('[SKYBYN]    URL: $apiUrl');
       print('[SKYBYN]    Parameters: ${jsonEncode(requestParams)}');
       print('[SKYBYN]    Method: POST');
       if (isOwnProfile) {
-        print('[SKYBYN]    Note: Refreshing own profile from API (cache was missing)');
+        print(
+            '[SKYBYN]    Note: Refreshing own profile from API (cache was missing)');
       }
       developer.log('📤 [Profile] Sending request to API', name: 'Profile API');
       developer.log('   URL: $apiUrl', name: 'Profile API');
-      developer.log('   Parameters: ${jsonEncode(requestParams)}', name: 'Profile API');
+      developer.log('   Parameters: ${jsonEncode(requestParams)}',
+          name: 'Profile API');
       developer.log('   Method: POST', name: 'Profile API');
-      
+
       profile = await authService.fetchAnyUserProfile(
         userId: userId,
         username: username,
       );
-      
+
       // Log API response
       if (profile != null) {
         final profileJson = profile.toJson();
         print('[SKYBYN] 📥 [Profile] API Response received');
         print('[SKYBYN]    Status: Success');
-        print('[SKYBYN]    User ID: ${profileJson['id'] ?? profileJson['userID']}');
+        print(
+            '[SKYBYN]    User ID: ${profileJson['id'] ?? profileJson['userID']}');
         print('[SKYBYN]    Username: ${profileJson['username']}');
-        print('[SKYBYN]    Has Avatar: ${profileJson['avatar'] != null && profileJson['avatar'].toString().isNotEmpty}');
-        print('[SKYBYN]    Has Wallpaper: ${profileJson['wallpaper'] != null && profileJson['wallpaper'].toString().isNotEmpty}');
+        print(
+            '[SKYBYN]    Has Avatar: ${profileJson['avatar'] != null && profileJson['avatar'].toString().isNotEmpty}');
+        print(
+            '[SKYBYN]    Has Wallpaper: ${profileJson['wallpaper'] != null && profileJson['wallpaper'].toString().isNotEmpty}');
         print('[SKYBYN]    Online: ${profileJson['online']}');
         print('[SKYBYN]    Full Response: ${jsonEncode(profileJson)}');
-        developer.log('📥 [Profile] API Response received', name: 'Profile API');
+        developer.log('📥 [Profile] API Response received',
+            name: 'Profile API');
         developer.log('   Status: Success', name: 'Profile API');
-        developer.log('   User ID: ${profileJson['id'] ?? profileJson['userID']}', name: 'Profile API');
-        developer.log('   Username: ${profileJson['username']}', name: 'Profile API');
-        developer.log('   Has Avatar: ${profileJson['avatar'] != null && profileJson['avatar'].toString().isNotEmpty}', name: 'Profile API');
-        developer.log('   Has Wallpaper: ${profileJson['wallpaper'] != null && profileJson['wallpaper'].toString().isNotEmpty}', name: 'Profile API');
-        developer.log('   Online: ${profileJson['online']}', name: 'Profile API');
-        developer.log('   Full Response: ${jsonEncode(profileJson)}', name: 'Profile API');
+        developer.log(
+            '   User ID: ${profileJson['id'] ?? profileJson['userID']}',
+            name: 'Profile API');
+        developer.log('   Username: ${profileJson['username']}',
+            name: 'Profile API');
+        developer.log(
+            '   Has Avatar: ${profileJson['avatar'] != null && profileJson['avatar'].toString().isNotEmpty}',
+            name: 'Profile API');
+        developer.log(
+            '   Has Wallpaper: ${profileJson['wallpaper'] != null && profileJson['wallpaper'].toString().isNotEmpty}',
+            name: 'Profile API');
+        developer.log('   Online: ${profileJson['online']}',
+            name: 'Profile API');
+        developer.log('   Full Response: ${jsonEncode(profileJson)}',
+            name: 'Profile API');
       } else {
         print('[SKYBYN] 📥 [Profile] API Response received');
         print('[SKYBYN]    Status: Failed (null response)');
         print('[SKYBYN]    Error: Profile data is null');
-        developer.log('📥 [Profile] API Response received', name: 'Profile API');
+        developer.log('📥 [Profile] API Response received',
+            name: 'Profile API');
         developer.log('   Status: Failed (null response)', name: 'Profile API');
         developer.log('   Error: Profile data is null', name: 'Profile API');
       }
       print('[SKYBYN] ═══════════════════════════════════════════════════════');
-      developer.log('═══════════════════════════════════════════════════════', name: 'Profile API');
-      
+      developer.log('═══════════════════════════════════════════════════════',
+          name: 'Profile API');
+
       setState(() {
         if (profile != null) {
           userData = profile.toJson();
           // Ensure userData has the id field set
-            if (userData!['id'] == null || userData!['id'].toString().isEmpty) {
-              if (profileUserId != null) {
-                userData!['id'] = profileUserId;
-                userData!['userID'] = profileUserId; // Also set for compatibility
-              }
-            } else if (profileUserId == null) {
-              // Update profileUserId from loaded data if we didn't have it initially (e.g. navigated by username)
-              profileUserId = userData!['id'].toString();
+          if (userData!['id'] == null || userData!['id'].toString().isEmpty) {
+            if (profileUserId != null) {
+              userData!['id'] = profileUserId;
+              userData!['userID'] = profileUserId; // Also set for compatibility
             }
+          } else if (profileUserId == null) {
+            // Update profileUserId from loaded data if we didn't have it initially (e.g. navigated by username)
+            profileUserId = userData!['id'].toString();
+          }
           _errorMessage = null; // Clear any previous error
         } else {
           // Use default data if profile fetch failed
@@ -254,7 +283,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
       if (userData != null) {
         _loadUserPosts();
         // Check friendship status if viewing another user's profile
-        if (profileUserId != null && currentUserId != null && profileUserId != currentUserId) {
+        if (profileUserId != null &&
+            currentUserId != null &&
+            profileUserId != currentUserId) {
           _checkFriendshipStatus();
         }
       }
@@ -262,8 +293,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
       // On error, use default userData and show error in popup
       final errorMsg = e.toString();
       print('[SKYBYN] ❌ [Profile] Error loading profile: $errorMsg');
-      developer.log('❌ [Profile] Error loading profile: $errorMsg', name: 'Profile API');
-      
+      developer.log('❌ [Profile] Error loading profile: $errorMsg',
+          name: 'Profile API');
+
       setState(() {
         isLoading = false;
         // Create default userData with available info
@@ -277,24 +309,25 @@ class _ProfileScreenState extends State<ProfileScreen> {
         };
         _errorMessage = errorMsg;
       });
-      
+
       // Show error popup after widget rebuilds
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
           _showErrorPopup(errorMsg);
         }
       });
-      
+
       // Still try to load posts (they might work even if profile failed)
       if (userData != null) {
         _loadUserPosts();
       }
     }
   }
-  
+
   /// Refresh profile from API in background (non-blocking)
   /// Used to update cache when viewing own profile
-  Future<void> _refreshProfileFromAPI(AuthService authService, String? userId, String? username) async {
+  Future<void> _refreshProfileFromAPI(
+      AuthService authService, String? userId, String? username) async {
     try {
       final requestParams = <String, String>{};
       if (userId != null) {
@@ -302,19 +335,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
       } else if (username != null) {
         requestParams['username'] = username;
       }
-      
+
       print('[SKYBYN] 🔄 [Profile] Background refresh: Fetching from API');
-      developer.log('🔄 [Profile] Background refresh: Fetching from API', name: 'Profile API');
-      
+      developer.log('🔄 [Profile] Background refresh: Fetching from API',
+          name: 'Profile API');
+
       final profile = await authService.fetchAnyUserProfile(
         userId: userId,
         username: username,
       );
-      
+
       if (profile != null && mounted) {
         print('[SKYBYN] ✅ [Profile] Background refresh: Profile updated');
-        developer.log('✅ [Profile] Background refresh: Profile updated', name: 'Profile API');
-        
+        developer.log('✅ [Profile] Background refresh: Profile updated',
+            name: 'Profile API');
+
         // Update UI with fresh data if still viewing the same profile
         if (profileUserId == userId) {
           setState(() {
@@ -330,16 +365,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
           });
         }
       } else {
-        print('[SKYBYN] ⚠️ [Profile] Background refresh: Failed (keeping cached data)');
-        developer.log('⚠️ [Profile] Background refresh: Failed (keeping cached data)', name: 'Profile API');
+        print(
+            '[SKYBYN] ⚠️ [Profile] Background refresh: Failed (keeping cached data)');
+        developer.log(
+            '⚠️ [Profile] Background refresh: Failed (keeping cached data)',
+            name: 'Profile API');
       }
     } catch (e) {
       print('[SKYBYN] ⚠️ [Profile] Background refresh error: $e');
-      developer.log('⚠️ [Profile] Background refresh error: $e', name: 'Profile API');
+      developer.log('⚠️ [Profile] Background refresh error: $e',
+          name: 'Profile API');
       // Silently fail - we already have cached data displayed
     }
   }
-  
+
   void _showErrorPopup(String message) {
     showDialog(
       context: context,
@@ -391,38 +430,43 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     // User.toJson() uses 'id' as the key, not 'userID'
     // Try multiple sources: userData['id'], userData['userID'], or the profileUserId we stored
-    final targetUserId = userData!['id']?.toString() ?? 
-                        userData!['userID']?.toString() ?? 
-                        profileUserId?.toString();
+    final targetUserId = userData!['id']?.toString() ??
+        userData!['userID']?.toString() ??
+        profileUserId?.toString();
     if (targetUserId == null || targetUserId.isEmpty) {
-      print('[SKYBYN] ⚠️ [Profile Posts] Cannot load posts: targetUserId is null or empty');
-      developer.log('⚠️ [Profile Posts] Cannot load posts: targetUserId is null or empty', name: 'Profile Posts API');
+      print(
+          '[SKYBYN] ⚠️ [Profile Posts] Cannot load posts: targetUserId is null or empty');
+      developer.log(
+          '⚠️ [Profile Posts] Cannot load posts: targetUserId is null or empty',
+          name: 'Profile Posts API');
       setState(() {
         userPosts = [];
         isLoadingPosts = false;
       });
       return;
     }
-    
+
     setState(() => isLoadingPosts = true);
-    
+
     // Log API request details
     final apiUrl = ApiConstants.userTimeline;
     final requestParams = {
       'userID': targetUserId,
       if (currentUserId != null) 'currentUserId': currentUserId!,
     };
-    
+
     print('[SKYBYN] ═══════════════════════════════════════════════════════');
     print('[SKYBYN] 📤 [Profile Posts] Sending request to API');
     print('[SKYBYN]    URL: $apiUrl');
     print('[SKYBYN]    Parameters: ${jsonEncode(requestParams)}');
     print('[SKYBYN]    Method: POST');
-    developer.log('📤 [Profile Posts] Sending request to API', name: 'Profile Posts API');
+    developer.log('📤 [Profile Posts] Sending request to API',
+        name: 'Profile Posts API');
     developer.log('   URL: $apiUrl', name: 'Profile Posts API');
-    developer.log('   Parameters: ${jsonEncode(requestParams)}', name: 'Profile Posts API');
+    developer.log('   Parameters: ${jsonEncode(requestParams)}',
+        name: 'Profile Posts API');
     developer.log('   Method: POST', name: 'Profile Posts API');
-    
+
     try {
       final postService = PostService();
       // Fetch posts for the specific user whose profile is being viewed
@@ -430,7 +474,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         userId: targetUserId ?? '',
         currentUserId: currentUserId,
       );
-      
+
       // Log API response
       print('[SKYBYN] 📥 [Profile Posts] API Response received');
       print('[SKYBYN]    Status: Success');
@@ -438,26 +482,36 @@ class _ProfileScreenState extends State<ProfileScreen> {
       if (posts.isNotEmpty) {
         print('[SKYBYN]    First Post ID: ${posts.first.id}');
         print('[SKYBYN]    First Post User: ${posts.first.userId}');
-        print('[SKYBYN]    First Post Content Preview: ${posts.first.content.length > 50 ? posts.first.content.substring(0, 50) + "..." : posts.first.content}');
+        print(
+            '[SKYBYN]    First Post Content Preview: ${posts.first.content.length > 50 ? posts.first.content.substring(0, 50) + "..." : posts.first.content}');
       }
-      developer.log('📥 [Profile Posts] API Response received', name: 'Profile Posts API');
+      developer.log('📥 [Profile Posts] API Response received',
+          name: 'Profile Posts API');
       developer.log('   Status: Success', name: 'Profile Posts API');
-      developer.log('   Posts Count: ${posts.length}', name: 'Profile Posts API');
+      developer.log('   Posts Count: ${posts.length}',
+          name: 'Profile Posts API');
       if (posts.isNotEmpty) {
-        developer.log('   First Post ID: ${posts.first.id}', name: 'Profile Posts API');
-        developer.log('   First Post User: ${posts.first.userId}', name: 'Profile Posts API');
-        developer.log('   First Post Content Preview: ${posts.first.content.length > 50 ? posts.first.content.substring(0, 50) + "..." : posts.first.content}', name: 'Profile Posts API');
+        developer.log('   First Post ID: ${posts.first.id}',
+            name: 'Profile Posts API');
+        developer.log('   First Post User: ${posts.first.userId}',
+            name: 'Profile Posts API');
+        developer.log(
+            '   First Post Content Preview: ${posts.first.content.length > 50 ? posts.first.content.substring(0, 50) + "..." : posts.first.content}',
+            name: 'Profile Posts API');
       }
-      
+
       // The API endpoint (user-timeline.php) should already filter by user
       // Trust the API response, but log for debugging
       for (final post in posts) {
         if (post.userId != null && post.userId != targetUserId) {
-          print('[SKYBYN] ⚠️ [Profile Posts] Post ${post.id} belongs to different user (${post.userId} vs $targetUserId)');
-          developer.log('⚠️ [Profile Posts] Post ${post.id} belongs to different user (${post.userId} vs $targetUserId)', name: 'Profile Posts API');
+          print(
+              '[SKYBYN] ⚠️ [Profile Posts] Post ${post.id} belongs to different user (${post.userId} vs $targetUserId)');
+          developer.log(
+              '⚠️ [Profile Posts] Post ${post.id} belongs to different user (${post.userId} vs $targetUserId)',
+              name: 'Profile Posts API');
         }
       }
-      
+
       // Use all posts from API - the endpoint is user-specific
       // Patch posts with known user data if missing
       final patchedPosts = posts.map((post) {
@@ -476,12 +530,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
         userPosts = patchedPosts;
         isLoadingPosts = false;
       });
-      
+
       print('[SKYBYN] ═══════════════════════════════════════════════════════');
-      developer.log('═══════════════════════════════════════════════════════', name: 'Profile Posts API');
+      developer.log('═══════════════════════════════════════════════════════',
+          name: 'Profile Posts API');
     } catch (e) {
       print('[SKYBYN] ❌ [Profile Posts] Error loading posts: $e');
-      developer.log('❌ [Profile Posts] Error loading posts: $e', name: 'Profile Posts API');
+      developer.log('❌ [Profile Posts] Error loading posts: $e',
+          name: 'Profile Posts API');
       setState(() {
         userPosts = [];
         isLoadingPosts = false;
@@ -515,7 +571,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
   bool get isOwnProfile =>
       userData != null &&
       currentUserId != null &&
-      (userData!['id']?.toString() ?? userData!['userID']?.toString()) == currentUserId;
+      (userData!['id']?.toString() ?? userData!['userID']?.toString()) ==
+          currentUserId;
 
   Future<void> _checkFriendshipStatus() async {
     if (currentUserId == null || profileUserId == null) {
@@ -553,15 +610,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (currentUserId == null || userData == null || _isSendingRequest) {
       return;
     }
-    
-    final friendId = userData!['id']?.toString() ?? userData!['userID']?.toString();
+
+    final friendId =
+        userData!['id']?.toString() ?? userData!['userID']?.toString();
     if (friendId == null || friendId.isEmpty) {
       return;
     }
     setState(() {
       _isSendingRequest = true;
     });
-    
+
     try {
       final response = await http.post(
         Uri.parse(ApiConstants.friend),
@@ -578,7 +636,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             _friendshipStatus = 'sent';
             _isSendingRequest = false;
           });
-          
+
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
@@ -592,11 +650,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
           setState(() {
             _isSendingRequest = false;
           });
-          
+
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text(data['message'] ?? 'Failed to send friend request'),
+                content:
+                    Text(data['message'] ?? 'Failed to send friend request'),
                 backgroundColor: Colors.red,
                 duration: const Duration(seconds: 2),
               ),
@@ -618,11 +677,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget _buildSubprofileOverlay() {
     final subprofiles = userData?['subprofiles'] as List<dynamic>?;
     final hasSubprofile = subprofiles != null && subprofiles.isNotEmpty;
-    
+
     if (hasSubprofile) {
       final firstSubprofile = subprofiles.first;
       final subAvatarUrl = firstSubprofile['avatar']?.toString() ?? '';
-      
+
       return Positioned(
         left: _isSticky ? -5 : -15,
         top: _isSticky ? 25 : 70,
@@ -658,7 +717,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
           decoration: BoxDecoration(
             color: Colors.transparent,
             shape: BoxShape.circle,
-            border: Border.all(color: Colors.white.withOpacity(0.5), width: _isSticky ? 1 : 2),
+            border: Border.all(
+                color: Colors.white.withOpacity(0.5), width: _isSticky ? 1 : 2),
           ),
           child: Icon(
             Icons.add,
@@ -668,7 +728,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ),
       );
     }
-    
+
     return const SizedBox.shrink();
   }
 
@@ -680,14 +740,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
         children: [
           _buildActionButton(
             icon: Icons.check,
-            label: TranslationService().translate(TranslationKeys.acceptFriend), // Ensure this key exists or use string
+            label: TranslationService().translate(TranslationKeys
+                .acceptFriend), // Ensure this key exists or use string
             color: Colors.green,
             onTap: () => _sendFriendAction('accept'),
           ),
           const SizedBox(width: 12),
           _buildActionButton(
             icon: Icons.close,
-            label: TranslationService().translate(TranslationKeys.declineFriend), // Ensure this key exists or use string
+            label: TranslationService().translate(TranslationKeys
+                .declineFriend), // Ensure this key exists or use string
             color: Colors.red,
             onTap: () => _sendFriendAction('decline'),
           ),
@@ -700,9 +762,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 final friend = Friend(
                   id: profileUserId!,
                   username: userData!['username']?.toString() ?? '',
-                  nickname: userData!['nickname']?.toString() ?? userData!['username']?.toString() ?? '',
+                  nickname: userData!['nickname']?.toString() ??
+                      userData!['username']?.toString() ??
+                      '',
                   avatar: userData!['avatar']?.toString() ?? '',
-                  online: userData!['online'] == '1' || userData!['online'] == 1 || userData!['online'] == true || userData!['online'] == 'true',
+                  online: userData!['online'] == '1' ||
+                      userData!['online'] == 1 ||
+                      userData!['online'] == true ||
+                      userData!['online'] == 'true',
                 );
                 Navigator.push(
                   context,
@@ -714,7 +781,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             },
           ),
           const SizedBox(width: 12),
-           _buildActionButton(
+          _buildActionButton(
             icon: Icons.share,
             label: TranslationService().translate(TranslationKeys.share),
             onTap: () {
@@ -736,9 +803,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
               final friend = Friend(
                 id: profileUserId!,
                 username: userData!['username']?.toString() ?? '',
-                nickname: userData!['nickname']?.toString() ?? userData!['username']?.toString() ?? '',
+                nickname: userData!['nickname']?.toString() ??
+                    userData!['username']?.toString() ??
+                    '',
                 avatar: userData!['avatar']?.toString() ?? '',
-                online: userData!['online'] == '1' || userData!['online'] == 1 || userData!['online'] == true || userData!['online'] == 'true',
+                online: userData!['online'] == '1' ||
+                    userData!['online'] == 1 ||
+                    userData!['online'] == true ||
+                    userData!['online'] == 'true',
               );
               Navigator.push(
                 context,
@@ -833,7 +905,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 if (_friendshipStatus == 'friends')
                   _buildMenuOption(
                     icon: Icons.person_remove,
-                    label: TranslationService().translate(TranslationKeys.removeFriend),
+                    label: TranslationService()
+                        .translate(TranslationKeys.removeFriend),
                     onTap: () {
                       Navigator.pop(context);
                       _sendFriendAction('unfriend');
@@ -936,7 +1009,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _buildInfoChip({required IconData icon, required String label, Color? iconColor}) {
+  Widget _buildInfoChip(
+      {required IconData icon, required String label, Color? iconColor}) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
@@ -947,7 +1021,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 14, color: iconColor ?? AppColors.getIconColor(context).withOpacity(0.8)),
+          Icon(icon,
+              size: 14,
+              color: iconColor ??
+                  AppColors.getIconColor(context).withOpacity(0.8)),
           const SizedBox(width: 6),
           Text(
             label,
@@ -967,7 +1044,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
       case '0':
         return TranslationService().translate(TranslationKeys.relSingle);
       case '1':
-        return TranslationService().translate(TranslationKeys.relInRelationship);
+        return TranslationService()
+            .translate(TranslationKeys.relInRelationship);
       case '2':
         return TranslationService().translate(TranslationKeys.relComplicated);
       case '3':
@@ -987,8 +1065,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
-
-
   void _showFriendActionsMenu() {
     // Refresh status before showing menu
     _checkFriendshipStatus().then((_) {
@@ -1000,7 +1076,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final status = _friendshipStatus ?? 'none';
     // Build menu items based on status
     List<PopupMenuEntry<String>> menuItems = [];
-    
+
     // Handle blocked status (user has blocked you)
     if (status == 'blocked') {
       // User has blocked you - show nothing or disabled state
@@ -1011,7 +1087,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
             children: [
               Icon(Icons.block, size: 18, color: Colors.grey),
               SizedBox(width: 12),
-              Text('This user has blocked you', style: TextStyle(color: Colors.grey)),
+              Text('This user has blocked you',
+                  style: TextStyle(color: Colors.grey)),
             ],
           ),
         ),
@@ -1025,7 +1102,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
             children: [
               const Icon(Icons.person_remove, size: 18, color: Colors.white),
               const SizedBox(width: 12),
-              Text(TranslationService().translate(TranslationKeys.removeFriend), style: const TextStyle(color: Colors.white)),
+              Text(TranslationService().translate(TranslationKeys.removeFriend),
+                  style: const TextStyle(color: Colors.white)),
             ],
           ),
         ),
@@ -1040,7 +1118,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
             children: [
               const Icon(Icons.block, size: 18, color: Colors.red),
               const SizedBox(width: 12),
-              Text(TranslationService().translate(TranslationKeys.blockUser), style: const TextStyle(color: Colors.red)),
+              Text(TranslationService().translate(TranslationKeys.blockUser),
+                  style: const TextStyle(color: Colors.red)),
             ],
           ),
         ),
@@ -1054,7 +1133,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
             children: [
               const Icon(Icons.close, size: 18, color: Colors.white),
               const SizedBox(width: 12),
-              Text('${TranslationService().translate(TranslationKeys.cancel)} ${TranslationService().translate(TranslationKeys.friendRequest)}', style: const TextStyle(color: Colors.white)),
+              Text(
+                  '${TranslationService().translate(TranslationKeys.cancel)} ${TranslationService().translate(TranslationKeys.friendRequest)}',
+                  style: const TextStyle(color: Colors.white)),
             ],
           ),
         ),
@@ -1069,7 +1150,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
             children: [
               const Icon(Icons.block, size: 18, color: Colors.red),
               const SizedBox(width: 12),
-              Text(TranslationService().translate(TranslationKeys.blockUser), style: const TextStyle(color: Colors.red)),
+              Text(TranslationService().translate(TranslationKeys.blockUser),
+                  style: const TextStyle(color: Colors.red)),
             ],
           ),
         ),
@@ -1083,7 +1165,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
             children: [
               const Icon(Icons.person_add, size: 18, color: Colors.green),
               const SizedBox(width: 12),
-              Text(TranslationService().translate(TranslationKeys.acceptFriend), style: const TextStyle(color: Colors.green)),
+              Text(TranslationService().translate(TranslationKeys.acceptFriend),
+                  style: const TextStyle(color: Colors.green)),
             ],
           ),
         ),
@@ -1095,7 +1178,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
             children: [
               const Icon(Icons.close, size: 18, color: Colors.white),
               const SizedBox(width: 12),
-              Text(TranslationService().translate(TranslationKeys.declineFriend), style: const TextStyle(color: Colors.white)),
+              Text(
+                  TranslationService().translate(TranslationKeys.declineFriend),
+                  style: const TextStyle(color: Colors.white)),
             ],
           ),
         ),
@@ -1110,7 +1195,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
             children: [
               const Icon(Icons.block, size: 18, color: Colors.red),
               const SizedBox(width: 12),
-              Text(TranslationService().translate(TranslationKeys.blockUser), style: const TextStyle(color: Colors.red)),
+              Text(TranslationService().translate(TranslationKeys.blockUser),
+                  style: const TextStyle(color: Colors.red)),
             ],
           ),
         ),
@@ -1124,7 +1210,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
             children: [
               const Icon(Icons.person_off, size: 18, color: Colors.orange),
               const SizedBox(width: 12),
-              Text(TranslationService().translate(TranslationKeys.unblockUser), style: const TextStyle(color: Colors.orange)),
+              Text(TranslationService().translate(TranslationKeys.unblockUser),
+                  style: const TextStyle(color: Colors.orange)),
             ],
           ),
         ),
@@ -1139,7 +1226,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
               children: [
                 Icon(Icons.person_add, size: 18, color: Colors.white),
                 SizedBox(width: 12),
-                Text('Send Friend Request', style: TextStyle(color: Colors.white)),
+                Text('Send Friend Request',
+                    style: TextStyle(color: Colors.white)),
               ],
             ),
           ),
@@ -1154,14 +1242,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
               children: [
                 const Icon(Icons.block, size: 18, color: Colors.red),
                 const SizedBox(width: 12),
-                Text(TranslationService().translate(TranslationKeys.blockUser), style: const TextStyle(color: Colors.red)),
+                Text(TranslationService().translate(TranslationKeys.blockUser),
+                    style: const TextStyle(color: Colors.red)),
               ],
             ),
           ),
         );
       }
     }
-    
+
     if (menuItems.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -1171,7 +1260,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       );
       return;
     }
-    
+
     // Show popup menu
     showMenu<String>(
       context: context,
@@ -1201,14 +1290,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (currentUserId == null || userData == null) {
       return;
     }
-    
-    final userReported = userData!['id']?.toString() ?? userData!['userID']?.toString();
+
+    final userReported =
+        userData!['id']?.toString() ?? userData!['userID']?.toString();
     if (userReported == null || userReported.isEmpty) {
       return;
     }
-    
+
     final reportedUsername = userData!['username']?.toString() ?? 'this user';
-    
+
     // Show dialog with optional text input
     final reportContent = await showDialog<String>(
       context: context,
@@ -1217,7 +1307,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
         return StatefulBuilder(
           builder: (BuildContext context, StateSetter setState) {
             return AlertDialog(
-              title: Text(TranslationService().translate(TranslationKeys.report)),
+              title:
+                  Text(TranslationService().translate(TranslationKeys.report)),
               content: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -1244,7 +1335,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 OutlinedButton(
                   onPressed: () => Navigator.of(context).pop(null),
                   style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 24, vertical: 12),
                     side: BorderSide(color: Colors.grey[600]!),
                   ),
                   child: Text(
@@ -1254,10 +1346,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
                 const SizedBox(width: 8),
                 ElevatedButton(
-                  onPressed: () => Navigator.of(context).pop(reportController.text.trim()),
+                  onPressed: () =>
+                      Navigator.of(context).pop(reportController.text.trim()),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.red,
-                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 24, vertical: 12),
                   ),
                   child: Text(
                     TranslationService().translate(TranslationKeys.report),
@@ -1270,19 +1364,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
         );
       },
     );
-    
+
     // If user cancelled, return
     if (reportContent == null) {
       return;
     }
-    
+
     try {
       final response = await http.post(
         Uri.parse(ApiConstants.report),
         body: {
           'userID': currentUserId!,
           'userReported': userReported,
-          'content': reportContent.isEmpty ? 'User reported from profile screen' : reportContent,
+          'content': reportContent.isEmpty
+              ? 'User reported from profile screen'
+              : reportContent,
         },
       );
       if (response.statusCode == 200) {
@@ -1291,7 +1387,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text(data['message'] ?? 'User reported successfully. Thank you for your report.'),
+                content: Text(data['message'] ??
+                    'User reported successfully. Thank you for your report.'),
                 backgroundColor: Colors.green,
                 duration: const Duration(seconds: 3),
               ),
@@ -1334,11 +1431,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Future<void> _shareProfile() async {
     if (userData == null) return;
-    
+
     final username = userData!['username']?.toString() ?? '';
     final profileUrl = 'https://skybyn.com/profile/$username';
     final shareText = 'Check out $username on Skybyn!\n$profileUrl';
-    
+
     try {
       await Share.share(shareText);
     } catch (e) {
@@ -1368,7 +1465,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         onPressed: null, // Disabled
       );
     }
-    
+
     // Show loading indicator if sending request
     if (_isSendingRequest) {
       return const SizedBox(
@@ -1380,10 +1477,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ),
       );
     }
-    
+
     // Build menu items based on status
     List<PopupMenuEntry<String>> menuItems = [];
-    
+
     if (status == 'friends') {
       menuItems.add(
         const PopupMenuItem(
@@ -1457,7 +1554,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
             children: [
               const Icon(Icons.person_add, size: 18, color: Colors.white),
               const SizedBox(width: 12),
-              Text(TranslationService().translate(TranslationKeys.sendFriendRequest), style: const TextStyle(color: Colors.white)),
+              Text(
+                  TranslationService()
+                      .translate(TranslationKeys.sendFriendRequest),
+                  style: const TextStyle(color: Colors.white)),
             ],
           ),
         ),
@@ -1469,15 +1569,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
             children: [
               const Icon(Icons.block, size: 18, color: Colors.red),
               const SizedBox(width: 12),
-              Text(TranslationService().translate(TranslationKeys.blockUser), style: const TextStyle(color: Colors.red)),
+              Text(TranslationService().translate(TranslationKeys.blockUser),
+                  style: const TextStyle(color: Colors.red)),
             ],
           ),
         ),
       );
     }
-    
+
     // Report option removed - now available as a dedicated button in the navigation bar
-    
+
     // Return PopupMenuButton with 3-dot vertical icon
     return Builder(
       builder: (context) {
@@ -1523,7 +1624,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (currentUserId == null || userData == null) {
       return;
     }
-    final friendId = userData!['id']?.toString() ?? userData!['userID']?.toString();
+    final friendId =
+        userData!['id']?.toString() ?? userData!['userID']?.toString();
     if (friendId == null || friendId.isEmpty) {
       return;
     }
@@ -1541,7 +1643,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         if (data['responseCode'] == '1' || data['responseCode'] == 1) {
           // Refresh friendship status after action
           await _checkFriendshipStatus();
-          
+
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
@@ -1611,26 +1713,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ),
         child: CustomBottomNavigationBar(
           onAddPressed: () async {
-            await showModalBottomSheet(
-              context: context,
-              isScrollControlled: true,
-              backgroundColor: Colors.transparent,
-              builder: (context) => DraggableScrollableSheet(
-                expand: false,
-                initialChildSize: 0.7,
-                minChildSize: 0.4,
-                maxChildSize: 0.9,
-                builder: (context, scrollController) => Container(
-                  margin: const EdgeInsets.only(top: 100),
-                  decoration: const BoxDecoration(
-                    color: Colors.transparent,
-                    borderRadius:
-                        BorderRadius.vertical(top: Radius.circular(24)),
-                  ),
-                  child: const CreatePostScreen(),
-                ),
-              ),
-            );
+            await CreatePostWidget.show(context: context);
           },
           notificationButtonKey: _notificationButtonKey,
         ),
@@ -1669,7 +1752,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           ),
                         ],
                       ),
-                      const SizedBox(height: 15), // Reduced gap to restore name position
+                      const SizedBox(
+                          height: 15), // Reduced gap to restore name position
                       // Info Skeleton - SPLIT ALIGNMENT
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1688,7 +1772,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               ),
                             ),
                           ),
-                          const SizedBox(height: 25), // Spacing to clear avatar bottom
+                          const SizedBox(
+                              height: 25), // Spacing to clear avatar bottom
                           // Chips Skeleton (now left-aligned)
                           Padding(
                             padding: const EdgeInsets.only(left: 20),
@@ -1761,7 +1846,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     slivers: [
                       SliverToBoxAdapter(
                         child: SizedBox(
-                          height: appBarHeight + MediaQuery.of(context).padding.top,
+                          height:
+                              appBarHeight + MediaQuery.of(context).padding.top,
                         ),
                       ),
                       // --- Corrected Profile Header (Integrated Design) ---
@@ -1783,15 +1869,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                           fit: BoxFit.cover,
                                         )
                                       : CachedNetworkImage(
-                                          imageUrl: UrlHelper.convertUrl(wallpaperUrl),
+                                          imageUrl: UrlHelper.convertUrl(
+                                              wallpaperUrl),
                                           width: double.infinity,
                                           fit: BoxFit.cover,
-                                          placeholder: (context, url) => Image.asset(
+                                          placeholder: (context, url) =>
+                                              Image.asset(
                                             'assets/images/background.png',
                                             width: double.infinity,
                                             fit: BoxFit.cover,
                                           ),
-                                          errorWidget: (context, url, error) => Image.asset(
+                                          errorWidget: (context, url, error) =>
+                                              Image.asset(
                                             'assets/images/background.png',
                                             width: double.infinity,
                                             fit: BoxFit.cover,
@@ -1807,19 +1896,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                     children: [
                                       // Main Avatar
                                       Hero(
-                                        tag: 'avatar_${profileUserId ?? userData?['id'] ?? userData?['userID'] ?? ''}',
+                                        tag:
+                                            'avatar_${profileUserId ?? userData?['id'] ?? userData?['userID'] ?? ''}',
                                         child: Container(
                                           width: _isSticky ? 50 : 125,
                                           height: _isSticky ? 50 : 125,
                                           decoration: BoxDecoration(
                                             shape: BoxShape.circle,
                                             border: Border.all(
-                                              color: Colors.black.withOpacity(0.5),
+                                              color:
+                                                  Colors.black.withOpacity(0.5),
                                               width: _isSticky ? 2 : 3,
                                             ),
                                             boxShadow: [
                                               BoxShadow(
-                                                color: Colors.black.withOpacity(0.3),
+                                                color: Colors.black
+                                                    .withOpacity(0.3),
                                                 blurRadius: _isSticky ? 5 : 15,
                                                 spreadRadius: _isSticky ? 1 : 2,
                                               ),
@@ -1828,17 +1920,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                           child: ClipOval(
                                             child: (avatarUrl.isNotEmpty)
                                                 ? CachedNetworkImage(
-                                                    imageUrl: UrlHelper.convertUrl(avatarUrl),
+                                                    imageUrl:
+                                                        UrlHelper.convertUrl(
+                                                            avatarUrl),
                                                     fit: BoxFit.cover,
-                                                    placeholder: (context, url) => Image.asset(
-                                                        'assets/images/icon.png',
-                                                        fit: BoxFit.cover),
-                                                    errorWidget: (context, url, error) => Image.asset(
+                                                    placeholder: (context,
+                                                            url) =>
+                                                        Image.asset(
+                                                            'assets/images/icon.png',
+                                                            fit: BoxFit.cover),
+                                                    errorWidget:
+                                                        (context, url, error) =>
+                                                            Image.asset(
                                                       'assets/images/icon.png',
                                                       fit: BoxFit.cover,
                                                     ),
                                                   )
-                                                : Image.asset('assets/images/icon.png',
+                                                : Image.asset(
+                                                    'assets/images/icon.png',
                                                     fit: BoxFit.cover),
                                           ),
                                         ),
@@ -1850,7 +1949,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 ),
                               ],
                             ),
-                            const SizedBox(height: 15), // Reduced gap to restore name position
+                            const SizedBox(
+                                height:
+                                    15), // Reduced gap to restore name position
                             // User Info and Pills - SPLIT ALIGNMENT
                             Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1858,7 +1959,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 // Display Name (next to avatar)
                                 Padding(
                                   padding: EdgeInsets.only(
-                                      left: _isSticky ? 80 : 155, 
+                                      left: _isSticky ? 80 : 155,
                                       top: _isSticky ? 0 : 10),
                                   child: Text(
                                     userData?['username'] ?? 'Unknown User',
@@ -1879,19 +1980,31 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 if (!_isSticky)
                                   // Username/Relationship Chips (now left-aligned, below avatar)
                                   Padding(
-                                    padding: const EdgeInsets.only(left: 20, top: 25), // Increased top spacing to clear avatar
+                                    padding: const EdgeInsets.only(
+                                        left: 20,
+                                        top:
+                                            25), // Increased top spacing to clear avatar
                                     child: Wrap(
                                       spacing: 10,
                                       runSpacing: 10,
                                       children: [
                                         _buildInfoChip(
                                           icon: Icons.alternate_email,
-                                          label: userData?['username'] ?? 'unknown',
+                                          label: userData?['username'] ??
+                                              'unknown',
                                         ),
                                         _buildInfoChip(
                                           icon: Icons.favorite,
-                                          label: _getRelationshipString(userData?['relationship']?.toString() ?? '0'),
-                                          iconColor: (userData?['relationship']?.toString() ?? '0') == '0' ? Colors.white : Colors.red,
+                                          label: _getRelationshipString(
+                                              userData?['relationship']
+                                                      ?.toString() ??
+                                                  '0'),
+                                          iconColor: (userData?['relationship']
+                                                          ?.toString() ??
+                                                      '0') ==
+                                                  '0'
+                                              ? Colors.white
+                                              : Colors.red,
                                         ),
                                       ],
                                     ),
@@ -1905,63 +2018,67 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       const SliverToBoxAdapter(
                         child: SizedBox(height: 40),
                       ),
-                  // --- Post Feed ---
-                  // Show skeleton loader if loading posts OR if there was an error loading profile
-                  if (isLoadingPosts || _errorMessage != null)
-                    SliverToBoxAdapter(
-                      child: Column(
-                        children: [
-                          for (int i = 0; i < 3; i++) ...[
-                            const PostCardSkeleton(),
-                          ],
-                        ],
-                      ),
-                    )
-                  else if (userPosts.isEmpty)
-                    const SliverToBoxAdapter(
-                      child: Padding(
-                        padding: EdgeInsets.all(32.0),
-                        child: Center(
-                          child: TranslatedText(
-                            TranslationKeys.noPostsYet,
-                            style: TextStyle(color: Colors.white70, fontSize: 16),
+                      // --- Post Feed ---
+                      // Show skeleton loader if loading posts OR if there was an error loading profile
+                      if (isLoadingPosts || _errorMessage != null)
+                        SliverToBoxAdapter(
+                          child: Column(
+                            children: [
+                              for (int i = 0; i < 3; i++) ...[
+                                const PostCardSkeleton(),
+                              ],
+                            ],
+                          ),
+                        )
+                      else if (userPosts.isEmpty)
+                        const SliverToBoxAdapter(
+                          child: Padding(
+                            padding: EdgeInsets.all(32.0),
+                            child: Center(
+                              child: TranslatedText(
+                                TranslationKeys.noPostsYet,
+                                style: TextStyle(
+                                    color: Colors.white70, fontSize: 16),
+                              ),
+                            ),
+                          ),
+                        )
+                      else
+                        SliverToBoxAdapter(
+                          child: Padding(
+                            padding:
+                                const EdgeInsets.only(left: 10.0, right: 10.0),
+                            child: Column(
+                              children: [
+                                for (final post in userPosts) ...[
+                                  const SizedBox(height: 10),
+                                  PostCard(
+                                    key: ValueKey(post.id),
+                                    post: post,
+                                    currentUserId: currentUserId,
+                                    onPostDeleted: (postId) {
+                                      setState(() {
+                                        userPosts
+                                            .removeWhere((p) => p.id == postId);
+                                      });
+                                    },
+                                    onPostUpdated: (postId) {
+                                      // Refresh the specific post or reload all posts
+                                      _loadUserPosts();
+                                    },
+                                    onInputFocused: () =>
+                                        _onPostInputFocused(post.id),
+                                    onInputUnfocused: () =>
+                                        _onPostInputUnfocused(post.id),
+                                  ),
+                                ],
+                              ],
+                            ),
                           ),
                         ),
-                      ),
-                    )
-                  else
-                    SliverToBoxAdapter(
-                      child: Padding(
-                        padding: const EdgeInsets.only(left: 10.0, right: 10.0),
-                        child: Column(
-                          children: [
-                            for (final post in userPosts) ...[
-                              const SizedBox(height: 10),
-                              PostCard(
-                                key: ValueKey(post.id),
-                                post: post,
-                                currentUserId: currentUserId,
-                                onPostDeleted: (postId) {
-                                  setState(() {
-                                    userPosts
-                                        .removeWhere((p) => p.id == postId);
-                                  });
-                                },
-                                onPostUpdated: (postId) {
-                                  // Refresh the specific post or reload all posts
-                                  _loadUserPosts();
-                                },
-                                onInputFocused: () => _onPostInputFocused(post.id),
-                                onInputUnfocused: () => _onPostInputUnfocused(post.id),
-                              ),
-                            ],
-                          ],
-                        ),
-                      ),
-                    ),
-                  const SliverToBoxAdapter(
-                    child:
-                        SizedBox(height: 130), // Restore space for bottom nav bar
+                      const SliverToBoxAdapter(
+                        child: SizedBox(
+                            height: 130), // Restore space for bottom nav bar
                       ),
                     ],
                   ),

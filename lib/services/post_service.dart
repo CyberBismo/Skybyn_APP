@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import '../models/post.dart';
 import 'dart:convert';
 import '../utils/api_utils.dart';
@@ -108,6 +109,7 @@ class PostService {
   }
 
   Future<List<Post>> _fetchTimelineFromAPI(String? userID) async {
+    debugPrint('PostService: Fetching timeline for user: $userID');
     final response = await _retryHttpRequest(
       () => http.post(
         Uri.parse(ApiConstants.timeline),
@@ -115,6 +117,9 @@ class PostService {
       ).timeout(const Duration(seconds: 10)),
       maxRetries: 2,
     );
+
+    debugPrint('PostService: Timeline API Response Status: ${response.statusCode}');
+    debugPrint('PostService: Timeline API Response Body: ${response.body}');
   
     if (response.statusCode == 200) {
       final decoded = safeJsonDecode(response);
@@ -140,15 +145,12 @@ class PostService {
         }
       }
       
-      // Debug: Log first post structure to understand API response
+      debugPrint('PostService: Decoded timeline data length: ${data.length}');
+      
+      // Detailed log of first post structure if available
       if (data.isNotEmpty) {
         final firstPost = data.first;
-        if (firstPost is Map) {
-          if (firstPost.containsKey('user')) {
-          }
-          if (firstPost.containsKey('comments')) {
-          }
-        }
+        debugPrint('PostService: First post structure: $firstPost');
       }
       
       final List<Post> posts = [];
@@ -184,8 +186,10 @@ class PostService {
         }
       }
       
+      debugPrint('PostService: Successfully parsed ${posts.length} timeline posts');
       return posts;
     } else {
+      debugPrint('PostService: Error fetching timeline: Status ${response.statusCode}');
       throw Exception('Failed to load posts: ${response.statusCode}');
     }
   }
@@ -268,16 +272,26 @@ class PostService {
 
   Future<List<Post>> fetchUserTimeline({required String userId, String? currentUserId}) async {
     try {
+      debugPrint('PostService: Fetching user timeline for user: $userId, currentUserID: $currentUserId');
+      final requestBody = {
+        'userID': userId,
+        if (currentUserId != null) 'currentUserID': currentUserId,
+      };
+      debugPrint('PostService: User Timeline API Request URL: ${ApiConstants.userTimeline}');
+      debugPrint('PostService: User Timeline API Request Body: $requestBody');
+
       final response = await http.post(
         Uri.parse(ApiConstants.userTimeline),
-        body: {
-          'userID': userId,
-          if (currentUserId != null) 'currentUserID': currentUserId,
-        },
+        body: requestBody,
       ).timeout(const Duration(seconds: 10));
+
+      debugPrint('PostService: User Timeline API Response Status: ${response.statusCode}');
+      debugPrint('PostService: User Timeline API Response Body: ${response.body}');
+
       if (response.statusCode == 200) {
         // Handle empty response
         if (response.body.isEmpty || response.body.trim().isEmpty) {
+          debugPrint('PostService: User Timeline API returned empty body.');
           return [];
         }
         

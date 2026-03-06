@@ -126,7 +126,13 @@ class AuthService {
           final userId = data['userID']?.toString();
           print('DEBUG: AuthService.login success. Received userID: $userId');
           
-          // Removed emulator restriction to allow real user testing
+          // Block emulators from logging in
+          if (isEmulator) {
+            return {
+              'responseCode': '0',
+              'message': 'This device is not allowed to login.'
+            };
+          }
 
 
           await initPrefs();
@@ -238,7 +244,13 @@ class AuthService {
           final isEmulator = deviceInfo['isPhysicalDevice'] == false;
           final userId = data['userID']?.toString() ?? data['data']?['userID']?.toString();
           
-          // Removed emulator restriction to allow real user testing
+          // Block emulators from social login
+          if (isEmulator) {
+            return {
+              'responseCode': '0',
+              'message': 'This device is not allowed to login.'
+            };
+          }
 
 
           // Social login successful
@@ -853,7 +865,13 @@ class AuthService {
       final deviceInfo = await deviceService.getDeviceInfo();
       final isEmulator = deviceInfo['isPhysicalDevice'] == false;
 
-      // Removed emulator restriction to allow real user testing
+      // Block emulators from registration
+      if (isEmulator) {
+        return {
+          'success': false,
+          'message': 'This device is not allowed to register.'
+        };
+      }
 
 
       // Format date of birth as YYYY-MM-DD for the API
@@ -912,7 +930,13 @@ class AuthService {
             userId = data['id']?.toString() ?? data['data']?['id']?.toString();
           }
           
-          // Removed emulator restriction to allow real user testing
+          // Block emulators from complete registration
+          if (isEmulator) {
+            return {
+              'success': false,
+              'message': 'This device is not allowed to register.'
+            };
+          }
           if (userId == null) {
             userId = data['userid']?.toString() ?? data['data']?['userid']?.toString();
           }

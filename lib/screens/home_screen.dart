@@ -14,8 +14,8 @@ import '../services/notification_service.dart';
 import '../services/auto_update_service.dart';
 import '../services/firebase_messaging_service.dart';
 import '../services/websocket_service.dart';
-import 'create_post_screen.dart';
-import 'map_screen.dart';
+import '../widgets/create_post_widget.dart';
+import '../widgets/map_view.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'dart:io';
@@ -79,7 +79,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   final _webSocketService = WebSocketService();
   final _scrollController = ScrollController();
   final _scaffoldMessengerKey = GlobalKey<ScaffoldMessengerState>();
-  static const MethodChannel _notificationChannel = MethodChannel('no.skybyn.app/notification');
+  static const MethodChannel _notificationChannel =
+      MethodChannel('no.skybyn.app/notification');
   // Removed unused _user field
   String? _currentUserId;
   List<Post> _posts = [];
@@ -90,7 +91,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   String? _focusedPostId;
   LifecycleEventHandler? _lifecycleEventHandler;
   final GlobalKey _notificationButtonKey = GlobalKey();
-  final ChatMessageCountService _chatMessageCountService = ChatMessageCountService();
+  final ChatMessageCountService _chatMessageCountService =
+      ChatMessageCountService();
   int _unreadNotificationCount = 0;
   int _unreadChatCount = 0;
   bool _showNoPostsMessage = false;
@@ -105,25 +107,27 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     super.initState();
     _loadData();
     _setupChatMessageCountListener();
-    
+    _initializePageController();
+
     // Request notification permissions (required for Android 13+ and iOS)
     // This ensures the user is prompted to allow notifications
     final notificationService = NotificationService();
     notificationService.requestAndroidPermissions();
     notificationService.requestIOSPermissions();
-    
+
     // Check and request location permission on app start
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (mounted) {
         final locationService = LocationService();
-        final hasPermission = await locationService.checkAndRequestLocationPermission(context, isStartup: true);
+        final hasPermission = await locationService
+            .checkAndRequestLocationPermission(context, isStartup: true);
         if (hasPermission) {
           // Preload location into cache early
           await locationService.getCurrentLocation();
         }
       }
     });
-    
+
     // Safety timeout: ensure loading always completes after max 20 seconds
     Timer(const Duration(seconds: 20), () {
       if (mounted && _isLoading) {
@@ -137,7 +141,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
     // Set up Firebase messaging callback for update notifications
     FirebaseMessagingService.setUpdateCheckCallback(_checkForUpdates);
-    
+
     // Check if app was opened from notification
     _checkNotificationIntent();
 
@@ -167,7 +171,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     // Set up scroll listener to track if user has scrolled
     _scrollController.addListener(() {
       if (_scrollController.hasClients) {
-        final isScrolled = _scrollController.offset > 100; // Consider scrolled if more than 100px
+        final isScrolled = _scrollController.offset >
+            100; // Consider scrolled if more than 100px
         if (isScrolled != _hasScrolled) {
           setState(() {
             _hasScrolled = isScrolled;
@@ -189,64 +194,65 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   /// Connect to WebSocket service with callbacks
   void _connectWebSocket() {
-    _webSocketService.connect(
-      onAppUpdate: _checkForUpdates,
-      onNewPost: (Post newPost) {
-        if (mounted) {
-          setState(() {
-            if (!_posts.any((post) => post.id == newPost.id)) {
-              _posts.insert(0, newPost);
-              // Show indicator if user has scrolled
-              if (_hasScrolled) {
-                _showNewPostIndicator = true;
+    _webSocketService
+        .connect(
+          onAppUpdate: _checkForUpdates,
+          onNewPost: (Post newPost) {
+            if (mounted) {
+              setState(() {
+                if (!_posts.any((post) => post.id == newPost.id)) {
+                  _posts.insert(0, newPost);
+                  // Show indicator if user has scrolled
+                  if (_hasScrolled) {
+                    _showNewPostIndicator = true;
+                  }
+                }
+              });
+            }
+          },
+          onDeletePost: (String postId) {
+            if (mounted) {
+              setState(() {
+                _posts.removeWhere((post) => post.id == postId);
+              });
+            }
+          },
+          onNewComment: (String postId, String commentId) {
+            _addCommentToPost(postId, commentId);
+          },
+          onDeleteComment: (String postId, String commentId) {
+            _removeCommentFromPost(postId, commentId);
+          },
+          onBroadcast: (String message) {
+            if (mounted) {
+              final translationService = TranslationService();
+              final notificationService = NotificationService();
+              notificationService.showNotification(
+                title: translationService.translate(TranslationKeys.broadcast),
+                body: message,
+                payload: 'broadcast',
+              );
+
+              // For iOS Simulator, also show a SnackBar as fallback
+              if (Platform.isIOS) {
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (mounted) {
+                    _scaffoldMessengerKey.currentState?.showSnackBar(
+                      SnackBar(
+                        content: Text('📢 Broadcast: $message'),
+                        backgroundColor: Colors.blue,
+                        duration: const Duration(seconds: 5),
+                        behavior: SnackBarBehavior.fixed,
+                      ),
+                    );
+                  }
+                });
               }
             }
-          });
-        }
-      },
-      onDeletePost: (String postId) {
-        if (mounted) {
-          setState(() {
-            _posts.removeWhere((post) => post.id == postId);
-          });
-        }
-      },
-      onNewComment: (String postId, String commentId) {
-        _addCommentToPost(postId, commentId);
-      },
-      onDeleteComment: (String postId, String commentId) {
-        _removeCommentFromPost(postId, commentId);
-      },
-      onBroadcast: (String message) {
-        if (mounted) {
-          final translationService = TranslationService();
-          final notificationService = NotificationService();
-          notificationService.showNotification(
-            title: translationService.translate(TranslationKeys.broadcast),
-            body: message,
-            payload: 'broadcast',
-          );
-
-          // For iOS Simulator, also show a SnackBar as fallback
-          if (Platform.isIOS) {
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              if (mounted) {
-                _scaffoldMessengerKey.currentState?.showSnackBar(
-                  SnackBar(
-                    content: Text('📢 Broadcast: $message'),
-                    backgroundColor: Colors.blue,
-                    duration: const Duration(seconds: 5),
-                    behavior: SnackBarBehavior.fixed,
-                  ),
-                );
-              }
-            });
-          }
-        }
-      },
-      onOnlineStatus: _handleOnlineStatusUpdate,
-    ).catchError((error) {
-    });
+          },
+          onOnlineStatus: _handleOnlineStatusUpdate,
+        )
+        .catchError((error) {});
   }
 
   /// Reconnect WebSocket if needed when app resumes
@@ -261,11 +267,12 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   /// Handle online status updates from WebSocket
   void _handleOnlineStatusUpdate(String userId, bool isOnline) {
     if (!mounted) return;
-    
+
     // Update friend service cache
     // This allows chat screens and friend lists to show correct status when opened later
     final friendService = FriendService();
-    friendService.updateFriendOnlineStatus(userId, isOnline, onUpdated: (friends) {
+    friendService.updateFriendOnlineStatus(userId, isOnline,
+        onUpdated: (friends) {
       // If we had a friend list here in HomeScreen state, we would update it here
       // But friends list is loaded inside specific widgets (like ChatScreen or FriendsScreen)
       // Those widgets should register their own listeners or rely on FriendService cache logic
@@ -275,7 +282,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   void _startNoPostsTimer() {
     _noPostsTimer?.cancel();
     _showNoPostsMessage = false;
-    
+
     if (_posts.isEmpty && !_isLoading) {
       _noPostsTimer = Timer(const Duration(seconds: 3), () {
         if (mounted && _posts.isEmpty && !_isLoading) {
@@ -293,32 +300,18 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     _showNoPostsMessage = false;
   }
 
-
-  @override
-  void dispose() {
-    _noPostsTimer?.cancel();
-    _postRefreshTimer?.cancel();
-    _webSocketService.disconnect();
-    _scrollController.dispose();
-    if (_lifecycleEventHandler != null) {
-      WidgetsBinding.instance.removeObserver(_lifecycleEventHandler!);
-    }
-    super.dispose();
-  }
-  
-
   /// Start periodic post refresh timer (every 5 minutes)
   void _startPostRefreshTimer() {
     _postRefreshTimer?.cancel();
-    
-    
+
     // Refresh posts every 5 minutes
-    _postRefreshTimer = Timer.periodic(const Duration(minutes: 5), (timer) async {
+    _postRefreshTimer =
+        Timer.periodic(const Duration(minutes: 5), (timer) async {
       if (!mounted) {
         timer.cancel();
         return;
       }
-      
+
       await _refreshPostsInBackground();
     });
   }
@@ -330,19 +323,23 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       if (userId == null) return;
 
       final postService = PostService();
-      final newPosts = await postService.fetchPostsForUser(userId: userId).timeout(const Duration(seconds: 15));
+      final newPosts = await postService
+          .fetchPostsForUser(userId: userId)
+          .timeout(const Duration(seconds: 15));
 
       if (mounted) {
         final oldPostCount = _posts.length;
         final newPostCount = newPosts.length;
-        
+
         // Check if there are new posts (more posts than before or different first post)
-        final hasNewPosts = newPostCount > oldPostCount || 
-            (newPostCount > 0 && oldPostCount > 0 && newPosts.first.id != _posts.first.id);
-        
+        final hasNewPosts = newPostCount > oldPostCount ||
+            (newPostCount > 0 &&
+                oldPostCount > 0 &&
+                newPosts.first.id != _posts.first.id);
+
         setState(() {
           _posts = newPosts;
-          
+
           // Show indicator if new posts found and user has scrolled
           if (hasNewPosts && _hasScrolled) {
             _showNewPostIndicator = true;
@@ -367,7 +364,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         return;
       }
 
-      final updatedPost = await PostService().fetchPost(postId: postId, userId: userId);
+      final updatedPost =
+          await PostService().fetchPost(postId: postId, userId: userId);
 
       if (mounted) {
         setState(() {
@@ -379,11 +377,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       }
     } catch (e) {
       // If the error is due to HTML warnings mixed with JSON, try a different approach
-      if (e.toString().contains('HTML without JSON') || e.toString().contains('invalid response format')) {
+      if (e.toString().contains('HTML without JSON') ||
+          e.toString().contains('invalid response format')) {
         try {
           await _loadData();
-        } catch (refreshError) {
-        }
+        } catch (refreshError) {}
       }
       // Don't show error to user for real-time updates, just log it
       // The post will remain in its current state
@@ -395,7 +393,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       final userId = await _authService.getStoredUserId();
       if (userId == null) return;
 
-      final newPost = await PostService().fetchPost(postId: postId, userId: userId);
+      final newPost =
+          await PostService().fetchPost(postId: postId, userId: userId);
       if (mounted) {
         setState(() {
           // Add the new post to the beginning of the list
@@ -409,7 +408,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           SnackBar(
             content: ListenableBuilder(
               listenable: TranslationService(),
-              builder: (context, _) => Text('${TranslationKeys.postCreatedButCouldNotLoadDetails.tr}: ${e.toString()}'),
+              builder: (context, _) => Text(
+                  '${TranslationKeys.postCreatedButCouldNotLoadDetails.tr}: ${e.toString()}'),
             ),
             backgroundColor: Colors.orange,
           ),
@@ -463,11 +463,13 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
     // Fetch fresh data in background
     try {
-      final freshPosts = await postService.fetchPostsForUser(userId: userId).timeout(const Duration(seconds: 15));
-      
+      final freshPosts = await postService
+          .fetchPostsForUser(userId: userId)
+          .timeout(const Duration(seconds: 15));
+
       // Success - Reset retries
       _loadRetries = 0;
-      
+
       if (mounted) {
         setState(() {
           _posts = freshPosts;
@@ -481,23 +483,24 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       }
     } catch (timelineError) {
       debugPrint('⚠️ [HomeScreen] Error loading posts: $timelineError');
-      
+
       // Retry once if this is the first failure
       if (_loadRetries < 1) {
         _loadRetries++;
-        debugPrint('⚠️ [HomeScreen] Retrying post load... (Attempt $_loadRetries)');
-        
+        debugPrint(
+            '⚠️ [HomeScreen] Retrying post load... (Attempt $_loadRetries)');
+
         // Wait a small delay before retrying
         await Future.delayed(const Duration(seconds: 2));
-        
+
         if (mounted) {
           // Recursive call to retry
           // We don't await here to let the current execution stack finish
-          _loadData(); 
+          _loadData();
         }
         return;
       }
-      
+
       // Always set loading to false, even if we have cached data
       if (mounted) {
         setState(() {
@@ -521,16 +524,18 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       if (userId != null) {
         // Store old post count for comparison
         final oldPostCount = _posts.length;
-        
+
         // Clear cache to force fresh data
         final postService = PostService();
         await postService.clearTimelineCache();
-        
+
         // Also refresh notification count and friends count
         _fetchUnreadNotificationCount();
         _loadFriendsCount(); // Reload friends count to check if box should show again
-        
-        final newPosts = await postService.fetchPostsForUser(userId: userId).timeout(const Duration(seconds: 15));
+
+        final newPosts = await postService
+            .fetchPostsForUser(userId: userId)
+            .timeout(const Duration(seconds: 15));
 
         if (mounted) {
           setState(() {
@@ -550,7 +555,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             if (newPosts.isNotEmpty) {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
-                  content: Text(translationService.translate(TranslationKeys.refreshedFoundPosts).replaceAll('{count}', newPosts.length.toString())),
+                  content: Text(translationService
+                      .translate(TranslationKeys.refreshedFoundPosts)
+                      .replaceAll('{count}', newPosts.length.toString())),
                   backgroundColor: Colors.green,
                   duration: const Duration(seconds: 1),
                   behavior: SnackBarBehavior.floating,
@@ -563,7 +570,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         if (mounted) {
           _scaffoldMessengerKey.currentState?.showSnackBar(
             SnackBar(
-              content: Text(translationService.translate(TranslationKeys.pleaseLoginToRefresh)),
+              content: Text(translationService
+                  .translate(TranslationKeys.pleaseLoginToRefresh)),
               backgroundColor: Colors.orange,
               duration: const Duration(seconds: 2),
               behavior: SnackBarBehavior.floating,
@@ -578,7 +586,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         });
         _scaffoldMessengerKey.currentState?.showSnackBar(
           SnackBar(
-            content: Text('${translationService.translate(TranslationKeys.failedToRefresh)}: ${e.toString()}'),
+            content: Text(
+                '${translationService.translate(TranslationKeys.failedToRefresh)}: ${e.toString()}'),
             backgroundColor: Colors.red,
             duration: const Duration(seconds: 3),
             behavior: SnackBarBehavior.floating,
@@ -626,13 +635,15 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       // Each post takes approximately 200-300 pixels, plus spacing
       const estimatedPostHeight = 250.0;
       const estimatedSpacing = 20.0;
-      final targetPosition = postIndex * (estimatedPostHeight + estimatedSpacing);
+      final targetPosition =
+          postIndex * (estimatedPostHeight + estimatedSpacing);
 
       // Add some padding to ensure the input is visible above the keyboard
       final keyboardHeight = MediaQuery.of(context).viewInsets.bottom;
       final additionalPadding = keyboardHeight > 0 ? 150.0 : 50.0;
 
-      final finalPosition = (targetPosition + additionalPadding).clamp(0.0, _scrollController.position.maxScrollExtent);
+      final finalPosition = (targetPosition + additionalPadding)
+          .clamp(0.0, _scrollController.position.maxScrollExtent);
 
       _scrollController.animateTo(
         finalPosition,
@@ -656,10 +667,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     if (!Platform.isAndroid) {
       return; // Only Android supports this
     }
-    
+
     try {
-      final notificationType = await _notificationChannel.invokeMethod<String>('getNotificationType');
-      
+      final notificationType = await _notificationChannel
+          .invokeMethod<String>('getNotificationType');
+
       if (notificationType == 'app_update') {
         // Wait for next frame to ensure UI is ready
         WidgetsBinding.instance.addPostFrameCallback((_) async {
@@ -678,13 +690,14 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   // Check for app updates
   Future<void> _checkForUpdates() async {
-
     final translationService = TranslationService();
 
     if (!Platform.isAndroid) {
       print('[App Update] Verification skipped: Not on Android');
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(translationService.translate(TranslationKeys.autoUpdatesOnlyAndroid))),
+        SnackBar(
+            content: Text(translationService
+                .translate(TranslationKeys.autoUpdatesOnlyAndroid))),
       );
       return;
     }
@@ -705,15 +718,16 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         if (mounted && !AutoUpdateService.isDialogShowing) {
           // Mark dialog as showing immediately to prevent duplicates
           AutoUpdateService.setDialogShowing(true);
-          
+
           // Get current version for logging
           final packageInfo = await PackageInfo.fromPlatform();
           final currentVersion = packageInfo.version;
-          print('[App Update] Current version: $currentVersion. Showing update dialog.');
-          
+          print(
+              '[App Update] Current version: $currentVersion. Showing update dialog.');
+
           // Mark this version as shown (so we don't spam the user)
           await AutoUpdateService.markUpdateShownForVersion(updateInfo.version);
-          
+
           await showDialog(
             context: context,
             barrierDismissible: false,
@@ -733,7 +747,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         print('[App Update] No updates available.');
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(translationService.translate(TranslationKeys.noUpdatesAvailable))),
+            SnackBar(
+                content: Text(translationService
+                    .translate(TranslationKeys.noUpdatesAvailable))),
           );
         }
       }
@@ -741,10 +757,12 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       print('[App Update] Error checking for updates: $e');
       // Mark dialog as not showing on error
       AutoUpdateService.setDialogShowing(false);
-      
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('${translationService.translate(TranslationKeys.errorCheckingUpdates)}: $e')),
+          SnackBar(
+              content: Text(
+                  '${translationService.translate(TranslationKeys.errorCheckingUpdates)}: $e')),
         );
       }
     }
@@ -774,7 +792,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         if (response.statusCode == 200) {
           final data = jsonDecode(response.body);
 
-          if (data is List && data.isNotEmpty && data.first['responseCode'] == '1') {
+          if (data is List &&
+              data.isNotEmpty &&
+              data.first['responseCode'] == '1') {
             final commentData = data.first;
             final comment = Comment(
               id: commentData['id'].toString(),
@@ -794,12 +814,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               });
             }
             return; // Success, no need to fallback
-          } else {
-          }
-        } else {
-        }
-      } catch (e) {
-      }
+          } else {}
+        } else {}
+      } catch (e) {}
 
       // Fallback: Update the entire post to get the latest comments
       await _updatePost(postId);
@@ -807,12 +824,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       // Final fallback: try to update the post
       try {
         await _updatePost(postId);
-      } catch (updateError) {
-      }
+      } catch (updateError) {}
     }
   }
-
-
 
   Future<void> _loadFriendsCount() async {
     try {
@@ -855,7 +869,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       if (mounted && response.statusCode == 200) {
         final data = json.decode(response.body);
         setState(() {
-          _unreadNotificationCount = int.tryParse(data['count']?.toString() ?? '0') ?? 0;
+          _unreadNotificationCount =
+              int.tryParse(data['count']?.toString() ?? '0') ?? 0;
         });
       }
     } catch (e) {
@@ -881,11 +896,38 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         });
       }
     });
-    
+
     // Load initial count
     _unreadChatCount = _chatMessageCountService.totalUnreadCount;
   }
 
+  late final PageController _pageController;
+  int _currentPageIndex = 1;
+
+  void _initializePageController() {
+    _pageController = PageController(initialPage: 1);
+    _pageController.addListener(() {
+      final page = _pageController.page?.round() ?? 1;
+      if (page != _currentPageIndex) {
+        setState(() {
+          _currentPageIndex = page;
+        });
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _noPostsTimer?.cancel();
+    _postRefreshTimer?.cancel();
+    _webSocketService.disconnect();
+    _scrollController.dispose();
+    _pageController.dispose();
+    if (_lifecycleEventHandler != null) {
+      WidgetsBinding.instance.removeObserver(_lifecycleEventHandler!);
+    }
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -897,7 +939,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         appBar: CustomAppBar(
           logoPath: 'assets/images/logo.png',
           onLogoPressed: () {
-            // Force refresh data when logo is pressed
             _refreshData();
           },
           onSearchFormToggle: () {
@@ -909,38 +950,14 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         ),
         bottomNavigationBar: Padding(
           padding: EdgeInsets.only(
-            bottom: Theme.of(context).platform == TargetPlatform.iOS ? 8.0 : 8.0 + MediaQuery.of(context).padding.bottom,
+            bottom: Theme.of(context).platform == TargetPlatform.iOS
+                ? 8.0
+                : 8.0 + MediaQuery.of(context).padding.bottom,
           ),
           child: CustomBottomNavigationBar(
             onAddPressed: () async {
-              final postId = await showModalBottomSheet<String>(
-                context: context,
-                isScrollControlled: true,
-                backgroundColor: Colors.transparent,
-                builder: (context) => DraggableScrollableSheet(
-                  expand: false,
-                  initialChildSize: 0.7,
-                  minChildSize: 0.4,
-                  maxChildSize: 0.9,
-                  builder: (context, scrollController) => Container(
-                    margin: EdgeInsets.only(
-                      top: MediaQuery.of(context).padding.top + 60, // Account for status bar and app bar
-                    ),
-                    decoration: const BoxDecoration(
-                      color: Colors.transparent,
-                      borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-                    ),
-                    child: Padding(
-                      padding: EdgeInsets.only(
-                        bottom: MediaQuery.of(context).viewInsets.bottom, // Account for keyboard
-                      ),
-                      child: const CreatePostScreen(),
-                    ),
-                  ),
-                ),
-              );
-
-              // If a post was created, fetch the specific post
+              final postId =
+                  await CreatePostWidget.show<String>(context: context);
               if (postId != null) {
                 await _fetchAndAddPost(postId);
               }
@@ -949,249 +966,256 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             unreadChatCount: _unreadChatCount,
             notificationButtonKey: _notificationButtonKey,
             onUnreadCountChanged: _onUnreadCountChanged,
+            showReturnButton: _currentPageIndex == 0,
+            onReturnPressed: () {
+              if (_pageController.hasClients) {
+                _pageController.animateToPage(
+                  1,
+                  duration: const Duration(milliseconds: 300),
+                  curve: Curves.easeInOut,
+                );
+              }
+            },
           ),
         ),
-        body: _buildHomeContent(),
+        body: PageView(
+          controller: _pageController,
+          children: [
+            _buildMapPage(),
+            _buildHomeContent(),
+          ],
+        ),
       ),
     );
   }
 
+  Widget _buildMapPage() {
+    return const MapView(showControls: true);
+  }
+
   Widget _buildHomeContent() {
-    return GestureDetector(
-      behavior: HitTestBehavior.translucent,
-      onHorizontalDragEnd: (DragEndDetails details) {
-        if (details.primaryVelocity == null) return;
-        
-        // Detect left-to-right swipe (swipe right)
-        // Positive velocity means swiping right (left to right)
-        if (details.primaryVelocity! > 500) {
-          // Navigate to map screen with slide animation from left
-          Navigator.of(context).push(
-            PageRouteBuilder(
-              pageBuilder: (context, animation, secondaryAnimation) => const MapScreen(),
-              transitionsBuilder: (context, animation, secondaryAnimation, child) {
-                // Slide in from left (-1.0) to center (0.0)
-                const begin = Offset(-1.0, 0.0);
-                const end = Offset.zero;
-                const curve = Curves.easeInOutCubic;
-
-                var tween = Tween(begin: begin, end: end).chain(
-                  CurveTween(curve: curve),
-                );
-
-                return SlideTransition(
-                  position: animation.drive(tween),
-                  child: child,
-                );
-              },
-              transitionDuration: const Duration(milliseconds: 250),
-              reverseTransitionDuration: const Duration(milliseconds: 250),
-            ),
-          );
-        }
-      },
-      child: Stack(
-        children: [
+    return Stack(
+      children: [
         // Show grey background during initial loading, gradient otherwise
         if (_isLoading)
           Container(color: Colors.grey[900])
         else
           const BackgroundGradient(),
-        
+
         // Floating new post indicator
-            if (_showNewPostIndicator && !_isLoading)
-              Positioned(
-                top: 60.0 + MediaQuery.of(context).padding.top + 10.0,
-                left: 0,
-                right: 0,
-                child: Center(
-                  child: GestureDetector(
-                    onTap: () {
-                      // Scroll to top when tapped
-                      if (_scrollController.hasClients) {
-                        _scrollController.animateTo(
-                          0,
-                          duration: const Duration(milliseconds: 300),
-                          curve: Curves.easeOut,
-                        );
-                        setState(() {
-                          _showNewPostIndicator = false;
-                        });
-                      }
-                    },
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: Colors.black.withOpacity(0.3),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
-                          color: Colors.white.withOpacity(0.2),
-                          width: 1,
-                        ),
+        if (_showNewPostIndicator && !_isLoading)
+          Positioned(
+            top: 60.0 + MediaQuery.of(context).padding.top + 10.0,
+            left: 0,
+            right: 0,
+            child: Center(
+              child: GestureDetector(
+                onTap: () {
+                  // Scroll to top when tapped
+                  if (_scrollController.hasClients) {
+                    _scrollController.animateTo(
+                      0,
+                      duration: const Duration(milliseconds: 300),
+                      curve: Curves.easeOut,
+                    );
+                    setState(() {
+                      _showNewPostIndicator = false;
+                    });
+                  }
+                },
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.3),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: Colors.white.withOpacity(0.2),
+                      width: 1,
+                    ),
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(20),
+                    child: BackdropFilter(
+                      filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.arrow_upward,
+                            size: 16,
+                            color: Colors.white.withOpacity(0.9),
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            'new post',
+                            style: TextStyle(
+                              color: Colors.white.withOpacity(0.9),
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Icon(
+                            Icons.arrow_upward,
+                            size: 16,
+                            color: Colors.white.withOpacity(0.9),
+                          ),
+                        ],
                       ),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(20),
-                        child: BackdropFilter(
-                          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        // Show skeleton loader instead of spinner
+        if (_isLoading)
+          SingleChildScrollView(
+            physics: const NeverScrollableScrollPhysics(),
+            padding: EdgeInsets.only(
+              top: 60.0 + MediaQuery.of(context).padding.top + 5.0,
+              bottom: 80.0,
+            ),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 10.0),
+              child: Column(
+                children: [
+                  for (int i = 0; i < 4; i++) ...[
+                    const SizedBox(height: 10),
+                    const PostCardSkeleton(),
+                  ],
+                ],
+              ),
+            ),
+          )
+        else if (_posts.isEmpty)
+          RefreshIndicator(
+            onRefresh: () async {
+              _stopNoPostsTimer();
+              await _refreshData();
+            },
+            color: Colors.white, // White refresh indicator to match theme
+            backgroundColor: Colors.transparent, // Transparent background
+            strokeWidth: 2.0, // Thinner stroke for better appearance
+            displacement: 40.0, // Position the indicator lower
+            child: SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(
+                parent: ClampingScrollPhysics(),
+              ), // Always allow scrolling for refresh
+              scrollDirection:
+                  Axis.vertical, // Explicitly set vertical scrolling
+              padding: EdgeInsets.only(
+                top: 60.0 +
+                    MediaQuery.of(context).padding.top +
+                    5.0, // App bar height + status bar + 5px gap (matches posts)
+                bottom: 80.0,
+              ),
+              child: Padding(
+                padding: const EdgeInsets.only(left: 10.0, right: 10.0),
+                child: _showNoPostsMessage
+                    ? SizedBox(
+                        height: MediaQuery.of(context).size.height - 200,
+                        child: Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              Icon(
-                                Icons.arrow_upward,
-                                size: 16,
-                                color: Colors.white.withOpacity(0.9),
-                              ),
-                              const SizedBox(width: 6),
                               Text(
-                                'new post',
+                                TranslationService()
+                                    .translate(TranslationKeys.noPostsDisplay),
                                 style: TextStyle(
-                                  color: Colors.white.withOpacity(0.9),
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w500,
+                                  color:
+                                      AppColors.getSecondaryTextColor(context),
+                                  fontSize: 18,
                                 ),
                               ),
-                              const SizedBox(width: 6),
-                              Icon(
-                                Icons.arrow_upward,
-                                size: 16,
-                                color: Colors.white.withOpacity(0.9),
+                              const SizedBox(height: 10),
+                              Text(
+                                TranslationService()
+                                    .translate(TranslationKeys.pullToRefresh),
+                                style: TextStyle(
+                                  color: AppColors.getHintColor(context),
+                                  fontSize: 14,
+                                ),
                               ),
                             ],
                           ),
                         ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              // Show skeleton loader instead of spinner
-              if (_isLoading)
-                SingleChildScrollView(
-                physics: const NeverScrollableScrollPhysics(),
-                padding: EdgeInsets.only(
-                  top: 60.0 + MediaQuery.of(context).padding.top + 5.0,
-                  bottom: 80.0,
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 10.0),
-                  child: Column(
-                    children: [
-                      for (int i = 0; i < 4; i++) ...[
-                        const SizedBox(height: 10),
-                        const PostCardSkeleton(),
-                      ],
-                    ],
-                  ),
-                ),
-              )
-            else if (_posts.isEmpty)
-              RefreshIndicator(
-                onRefresh: () async {
-                  _stopNoPostsTimer();
-                  await _refreshData();
-                },
-                color: Colors.white, // White refresh indicator to match theme
-                backgroundColor: Colors.transparent, // Transparent background
-                strokeWidth: 2.0, // Thinner stroke for better appearance
-                displacement: 40.0, // Position the indicator lower
-                child: SingleChildScrollView(
-                  physics: const AlwaysScrollableScrollPhysics(
-                    parent: ClampingScrollPhysics(),
-                  ), // Always allow scrolling for refresh
-                  scrollDirection: Axis.vertical, // Explicitly set vertical scrolling
-                  padding: EdgeInsets.only(
-                    top: 60.0 + MediaQuery.of(context).padding.top + 5.0, // App bar height + status bar + 5px gap (matches posts)
-                    bottom: 80.0,
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.only(left: 10.0, right: 10.0),
-                    child: _showNoPostsMessage
-                        ? SizedBox(
-                            height: MediaQuery.of(context).size.height - 200,
-                            child: Center(
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Text(
-                                    TranslationService().translate(TranslationKeys.noPostsDisplay),
-                                    style: TextStyle(
-                                      color: AppColors.getSecondaryTextColor(context),
-                                      fontSize: 18,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 10),
-                                  Text(
-                                    TranslationService().translate(TranslationKeys.pullToRefresh),
-                                    style: TextStyle(
-                                      color: AppColors.getHintColor(context),
-                                      fontSize: 14,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          )
-                        : Column(
-                            children: [
-                              for (int index = 0; index < 3; index++) ...[
-                                const SizedBox(height: 10),
-                                const PostCardSkeleton(),
-                              ],
-                            ],
-                          ),
-                  ),
-                ),
-              )
-            else
-              RefreshIndicator(
-                onRefresh: () async {
-                  // Hide indicator when manually refreshing
-                  setState(() {
-                    _showNewPostIndicator = false;
-                  });
-                  await _refreshData();
-                },
-                color: Colors.white, // White refresh indicator to match theme
-                backgroundColor: Colors.transparent, // Transparent background
-                strokeWidth: 2.0, // Thinner stroke for better appearance
-                displacement: 40.0, // Position the indicator lower
-                child: SingleChildScrollView(
-                  controller: _scrollController,
-                  physics: const AlwaysScrollableScrollPhysics(
-                    parent: ClampingScrollPhysics(),
-                  ), // Always allow scrolling for refresh
-                  scrollDirection: Axis.vertical, // Explicitly set vertical scrolling
-                  padding: EdgeInsets.only(
-                    top: 60.0 + MediaQuery.of(context).padding.top + 5.0, // App bar height + status bar + 5px gap (reduced to prevent overlap)
-                    bottom: 80.0,
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.only(left: 10.0, right: 10.0),
-                    child: Column(
-                      children: [
-                        for (final post in _posts) ...[
-                          const SizedBox(height: 10),
-                          PostCard(key: ValueKey(post.id), post: post, currentUserId: _currentUserId, onPostDeleted: _handlePostDeleted, onPostUpdated: _updatePost, onInputFocused: () => _onPostInputFocused(post.id), onInputUnfocused: () => _onPostInputUnfocused(post.id)),
+                      )
+                    : Column(
+                        children: [
+                          for (int index = 0; index < 3; index++) ...[
+                            const SizedBox(height: 10),
+                            const PostCardSkeleton(),
+                          ],
                         ],
-                        // Add extra space at bottom to ensure pull-to-refresh works even with few posts
-                        // Also add space for the Find Friends overlay if it's shown
-                        SizedBox(height: _friendsCount <= 0 ? 200.0 : MediaQuery.of(context).size.height * 0.1),
-                      ],
-                    ),
-                  ),
+                      ),
+              ),
+            ),
+          )
+        else
+          RefreshIndicator(
+            onRefresh: () async {
+              // Hide indicator when manually refreshing
+              setState(() {
+                _showNewPostIndicator = false;
+              });
+              await _refreshData();
+            },
+            color: Colors.white, // White refresh indicator to match theme
+            backgroundColor: Colors.transparent, // Transparent background
+            strokeWidth: 2.0, // Thinner stroke for better appearance
+            displacement: 40.0, // Position the indicator lower
+            child: SingleChildScrollView(
+              controller: _scrollController,
+              physics: const AlwaysScrollableScrollPhysics(
+                parent: ClampingScrollPhysics(),
+              ), // Always allow scrolling for refresh
+              scrollDirection:
+                  Axis.vertical, // Explicitly set vertical scrolling
+              padding: EdgeInsets.only(
+                top: 60.0 +
+                    MediaQuery.of(context).padding.top +
+                    5.0, // App bar height + status bar + 5px gap (reduced to prevent overlap)
+                bottom: 80.0,
+              ),
+              child: Padding(
+                padding: const EdgeInsets.only(left: 10.0, right: 10.0),
+                child: Column(
+                  children: [
+                    for (final post in _posts) ...[
+                      const SizedBox(height: 10),
+                      PostCard(
+                          key: ValueKey(post.id),
+                          post: post,
+                          currentUserId: _currentUserId,
+                          onPostDeleted: _handlePostDeleted,
+                          onPostUpdated: _updatePost,
+                          onInputFocused: () => _onPostInputFocused(post.id),
+                          onInputUnfocused: () =>
+                              _onPostInputUnfocused(post.id)),
+                    ],
+                    // Add extra space at bottom to ensure pull-to-refresh works even with few posts
+                    // Also add space for the Find Friends overlay if it's shown
+                    SizedBox(
+                        height: _friendsCount <= 0
+                            ? 200.0
+                            : MediaQuery.of(context).size.height * 0.1),
+                  ],
                 ),
               ),
-            // Global search overlay
-            GlobalSearchOverlay(
-              isVisible: _showSearchForm,
-              onClose: () {
-                setState(() {
-                  _showSearchForm = false;
-                });
-              },
             ),
-          ],
-      ),
+          ),
+        // Global search overlay
+        GlobalSearchOverlay(
+          isVisible: _showSearchForm,
+          onClose: () {
+            setState(() {
+              _showSearchForm = false;
+            });
+          },
+        ),
+      ],
     );
   }
 }

@@ -12,6 +12,9 @@ class ApiConstants {
 
   static String get webBase => _prodWebBase;
 
+  // System data
+  static String get systemData => '$apiBase/system_data.php';
+
   // Auth
   static String get login => '$apiBase/login.php';
   static String get profile => '$apiBase/profile.php';

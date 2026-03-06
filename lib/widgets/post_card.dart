@@ -10,7 +10,7 @@ import 'package:flutter/services.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'unified_menu.dart';
 import '../services/websocket_service.dart';
-import '../screens/create_post_screen.dart';
+import 'create_post_widget.dart';
 import '../widgets/app_colors.dart';
 import '../config/constants.dart';
 
@@ -221,15 +221,15 @@ class _PostCardState extends State<PostCard> {
   /// This handles both new API format (plain text with \n) and old format (HTML <br /> tags)
   String _cleanPostContent(String content) {
     if (content.isEmpty) return content;
-    
+
     // First, decode HTML entities (this handles &NewLine;, &amp;excl;, etc.)
     String cleaned = _decodeHtmlEntities(content);
-    
+
     // Then replace various forms of <br> tags with newlines
     cleaned = cleaned
         .replaceAll(RegExp(r'<br\s*/?>', caseSensitive: false), '\n')
         .replaceAll(RegExp(r'<br\s+/>', caseSensitive: false), '\n');
-    
+
     return cleaned;
   }
 
@@ -238,9 +238,9 @@ class _PostCardState extends State<PostCard> {
   /// Also handles double-encoded entities (like &amp;excl; which should decode to &excl; then to !)
   String _decodeHtmlEntities(String text) {
     if (text.isEmpty) return text;
-    
+
     String result = text;
-    
+
     // First, handle double-encoded entities (like &amp;excl; -> &excl;)
     // This must be done first before decoding the actual entities
     // Handle multiple levels of encoding (e.g., &amp;amp;excl; -> &amp;excl; -> &excl;)
@@ -249,28 +249,32 @@ class _PostCardState extends State<PostCard> {
     do {
       previousResult = result;
       // Handle &amp;entity; -> &entity; (use replaceAllMapped for proper capture group handling)
-      result = result.replaceAllMapped(RegExp(r'&amp;([a-zA-Z]+);', caseSensitive: false), (match) {
+      result = result.replaceAllMapped(
+          RegExp(r'&amp;([a-zA-Z]+);', caseSensitive: false), (match) {
         return '&${match.group(1)};';
       });
       // Also handle &amp;amp; -> &amp; (double-encoded ampersand)
-      result = result.replaceAll(RegExp(r'&amp;amp;', caseSensitive: false), '&amp;');
+      result = result.replaceAll(
+          RegExp(r'&amp;amp;', caseSensitive: false), '&amp;');
       // Handle &amp;#123; -> &#123; (double-encoded numeric entities)
-      result = result.replaceAllMapped(RegExp(r'&amp;#(\d+);', caseSensitive: false), (match) {
+      result = result.replaceAllMapped(
+          RegExp(r'&amp;#(\d+);', caseSensitive: false), (match) {
         return '&#${match.group(1)};';
       });
       // Handle &amp;#x21; -> &#x21; (double-encoded hex entities)
-      result = result.replaceAllMapped(RegExp(r'&amp;#x([0-9a-fA-F]+);', caseSensitive: false), (match) {
+      result = result.replaceAllMapped(
+          RegExp(r'&amp;#x([0-9a-fA-F]+);', caseSensitive: false), (match) {
         return '&#x${match.group(1)};';
       });
       iterations++;
       if (iterations > 10) break; // Safety limit
     } while (result != previousResult); // Keep going until no more changes
-    
+
     // Clean up any malformed entities that might have been created (like &$1;)
     // This handles cases where regex replacement might have failed
     result = result.replaceAll(RegExp(r'&\$1;', caseSensitive: false), '');
     result = result.replaceAll(RegExp(r'&\$[0-9]+;', caseSensitive: false), '');
-    
+
     // Common HTML named entities (including NewLine and other common ones)
     // Note: &amp; must be decoded LAST to avoid conflicts with other entities
     final namedEntities = {
@@ -317,15 +321,16 @@ class _PostCardState extends State<PostCard> {
       '&uarr;': '↑',
       '&darr;': '↓',
     };
-    
+
     // Replace named entities (case-insensitive) - decode &amp; LAST
     for (final entry in namedEntities.entries) {
-      result = result.replaceAll(RegExp(entry.key, caseSensitive: false), entry.value);
+      result = result.replaceAll(
+          RegExp(entry.key, caseSensitive: false), entry.value);
     }
-    
+
     // Decode &amp; LAST to avoid conflicts
     result = result.replaceAll(RegExp(r'&amp;', caseSensitive: false), '&');
-    
+
     // Decode numeric entities (&#33; format)
     result = result.replaceAllMapped(RegExp(r'&#(\d+);'), (match) {
       final code = int.tryParse(match.group(1) ?? '');
@@ -334,7 +339,7 @@ class _PostCardState extends State<PostCard> {
       }
       return match.group(0) ?? '';
     });
-    
+
     // Decode hex entities (&#x21; format, case-insensitive)
     result = result.replaceAllMapped(RegExp(r'&#x([0-9a-fA-F]+);'), (match) {
       final code = int.tryParse(match.group(1) ?? '', radix: 16);
@@ -343,7 +348,7 @@ class _PostCardState extends State<PostCard> {
       }
       return match.group(0) ?? '';
     });
-    
+
     return result;
   }
 
@@ -451,7 +456,8 @@ class _PostCardState extends State<PostCard> {
         SnackBar(
           content: ListenableBuilder(
             listenable: TranslationService(),
-            builder: (context, _) => Text('${TranslationKeys.failedToPostComment.tr}: ${e.toString()}'),
+            builder: (context, _) => Text(
+                '${TranslationKeys.failedToPostComment.tr}: ${e.toString()}'),
           ),
           backgroundColor: Colors.red,
         ),
@@ -474,7 +480,8 @@ class _PostCardState extends State<PostCard> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: TranslatedText(TranslationKeys.commentPostedButCouldNotLoadDetails),
+            content: TranslatedText(
+                TranslationKeys.commentPostedButCouldNotLoadDetails),
             backgroundColor: Colors.orange,
           ),
         );
@@ -513,7 +520,8 @@ class _PostCardState extends State<PostCard> {
         SnackBar(
           content: ListenableBuilder(
             listenable: TranslationService(),
-            builder: (context, _) => Text('${TranslationKeys.failedToDeleteComment.tr}: ${e.toString()}'),
+            builder: (context, _) => Text(
+                '${TranslationKeys.failedToDeleteComment.tr}: ${e.toString()}'),
           ),
           backgroundColor: Colors.red,
         ),
@@ -586,7 +594,8 @@ class _PostCardState extends State<PostCard> {
           SnackBar(
             content: ListenableBuilder(
               listenable: TranslationService(),
-              builder: (context, _) => Text('${TranslationKeys.failedToDeletePost.tr}: ${e.toString()}'),
+              builder: (context, _) => Text(
+                  '${TranslationKeys.failedToDeletePost.tr}: ${e.toString()}'),
             ),
             backgroundColor: Colors.red,
           ),
@@ -602,7 +611,9 @@ class _PostCardState extends State<PostCard> {
         final postUrl = '${ApiConstants.webBase}/post/${_currentPost.id}';
         await Clipboard.setData(ClipboardData(text: postUrl));
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: TranslatedText(TranslationKeys.postLinkCopiedToClipboard)),
+          const SnackBar(
+              content:
+                  TranslatedText(TranslationKeys.postLinkCopiedToClipboard)),
         );
         break;
       case 'view_comments':
@@ -623,7 +634,8 @@ class _PostCardState extends State<PostCard> {
     await Clipboard.setData(ClipboardData(text: postUrl));
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: TranslatedText(TranslationKeys.postLinkCopiedToClipboard)),
+        const SnackBar(
+            content: TranslatedText(TranslationKeys.postLinkCopiedToClipboard)),
       );
     }
   }
@@ -655,7 +667,9 @@ class _PostCardState extends State<PostCard> {
               Navigator.of(context).pop();
               // TODO: Implement actual report functionality
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: TranslatedText(TranslationKeys.postReportedSuccessfully)),
+                const SnackBar(
+                    content: TranslatedText(
+                        TranslationKeys.postReportedSuccessfully)),
               );
             },
             child: const TranslatedText(
@@ -670,37 +684,10 @@ class _PostCardState extends State<PostCard> {
 
   void _onEdit() async {
     // Show edit post modal
-    final result = await showModalBottomSheet<String>(
+    final result = await CreatePostWidget.show<String>(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => DraggableScrollableSheet(
-        expand: false,
-        initialChildSize: 0.7,
-        minChildSize: 0.4,
-        maxChildSize: 0.9,
-        builder: (context, scrollController) => Container(
-          margin: EdgeInsets.only(
-            top: MediaQuery.of(context).padding.top +
-                60, // Account for status bar and app bar
-          ),
-          decoration: const BoxDecoration(
-            color: Colors.transparent,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-          ),
-          child: Padding(
-            padding: EdgeInsets.only(
-              bottom: MediaQuery.of(context)
-                  .viewInsets
-                  .bottom, // Account for keyboard
-            ),
-            child: CreatePostScreen(
-              isEditing: true,
-              postToEdit: _currentPost,
-            ),
-          ),
-        ),
-      ),
+      isEditing: true,
+      postToEdit: _currentPost,
     );
 
     // Handle the result
@@ -797,8 +784,7 @@ class _PostCardState extends State<PostCard> {
           height: PostCardStyles.avatarSize,
           fit: BoxFit.cover,
           httpHeaders: const {},
-          placeholder: (context, url) => Image.asset(
-              'assets/images/icon.png',
+          placeholder: (context, url) => Image.asset('assets/images/icon.png',
               width: PostCardStyles.avatarSize,
               height: PostCardStyles.avatarSize,
               fit: BoxFit.cover),
@@ -900,7 +886,8 @@ class _PostCardState extends State<PostCard> {
                                 height: 70.0, // height: 70px
                                 child: InkWell(
                                   onTap: () {
-                                    if (_currentPost.userId != null && _currentPost.userId!.isNotEmpty) {
+                                    if (_currentPost.userId != null &&
+                                        _currentPost.userId!.isNotEmpty) {
                                       Navigator.push(
                                         context,
                                         MaterialPageRoute(
@@ -948,7 +935,8 @@ class _PostCardState extends State<PostCard> {
                                           child: Align(
                                             alignment: Alignment.centerLeft,
                                             child: Text(
-                                              _decodeHtmlEntities(_currentPost.author),
+                                              _decodeHtmlEntities(
+                                                  _currentPost.author),
                                               style: PostCardStyles
                                                   .getAuthorTextStyle(context),
                                             ),
@@ -972,8 +960,9 @@ class _PostCardState extends State<PostCard> {
                                     listenable: TranslationService(),
                                     builder: (context, _) => Text(
                                       _formatTimestamp(_currentPost.createdAt),
-                                      style: PostCardStyles.getTimestampTextStyle(
-                                          context), // font-size: 12px
+                                      style:
+                                          PostCardStyles.getTimestampTextStyle(
+                                              context), // font-size: 12px
                                     ),
                                   ),
                                 ),
@@ -1125,12 +1114,12 @@ class _PostCardState extends State<PostCard> {
     final now = DateTime.now();
     final diff = now.difference(dateTime);
     final translationService = TranslationService();
-    
+
     // Handle negative differences (future dates) - shouldn't happen but handle gracefully
     if (diff.isNegative) {
       return translationService.translate(TranslationKeys.justNow);
     }
-    
+
     // Less than 1 minute - show "Just now"
     if (diff.inSeconds < 60) {
       return translationService.translate(TranslationKeys.justNow);
@@ -1266,11 +1255,12 @@ class _PostCardState extends State<PostCard> {
                     controller: _commentController,
                     focusNode: _commentFocusNode,
                     decoration: InputDecoration(
-                      hintText: TranslationService().translate(TranslationKeys.addCommentPlaceholder),
+                      hintText: TranslationService()
+                          .translate(TranslationKeys.addCommentPlaceholder),
                       hintStyle: TextStyle(color: hintColor),
                       border: InputBorder.none,
-                      contentPadding:
-                          const EdgeInsets.symmetric(vertical: 0, horizontal: 0),
+                      contentPadding: const EdgeInsets.symmetric(
+                          vertical: 0, horizontal: 0),
                     ),
                     style: TextStyle(color: textColor),
                     onTap: () {
@@ -1362,7 +1352,8 @@ class _PostCardState extends State<PostCard> {
                             controller: _commentController,
                             focusNode: _commentFocusNode,
                             decoration: InputDecoration(
-                              hintText: TranslationService().translate(TranslationKeys.addCommentPlaceholder),
+                              hintText: TranslationService().translate(
+                                  TranslationKeys.addCommentPlaceholder),
                               hintStyle: TextStyle(
                                   color: PostCardStyles.getHintColor(context)),
                               border: InputBorder.none,
