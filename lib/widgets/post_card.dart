@@ -39,7 +39,7 @@ class PostCardStyles {
 
   // Sizes - match web platform exactly
   static const double cardBorderRadius = 20.0; // border-radius: 20px
-  static const double avatarSize = 70.0; // width: 70px, height: 70px
+  static const double avatarSize = 50.0; // width: 70px, height: 70px
   static const double avatarBorderWidth = 0.0; // No border in web
   static const double imageMaxHeight = 300.0;
   static const double iconSize = 20.0;
@@ -1156,130 +1156,103 @@ class _PostCardState extends State<PostCard> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // Header section - match web platform's post_header exactly
-                SizedBox(
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 8.0, vertical: 8.0),
                   child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // User details - 70% width like web platform's post_details
+                      // User interaction area (Avatar + Name/Date)
                       Expanded(
-                        flex: 7,
-                        child: SizedBox(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              // User avatar and name row
-                              SizedBox(
-                                height: 70.0, // height: 70px
-                                child: InkWell(
-                                  onTap: () {
-                                    if (_currentPost.userId != null &&
-                                        _currentPost.userId!.isNotEmpty) {
-                                      Navigator.push(
-                                        context,
-                                        MaterialPageRoute(
-                                          builder: (context) => ProfileScreen(
-                                            userId: _currentPost.userId,
-                                            username: _currentPost.author,
-                                          ),
-                                        ),
-                                      );
-                                    }
-                                  },
-                                  child: Row(
-                                    children: [
-                                      // User avatar - match web platform's post_user_image exactly
-                                      SizedBox(
-                                        width: PostCardStyles.avatarSize,
-                                        height: PostCardStyles.avatarSize,
-                                        child: Container(
-                                          margin: PostCardStyles
-                                              .avatarPadding, // margin: 10px
-                                          decoration: BoxDecoration(
-                                            color:
-                                                AppColors.avatarBackgroundColor,
-                                            borderRadius: BorderRadius.circular(
-                                                PostCardStyles
-                                                    .avatarRadius), // border-radius: 10px
-                                            border: Border.all(
-                                                color: PostCardStyles
-                                                    .getAvatarBorderColor(
-                                                        context),
-                                                width: PostCardStyles
-                                                    .avatarBorderWidth),
-                                          ),
-                                          child: ClipRRect(
-                                            borderRadius: BorderRadius.circular(
-                                                PostCardStyles.avatarRadius),
-                                            child: avatarWidget,
-                                          ),
-                                        ),
-                                      ),
-                                      // User name - match web platform's post_user_name exactly
-                                      Expanded(
-                                        child: SizedBox(
-                                          height: 70.0, // height: 70px
-                                          child: Align(
-                                            alignment: Alignment.centerLeft,
-                                            child: Text(
-                                              _decodeHtmlEntities(
-                                                  _currentPost.author),
-                                              style: PostCardStyles
-                                                  .getAuthorTextStyle(context),
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                    ],
+                        child: InkWell(
+                          onTap: () {
+                            if (_currentPost.userId != null) {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => ProfileScreen(
+                                    userId: _currentPost.userId,
+                                    username: _currentPost.author,
                                   ),
                                 ),
-                              ),
-                              // Date - now part of the header
-                              Transform.translate(
-                                offset:
-                                    const Offset(0, -10), // Move date 10px up
-                                child: Container(
-                                  margin: const EdgeInsets.only(
-                                      left: 70.0), // margin-left: 70px
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 20.0, vertical: 0.0),
-                                  child: ListenableBuilder(
-                                    listenable: TranslationService(),
-                                    builder: (context, _) => Text(
-                                      _formatTimestamp(_currentPost.createdAt),
-                                      style:
-                                          PostCardStyles.getTimestampTextStyle(
-                                              context), // font-size: 12px
-                                    ),
+                              );
+                            }
+                          },
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              // User avatar
+                              Container(
+                                width: PostCardStyles.avatarSize,
+                                height: PostCardStyles.avatarSize,
+                                margin: const EdgeInsets.all(8.0),
+                                decoration: BoxDecoration(
+                                  color: AppColors.avatarBackgroundColor,
+                                  borderRadius: BorderRadius.circular(
+                                      PostCardStyles.avatarRadius),
+                                  border: Border.all(
+                                    color: PostCardStyles.getAvatarBorderColor(
+                                        context),
+                                    width: PostCardStyles.avatarBorderWidth,
                                   ),
+                                ),
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(
+                                      PostCardStyles.avatarRadius),
+                                  child: avatarWidget,
+                                ),
+                              ),
+                              const SizedBox(width: 4),
+                              // User name and Date column
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      _decodeHtmlEntities(_currentPost.author),
+                                      style: PostCardStyles.getAuthorTextStyle(
+                                          context),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    const SizedBox(height: 2),
+                                    ListenableBuilder(
+                                      listenable: TranslationService(),
+                                      builder: (context, _) => Text(
+                                        _formatTimestamp(
+                                            _currentPost.createdAt),
+                                        style: PostCardStyles
+                                            .getTimestampTextStyle(context),
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
                             ],
                           ),
                         ),
                       ),
-                      // Actions section - 30% width like web platform's post_actions
-                      Expanded(
-                        flex: 2,
-                        child: Container(
-                          height: 75.0, // height: 50px
-                          padding: const EdgeInsets.all(20.0), // padding: 20px
-                          child: Builder(
-                            builder: (context) {
-                              if (_currentPost.userId == null) {
-                                return const SizedBox.shrink();
-                              }
-                              return UnifiedMenu.createPostMenuButton(
-                                context: context,
-                                postId: _currentPost.id,
-                                currentUserId: _currentUserId,
-                                postUserId: _currentPost.userId!,
-                                onDelete: _showDeleteDialog,
-                                onEdit: _onEdit,
-                                onShare: _onShare,
-                                onReport: _onReport,
-                                onHide: _onHide,
-                              );
-                            },
-                          ),
+                      // Actions section
+                      Padding(
+                        padding: const EdgeInsets.all(8.0),
+                        child: Builder(
+                          builder: (context) {
+                            if (_currentPost.userId == null) {
+                              return const SizedBox.shrink();
+                            }
+                            return UnifiedMenu.createPostMenuButton(
+                              context: context,
+                              postId: _currentPost.id,
+                              currentUserId: _currentUserId,
+                              postUserId: _currentPost.userId!,
+                              onDelete: _showDeleteDialog,
+                              onEdit: _onEdit,
+                              onShare: _onShare,
+                              onReport: _onReport,
+                              onHide: _onHide,
+                            );
+                          },
                         ),
                       ),
                     ],

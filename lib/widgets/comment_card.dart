@@ -11,16 +11,18 @@ import '../screens/profile_screen.dart';
 /// Centralized styling for the CommentCard widget
 class CommentCardStyles {
   // Sizes
-  static const double borderRadius = 10.0;
+  static const double borderRadius = 20.0;
   static const double avatarSize = 32.0;
-  static const double avatarBorderWidth = 1.0;
+  static const double avatarBorderWidth = 0.0;
   static const double iconSize = 16.0;
   static const double fontSize = 14.0;
   static const double smallFontSize = 12.0;
 
   // Padding and margins
-  static const EdgeInsets cardPadding = EdgeInsets.all(12.0);
-  static const EdgeInsets contentPadding = EdgeInsets.symmetric(vertical: 4.0);
+  static const EdgeInsets cardPadding =
+      EdgeInsets.symmetric(horizontal: 0.0, vertical: 0.0);
+  static const EdgeInsets contentPadding =
+      EdgeInsets.symmetric(horizontal: 0.0, vertical: 0.0);
   static const EdgeInsets actionPadding =
       EdgeInsets.symmetric(horizontal: 4.0, vertical: 2.0);
 
