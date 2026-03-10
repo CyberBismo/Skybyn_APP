@@ -777,8 +777,12 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
       // Try to fetch the new comment data from the API
       try {
-        final url = ApiConstants.getComment;
-        final body = {'commentID': commentId, 'userID': userId};
+        final url = ApiConstants.comment;
+        final body = {
+          'action': 'get',
+          'commentID': commentId,
+          'userID': userId
+        };
 
         final response = await http.post(
           Uri.parse(url),

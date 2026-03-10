@@ -449,8 +449,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
     setState(() => isLoadingPosts = true);
 
     // Log API request details
-    final apiUrl = ApiConstants.userTimeline;
+    final apiUrl = ApiConstants.timeline;
     final requestParams = {
+      'action': 'timeline',
       'userID': targetUserId,
       if (currentUserId != null) 'currentUserId': currentUserId!,
     };

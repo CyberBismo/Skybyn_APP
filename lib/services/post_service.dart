@@ -282,12 +282,12 @@ class PostService {
       debugPrint(
           'PostService: Fetching user timeline for user: $userId, currentUserID: $currentUserId');
       final requestBody = {
-        'action': 'timeline', 
+        'action': 'timeline',
         'userID': userId,
         if (currentUserId != null) 'currentUserID': currentUserId,
       };
       debugPrint(
-          'PostService: User Timeline API Request URL: ${ApiConstants.userTimeline}');
+          'PostService: User Timeline API Request URL: ${ApiConstants.timeline}');
       debugPrint('PostService: User Timeline API Request Body: $requestBody');
 
       final response = await http
