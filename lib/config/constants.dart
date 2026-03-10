@@ -27,14 +27,7 @@ class ApiConstants {
   static String get forgotPassword => '$apiBase/forgot.php';
 
   // Posts
-  static String get timeline => '$apiBase/post/timeline.php';
-  static String get userTimeline => '$apiBase/post/user-timeline.php';
-  static String get getPost => '$apiBase/post/get_post.php';
-  static String get deletePost => '$apiBase/post/delete.php';
-  static String get addPost => '$apiBase/post/add.php';
-  static String get updatePost => '$apiBase/post/update.php';
-  static String get hidePost => '$apiBase/post/hide.php';
-  static String get likePost => '$apiBase/post/like.php';
+  static String get timeline => '$apiBase/timeline.php';
 
   // Comments
   static String get addComment => '$apiBase/comment/add.php';
