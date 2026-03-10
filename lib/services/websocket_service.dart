@@ -87,6 +87,7 @@ class WebSocketService {
   final List<Function(String, bool)> _onOnlineStatusCallbacks = []; // Multiple listeners for online status
   Function(String)? _onMessageRead; // messageId
   final Set<String> _pendingPresenceSubscriptions = {}; // User IDs to subscribe to once connected
+  final Set<String> _pendingPostSubscriptions = {}; // Post IDs to subscribe to once connected
 
   // Callbacks for WebRTC signaling
   Function(String, String, String, String)? _onCallOffer; // callId, fromUserId, offer, callType
@@ -409,6 +410,11 @@ class WebSocketService {
         // Resync presence subscriptions if any
         if (_pendingPresenceSubscriptions.isNotEmpty) {
           subscribeToPresence(_pendingPresenceSubscriptions.toList());
+        }
+        
+        // Resync post subscriptions if any
+        if (_pendingPostSubscriptions.isNotEmpty) {
+          _resyncPostSubscriptions();
         }
         
         // Start connection health monitoring
@@ -1505,6 +1511,70 @@ class WebSocketService {
     } catch (e) {
       developer.log('❌ Failed to unsubscribe from presence: $e', name: 'WebSocket');
     }
+    }
+  }
+
+  /// Subscribe to real-time updates for a specific post
+  void subscribeToPost(String postId) {
+    if (postId.isEmpty) return;
+    
+    // Add to pending set so we can resync on reconnect
+    _pendingPostSubscriptions.add(postId);
+    
+    if (!_isConnected || _channel == null) return;
+    
+    try {
+      final message = {
+        'type': 'subscribe_post',
+        'sessionId': _sessionId,
+        'postId': postId,
+      };
+      _channel!.sink.add(jsonEncode(message));
+      developer.log('📡 Subscribed to post updates: $postId', name: 'WebSocket');
+    } catch (e) {
+      developer.log('❌ Failed to subscribe to post: $e', name: 'WebSocket');
+    }
+  }
+
+  /// Unsubscribe from real-time updates for a specific post
+  void unsubscribeFromPost(String postId) {
+    if (postId.isEmpty) return;
+    
+    // Remove from pending set
+    _pendingPostSubscriptions.remove(postId);
+    
+    if (!_isConnected || _channel == null) return;
+    
+    try {
+      final message = {
+        'type': 'unsubscribe_post',
+        'sessionId': _sessionId,
+        'postId': postId,
+      };
+      _channel!.sink.add(jsonEncode(message));
+      developer.log('📡 Unsubscribed from post updates: $postId', name: 'WebSocket');
+    } catch (e) {
+      developer.log('❌ Failed to unsubscribe from post: $e', name: 'WebSocket');
+    }
+  }
+
+  /// Resync post subscriptions on reconnect
+  void _resyncPostSubscriptions() {
+    if (!_isConnected || _channel == null || _pendingPostSubscriptions.isEmpty) return;
+    
+    for (final postId in _pendingPostSubscriptions) {
+      try {
+        final message = {
+          'type': 'subscribe_post',
+          'sessionId': _sessionId,
+          'postId': postId,
+        };
+        _channel!.sink.add(jsonEncode(message));
+      } catch (e) {
+        developer.log('❌ Failed to resync post subscription for $postId: $e', name: 'WebSocket');
+      }
+    }
+    developer.log('📡 Resynced ${_pendingPostSubscriptions.length} post subscriptions', name: 'WebSocket');
   }
 
   /// Update online status when disconnecting
