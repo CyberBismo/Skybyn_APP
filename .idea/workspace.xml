@@ -5,13 +5,7 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="aa2fee3d-117a-49aa-8786-52ef1bff9255" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/lib/config/constants.dart" beforeDir="false" afterPath="$PROJECT_DIR$/lib/config/constants.dart" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/lib/services/comment_service.dart" beforeDir="false" afterPath="$PROJECT_DIR$/lib/services/comment_service.dart" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/lib/services/post_service.dart" beforeDir="false" afterPath="$PROJECT_DIR$/lib/services/post_service.dart" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/lib/services/translation_service.dart" beforeDir="false" afterPath="$PROJECT_DIR$/lib/services/translation_service.dart" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/lib/widgets/comment_card.dart" beforeDir="false" afterPath="$PROJECT_DIR$/lib/widgets/comment_card.dart" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/lib/widgets/post_card.dart" beforeDir="false" afterPath="$PROJECT_DIR$/lib/widgets/post_card.dart" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/lib/widgets/unified_menu.dart" beforeDir="false" afterPath="$PROJECT_DIR$/lib/widgets/unified_menu.dart" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
