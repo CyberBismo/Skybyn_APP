@@ -38,19 +38,27 @@ class PostService {
   }
 
   Future<List<Post>> fetchPostsForUser({String? userId}) async {
+    print('PostService: fetchPostsForUser called for user: $userId');
     final userID = userId;
 
     try {
+      print('PostService: fetchPostsForUser: Checking cache...');
       // Try to load from cache first
       final cachedPosts = await loadTimelineFromCache();
       if (cachedPosts.isNotEmpty) {
+        print(
+            'PostService: fetchPostsForUser: Cache HIT (${cachedPosts.length} posts)');
         // Return cached posts immediately, but refresh in background
         _refreshTimelineInBackground(userID);
         return cachedPosts;
       }
+      print('PostService: fetchPostsForUser: Cache MISS');
 
       // If no cache, fetch from API
+      print('PostService: fetchPostsForUser: Calling _fetchTimelineFromAPI...');
       final posts = await _fetchTimelineFromAPI(userID);
+      print(
+          'PostService: fetchPostsForUser: _fetchTimelineFromAPI returned ${posts.length} posts');
 
       // Cache the posts
       if (posts.isNotEmpty) {
@@ -59,8 +67,11 @@ class PostService {
 
       return posts;
     } catch (e) {
+      print('PostService: fetchPostsForUser: ERROR: $e');
       // If API fails, try to return cached data as fallback
       final cachedPosts = await loadTimelineFromCache();
+      print(
+          'PostService: fetchPostsForUser: Returning ${cachedPosts.length} fallback cached posts');
       return cachedPosts;
     }
   }
@@ -90,7 +101,13 @@ class PostService {
 
     while (attempt < maxRetries) {
       try {
+        print('PostService: Sending API request (Attempt ${attempt + 1})...');
         final response = await request();
+        print(
+            'PostService: Received response with status: ${response.statusCode}');
+        if (response.statusCode >= 400) {
+          print('PostService: Error Response Body: ${response.body}');
+        }
         if (response.statusCode < 500) {
           return response;
         }
@@ -99,10 +116,15 @@ class PostService {
         }
         return response;
       } catch (e) {
+        print('PostService: Request attempt ${attempt + 1} failed: $e');
         attempt++;
         if (!_isTransientError(e) || attempt >= maxRetries) {
+          print(
+              'PostService: Non-transient or final attempt reached. Rethrowing.');
           rethrow;
         }
+        print(
+            'PostService: Transient error, retrying in ${delay.inMilliseconds}ms...');
         await Future.delayed(delay);
         delay =
             Duration(milliseconds: (delay.inMilliseconds * 2).clamp(500, 4000));
@@ -112,90 +134,101 @@ class PostService {
   }
 
   Future<List<Post>> _fetchTimelineFromAPI(String? userID) async {
-    debugPrint('PostService: Fetching timeline for user: $userID');
-    final response = await _retryHttpRequest(
-      () => http.post(
-        Uri.parse(ApiConstants.timeline),
-        body: {'action': 'timeline', 'userID': userID},
-      ).timeout(const Duration(seconds: 10)),
-      maxRetries: 2,
-    );
+    print('PostService: Fetching timeline for user: $userID');
+    try {
+      final response = await _retryHttpRequest(
+        () => http.post(
+          Uri.parse(ApiConstants.timeline),
+          body: {'action': 'timeline', 'userID': userID},
+        ).timeout(const Duration(seconds: 10)),
+        maxRetries: 2,
+      );
 
-    debugPrint(
-        'PostService: Timeline API Response Status: ${response.statusCode}');
-    debugPrint('PostService: Timeline API Response Body: ${response.body}');
+      print(
+          '@@@ PostService: Timeline API Response Status: ${response.statusCode}');
+      String bodySnippet = response.body.length > 500
+          ? '${response.body.substring(0, 500)}...'
+          : response.body;
+      print(
+          '@@@ PostService: Timeline API Response Body Snippet: $bodySnippet');
 
-    if (response.statusCode == 200) {
-      final decoded = safeJsonDecode(response);
+      if (response.statusCode == 200) {
+        final decoded = safeJsonDecode(response);
 
-      // Handle API response format: feed API now returns direct array
-      // But handle both formats for backward compatibility
-      List<dynamic> data = [];
-      if (decoded is List) {
-        // Direct array format (expected format)
-        data = decoded;
-      } else if (decoded is Map) {
-        // Wrapped format (backward compatibility): {"responseCode": "1", "data": [...]}
-        if (decoded['responseCode'] == '1' || decoded['responseCode'] == 1) {
-          if (decoded.containsKey('data') && decoded['data'] is List) {
-            data = decoded['data'];
+        // Handle API response format: feed API now returns direct array
+        // But handle both formats for backward compatibility
+        List<dynamic> data = [];
+        if (decoded is List) {
+          // Direct array format (expected format)
+          data = decoded;
+        } else if (decoded is Map) {
+          // Wrapped format (backward compatibility): {"responseCode": "1", "data": [...]}
+          if (decoded['responseCode'] == '1' || decoded['responseCode'] == 1) {
+            if (decoded.containsKey('data') && decoded['data'] is List) {
+              data = decoded['data'];
+            } else {
+              // No data field or empty response - new user with no posts
+              data = [];
+            }
           } else {
-            // No data field or empty response - new user with no posts
-            data = [];
+            // Error response
+            throw Exception(decoded['message'] ?? 'Failed to load posts');
           }
-        } else {
-          // Error response
-          throw Exception(decoded['message'] ?? 'Failed to load posts');
         }
-      }
 
-      debugPrint('PostService: Decoded timeline data length: ${data.length}');
+        print('PostService: Decoded timeline data length: ${data.length}');
 
-      // Detailed log of first post structure if available
-      if (data.isNotEmpty) {
-        final firstPost = data.first;
-        debugPrint('PostService: First post structure: $firstPost');
-      }
+        // Detailed log of first post structure if available
+        if (data.isNotEmpty) {
+          final firstPost = data.first;
+          debugPrint('PostService: First post structure: $firstPost');
+        }
 
-      final List<Post> posts = [];
-      for (final item in data) {
-        if (item is Map<String, dynamic>) {
-          // Debug: Log post data before parsing
-          final userData = item['user'];
-          final username = userData is Map
-              ? userData['username']?.toString()
-              : (item['username']?.toString());
-          final content = item['content']?.toString() ?? '';
-          // Filter out posts with empty username or empty content
-          if (username == null || username.isEmpty || username.trim().isEmpty) {
-            continue;
-          }
-
-          if (content.isEmpty || content.trim().isEmpty) {
-            continue;
-          }
-
-          try {
-            final post = Post.fromJson(item);
-            // Double-check after parsing
-            if (post.author == 'Unknown User' || post.author.isEmpty) {
+        final List<Post> posts = [];
+        for (final item in data) {
+          if (item is Map<String, dynamic>) {
+            // Debug: Log post data before parsing
+            final userData = item['user'];
+            final username = userData is Map
+                ? userData['username']?.toString()
+                : (item['username']?.toString());
+            final content = item['content']?.toString() ?? '';
+            // Filter out posts with empty username or empty content
+            if (username == null ||
+                username.isEmpty ||
+                username.trim().isEmpty) {
               continue;
             }
-            if (post.content.isEmpty || post.content.trim().isEmpty) {
+
+            if (content.isEmpty || content.trim().isEmpty) {
               continue;
             }
-            posts.add(post);
-          } catch (e) {}
-        }
-      }
 
-      debugPrint(
-          'PostService: Successfully parsed ${posts.length} timeline posts');
-      return posts;
-    } else {
-      debugPrint(
-          'PostService: Error fetching timeline: Status ${response.statusCode}');
-      throw Exception('Failed to load posts: ${response.statusCode}');
+            try {
+              final post = Post.fromJson(item);
+              // Double-check after parsing
+              if (post.author == 'Unknown User' || post.author.isEmpty) {
+                continue;
+              }
+              if (post.content.isEmpty || post.content.trim().isEmpty) {
+                continue;
+              }
+              posts.add(post);
+            } catch (e) {}
+          }
+        }
+
+        print(
+            'PostService: Successfully parsed ${posts.length} timeline posts');
+        return posts;
+      } else {
+        print(
+            'PostService: Error fetching timeline: Status ${response.statusCode}');
+        throw Exception('Failed to load posts: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('PostService: Exception caught in _fetchTimelineFromAPI: $e');
+      rethrow;
     }
   }
 

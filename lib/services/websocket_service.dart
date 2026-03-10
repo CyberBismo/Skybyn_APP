@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:math';
-import 'dart:io' show Platform, WebSocket, SecurityContext, HttpClient, X509Certificate;
+import 'dart:io'
+    show Platform, WebSocket, SecurityContext, HttpClient, X509Certificate;
 import 'dart:async';
 import 'dart:developer' as developer;
 import 'package:web_socket_channel/web_socket_channel.dart';
@@ -80,34 +81,47 @@ class WebSocketService {
   Function(String, String)? _onDeleteComment; // postId, commentId
   Function(String)? _onBroadcast; // broadcast message
   Function()? _onAppUpdate; // app update notification
-  Function(String, String, String, String)? _onChatMessage; // messageId, fromUserId, toUserId, message
-  final List<Function(String, String, String, String)> _onChatMessageCallbacks = []; // Multiple listeners for chat messages
-  final Set<int> _registeredChatCallbackHashes = {}; // Track registered callbacks by hash to prevent duplicates
+  Function(String, String, String, String)?
+      _onChatMessage; // messageId, fromUserId, toUserId, message
+  final List<Function(String, String, String, String)> _onChatMessageCallbacks =
+      []; // Multiple listeners for chat messages
+  final Set<int> _registeredChatCallbackHashes =
+      {}; // Track registered callbacks by hash to prevent duplicates
   Function(String, bool)? _onTypingStatus; // userId, isTyping
-  final List<Function(String, bool)> _onOnlineStatusCallbacks = []; // Multiple listeners for online status
+  final List<Function(String, bool)> _onOnlineStatusCallbacks =
+      []; // Multiple listeners for online status
   Function(String)? _onMessageRead; // messageId
-  final Set<String> _pendingPresenceSubscriptions = {}; // User IDs to subscribe to once connected
-  final Set<String> _pendingPostSubscriptions = {}; // Post IDs to subscribe to once connected
+  final Set<String> _pendingPresenceSubscriptions =
+      {}; // User IDs to subscribe to once connected
+  final Set<String> _pendingPostSubscriptions =
+      {}; // Post IDs to subscribe to once connected
 
   // Callbacks for WebRTC signaling
-  Function(String, String, String, String)? _onCallOffer; // callId, fromUserId, offer, callType
+  Function(String, String, String, String)?
+      _onCallOffer; // callId, fromUserId, offer, callType
   Function(String, String)? _onCallAnswer; // callId, answer
-  Function(String, String, String, int)? _onIceCandidate; // callId, candidate, sdpMid, sdpMLineIndex
-  Function(String, String, String)? _onCallEnd; // callId, fromUserId, targetUserId
-  Function(String, String, String, String)? _onCallInitiate; // callId, fromUserId, callType, fromUsername
-  Function(String, String, String)? _onCallError; // callId, targetUserId, error message
+  Function(String, String, String, int)?
+      _onIceCandidate; // callId, candidate, sdpMid, sdpMLineIndex
+  Function(String, String, String)?
+      _onCallEnd; // callId, fromUserId, targetUserId
+  Function(String, String, String, String)?
+      _onCallInitiate; // callId, fromUserId, callType, fromUsername
+  Function(String, String, String)?
+      _onCallError; // callId, targetUserId, error message
 
   // Services
   final NotificationService _notificationService = NotificationService();
-  final NotificationSoundService _notificationSoundService = NotificationSoundService();
+  final NotificationSoundService _notificationSoundService =
+      NotificationSoundService();
   final FriendService _friendService = FriendService();
-  final InAppNotificationService _inAppNotificationService = InAppNotificationService();
+  final InAppNotificationService _inAppNotificationService =
+      InAppNotificationService();
   final LocalMessageDatabase _localDb = LocalMessageDatabase();
 
   bool get isConnected => _isConnected;
   bool get isInitialized => _isInitialized;
 
-  // New Global Connection Callback 
+  // New Global Connection Callback
   Function()? onWebSocketConnected;
 
   /// Get connection quality metrics
@@ -117,7 +131,8 @@ class WebSocketService {
 
   // Enhanced connection management
   int _getReconnectDelay() {
-    return (_reconnectDelay * (1 << _reconnectAttempts)).clamp(_reconnectDelay, _maxReconnectDelay);
+    return (_reconnectDelay * (1 << _reconnectAttempts))
+        .clamp(_reconnectDelay, _maxReconnectDelay);
   }
 
   void _updateConnectionMetrics(String event) {
@@ -151,10 +166,10 @@ class WebSocketService {
 
     // Update uptime
     if (_isConnected && _connectionMetrics['connectionStartTime'] > 0) {
-      _connectionMetrics['totalUptime'] = now - _connectionMetrics['connectionStartTime'];
+      _connectionMetrics['totalUptime'] =
+          now - _connectionMetrics['connectionStartTime'];
     }
   }
-
 
   // Message queuing and acknowledgment
   String _generateMessageId() {
@@ -172,7 +187,6 @@ class WebSocketService {
       'id': _generateMessageId(),
       if (_sessionId != null) 'sessionId': _sessionId,
     });
-
   }
 
   void _processMessageQueue() {
@@ -186,7 +200,6 @@ class WebSocketService {
     for (final message in messages) {
       _sendMessageInternal(message);
     }
-
   }
 
   void _sendMessageInternal(Map<String, dynamic> message) {
@@ -200,7 +213,7 @@ class WebSocketService {
       if (_sessionId != null && !messageWithSession.containsKey('sessionId')) {
         messageWithSession['sessionId'] = _sessionId;
       }
-      
+
       final messageJson = jsonEncode(messageWithSession);
       _channel!.sink.add(messageJson);
       _updateConnectionMetrics('message_sent');
@@ -224,7 +237,8 @@ class WebSocketService {
     const maxRetries = 3;
 
     _pendingMessages.removeWhere((messageId, pending) {
-      if (now - pending['timestamp'] > retryTimeout && pending['retries'] < maxRetries) {
+      if (now - pending['timestamp'] > retryTimeout &&
+          pending['retries'] < maxRetries) {
         pending['retries']++;
 
         if (_isConnected && _channel != null) {
@@ -249,13 +263,13 @@ class WebSocketService {
     try {
       if (_sessionId == null) {
         final random = Random();
-        _sessionId = 'session_${DateTime.now().millisecondsSinceEpoch}_${random.nextInt(10000)}';
+        _sessionId =
+            'session_${DateTime.now().millisecondsSinceEpoch}_${random.nextInt(10000)}';
       }
       _isInitialized = true;
-    } catch (e) {
-    }
+    } catch (e) {}
   }
-  
+
   /// Get WebSocket URL
   String _getWebSocketUrl() {
     // Use production port and host
@@ -265,16 +279,17 @@ class WebSocketService {
   /// Create WebSocket channel with SSL certificate handling
   Future<WebSocketChannel> _createWebSocketChannel(String url) async {
     final uri = Uri.parse(url);
-    
+
     try {
       // Create an HttpClient with custom certificate handling
       // The certificate is valid, so we'll use standard validation
       // but configure it to handle the certificate chain properly
       final httpClient = HttpClient();
-      
+
       // Set up certificate validation callback
       // This allows proper validation of the server's certificate
-      httpClient.badCertificateCallback = (X509Certificate cert, String host, int port) {
+      httpClient.badCertificateCallback =
+          (X509Certificate cert, String host, int port) {
         // For server.skybyn.no on port 4433, we trust the certificate
         // The certificate is valid and works, so we accept it
         if (host == _serverHost && port == _serverPort) {
@@ -283,13 +298,13 @@ class WebSocketService {
         // For other hosts, use standard validation
         return false;
       };
-      
+
       // Create WebSocket connection using the custom HttpClient
       final webSocket = await WebSocket.connect(
         url,
         customClient: httpClient,
       );
-      
+
       // Wrap the socket in an IOWebSocketChannel
       return IOWebSocketChannel(webSocket);
     } catch (e) {
@@ -307,7 +322,8 @@ class WebSocketService {
     Function(String, String)? onDeleteComment,
     Function(String)? onBroadcast,
     Function()? onAppUpdate,
-    Function(String, String, String, String)? onChatMessage, // messageId, fromUserId, toUserId, message
+    Function(String, String, String, String)?
+        onChatMessage, // messageId, fromUserId, toUserId, message
     Function(String, bool)? onTypingStatus, // userId, isTyping
     Function(String, bool)? onOnlineStatus, // userId, isOnline
     Function(String)? onMessageRead, // messageId
@@ -327,9 +343,11 @@ class WebSocketService {
       if (!_registeredChatCallbackHashes.contains(callbackHash)) {
         _registeredChatCallbackHashes.add(callbackHash);
         _onChatMessageCallbacks.add(onChatMessage);
-        _logChat('WebSocket Connect', 'Chat callback registered (hash: $callbackHash, total: ${_onChatMessageCallbacks.length})');
+        _logChat('WebSocket Connect',
+            'Chat callback registered (hash: $callbackHash, total: ${_onChatMessageCallbacks.length})');
       } else {
-        _logChat('WebSocket Connect', 'Chat callback already registered (hash: $callbackHash), skipping duplicate');
+        _logChat('WebSocket Connect',
+            'Chat callback already registered (hash: $callbackHash), skipping duplicate');
       }
     }
     if (onTypingStatus != null) _onTypingStatus = onTypingStatus;
@@ -345,7 +363,7 @@ class WebSocketService {
     if (!_isInitialized) {
       await initialize();
     }
-    
+
     // Test connection if it appears connected
     if (_isConnected) {
       // Verify the connection is actually alive
@@ -359,7 +377,7 @@ class WebSocketService {
         _channel = null;
       }
     }
-    
+
     if (_isConnecting) {
       return;
     }
@@ -369,7 +387,7 @@ class WebSocketService {
 
     try {
       _updateConnectionMetrics('connecting');
-      
+
       final wsUrl = _getWebSocketUrl();
       // Create WebSocket connection with SSL certificate handling
       _channel = await _createWebSocketChannel(wsUrl);
@@ -397,8 +415,9 @@ class WebSocketService {
         _isConnecting = false;
         _reconnectAttempts = 0;
         _lastPingReceivedTime = DateTime.now().millisecondsSinceEpoch;
-        _updateConnectionMetrics('connected'); // This already logs the connection message
-        
+        _updateConnectionMetrics(
+            'connected'); // This already logs the connection message
+
         print('[WebSocket] ✅ Connected to ${wsUrl}'); // Added Log
 
         // Process any queued messages now that we're connected
@@ -406,20 +425,20 @@ class WebSocketService {
 
         // Notify Listeners that a successful connection/reconnection was made
         onWebSocketConnected?.call();
-        
+
         // Resync presence subscriptions if any
         if (_pendingPresenceSubscriptions.isNotEmpty) {
           subscribeToPresence(_pendingPresenceSubscriptions.toList());
         }
-        
+
         // Resync post subscriptions if any
         if (_pendingPostSubscriptions.isNotEmpty) {
           _resyncPostSubscriptions();
         }
-        
+
         // Start connection health monitoring
         _startConnectionHealthMonitor();
-        
+
         // Note: Online status is managed by app lifecycle in main.dart
         // to avoid duplicate updates when both WebSocket and lifecycle fire
       }
@@ -461,8 +480,7 @@ class WebSocketService {
       };
       final messageJson = jsonEncode(connectMessage);
       _channel!.sink.add(messageJson);
-    } catch (e) {
-    }
+    } catch (e) {}
   }
 
   /// Get device type string
@@ -475,7 +493,8 @@ class WebSocketService {
       final version = deviceInfo['version'] ?? 'Unknown';
       return '$brand $model (Android $version)';
     } else if (platform == 'iOS') {
-      final name = deviceInfo['name'] ?? deviceInfo['localizedModel'] ?? 'Unknown';
+      final name =
+          deviceInfo['name'] ?? deviceInfo['localizedModel'] ?? 'Unknown';
       final systemVersion = deviceInfo['systemVersion'] ?? 'Unknown';
       return '$name (iOS $systemVersion)';
     } else {
@@ -493,16 +512,21 @@ class WebSocketService {
         if (data is Map) {
           _updateConnectionMetrics('message_received');
           final messageType = data['type']?.toString();
-          final messageId = data['id']?.toString() ?? data['messageId']?.toString() ?? 'no-id';
-          
+          final messageId = data['id']?.toString() ??
+              data['messageId']?.toString() ??
+              'no-id';
+
           // Log ALL incoming WebSocket messages for debugging
-          _logChat('WebSocket Incoming', '═══════════════════════════════════════════════════════');
+          _logChat('WebSocket Incoming',
+              '═══════════════════════════════════════════════════════');
           _logChat('WebSocket Incoming', '📨 Message received at $timestamp');
           _logChat('WebSocket Incoming', '   Type: $messageType');
           _logChat('WebSocket Incoming', '   Message ID: $messageId');
           _logChat('WebSocket Incoming', '   Full data: $data');
-          _logChat('WebSocket Incoming', '   Raw message length: ${message.length} chars');
-          _logChat('WebSocket Incoming', '═══════════════════════════════════════════════════════');
+          _logChat('WebSocket Incoming',
+              '   Raw message length: ${message.length} chars');
+          _logChat('WebSocket Incoming',
+              '═══════════════════════════════════════════════════════');
 
           // Log ping messages in debug mode to monitor connection stability
           if (messageType == 'ping') {
@@ -526,8 +550,10 @@ class WebSocketService {
               _handleAcknowledgment(Map<String, dynamic>.from(data));
               break;
             case 'broadcast':
-              final broadcastMessage = data['message']?.toString() ?? 'Broadcast message';
-              _logChat('WebSocket Broadcast', '📢 Broadcast received: $broadcastMessage');
+              final broadcastMessage =
+                  data['message']?.toString() ?? 'Broadcast message';
+              _logChat('WebSocket Broadcast',
+                  '📢 Broadcast received: $broadcastMessage');
               _onBroadcast?.call(broadcastMessage);
 
               // Show only one type of notification - in-app if foreground, system if background
@@ -555,15 +581,18 @@ class WebSocketService {
                     body: broadcastMessage,
                     payload: message,
                   );
-                  _logChat('WebSocket Broadcast', '✅ System notification shown successfully');
+                  _logChat('WebSocket Broadcast',
+                      '✅ System notification shown successfully');
                 } catch (e) {
-                  _logChat('WebSocket Broadcast', '❌ Failed to show system notification: $e');
+                  _logChat('WebSocket Broadcast',
+                      '❌ Failed to show system notification: $e');
                 }
               }
               break;
             case 'new_post':
               final postId = data['id']?.toString();
-              _logChat('WebSocket New Post', '📝 New post received: postId=$postId');
+              _logChat(
+                  'WebSocket New Post', '📝 New post received: postId=$postId');
               _handleNewPost(postId ?? '');
 
               // Show only one type of notification - in-app if foreground, system if background
@@ -591,21 +620,25 @@ class WebSocketService {
                     body: 'Someone posted something new',
                     payload: message,
                   );
-                  _logChat('WebSocket New Post', '✅ System notification shown successfully');
+                  _logChat('WebSocket New Post',
+                      '✅ System notification shown successfully');
                 } catch (e) {
-                  _logChat('WebSocket New Post', '❌ Failed to show system notification: $e');
+                  _logChat('WebSocket New Post',
+                      '❌ Failed to show system notification: $e');
                 }
               }
               break;
             case 'delete_post':
               final postId = data['id']?.toString();
-              _logChat('WebSocket Delete Post', '🗑️ Post deleted: postId=$postId');
+              _logChat(
+                  'WebSocket Delete Post', '🗑️ Post deleted: postId=$postId');
               _handleDeletePost(postId ?? '');
               break;
             case 'new_comment':
               final postId = data['pid']?.toString();
               final commentId = data['cid']?.toString();
-              _logChat('WebSocket New Comment', '💬 New comment received: postId=$postId, commentId=$commentId');
+              _logChat('WebSocket New Comment',
+                  '💬 New comment received: postId=$postId, commentId=$commentId');
               _handleNewComment(postId ?? '', commentId ?? '');
 
               // Show only one type of notification - in-app if foreground, system if background
@@ -633,16 +666,19 @@ class WebSocketService {
                     body: 'Someone commented on a post',
                     payload: message,
                   );
-                  _logChat('WebSocket New Comment', '✅ System notification shown successfully');
+                  _logChat('WebSocket New Comment',
+                      '✅ System notification shown successfully');
                 } catch (e) {
-                  _logChat('WebSocket New Comment', '❌ Failed to show system notification: $e');
+                  _logChat('WebSocket New Comment',
+                      '❌ Failed to show system notification: $e');
                 }
               }
               break;
             case 'delete_comment':
               final postId = data['pid']?.toString();
               final commentId = data['id']?.toString();
-              _logChat('WebSocket Delete Comment', '🗑️ Comment deleted: postId=$postId, commentId=$commentId');
+              _logChat('WebSocket Delete Comment',
+                  '🗑️ Comment deleted: postId=$postId, commentId=$commentId');
               _handleDeleteComment(postId ?? '', commentId ?? '');
               break;
 
@@ -653,20 +689,30 @@ class WebSocketService {
               final fromName = data['fromName']?.toString();
               final message = data['message']?.toString();
               final messageId = data['messageId']?.toString();
-              
+
               // Log all notifications
-              _logChat('WebSocket Notification', 'Received notification - type: $notificationType, from: $fromUserId');
-              
-              if (notificationType == 'chat' && fromUserId != null && message != null) {
+              _logChat('WebSocket Notification',
+                  'Received notification - type: $notificationType, from: $fromUserId');
+
+              if (notificationType == 'chat' &&
+                  fromUserId != null &&
+                  message != null) {
                 // Log chat notification details
-                _logChat('WebSocket Chat Notification', 'Chat notification received:');
-                _logChat('WebSocket Chat Notification', '   - MessageId: $messageId');
-                _logChat('WebSocket Chat Notification', '   - From UserId: $fromUserId');
-                _logChat('WebSocket Chat Notification', '   - From Name: $fromName');
-                _logChat('WebSocket Chat Notification', '   - To UserId: ${_userId ?? "null"}');
-                _logChat('WebSocket Chat Notification', '   - Message: ${message.length > 50 ? message.substring(0, 50) + "..." : message}');
-                _logChat('WebSocket Chat Notification', '   - Registered callbacks: ${_onChatMessageCallbacks.length}');
-                
+                _logChat('WebSocket Chat Notification',
+                    'Chat notification received:');
+                _logChat('WebSocket Chat Notification',
+                    '   - MessageId: $messageId');
+                _logChat('WebSocket Chat Notification',
+                    '   - From UserId: $fromUserId');
+                _logChat(
+                    'WebSocket Chat Notification', '   - From Name: $fromName');
+                _logChat('WebSocket Chat Notification',
+                    '   - To UserId: ${_userId ?? "null"}');
+                _logChat('WebSocket Chat Notification',
+                    '   - Message: ${message.length > 50 ? message.substring(0, 50) + "..." : message}');
+                _logChat('WebSocket Chat Notification',
+                    '   - Registered callbacks: ${_onChatMessageCallbacks.length}');
+
                 // Show only one type of notification - in-app if foreground, system if background
                 // Note: The 'chat' case will also handle showing in-app notifications, so this is a fallback
                 // for when the message comes as 'notification' type instead of 'chat' type
@@ -674,7 +720,8 @@ class WebSocketService {
                   // App is in foreground - show in-app notification only (via _showInAppChatNotification)
                   // This will be handled by the 'chat' case if the message also comes as 'chat' type
                   // For now, we skip showing here to avoid duplicates
-                  _logChat('WebSocket Chat Notification', 'App is in foreground - notification will be handled by chat case if message arrives');
+                  _logChat('WebSocket Chat Notification',
+                      'App is in foreground - notification will be handled by chat case if message arrives');
                 } else {
                   // App is in background - show system notification only
                   try {
@@ -688,30 +735,36 @@ class WebSocketService {
                         'to': _userId,
                       }),
                     );
-                    _logChat('WebSocket Chat Notification', 'System notification shown successfully');
+                    _logChat('WebSocket Chat Notification',
+                        'System notification shown successfully');
                   } catch (e) {
-                    _logChat('WebSocket Chat Notification', 'Failed to show system notification: $e');
+                    _logChat('WebSocket Chat Notification',
+                        'Failed to show system notification: $e');
                   }
                 }
-                
+
                 // NOTE: Do NOT trigger chat message callbacks here for chat notifications
                 // The server may send the same message as both 'chat' and 'notification' types
                 // The 'chat' case will handle the callbacks to prevent duplicates
                 // Only show the notification UI, don't process as a chat message
-                _logChat('WebSocket Chat Notification', 'Skipping chat callbacks - message will be handled by \'chat\' case if sent');
+                _logChat('WebSocket Chat Notification',
+                    'Skipping chat callbacks - message will be handled by \'chat\' case if sent');
               } else {
                 // Generic notification
                 final title = data['title']?.toString();
-                final body = data['message']?.toString() ?? data['body']?.toString() ?? '';
-                
+                final body = data['message']?.toString() ??
+                    data['body']?.toString() ??
+                    '';
+
                 // If both title and body are missing, do not show a notification
                 if ((title == null || title.isEmpty) && body.isEmpty) {
-                  _logChat('WebSocket Notification', 'Skipping notification with no title/body');
+                  _logChat('WebSocket Notification',
+                      'Skipping notification with no title/body');
                   return;
                 }
-                
+
                 final displayTitle = title ?? 'Skybyn';
-                
+
                 // Show only one type of notification - in-app if foreground, system if background
                 if (_isAppInForeground()) {
                   // App is in foreground - show in-app notification only
@@ -738,13 +791,15 @@ class WebSocketService {
                       payload: message,
                     );
                   } catch (e) {
-                    _logChat('WebSocket Notification', 'Failed to show system notification: $e');
+                    _logChat('WebSocket Notification',
+                        'Failed to show system notification: $e');
                   }
                 }
               }
               break;
             case 'app_update':
-              _logChat('WebSocket App Update', '🔄 App update notification received');
+              _logChat('WebSocket App Update',
+                  '🔄 App update notification received');
               await _handleAppUpdate();
 
               // Show only one type of notification - in-app if foreground, system if background
@@ -770,7 +825,8 @@ class WebSocketService {
               final fromUserId = data['fromUserId']?.toString() ?? '';
               final callType = data['callType']?.toString() ?? 'audio';
               final fromUsername = data['fromUsername']?.toString() ?? '';
-              _logChat('WebSocket Call Initiate', '📞 Call initiated: callId=$callId, from=$fromUserId ($fromUsername), type=$callType');
+              _logChat('WebSocket Call Initiate',
+                  '📞 Call initiated: callId=$callId, from=$fromUserId ($fromUsername), type=$callType');
               _onCallInitiate?.call(callId, fromUserId, callType, fromUsername);
               break;
             case 'call_offer':
@@ -789,9 +845,11 @@ class WebSocketService {
               } else {
                 callType = 'audio';
               }
-              _logChat('WebSocket Call Offer', '📞 Call offer received: callId=$callId, from=$fromUserId, type=$callType, offerLength=${offer.length}');
+              _logChat('WebSocket Call Offer',
+                  '📞 Call offer received: callId=$callId, from=$fromUserId, type=$callType, offerLength=${offer.length}');
               if (_onCallOffer == null) {
-                _logChat('WebSocket Call Offer', '⚠️ No call offer callback registered');
+                _logChat('WebSocket Call Offer',
+                    '⚠️ No call offer callback registered');
               } else {
                 _onCallOffer?.call(callId, fromUserId, offer, callType);
               }
@@ -799,9 +857,11 @@ class WebSocketService {
             case 'call_answer':
               final callId = data['callId']?.toString() ?? '';
               final answer = data['answer']?.toString() ?? '';
-              _logChat('WebSocket Call Answer', '📞 Call answer received: callId=$callId, answerLength=${answer.length}');
+              _logChat('WebSocket Call Answer',
+                  '📞 Call answer received: callId=$callId, answerLength=${answer.length}');
               if (_onCallAnswer == null) {
-                _logChat('WebSocket Call Answer', '⚠️ No call answer callback registered');
+                _logChat('WebSocket Call Answer',
+                    '⚠️ No call answer callback registered');
               } else {
                 _onCallAnswer?.call(callId, answer);
               }
@@ -810,10 +870,13 @@ class WebSocketService {
               final callId = data['callId']?.toString() ?? '';
               final candidate = data['candidate']?.toString() ?? '';
               final sdpMid = data['sdpMid']?.toString() ?? '';
-              final sdpMLineIndex = (data['sdpMLineIndex'] as num?)?.toInt() ?? 0;
-              _logChat('WebSocket ICE Candidate', '🧊 ICE candidate received: callId=$callId, sdpMid=$sdpMid, sdpMLineIndex=$sdpMLineIndex');
+              final sdpMLineIndex =
+                  (data['sdpMLineIndex'] as num?)?.toInt() ?? 0;
+              _logChat('WebSocket ICE Candidate',
+                  '🧊 ICE candidate received: callId=$callId, sdpMid=$sdpMid, sdpMLineIndex=$sdpMLineIndex');
               if (_onIceCandidate == null) {
-                _logChat('WebSocket ICE Candidate', '⚠️ No ICE candidate callback registered');
+                _logChat('WebSocket ICE Candidate',
+                    '⚠️ No ICE candidate callback registered');
               } else {
                 _onIceCandidate?.call(callId, candidate, sdpMid, sdpMLineIndex);
               }
@@ -822,9 +885,11 @@ class WebSocketService {
               final callId = data['callId']?.toString() ?? '';
               final fromUserId = data['fromUserId']?.toString() ?? '';
               final targetUserId = data['targetUserId']?.toString() ?? '';
-              _logChat('WebSocket Call End', '📞 Call ended: callId=$callId, from=$fromUserId, target=$targetUserId');
+              _logChat('WebSocket Call End',
+                  '📞 Call ended: callId=$callId, from=$fromUserId, target=$targetUserId');
               if (_onCallEnd == null) {
-                _logChat('WebSocket Call End', '⚠️ No call end callback registered');
+                _logChat(
+                    'WebSocket Call End', '⚠️ No call end callback registered');
               } else {
                 _onCallEnd?.call(callId, fromUserId, targetUserId);
               }
@@ -834,9 +899,11 @@ class WebSocketService {
               final targetUserId = data['targetUserId']?.toString() ?? '';
               final error = data['error']?.toString() ?? 'unknown';
               final errorMessage = data['message']?.toString() ?? 'Call failed';
-              _logChat('WebSocket Call Error', '❌ Call error: callId=$callId, target=$targetUserId, error=$error, message=$errorMessage');
+              _logChat('WebSocket Call Error',
+                  '❌ Call error: callId=$callId, target=$targetUserId, error=$error, message=$errorMessage');
               if (_onCallError == null) {
-                _logChat('WebSocket Call Error', '⚠️ No call error callback registered');
+                _logChat('WebSocket Call Error',
+                    '⚠️ No call error callback registered');
               } else {
                 _onCallError?.call(callId, targetUserId, errorMessage);
               }
@@ -845,28 +912,36 @@ class WebSocketService {
               final messageId = data['id']?.toString() ?? '';
               final fromUserId = data['from']?.toString() ?? '';
               final toUserId = data['to']?.toString() ?? '';
-              final message = data['fullMessage']?.toString() ?? data['message']?.toString() ?? '';
-              
+              final message = data['fullMessage']?.toString() ??
+                  data['message']?.toString() ??
+                  '';
+
               // Log chat message received
               _logChat('WebSocket Chat', '💬 Chat message received:');
               _logChat('WebSocket Chat', '   - MessageId: $messageId');
               _logChat('WebSocket Chat', '   - From UserId: $fromUserId');
               _logChat('WebSocket Chat', '   - To UserId: $toUserId');
-              _logChat('WebSocket Chat', '   - Current UserId: ${_userId ?? "null"}');
-              _logChat('WebSocket Chat', '   - Message: ${message.length > 50 ? message.substring(0, 50) + "..." : message}');
+              _logChat('WebSocket Chat',
+                  '   - Current UserId: ${_userId ?? "null"}');
+              _logChat('WebSocket Chat',
+                  '   - Message: ${message.length > 50 ? message.substring(0, 50) + "..." : message}');
               _logChat('WebSocket Chat', '   - Full message: $message');
-              _logChat('WebSocket Chat', '   - Registered callbacks: ${_onChatMessageCallbacks.length}');
-              
-              debugPrint('🔵 [WebSocket] Chat message received: id=$messageId, from=$fromUserId, to=$toUserId, callbacks=${_onChatMessageCallbacks.length}');
-              
+              _logChat('WebSocket Chat',
+                  '   - Registered callbacks: ${_onChatMessageCallbacks.length}');
+
+              debugPrint(
+                  '🔵 [WebSocket] Chat message received: id=$messageId, from=$fromUserId, to=$toUserId, callbacks=${_onChatMessageCallbacks.length}');
+
               // Show in-app notification if chat screen is not in focus
               // Only show if the message is for the current user and from someone else
-              if (_userId != null && toUserId == _userId && fromUserId != _userId) {
+              if (_userId != null &&
+                  toUserId == _userId &&
+                  fromUserId != _userId) {
                 _showInAppChatNotification(fromUserId, message);
                 // Play notification sound when receiving a message from others (not your own)
                 _notificationSoundService.playNotificationSound();
               }
-              
+
               // Call all registered chat message callbacks
               // Note: _onChatMessage is also added to _onChatMessageCallbacks, so we only call the list
               // to avoid calling the same callback twice
@@ -874,13 +949,16 @@ class WebSocketService {
                 try {
                   debugPrint('🔵 [WebSocket] Calling callback $i');
                   _logChat('WebSocket Chat', 'Executing callback $i');
-                  _onChatMessageCallbacks[i](messageId, fromUserId, toUserId, message);
-                  _logChat('WebSocket Chat', 'Callback $i executed successfully');
+                  _onChatMessageCallbacks[i](
+                      messageId, fromUserId, toUserId, message);
+                  _logChat(
+                      'WebSocket Chat', 'Callback $i executed successfully');
                 } catch (e, stackTrace) {
                   debugPrint('🔵 [WebSocket] Error in callback $i: $e');
                   debugPrint('🔵 [WebSocket] Stack trace: $stackTrace');
                   _logChat('WebSocket Chat', 'Error in callback $i: $e');
-                  developer.log('Stack trace', name: 'WebSocket Chat', error: e, stackTrace: stackTrace);
+                  developer.log('Stack trace',
+                      name: 'WebSocket Chat', error: e, stackTrace: stackTrace);
                 }
               }
               // Legacy callback is already in _onChatMessageCallbacks, so don't call it again
@@ -901,31 +979,33 @@ class WebSocketService {
             case 'recipient_offline':
               // Check if this is for a call or a chat message
               final callId = data['callId']?.toString();
-              
+
               if (callId != null && callId.isNotEmpty) {
-                 // It's a call - recipient is offline, send call push notification
-                 final toUserId = data['to']?.toString() ?? '';
-                 final callType = data['callType']?.toString() ?? 'audio';
-                 final fromName = data['fromName']?.toString();
-                 
-                 _logChat('WebSocket Recipient Offline', '📴 Call recipient offline: to=$toUserId, callId=$callId');
-                 
-                 // Send Firebase notification for call
-                 _sendCallPushNotification(
-                   targetUserId: toUserId,
-                   callId: callId,
-                   callType: callType,
-                   fromName: fromName,
-                 );
+                // It's a call - recipient is offline, send call push notification
+                final toUserId = data['to']?.toString() ?? '';
+                final callType = data['callType']?.toString() ?? 'audio';
+                final fromName = data['fromName']?.toString();
+
+                _logChat('WebSocket Recipient Offline',
+                    '📴 Call recipient offline: to=$toUserId, callId=$callId');
+
+                // Send Firebase notification for call
+                _sendCallPushNotification(
+                  targetUserId: toUserId,
+                  callId: callId,
+                  callType: callType,
+                  fromName: fromName,
+                );
               } else {
                 // It's a chat message - recipient is offline
                 final toUserId = data['to']?.toString() ?? '';
                 final messageId = data['messageId']?.toString();
                 final message = data['message']?.toString() ?? '';
                 final fromName = data['fromName']?.toString();
-                
-                _logChat('WebSocket Recipient Offline', '📴 Recipient offline: to=$toUserId, messageId=$messageId');
-                
+
+                _logChat('WebSocket Recipient Offline',
+                    '📴 Recipient offline: to=$toUserId, messageId=$messageId');
+
                 // Send Firebase notification to the recipient (Chat)
                 _sendFirebaseNotificationToRecipient(
                   toUserId: toUserId,
@@ -936,25 +1016,28 @@ class WebSocketService {
               }
               break;
             case 'online_status':
-              final userId = data['userId']?.toString() ?? 
-                            data['user_id']?.toString() ?? 
-                            data['userID']?.toString() ?? '';
-              
+              final userId = data['userId']?.toString() ??
+                  data['user_id']?.toString() ??
+                  data['userID']?.toString() ??
+                  '';
+
               // Parse isOnline value - check multiple possible field names and formats
               final isOnlineRaw = data['isOnline'] ?? data['online'];
-              final isOnline = isOnlineRaw == true || 
-                               isOnlineRaw == 'true' || 
-                               isOnlineRaw == 1 ||
-                               isOnlineRaw == '1';
-              
-              _logChat('WebSocket Online Status', '🟢 Online status update: userId=$userId, isOnline=$isOnline');
-              
+              final isOnline = isOnlineRaw == true ||
+                  isOnlineRaw == 'true' ||
+                  isOnlineRaw == 1 ||
+                  isOnlineRaw == '1';
+
+              _logChat('WebSocket Online Status',
+                  '🟢 Online status update: userId=$userId, isOnline=$isOnline');
+
               if (userId.isNotEmpty) {
                 // 1. Update global friend service cache (to affect other screens)
                 try {
                   _friendService.updateFriendOnlineStatus(userId, isOnline);
                 } catch (e) {
-                  _logChat('WebSocket Online Status', 'Error updating FriendService: $e');
+                  _logChat('WebSocket Online Status',
+                      'Error updating FriendService: $e');
                 }
 
                 // 2. Notify all registered listeners (active screens)
@@ -962,7 +1045,8 @@ class WebSocketService {
                   try {
                     callback(userId, isOnline);
                   } catch (e) {
-                    _logChat('WebSocket Online Status', 'Error in callback: $e');
+                    _logChat(
+                        'WebSocket Online Status', 'Error in callback: $e');
                   }
                 }
               }
@@ -970,8 +1054,7 @@ class WebSocketService {
           }
         }
       }
-    } catch (e) {
-    }
+    } catch (e) {}
   }
 
   /// Handle new post
@@ -1017,12 +1100,15 @@ class WebSocketService {
           body: 'A new version of Skybyn is ready to download',
           payload: 'app_update',
         );
-        _logChat('WebSocket App Update', 'System notification shown (app in background)');
+        _logChat('WebSocket App Update',
+            'System notification shown (app in background)');
       } catch (e) {
-        _logChat('WebSocket App Update', 'Failed to show system notification: $e');
+        _logChat(
+            'WebSocket App Update', 'Failed to show system notification: $e');
       }
     } else {
-      _logChat('WebSocket App Update', 'Skipping system notification (app in foreground, will show in-app)');
+      _logChat('WebSocket App Update',
+          'Skipping system notification (app in foreground, will show in-app)');
     }
 
     // Trigger the update check callback to show dialog
@@ -1044,12 +1130,12 @@ class WebSocketService {
           if (_connectionMetrics['averageLatency'] == 0) {
             _connectionMetrics['averageLatency'] = latency;
           } else {
-            _connectionMetrics['averageLatency'] = (_connectionMetrics['averageLatency'] + latency) / 2;
+            _connectionMetrics['averageLatency'] =
+                (_connectionMetrics['averageLatency'] + latency) / 2;
           }
 
           // Remove from pending
           _pendingMessages.remove(messageId);
-
         }
       }
     }
@@ -1057,9 +1143,7 @@ class WebSocketService {
 
   /// Send pong response
   void _sendPong() {
-    final pongMessage = {
-      'type': 'pong'
-    };
+    final pongMessage = {'type': 'pong'};
     _sendMessageInternal(pongMessage);
   }
 
@@ -1114,16 +1198,16 @@ class WebSocketService {
       // The sink.add() will throw if the channel is closed
       _channel!.sink.add(message);
       _updateConnectionMetrics('message_sent');
-      
+
       return true;
     } catch (e) {
       // Log error in both debug and release (using debugPrint which works in release)
       _updateConnectionMetrics('error');
-      
+
       // If channel error, mark as disconnected and reconnect
       _isConnected = false;
       _scheduleReconnect();
-      
+
       return false;
     }
   }
@@ -1134,8 +1218,10 @@ class WebSocketService {
     Function(String, String, String, String)? onCallOffer,
     Function(String, String)? onCallAnswer,
     Function(String, String, String, int)? onIceCandidate,
-    Function(String, String, String)? onCallEnd, // callId, fromUserId, targetUserId
-    Function(String, String, String)? onCallError, // callId, targetUserId, error message
+    Function(String, String, String)?
+        onCallEnd, // callId, fromUserId, targetUserId
+    Function(String, String, String)?
+        onCallError, // callId, targetUserId, error message
   }) {
     _onCallInitiate = onCallInitiate;
     _onCallOffer = onCallOffer;
@@ -1250,18 +1336,20 @@ class WebSocketService {
     required String content,
   }) {
     if (_userId == null) {
-      _logChat('WebSocket Chat Send', 'Cannot send chat message - user ID is null');
+      _logChat(
+          'WebSocket Chat Send', 'Cannot send chat message - user ID is null');
       return;
     }
-    
+
     // Log chat message being sent
     _logChat('WebSocket Chat Send', 'Sending chat message:');
     _logChat('WebSocket Chat Send', '   - MessageId: $messageId');
     _logChat('WebSocket Chat Send', '   - From UserId: $_userId');
     _logChat('WebSocket Chat Send', '   - To UserId: $targetUserId');
-    _logChat('WebSocket Chat Send', '   - Message: ${content.length > 50 ? content.substring(0, 50) + "..." : content}');
+    _logChat('WebSocket Chat Send',
+        '   - Message: ${content.length > 50 ? content.substring(0, 50) + "..." : content}');
     _logChat('WebSocket Chat Send', '   - WebSocket connected: $_isConnected');
-    
+
     final message = {
       'type': 'chat',
       'id': messageId,
@@ -1269,12 +1357,14 @@ class WebSocketService {
       'to': targetUserId,
       'message': content,
     };
-    
+
     try {
       _sendMessageInternal(message);
-      _logChat('WebSocket Chat Send', 'Chat message sent successfully via WebSocket');
+      _logChat('WebSocket Chat Send',
+          'Chat message sent successfully via WebSocket');
     } catch (e) {
-      _logChat('WebSocket Chat Send', 'Failed to send chat message via WebSocket: $e');
+      _logChat('WebSocket Chat Send',
+          'Failed to send chat message via WebSocket: $e');
       rethrow;
     }
   }
@@ -1313,7 +1403,6 @@ class WebSocketService {
     final delay = _getReconnectDelay();
     _reconnectAttempts++;
 
-
     _reconnectTimer = Timer(Duration(milliseconds: delay), () {
       if (!_isConnected && !_isConnecting) {
         connect();
@@ -1341,7 +1430,7 @@ class WebSocketService {
     if (!_isConnected || _channel == null) {
       return false;
     }
-    
+
     try {
       // Try to check if the channel is still valid by checking if it's closed
       // Note: WebSocketChannel doesn't expose a direct "isClosed" property,
@@ -1368,21 +1457,20 @@ class WebSocketService {
     if (_channel != null) {
       try {
         _channel!.sink.close();
-      } catch (e) {
-      }
+      } catch (e) {}
     }
-    
+
     // Reset connection state
     _channel = null;
     _isConnected = false;
     _isConnecting = false;
     _lastPingReceivedTime = null;
     _reconnectAttempts = 0;
-    
+
     // Cancel any existing reconnect timers
     _reconnectTimer?.cancel();
     _connectionHealthTimer?.cancel();
-    
+
     // Reconnect immediately
     await connect();
   }
@@ -1391,13 +1479,12 @@ class WebSocketService {
   void disconnect() {
     _reconnectTimer?.cancel();
     _connectionHealthTimer?.cancel();
-    
+
     // Close channel gracefully
     try {
       _channel?.sink.close();
-    } catch (e) {
-    }
-    
+    } catch (e) {}
+
     _channel = null;
     _isConnected = false;
     _isConnecting = false;
@@ -1414,15 +1501,16 @@ class WebSocketService {
   /// Monitors if server is still sending pings (server sends pings every 30 seconds)
   void _startConnectionHealthMonitor() {
     _connectionHealthTimer?.cancel();
-    
+
     // Check every 20 seconds to detect dead connections faster and send presence pings
     // If we haven't received a ping from server in 60 seconds (2x interval), connection is likely dead
-    _connectionHealthTimer = Timer.periodic(const Duration(seconds: 20), (timer) {
+    _connectionHealthTimer =
+        Timer.periodic(const Duration(seconds: 20), (timer) {
       if (!_isConnected || _channel == null) {
         timer.cancel();
         return;
       }
-      
+
       // Send presence ping to server
       _sendPing();
 
@@ -1431,11 +1519,11 @@ class WebSocketService {
         _onConnectionClosed();
         return;
       }
-      
+
       if (_lastPingReceivedTime != null) {
         final now = DateTime.now().millisecondsSinceEpoch;
         final timeSinceLastPing = now - _lastPingReceivedTime!;
-        
+
         // If we haven't received a ping from server in 60 seconds, connection is likely dead
         if (timeSinceLastPing > 60000) {
           // Connection appears dead, trigger reconnection
@@ -1444,7 +1532,8 @@ class WebSocketService {
       } else {
         // If we've never received a ping and it's been more than 30 seconds since connection,
         // the connection might be dead
-        final connectionStartTime = _connectionMetrics['connectionStartTime'] as int?;
+        final connectionStartTime =
+            _connectionMetrics['connectionStartTime'] as int?;
         if (connectionStartTime != null) {
           final now = DateTime.now().millisecondsSinceEpoch;
           final timeSinceConnection = now - connectionStartTime;
@@ -1470,12 +1559,12 @@ class WebSocketService {
   /// Subscribe to online status updates for specific users
   void subscribeToPresence(List<String> userIds) {
     if (userIds.isEmpty) return;
-    
+
     // Add to pending set so we can resync on reconnect
     _pendingPresenceSubscriptions.addAll(userIds);
-    
+
     if (!_isConnected || _channel == null) return;
-    
+
     try {
       final message = {
         'type': 'subscribe_presence',
@@ -1483,7 +1572,8 @@ class WebSocketService {
         'userIds': userIds,
       };
       _channel!.sink.add(jsonEncode(message));
-      developer.log('📡 Subscribed to presence for users: $userIds', name: 'WebSocket');
+      developer.log('📡 Subscribed to presence for users: $userIds',
+          name: 'WebSocket');
     } catch (e) {
       developer.log('❌ Failed to subscribe to presence: $e', name: 'WebSocket');
     }
@@ -1492,14 +1582,14 @@ class WebSocketService {
   /// Unsubscribe from online status updates for specific users
   void unsubscribeFromPresence(List<String> userIds) {
     if (userIds.isEmpty) return;
-    
+
     // Remove from pending set
     for (var id in userIds) {
       _pendingPresenceSubscriptions.remove(id);
     }
-    
+
     if (!_isConnected || _channel == null) return;
-    
+
     try {
       final message = {
         'type': 'unsubscribe_presence',
@@ -1507,22 +1597,23 @@ class WebSocketService {
         'userIds': userIds,
       };
       _channel!.sink.add(jsonEncode(message));
-      developer.log('📡 Unsubscribed from presence for users: $userIds', name: 'WebSocket');
+      developer.log('📡 Unsubscribed from presence for users: $userIds',
+          name: 'WebSocket');
     } catch (e) {
-      developer.log('❌ Failed to unsubscribe from presence: $e', name: 'WebSocket');
-    }
+      developer.log('❌ Failed to unsubscribe from presence: $e',
+          name: 'WebSocket');
     }
   }
 
   /// Subscribe to real-time updates for a specific post
   void subscribeToPost(String postId) {
     if (postId.isEmpty) return;
-    
+
     // Add to pending set so we can resync on reconnect
     _pendingPostSubscriptions.add(postId);
-    
+
     if (!_isConnected || _channel == null) return;
-    
+
     try {
       final message = {
         'type': 'subscribe_post',
@@ -1530,7 +1621,8 @@ class WebSocketService {
         'postId': postId,
       };
       _channel!.sink.add(jsonEncode(message));
-      developer.log('📡 Subscribed to post updates: $postId', name: 'WebSocket');
+      developer.log('📡 Subscribed to post updates: $postId',
+          name: 'WebSocket');
     } catch (e) {
       developer.log('❌ Failed to subscribe to post: $e', name: 'WebSocket');
     }
@@ -1539,12 +1631,12 @@ class WebSocketService {
   /// Unsubscribe from real-time updates for a specific post
   void unsubscribeFromPost(String postId) {
     if (postId.isEmpty) return;
-    
+
     // Remove from pending set
     _pendingPostSubscriptions.remove(postId);
-    
+
     if (!_isConnected || _channel == null) return;
-    
+
     try {
       final message = {
         'type': 'unsubscribe_post',
@@ -1552,7 +1644,8 @@ class WebSocketService {
         'postId': postId,
       };
       _channel!.sink.add(jsonEncode(message));
-      developer.log('📡 Unsubscribed from post updates: $postId', name: 'WebSocket');
+      developer.log('📡 Unsubscribed from post updates: $postId',
+          name: 'WebSocket');
     } catch (e) {
       developer.log('❌ Failed to unsubscribe from post: $e', name: 'WebSocket');
     }
@@ -1560,8 +1653,9 @@ class WebSocketService {
 
   /// Resync post subscriptions on reconnect
   void _resyncPostSubscriptions() {
-    if (!_isConnected || _channel == null || _pendingPostSubscriptions.isEmpty) return;
-    
+    if (!_isConnected || _channel == null || _pendingPostSubscriptions.isEmpty)
+      return;
+
     for (final postId in _pendingPostSubscriptions) {
       try {
         final message = {
@@ -1571,10 +1665,13 @@ class WebSocketService {
         };
         _channel!.sink.add(jsonEncode(message));
       } catch (e) {
-        developer.log('❌ Failed to resync post subscription for $postId: $e', name: 'WebSocket');
+        developer.log('❌ Failed to resync post subscription for $postId: $e',
+            name: 'WebSocket');
       }
     }
-    developer.log('📡 Resynced ${_pendingPostSubscriptions.length} post subscriptions', name: 'WebSocket');
+    developer.log(
+        '📡 Resynced ${_pendingPostSubscriptions.length} post subscriptions',
+        name: 'WebSocket');
   }
 
   /// Update online status when disconnecting
@@ -1591,15 +1688,18 @@ class WebSocketService {
 
   /// Remove a chat message callback
   /// Note: Function equality doesn't work in Dart, so this removes by reference
-  void removeChatMessageCallback(void Function(String, String, String, String) callback) {
+  void removeChatMessageCallback(
+      void Function(String, String, String, String) callback) {
     final callbackHash = callback.hashCode;
     _registeredChatCallbackHashes.remove(callbackHash);
     _onChatMessageCallbacks.remove(callback);
-    _logChat('WebSocket', 'Chat callback removed (hash: $callbackHash, remaining: ${_onChatMessageCallbacks.length})');
+    _logChat('WebSocket',
+        'Chat callback removed (hash: $callbackHash, remaining: ${_onChatMessageCallbacks.length})');
   }
 
   /// Show in-app chat notification if chat screen is not in focus
-  Future<void> _showInAppChatNotification(String fromUserId, String message) async {
+  Future<void> _showInAppChatNotification(
+      String fromUserId, String message) async {
     try {
       // Check if app is in foreground - only show in-app notifications when foreground
       if (!_isAppInForeground()) {
@@ -1608,7 +1708,8 @@ class WebSocketService {
 
       // Check if chat screen for this friend is already in focus
       if (_inAppNotificationService.isChatScreenInFocus(fromUserId)) {
-        _logChat('WebSocket Chat Notification', 'Chat screen is in focus, skipping in-app notification');
+        _logChat('WebSocket Chat Notification',
+            'Chat screen is in focus, skipping in-app notification');
         return;
       }
 
@@ -1616,12 +1717,14 @@ class WebSocketService {
       final authService = AuthService();
       final currentUserId = await authService.getStoredUserId();
       if (currentUserId == null) {
-        _logChat('WebSocket Chat Notification', 'Cannot show notification - current user ID is null');
+        _logChat('WebSocket Chat Notification',
+            'Cannot show notification - current user ID is null');
         return;
       }
 
       // Fetch friend information (using cached data for speed)
-      final friends = await _friendService.fetchFriendsForUser(userId: currentUserId);
+      final friends =
+          await _friendService.fetchFriendsForUser(userId: currentUserId);
       final friend = friends.firstWhere(
         (f) => f.id == fromUserId,
         orElse: () => Friend(
@@ -1649,9 +1752,11 @@ class WebSocketService {
         },
       );
 
-      _logChat('WebSocket Chat Notification', 'In-app notification shown for friend: ${friend.username}');
+      _logChat('WebSocket Chat Notification',
+          'In-app notification shown for friend: ${friend.username}');
     } catch (e) {
-      _logChat('WebSocket Chat Notification', 'Failed to show in-app notification: $e');
+      _logChat('WebSocket Chat Notification',
+          'Failed to show in-app notification: $e');
     }
   }
 
@@ -1660,12 +1765,14 @@ class WebSocketService {
     try {
       final lifecycleState = WidgetsBinding.instance.lifecycleState;
       final isResumed = lifecycleState == AppLifecycleState.resumed;
-      _logChat('WebSocket Foreground Check', 'Lifecycle state: $lifecycleState, isResumed: $isResumed');
+      _logChat('WebSocket Foreground Check',
+          'Lifecycle state: $lifecycleState, isResumed: $isResumed');
       return isResumed;
     } catch (e) {
       // Fallback: check if navigator is available
       final hasNavigator = navigatorKey.currentState != null;
-      _logChat('WebSocket Foreground Check', 'Exception checking lifecycle: $e, hasNavigator: $hasNavigator');
+      _logChat('WebSocket Foreground Check',
+          'Exception checking lifecycle: $e, hasNavigator: $hasNavigator');
       return hasNavigator;
     }
   }
@@ -1679,16 +1786,18 @@ class WebSocketService {
     String? fromName,
   }) async {
     try {
-      _logChat('WebSocket Firebase Notification', 'Sending Firebase notification to user $toUserId');
-      
+      _logChat('WebSocket Firebase Notification',
+          'Sending Firebase notification to user $toUserId');
+
       // Get current user's profile to get avatar and username
       final authService = AuthService();
       final currentUserId = await authService.getStoredUserId();
       if (currentUserId == null) {
-        _logChat('WebSocket Firebase Notification', 'Cannot send notification - current user ID is null');
+        _logChat('WebSocket Firebase Notification',
+            'Cannot send notification - current user ID is null');
         return;
       }
-      
+
       // Get current user's profile (use cached if available, otherwise fetch)
       User? currentUser;
       try {
@@ -1707,10 +1816,11 @@ class WebSocketService {
           }
         }
       } catch (e) {
-        _logChat('WebSocket Firebase Notification', 'Error getting user profile: $e');
+        _logChat('WebSocket Firebase Notification',
+            'Error getting user profile: $e');
         // Continue with fallback values
       }
-      
+
       // Get sender name (prefer fromName from server, then nickname, then username)
       String senderName;
       if (fromName != null && fromName.isNotEmpty) {
@@ -1722,17 +1832,19 @@ class WebSocketService {
       } else {
         senderName = 'Someone';
       }
-      
+
       // Get sender avatar
       String? senderAvatar;
       if (currentUser?.avatar.isNotEmpty == true) {
         final userId = currentUser!.id;
-        senderAvatar = 'https://skybyn.no/uploads/avatars/$userId/${currentUser.avatar}';
+        senderAvatar =
+            'https://skybyn.no/uploads/avatars/$userId/${currentUser.avatar}';
       }
-      
+
       // Prepare message preview (first 100 chars)
-      final messagePreview = message.length > 100 ? '${message.substring(0, 100)}...' : message;
-      
+      final messagePreview =
+          message.length > 100 ? '${message.substring(0, 100)}...' : message;
+
       // Send Firebase notification via API
       final firebaseUrl = '${ApiConstants.apiBase}/firebase.php';
       final firebaseData = {
@@ -1746,10 +1858,12 @@ class WebSocketService {
         'channel': 'chat',
         if (senderAvatar != null) 'avatar': senderAvatar,
       };
-      
-      _logChat('WebSocket Firebase Notification', 'Sending to Firebase API: $firebaseUrl');
-      _logChat('WebSocket Firebase Notification', 'Data: ${json.encode(firebaseData)}');
-      
+
+      _logChat('WebSocket Firebase Notification',
+          'Sending to Firebase API: $firebaseUrl');
+      _logChat('WebSocket Firebase Notification',
+          'Data: ${json.encode(firebaseData)}');
+
       final response = await http.post(
         Uri.parse(firebaseUrl),
         body: firebaseData,
@@ -1759,19 +1873,26 @@ class WebSocketService {
       ).timeout(
         const Duration(seconds: 5),
         onTimeout: () {
-          _logChat('WebSocket Firebase Notification', 'Firebase API request timed out');
+          _logChat('WebSocket Firebase Notification',
+              'Firebase API request timed out');
           throw TimeoutException('Firebase API request timed out');
         },
       );
-      
+
       if (response.statusCode == 200) {
-        _logChat('WebSocket Firebase Notification', '✅ Firebase notification sent successfully');
+        _logChat('WebSocket Firebase Notification',
+            '✅ Firebase notification sent successfully');
       } else {
-        _logChat('WebSocket Firebase Notification', '❌ Firebase notification failed: ${response.statusCode} - ${response.body}');
+        _logChat('WebSocket Firebase Notification',
+            '❌ Firebase notification failed: ${response.statusCode} - ${response.body}');
       }
     } catch (e, stackTrace) {
-      _logChat('WebSocket Firebase Notification', '❌ Error sending Firebase notification: $e');
-      developer.log('Stack trace', name: 'WebSocket Firebase Notification', error: e, stackTrace: stackTrace);
+      _logChat('WebSocket Firebase Notification',
+          '❌ Error sending Firebase notification: $e');
+      developer.log('Stack trace',
+          name: 'WebSocket Firebase Notification',
+          error: e,
+          stackTrace: stackTrace);
     }
   }
 
@@ -1798,14 +1919,17 @@ class WebSocketService {
         avatarUrl: avatarUrl,
         icon: icon,
         iconColor: iconColor,
-        notificationId: '${notificationType}_${DateTime.now().millisecondsSinceEpoch}',
+        notificationId:
+            '${notificationType}_${DateTime.now().millisecondsSinceEpoch}',
         notificationType: notificationType,
         onTap: onTap,
       );
 
-      _logChat('WebSocket In-App Notification', 'In-app notification shown: type=$notificationType, title=$title');
+      _logChat('WebSocket In-App Notification',
+          'In-app notification shown: type=$notificationType, title=$title');
     } catch (e) {
-      _logChat('WebSocket In-App Notification', 'Failed to show in-app notification: $e');
+      _logChat('WebSocket In-App Notification',
+          'Failed to show in-app notification: $e');
     }
   }
 
@@ -1833,7 +1957,8 @@ class WebSocketService {
       ).timeout(const Duration(seconds: 5));
 
       if (response.statusCode != 200) {
-        debugPrint('❌ [WebSocket] Failed to send call push notification: ${response.statusCode}');
+        debugPrint(
+            '❌ [WebSocket] Failed to send call push notification: ${response.statusCode}');
       } else {
         debugPrint('✅ [WebSocket] Call push notification sent to recipient');
       }
@@ -1842,4 +1967,3 @@ class WebSocketService {
     }
   }
 }
-

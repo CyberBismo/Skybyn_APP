@@ -318,9 +318,14 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   /// Refresh posts in background and show indicator if new posts found
   Future<void> _refreshPostsInBackground() async {
+    debugPrint('🔵 [HomeScreen] Background post refresh started');
+    final startTime = DateTime.now();
     try {
       final userId = await _authService.getStoredUserId();
-      if (userId == null) return;
+      if (userId == null) {
+        debugPrint('⚠️ [HomeScreen] Background refresh skipped: No user ID');
+        return;
+      }
 
       final postService = PostService();
       final newPosts = await postService
@@ -330,6 +335,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       if (mounted) {
         final oldPostCount = _posts.length;
         final newPostCount = newPosts.length;
+        final duration = DateTime.now().difference(startTime);
+
+        debugPrint(
+            '✅ [HomeScreen] Background refresh completed in ${duration.inMilliseconds}ms. Found $newPostCount posts.');
 
         // Check if there are new posts (more posts than before or different first post)
         final hasNewPosts = newPostCount > oldPostCount ||
@@ -342,6 +351,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
           // Show indicator if new posts found and user has scrolled
           if (hasNewPosts && _hasScrolled) {
+            debugPrint('🔔 [HomeScreen] New posts found, showing indicator');
             _showNewPostIndicator = true;
           }
         });
@@ -353,6 +363,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         }
       }
     } catch (e) {
+      debugPrint('❌ [HomeScreen] Background refresh failed: $e');
       // Silently fail - background refresh shouldn't disrupt user
     }
   }
@@ -426,8 +437,12 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   Future<void> _loadData() async {
+    debugPrint('🔵 [HomeScreen] _loadData started');
+    final startTime = DateTime.now();
+
     final userId = await _authService.getStoredUserId();
     if (userId == null) {
+      debugPrint('⚠️ [HomeScreen] _loadData: No user ID found');
       setState(() {
         _posts = [];
         _isLoading = false;
@@ -446,8 +461,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     bool hasCachedData = false;
     try {
       // Try to get cached posts immediately
+      print('⏳ [HomeScreen] Loading timeline from cache...');
       final cachedPosts = await postService.loadTimelineFromCache();
       if (cachedPosts.isNotEmpty && mounted) {
+        print('✅ [HomeScreen] Loaded ${cachedPosts.length} posts from cache');
         setState(() {
           _posts = cachedPosts;
           _isLoading = false; // Show cached data immediately
@@ -455,14 +472,17 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         _stopNoPostsTimer();
         hasCachedData = true;
       } else {
+        print('ℹ️ [HomeScreen] No cached timeline found');
         setState(() => _isLoading = true);
       }
     } catch (e) {
+      print('⚠️ [HomeScreen] Error loading cache: $e');
       setState(() => _isLoading = true);
     }
 
     // Fetch fresh data in background
     try {
+      print('⏳ [HomeScreen] Fetching fresh timeline for user: $userId');
       final freshPosts = await postService
           .fetchPostsForUser(userId: userId)
           .timeout(const Duration(seconds: 15));
@@ -471,6 +491,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       _loadRetries = 0;
 
       if (mounted) {
+        final duration = DateTime.now().difference(startTime);
+        print(
+            '✅ [HomeScreen] Fresh timeline loaded in ${duration.inMilliseconds}ms. Count: ${freshPosts.length}');
+
         setState(() {
           _posts = freshPosts;
           _isLoading = false;
@@ -482,7 +506,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         }
       }
     } catch (timelineError) {
-      debugPrint('⚠️ [HomeScreen] Error loading posts: $timelineError');
+      debugPrint('❌ [HomeScreen] Error loading posts: $timelineError');
 
       // Retry once if this is the first failure
       if (_loadRetries < 1) {
@@ -517,6 +541,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   Future<void> _refreshData() async {
+    debugPrint('🔵 [HomeScreen] Manual refresh requested');
+    final startTime = DateTime.now();
     final translationService = TranslationService();
 
     try {
@@ -528,6 +554,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         // Clear cache to force fresh data
         final postService = PostService();
         await postService.clearTimelineCache();
+        debugPrint('ℹ️ [HomeScreen] Timeline cache cleared for manual refresh');
 
         // Also refresh notification count and friends count
         _fetchUnreadNotificationCount();
@@ -538,6 +565,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             .timeout(const Duration(seconds: 15));
 
         if (mounted) {
+          final duration = DateTime.now().difference(startTime);
+          debugPrint(
+              '✅ [HomeScreen] Manual refresh completed in ${duration.inMilliseconds}ms. Found ${newPosts.length} posts.');
+
           setState(() {
             _posts = newPosts;
             _isLoading = false;
@@ -567,6 +598,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           }
         }
       } else {
+        debugPrint('⚠️ [HomeScreen] Manual refresh skipped: No user ID');
         if (mounted) {
           _scaffoldMessengerKey.currentState?.showSnackBar(
             SnackBar(
@@ -580,6 +612,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         }
       }
     } catch (e) {
+      debugPrint('❌ [HomeScreen] Manual refresh failed: $e');
       if (mounted) {
         setState(() {
           _isLoading = false;
@@ -779,7 +812,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       try {
         final url = ApiConstants.comment;
         final body = {
-          'action': 'get',
+          'action': 'post',
           'commentID': commentId,
           'userID': userId
         };
