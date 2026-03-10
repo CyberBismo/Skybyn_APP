@@ -189,8 +189,22 @@ class _PostCardState extends State<PostCard> {
       if (mounted) {
         _commentFocusNode.addListener(_onFocusChange);
         _loadCurrentUserId();
+        
+        // Subscribe to real-time updates for this post
+        WebSocketService().subscribeToPost(_currentPost.id);
       }
     });
+  }
+
+  @override
+  void dispose() {
+    // Unsubscribe from real-time updates for this post
+    WebSocketService().unsubscribeFromPost(_currentPost.id);
+    
+    _commentController.dispose();
+    _commentFocusNode.dispose();
+    _popupMenuFocusNode.dispose();
+    super.dispose();
   }
 
   void _onFocusChange() {
