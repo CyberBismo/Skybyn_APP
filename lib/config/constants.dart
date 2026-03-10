@@ -30,10 +30,10 @@ class ApiConstants {
   static String get timeline => '$apiBase/timeline.php';
 
   // Comments
-  static String get addComment => '$apiBase/comment/add.php';
-  static String get getComment => '$apiBase/comment/get_comment.php';
-  static String get deleteComment => '$apiBase/comment/delete.php';
-  static String get updateComment => '$apiBase/comment/update.php';
+  static String get comment => '$apiBase/comment.php';
+
+  // Pages
+  static String get page => '$apiBase/page.php';
 
   // Languages
   static String get language => '$apiBase/translations.php';

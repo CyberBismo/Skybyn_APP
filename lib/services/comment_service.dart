@@ -16,8 +16,9 @@ class CommentService {
     // Send plain text content to server (server will handle encryption)
     // Make API call to add comment
     final response = await http.post(
-      Uri.parse(ApiConstants.addComment),
+      Uri.parse(ApiConstants.comment),
       body: {
+        'action': 'add',
         'postID': postId,
         'userID': userId,
         'content': content,
@@ -55,8 +56,9 @@ class CommentService {
     String? userId,
   }) async {
     try {
-      final url = ApiConstants.getComment;
+      final url = ApiConstants.comment;
       final body = {
+        'action': 'get',
         'commentID': commentId,
         if (userId != null) 'userID': userId,
       };
@@ -101,8 +103,12 @@ class CommentService {
   }) async {
     try {
       final response = await http.post(
-        Uri.parse(ApiConstants.deleteComment),
-        body: {'commentID': commentId, 'userID': userId},
+        Uri.parse(ApiConstants.comment),
+        body: {
+          'action': 'delete',
+          'commentID': commentId,
+          'userID': userId
+        },
       );
 
       if (response.statusCode != 200) {
@@ -130,8 +136,9 @@ class CommentService {
     required String content,
   }) async {
     final response = await http.post(
-      Uri.parse(ApiConstants.updateComment),
+      Uri.parse(ApiConstants.comment),
       body: {
+        'action': 'edit',
         'commentID': commentId,
         'userID': userId,
         'content': content,

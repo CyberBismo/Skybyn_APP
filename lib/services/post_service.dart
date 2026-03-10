@@ -116,7 +116,7 @@ class PostService {
     final response = await _retryHttpRequest(
       () => http.post(
         Uri.parse(ApiConstants.timeline),
-        body: {'userID': userID},
+        body: {'action': 'timeline', 'userID': userID},
       ).timeout(const Duration(seconds: 10)),
       maxRetries: 2,
     );
@@ -282,6 +282,7 @@ class PostService {
       debugPrint(
           'PostService: Fetching user timeline for user: $userId, currentUserID: $currentUserId');
       final requestBody = {
+        'action': 'timeline', 
         'userID': userId,
         if (currentUserId != null) 'currentUserID': currentUserId,
       };
@@ -291,7 +292,7 @@ class PostService {
 
       final response = await http
           .post(
-            Uri.parse(ApiConstants.userTimeline),
+            Uri.parse(ApiConstants.timeline),
             body: requestBody,
           )
           .timeout(const Duration(seconds: 10));
@@ -356,8 +357,8 @@ class PostService {
 
     try {
       final response = await http.post(
-        Uri.parse(ApiConstants.getPost),
-        body: {'postID': postId, 'userID': userID},
+        Uri.parse(ApiConstants.timeline),
+        body: {'action': 'get', 'postID': postId, 'userID': userID},
       ).timeout(const Duration(seconds: 10));
       if (response.statusCode == 200) {
         try {
@@ -403,8 +404,8 @@ class PostService {
     required String userId,
   }) async {
     final response = await http.post(
-      Uri.parse(ApiConstants.deletePost),
-      body: {'postID': postId, 'userID': userId},
+      Uri.parse(ApiConstants.timeline),
+      body: {'action': 'delete', 'postID': postId, 'userID': userId},
     );
     if (response.statusCode != 200) {
       throw Exception('Failed to delete post');
@@ -427,8 +428,9 @@ class PostService {
 
     if (mediaFile == null) {
       final response = await http.post(
-        Uri.parse(ApiConstants.addPost),
+        Uri.parse(ApiConstants.timeline),
         body: {
+          'action': 'add',
           'userID': userId,
           'content': content,
         },
@@ -450,7 +452,8 @@ class PostService {
 
       // Use MultipartRequest for file upload
       final request =
-          http.MultipartRequest('POST', Uri.parse(ApiConstants.addPost));
+          http.MultipartRequest('POST', Uri.parse(ApiConstants.timeline));
+      request.fields['action'] = 'add';
       request.fields['userID'] = userId;
       request.fields['content'] = content;
 
@@ -490,8 +493,9 @@ class PostService {
     // Send plain text content to server (server will handle encryption)
 
     final response = await http.post(
-      Uri.parse(ApiConstants.updatePost),
+      Uri.parse(ApiConstants.timeline),
       body: {
+        'action': 'edit',
         'postID': postId,
         'userID': userId,
         'content': content,
@@ -514,8 +518,8 @@ class PostService {
     required String userId,
   }) async {
     final response = await http.post(
-      Uri.parse(ApiConstants.likePost),
-      body: {'postID': postId, 'userID': userId},
+      Uri.parse(ApiConstants.timeline),
+      body: {'action': 'like', 'postID': postId, 'userID': userId},
     );
 
     if (response.statusCode != 200) {
@@ -534,8 +538,8 @@ class PostService {
     required String userId,
   }) async {
     final response = await http.post(
-      Uri.parse(ApiConstants.hidePost),
-      body: {'postID': postId, 'userID': userId},
+      Uri.parse(ApiConstants.timeline),
+      body: {'action': 'hide', 'postID': postId, 'userID': userId},
     );
 
     if (response.statusCode != 200) {
