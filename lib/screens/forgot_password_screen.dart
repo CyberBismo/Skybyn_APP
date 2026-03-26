@@ -6,6 +6,7 @@ import '../services/translation_service.dart';
 import '../widgets/translated_text.dart';
 
 import 'package:http/http.dart' as http;
+import '../utils/http_client.dart';
 import 'dart:convert';
 import '../config/constants.dart';
 import '../config/constants.dart';
@@ -41,7 +42,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     });
 
     try {
-      final response = await http.post(
+      final response = await globalAuthClient.post(
         Uri.parse(ApiConstants.forgotPassword),
         body: {
           'username': _usernameController.text.trim(),

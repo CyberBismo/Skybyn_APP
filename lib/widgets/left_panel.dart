@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:ui';
 import 'package:http/http.dart' as http;
+import '../utils/http_client.dart';
 import 'dart:convert';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -68,7 +69,7 @@ class _LeftPanelState extends State<LeftPanel> {
       }
 
       // Check for updates from API
-      final response = await http.post(
+      final response = await globalAuthClient.post(
         Uri.parse('${ApiConstants.apiBase}/left_panel.php'),
         body: {
           'uid': userId,
@@ -184,7 +185,7 @@ class _LeftPanelState extends State<LeftPanel> {
   Future<void> _loadDiscordWidget() async {
     try {
       // Use apiBase to access API folder (new location: api/discordStatus.php)
-      final response = await http.get(
+      final response = await globalAuthClient.get(
         Uri.parse('${ApiConstants.apiBase}/discordStatus.php'),
       ).timeout(const Duration(seconds: 10));
 

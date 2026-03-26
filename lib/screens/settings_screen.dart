@@ -3,6 +3,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:image_cropper/image_cropper.dart';
 import 'package:http/http.dart' as http;
+import '../utils/http_client.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:provider/provider.dart';
@@ -209,7 +210,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (userId == null) return;
 
     try {
-      final response = await http.post(
+      final response = await globalAuthClient.post(
         Uri.parse(ApiConstants.profile),
         body: {'userID': userId},
         headers: {'Content-Type': 'application/x-www-form-urlencoded'},
@@ -273,7 +274,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (userId == null) return;
 
     try {
-      final response = await http.post(
+      final response = await globalAuthClient.post(
         Uri.parse(ApiConstants.updateLocationSettings),
         body: {
           'userID': userId,
@@ -477,7 +478,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<File> _getFileFromUrl(String url) async {
-    final response = await http.get(Uri.parse(url));
+    final response = await globalAuthClient.get(Uri.parse(url));
     final bytes = response.bodyBytes;
     final tempDir = await getTemporaryDirectory();
     final file = File('${tempDir.path}/${DateTime.now().millisecondsSinceEpoch}.jpg');
@@ -2508,7 +2509,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     });
 
     try {
-      final response = await http.post(
+      final response = await globalAuthClient.post(
         Uri.parse('${ApiConstants.apiBase}/profile_ip_history.php'),
         body: {
           'userID': user!.id,
@@ -2605,7 +2606,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         body['birth_date'] = '${_birthDate!.year}-${_birthDate!.month.toString().padLeft(2, '0')}-${_birthDate!.day.toString().padLeft(2, '0')}';
       }
 
-      final response = await http.post(
+      final response = await globalAuthClient.post(
         Uri.parse('${ApiConstants.apiBase}/profile_update.php'),
         body: body,
       );
@@ -2615,7 +2616,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         if (data['responseCode'] == '1') {
           // Update email separately if changed
           if (_emailController.text.trim() != user!.email) {
-            await http.post(
+            await globalAuthClient.post(
               Uri.parse('${ApiConstants.apiBase}/profile_email_update.php'),
               body: {
                 'userID': user!.id,
@@ -2674,7 +2675,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
 
     try {
-      final response = await http.post(
+      final response = await globalAuthClient.post(
         Uri.parse('${ApiConstants.apiBase}/profile_password.php'),
         body: {
           'userID': user!.id,
@@ -2759,7 +2760,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         }
       }
 
-      final response = await http.post(
+      final response = await globalAuthClient.post(
         Uri.parse('${ApiConstants.apiBase}/profile_pin.php'),
         body: body,
       );
@@ -2824,7 +2825,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
 
     try {
-      final response = await http.post(
+      final response = await globalAuthClient.post(
         Uri.parse('${ApiConstants.apiBase}/profile_security_questions.php'),
         body: {
           'userID': user!.id,
@@ -2868,7 +2869,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (user == null) return;
 
     try {
-      final response = await http.post(
+      final response = await globalAuthClient.post(
         Uri.parse('${ApiConstants.apiBase}/profile_visibility.php'),
         body: {
           'userID': user!.id,

@@ -8,6 +8,7 @@ import 'dart:async';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../config/constants.dart';
+import '../utils/http_client.dart';
 
 class PostService {
   static const String _cacheKey = 'cached_timeline_posts';
@@ -137,7 +138,7 @@ class PostService {
     debugPrint('PostService: Fetching timeline');
     try {
       final response = await _retryHttpRequest(
-        () => http.post(
+        () => globalAuthClient.post(
           Uri.parse(ApiConstants.timeline),
           body: {'action': 'timeline', 'userID': userID},
         ).timeout(const Duration(seconds: 10)),
@@ -391,7 +392,7 @@ class PostService {
     final userID = userId;
 
     try {
-      final response = await http.post(
+      final response = await globalAuthClient.post(
         Uri.parse(ApiConstants.timeline),
         body: {'action': 'get', 'postID': postId, 'userID': userID},
       ).timeout(const Duration(seconds: 10));
@@ -438,7 +439,7 @@ class PostService {
     required String postId,
     required String userId,
   }) async {
-    final response = await http.post(
+    final response = await globalAuthClient.post(
       Uri.parse(ApiConstants.timeline),
       body: {'action': 'delete', 'postID': postId, 'userID': userId},
     );
@@ -462,7 +463,7 @@ class PostService {
     // Send plain text content to server (server will handle encryption)
 
     if (mediaFile == null) {
-      final response = await http.post(
+      final response = await globalAuthClient.post(
         Uri.parse(ApiConstants.timeline),
         body: {
           'action': 'add',
@@ -527,7 +528,7 @@ class PostService {
   }) async {
     // Send plain text content to server (server will handle encryption)
 
-    final response = await http.post(
+    final response = await globalAuthClient.post(
       Uri.parse(ApiConstants.timeline),
       body: {
         'action': 'edit',
@@ -552,7 +553,7 @@ class PostService {
     required String postId,
     required String userId,
   }) async {
-    final response = await http.post(
+    final response = await globalAuthClient.post(
       Uri.parse(ApiConstants.timeline),
       body: {'action': 'like', 'postID': postId, 'userID': userId},
     );
@@ -572,7 +573,7 @@ class PostService {
     required String postId,
     required String userId,
   }) async {
-    final response = await http.post(
+    final response = await globalAuthClient.post(
       Uri.parse(ApiConstants.timeline),
       body: {'action': 'hide', 'postID': postId, 'userID': userId},
     );
@@ -593,7 +594,7 @@ class PostService {
     required String userId,
     required String reason,
   }) async {
-    final response = await http.post(
+    final response = await globalAuthClient.post(
       Uri.parse(ApiConstants.report),
       body: {
         'postID': postId,

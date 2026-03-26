@@ -5,6 +5,7 @@ import 'dart:developer' as developer;
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:http/http.dart' as http;
+import '../utils/http_client.dart';
 import '../models/post.dart';
 import '../models/user.dart';
 import '../widgets/background_gradient.dart';
@@ -579,7 +580,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       return;
     }
     try {
-      final response = await http.post(
+      final response = await globalAuthClient.post(
         Uri.parse(ApiConstants.friend),
         body: {
           'userID': currentUserId!,
@@ -621,7 +622,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     });
 
     try {
-      final response = await http.post(
+      final response = await globalAuthClient.post(
         Uri.parse(ApiConstants.friend),
         body: {
           'userID': currentUserId!,
@@ -1371,7 +1372,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
 
     try {
-      final response = await http.post(
+      final response = await globalAuthClient.post(
         Uri.parse(ApiConstants.report),
         body: {
           'userID': currentUserId!,
@@ -1630,7 +1631,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       return;
     }
     try {
-      final response = await http.post(
+      final response = await globalAuthClient.post(
         Uri.parse(ApiConstants.friend),
         body: {
           'userID': currentUserId!,

@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import '../utils/http_client.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import '../config/constants.dart';
 import 'auth_service.dart';
@@ -63,7 +64,7 @@ class ErrorReportingService {
       };
 
       // 5. Send to Server
-      final response = await http.post(
+      final response = await globalAuthClient.post(
         Uri.parse(ApiConstants.reportError),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode(payload),

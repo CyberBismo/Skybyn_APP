@@ -9,6 +9,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:flutter_phoenix/flutter_phoenix.dart';
 import '../config/constants.dart';
 import 'package:http/http.dart' as http;
+import '../utils/http_client.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:package_info_plus/package_info_plus.dart';
@@ -102,7 +103,7 @@ class AutoUpdateService {
       );
       if (kDebugMode) debugPrint('[Update Check] Checking update at: $uri');
 
-      final response = await http.get(uri);
+      final response = await globalAuthClient.get(uri);
       if (kDebugMode) debugPrint('[Update Check] Response status code: ${response.statusCode}');
 
       if (response.statusCode == 200) {

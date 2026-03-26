@@ -33,6 +33,7 @@ import 'profile_screen.dart';
 import 'call_screen.dart';
 import '../config/constants.dart';
 import '../config/constants.dart' show UrlHelper;
+import '../utils/http_client.dart';
 import '../widgets/chat_list_modal.dart';
 import '../widgets/app_colors.dart';
 import '../services/chat_message_count_service.dart';
@@ -3865,12 +3866,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
       // Upload file
       final uploadUrl = '${ApiConstants.apiBase}/chat/upload.php';
       
-      // Use custom HttpClient with SSL bypass and API Key
-      final httpClient = HttpClient()
-        ..badCertificateCallback = ((X509Certificate cert, String host, int port) => true)
-        ..connectionTimeout = const Duration(seconds: 30);
-      
-      final ioClient = IOClient(httpClient);
+      final ioClient = createAuthenticatedHttpClient();
       
       final request = http.MultipartRequest('POST', Uri.parse(uploadUrl));
       

@@ -18,6 +18,7 @@ import '../services/websocket_service.dart';
 import '../widgets/create_post_widget.dart';
 import '../widgets/map_view.dart';
 import 'package:http/http.dart' as http;
+import '../utils/http_client.dart';
 import 'dart:convert';
 import 'dart:io';
 import '../services/friend_service.dart';
@@ -818,7 +819,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           'userID': userId
         };
 
-        final response = await http.post(
+        final response = await globalAuthClient.post(
           Uri.parse(url),
           body: body,
           headers: {
@@ -899,7 +900,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     if (userId == null || !mounted) return;
 
     try {
-      final response = await http.post(
+      final response = await globalAuthClient.post(
         Uri.parse(ApiConstants.notificationCount),
         body: {'userID': userId},
       );

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'dart:ui';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import '../utils/http_client.dart';
 import '../services/location_service.dart';
 import '../services/auth_service.dart';
 
@@ -147,7 +148,7 @@ class _FindFriendsWidgetState extends State<FindFriendsWidget> {
 
   Future<Map<String, dynamic>?> _searchUserByUsernameOrCode(String input) async {
     try {
-      final response = await http.post(
+      final response = await globalAuthClient.post(
         Uri.parse('${ApiConstants.apiBase}/search.php'),
         body: {
           'userID': await _authService.getStoredUserId() ?? '',
@@ -187,7 +188,7 @@ class _FindFriendsWidgetState extends State<FindFriendsWidget> {
       final userId = await _authService.getStoredUserId();
       if (userId == null) return false;
 
-      final response = await http.post(
+      final response = await globalAuthClient.post(
         Uri.parse(ApiConstants.friend),
         body: {
           'userID': userId,

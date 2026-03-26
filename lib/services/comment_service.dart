@@ -1,6 +1,7 @@
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../utils/api_utils.dart';
+import '../utils/http_client.dart';
 import '../models/comment.dart';
 // import 'dart:io' show Platform;
 // import 'package:cloud_firestore/cloud_firestore.dart';
@@ -15,7 +16,7 @@ class CommentService {
   }) async {
     // Send plain text content to server (server will handle encryption)
     // Make API call to add comment
-    final response = await http.post(
+    final response = await globalAuthClient.post(
       Uri.parse(ApiConstants.comment),
       body: {
         'action': 'add',
@@ -62,7 +63,7 @@ class CommentService {
         'commentID': commentId,
         if (userId != null) 'userID': userId,
       };
-      final response = await http.post(
+      final response = await globalAuthClient.post(
         Uri.parse(url),
         body: body,
         headers: {
@@ -102,7 +103,7 @@ class CommentService {
     required String userId,
   }) async {
     try {
-      final response = await http.post(
+      final response = await globalAuthClient.post(
         Uri.parse(ApiConstants.comment),
         body: {
           'action': 'delete',
@@ -135,7 +136,7 @@ class CommentService {
     required String userId,
     required String content,
   }) async {
-    final response = await http.post(
+    final response = await globalAuthClient.post(
       Uri.parse(ApiConstants.comment),
       body: {
         'action': 'edit',
@@ -161,7 +162,7 @@ class CommentService {
     required String userId,
     required String reason,
   }) async {
-    final response = await http.post(
+    final response = await globalAuthClient.post(
       Uri.parse(ApiConstants.report),
       body: {
         'commentID': commentId,

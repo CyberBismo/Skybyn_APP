@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:async';
 import '../utils/api_utils.dart';
 import 'package:http/http.dart' as http;
+import '../utils/http_client.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/foundation.dart';
 import '../config/constants.dart';
@@ -141,7 +142,7 @@ class TranslationService extends ChangeNotifier {
       }
 
       final response = await _retryHttpRequest(
-        () => http.post(
+        () => globalAuthClient.post(
           Uri.parse(ApiConstants.profile),
           body: {'userID': userId},
           headers: {'Content-Type': 'application/x-www-form-urlencoded'},
@@ -1112,7 +1113,7 @@ class TranslationService extends ChangeNotifier {
         return;
       }
 
-      final response = await http.post(
+      final response = await globalAuthClient.post(
         Uri.parse(ApiConstants.profile),
         body: {
           'userID': userId,

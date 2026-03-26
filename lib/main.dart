@@ -8,6 +8,7 @@ import 'dart:developer' as developer;
 import 'package:provider/provider.dart';
 import 'package:app_links/app_links.dart';
 import 'package:http/http.dart' as http;
+import 'utils/http_client.dart';
 import 'dart:async';
 import 'dart:convert';
 // Screens - all imports in main.dart
@@ -443,7 +444,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       // Preload friends locations in background (non-blocking)
       Future.delayed(const Duration(seconds: 2), () async {
         try {
-          final response = await http.post(
+          final response = await globalAuthClient.post(
             Uri.parse(ApiConstants.friendsLocations),
             body: {'userID': userId},
             headers: {'Content-Type': 'application/x-www-form-urlencoded'},

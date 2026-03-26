@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'dart:ui';
 import 'package:http/http.dart' as http;
+import '../utils/http_client.dart';
 import 'dart:convert';
 import '../services/auth_service.dart';
 import 'dart:async'; // Required for OverlayEntry
@@ -146,7 +147,7 @@ class _QrScannerScreenState extends State<QrScannerScreen> with WidgetsBindingOb
     }
 
     try {
-      final response = await http.post(
+      final response = await globalAuthClient.post(
         Uri.parse('https://api.skybyn.no/qr_check.php'),
         body: {'user': _userId!, 'code': qrCode},
       );
@@ -195,7 +196,7 @@ class _QrScannerScreenState extends State<QrScannerScreen> with WidgetsBindingOb
         return;
       }
 
-      final response = await http.post(
+      final response = await globalAuthClient.post(
         Uri.parse('https://api.skybyn.no/qr_check.php'),
         body: {
           'user': userId,
@@ -647,7 +648,7 @@ class _QrScannerScreenState extends State<QrScannerScreen> with WidgetsBindingOb
     if (_userId == null) return;
 
     try {
-      final response = await http.post(
+      final response = await globalAuthClient.post(
         Uri.parse('https://api.skybyn.no/qr_check.php'),
         body: {'user': _userId!, 'code': qrCode},
       );

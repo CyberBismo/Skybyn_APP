@@ -4,6 +4,7 @@ import 'package:flutter_map_marker_cluster/flutter_map_marker_cluster.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
+import '../utils/http_client.dart';
 import 'dart:convert';
 import 'dart:async';
 import 'dart:ui';
@@ -145,7 +146,7 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin {
     setState(() => _isGhostMode = newMode);
 
     try {
-      final response = await http.post(
+      final response = await globalAuthClient.post(
         Uri.parse(ApiConstants.updateLocationSettings),
         body: {
           'userID': _currentUserId!,
@@ -170,7 +171,7 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin {
   Future<void> _loadFriendsLocations() async {
     if (_currentUserId == null) return;
     try {
-      final response = await http.post(
+      final response = await globalAuthClient.post(
         Uri.parse(ApiConstants.friendsLocations),
         body: {'userID': _currentUserId!},
       ).timeout(const Duration(seconds: 10));

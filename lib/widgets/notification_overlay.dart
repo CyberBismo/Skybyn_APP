@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:ui';
 import 'package:http/http.dart' as http;
+import '../utils/http_client.dart';
 import 'dart:convert';
 import '../config/constants.dart';
 import '../services/auth_service.dart';
@@ -204,7 +205,7 @@ class _NotificationOverlayState extends State<NotificationOverlayContent> {
     });
 
     try {
-      final response = await http.post(
+      final response = await globalAuthClient.post(
         Uri.parse(ApiConstants.notifications),
         body: {'userID': userId},
       );
@@ -244,7 +245,7 @@ class _NotificationOverlayState extends State<NotificationOverlayContent> {
 
   Future<void> _markAsRead(String notificationId) async {
     try {
-      final response = await http.post(
+      final response = await globalAuthClient.post(
         Uri.parse(ApiConstants.readNotification),
         body: {'notiID': notificationId},
       );
@@ -286,7 +287,7 @@ class _NotificationOverlayState extends State<NotificationOverlayContent> {
     if (_userId == null) return;
     
     try {
-      final response = await http.post(
+      final response = await globalAuthClient.post(
         Uri.parse(ApiConstants.readAllNotifications),
         body: {'userID': _userId!},
       );
@@ -306,7 +307,7 @@ class _NotificationOverlayState extends State<NotificationOverlayContent> {
     if (_userId == null) return;
     
     try {
-      final response = await http.post(
+      final response = await globalAuthClient.post(
         Uri.parse(ApiConstants.deleteAllNotifications),
         body: {'userID': _userId!},
       );
@@ -335,7 +336,7 @@ class _NotificationOverlayState extends State<NotificationOverlayContent> {
     widget.onUnreadCountChanged?.call(unreadCount);
 
     try {
-      await http.post(
+      await globalAuthClient.post(
         Uri.parse(ApiConstants.deleteNotification),
         body: {'notiID': notificationId},
       );
@@ -352,7 +353,7 @@ class _NotificationOverlayState extends State<NotificationOverlayContent> {
     });
     
     try {
-      final response = await http.post(
+      final response = await globalAuthClient.post(
         Uri.parse(ApiConstants.friend),
         body: {
           'userID': _userId!,
@@ -394,7 +395,7 @@ class _NotificationOverlayState extends State<NotificationOverlayContent> {
     });
 
     try {
-      final response = await http.post(
+      final response = await globalAuthClient.post(
         Uri.parse(ApiConstants.friend),
         body: {
           'userID': _userId!,

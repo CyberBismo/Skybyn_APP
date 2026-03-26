@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import '../utils/http_client.dart';
 import 'dart:convert';
 import 'dart:async';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -70,7 +71,7 @@ class _GlobalSearchOverlayState extends State<GlobalSearchOverlay> {
         });
         return;
       }
-      final response = await http.post(
+      final response = await globalAuthClient.post(
         Uri.parse('${ApiConstants.apiBase}/search.php'),
         body: {
           'userID': userId,

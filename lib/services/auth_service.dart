@@ -15,6 +15,7 @@ import 'websocket_service.dart';
 import 'notification_service.dart';
 import 'navigation_service.dart';
 import '../utils/api_utils.dart';
+import '../utils/http_client.dart';
 import 'chat_message_count_service.dart';
 import 'post_service.dart';
 import 'friend_service.dart';
@@ -43,17 +44,7 @@ class AuthService {
   }
   
   static http.Client _createHttpClient() {
-    // Use default HttpClient with standard behavior
-    final httpClient = HttpClient();
-    
-    // Set user agent and timeouts
-    httpClient.userAgent = 'Skybyn-App/1.0';
-    httpClient.connectionTimeout = const Duration(seconds: 30);
-    httpClient.idleTimeout = const Duration(seconds: 30);
-    
-    // Set auto-uncompress to handle compressed responses
-    httpClient.autoUncompress = true;
-    return IOClient(httpClient);
+    return createAuthenticatedHttpClient(userAgent: 'Skybyn-App/1.0');
   }
   // final fb_auth.FirebaseAuth _auth = fb_auth.FirebaseAuth.instance;
   

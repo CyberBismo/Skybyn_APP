@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import '../utils/http_client.dart';
 import 'dart:convert';
 import '../config/constants.dart';
 import '../services/auth_service.dart';
@@ -51,7 +52,7 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
         return;
       }
 
-      final response = await http.post(
+      final response = await globalAuthClient.post(
         Uri.parse('${ApiConstants.apiBase}/feedback.php'),
         body: {
           'uid': userId,

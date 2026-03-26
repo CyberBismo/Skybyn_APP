@@ -11,6 +11,7 @@ import 'package:timezone/data/latest.dart' as tz;
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
+import '../utils/http_client.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:open_file/open_file.dart';
 import 'firebase_messaging_service.dart';
@@ -332,7 +333,7 @@ class NotificationService {
       final apiAction = (action == 'accept_friend') ? 'accept' : 'decline';
       
       try {
-        await http.post(
+        await globalAuthClient.post(
           Uri.parse(ApiConstants.friend),
           body: {
             'userID': currentUserId,

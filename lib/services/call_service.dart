@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import '../utils/http_client.dart';
 import '../config/constants.dart';
 import 'websocket_service.dart';
 import 'auth_service.dart';
@@ -114,7 +115,7 @@ class CallService {
       final token = await _authService.getStoredUserId();
       if (token == null) throw Exception("User not authenticated.");
 
-      final response = await http.get(
+      final response = await globalAuthClient.get(
         Uri.parse('${ApiConstants.apiBase}/call/get_ice_servers.php'), // Example endpoint
         headers: {
           'Authorization': 'Bearer $token',
@@ -295,7 +296,7 @@ class CallService {
         final authService = AuthService();
         final userId = await authService.getStoredUserId();
         if (userId != null) {
-          final response = await http.get(
+          final response = await globalAuthClient.get(
             Uri.parse('${ApiConstants.apiBase}/user/get_profile.php?user_id=$fromUserId'),
             headers: {
               'Authorization': 'Bearer $userId', // Some endpoints expect userId here
@@ -819,7 +820,7 @@ class CallService {
       final currentUserId = await _authService.getStoredUserId();
       if (currentUserId == null) return;
 
-      final response = await http.post(
+      final response = await globalAuthClient.post(
         Uri.parse('${ApiConstants.apiBase}/call/send_call_notification.php'),
         headers: {},
         body: {

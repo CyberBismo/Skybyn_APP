@@ -8,6 +8,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import '../utils/http_client.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -357,7 +358,7 @@ class FirebaseMessagingService {
 
       // 5. Send to Server
       if (kDebugMode) debugPrint('[FCM] Syncing token to server');
-      final response = await http.post(
+      final response = await globalAuthClient.post(
         Uri.parse(ApiConstants.token), // Ensure this endpoint handles upsert
         body: {
           'userID': userId,

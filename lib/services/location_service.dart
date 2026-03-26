@@ -1,6 +1,7 @@
 import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
 import '../utils/api_utils.dart';
+import '../utils/http_client.dart';
 import 'dart:convert';
 import 'dart:async';
 import '../config/constants.dart';
@@ -221,7 +222,7 @@ class LocationService {
       // Format location as "lat,lng"
       final locationString = '$latitude,$longitude';
       
-      final response = await http.post(
+      final response = await globalAuthClient.post(
         Uri.parse(ApiConstants.updateLocation),
         body: {
           'userID': userId,
@@ -250,7 +251,7 @@ class LocationService {
   /// Find users nearby based on location
   Future<List<Map<String, dynamic>>> findNearbyUsers(String userId, double latitude, double longitude, {double radiusKm = 10.0}) async {
     try {
-      final response = await http.post(
+      final response = await globalAuthClient.post(
         Uri.parse(ApiConstants.findNearbyUsers),
         body: {
           'userID': userId,

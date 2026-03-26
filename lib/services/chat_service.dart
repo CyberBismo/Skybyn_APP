@@ -9,6 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import '../models/message.dart';
 import '../config/constants.dart';
+import '../utils/http_client.dart';
 import 'auth_service.dart';
 import 'websocket_service.dart';
 import 'local_message_database.dart';
@@ -35,24 +36,10 @@ class ChatService {
   }
   
   static http.Client _createHttpClient() {
-    HttpClient httpClient;
-    
-    // In release mode, use standard HttpClient with proper SSL validation
-    // In debug mode, use HttpOverrides if available (which should have SSL bypass)
-    if (HttpOverrides.current != null) {
-      httpClient = HttpOverrides.current!.createHttpClient(null);
-    } else {
-      httpClient = HttpClient();
-    }
-    
-    // Set timeouts and user agent
-    // Use a more browser-like user agent to avoid bot protection
-    httpClient.userAgent = 'Mozilla/5.0 (Linux; Android 10; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.120 Mobile Safari/537.36 Skybyn-App/1.0';
-    httpClient.connectionTimeout = const Duration(seconds: 30);
-    httpClient.idleTimeout = const Duration(seconds: 30);
-    httpClient.autoUncompress = true;
-    
-    return IOClient(httpClient);
+    return createAuthenticatedHttpClient(
+      userAgent: 'Mozilla/5.0 (Linux; Android 10; Mobile) AppleWebKit/537.36 '
+          '(KHTML, like Gecko) Chrome/91.0.4472.120 Mobile Safari/537.36 Skybyn-App/1.0',
+    );
   }
 
   /// Process send message response (extracted to handle retries)
