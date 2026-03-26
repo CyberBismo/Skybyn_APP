@@ -101,6 +101,7 @@ class StorageKeys {
   static const String userId = 'user_id';
   static const String userProfile = 'user_profile';
   static const String username = 'username';
+  static const String sessionToken = 'session_token';
 }
 
 /// Utility class for URL conversion

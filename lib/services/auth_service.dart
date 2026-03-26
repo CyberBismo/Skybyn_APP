@@ -144,6 +144,12 @@ class AuthService {
           await _secureStorage.write(key: userIdKey, value: userIdStr);
           await _secureStorage.write(key: usernameKey, value: username);
 
+          // Store session token for authenticated API requests
+          final sessionToken = data['sessionToken']?.toString();
+          if (sessionToken != null && sessionToken.isNotEmpty) {
+            await _secureStorage.write(key: StorageKeys.sessionToken, value: sessionToken);
+          }
+
           // Try to fetch user profile, but don't fail login if it fails
           try {
             await fetchUserProfile(username);
@@ -262,10 +268,11 @@ class AuthService {
             await _secureStorage.write(key: userIdKey, value: userId);
           }
           
-          // Store session token if provided (though headers handle cookies usually, 
-          // but API sends it back for mobile use)
-          // We might want to store 'token' or 'sessionToken'
-          // ...
+          // Store session token for authenticated API requests
+          final sessionToken = data['sessionToken']?.toString();
+          if (sessionToken != null && sessionToken.isNotEmpty) {
+            await _secureStorage.write(key: StorageKeys.sessionToken, value: sessionToken);
+          }
 
           // Fetch user profile immediately to get username and other details
           // We don't have username from social login directly unless we added it to response
@@ -403,6 +410,10 @@ class AuthService {
     } catch (e) {
       return null;
     }
+  }
+
+  Future<String?> getStoredSessionToken() async {
+    return await _secureStorage.read(key: StorageKeys.sessionToken);
   }
 
   Future<String?> getStoredUserId() async {
@@ -554,6 +565,7 @@ class AuthService {
     await _secureStorage.delete(key: userIdKey);
     await _secureStorage.delete(key: userProfileKey);
     await _secureStorage.delete(key: usernameKey);
+    await _secureStorage.delete(key: StorageKeys.sessionToken);
 
     // Clear last navigation route on logout
     try {
