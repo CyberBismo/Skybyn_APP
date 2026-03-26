@@ -19,77 +19,19 @@ class TranslationService extends ChangeNotifier {
 
   // Supported languages
   static const List<String> supportedLanguages = [
-    'en',
-    'no',
-    'dk',
-    'se',
-    'de',
-    'fr',
-    'pl',
-    'es',
-    'it',
-    'pt',
-    'nl',
-    'fi'
+    'en'
   ];
 
   // Language names for display
   static const Map<String, String> languageNames = {
-    'en': 'English',
-    'no': 'Norsk',
-    'dk': 'Dansk',
-    'se': 'Svenska',
-    'de': 'Deutsch',
-    'fr': 'Français',
-    'pl': 'Polski',
-    'es': 'Español',
-    'it': 'Italiano',
-    'pt': 'Português',
-    'nl': 'Nederlands',
-    'fi': 'Suomi',
+    'en': 'English'
   };
 
   // Country to language mapping
   static const Map<String, String> countryToLanguageMap = {
     // English
     'US': 'en', 'GB': 'en', 'AU': 'en', 'CA': 'en', 'NZ': 'en', 'IE': 'en',
-    'ZA': 'en',
-    // Norwegian
-    'NO': 'no', 'SJ': 'no', 'BV': 'no',
-    // Danish
-    'DK': 'dk', 'GL': 'dk', 'FO': 'dk',
-    // Swedish
-    'SE': 'se',
-    // German
-    'DE': 'de', 'AT': 'de', 'CH': 'de', 'LI': 'de', 'LU': 'de',
-    // French
-    'FR': 'fr', 'MC': 'fr', 'SN': 'fr', 'CI': 'fr', 'ML': 'fr',
-    'BF': 'fr', 'NE': 'fr', 'TD': 'fr', 'MG': 'fr', 'CM': 'fr',
-    'CD': 'fr', 'CG': 'fr', 'CF': 'fr', 'GA': 'fr', 'DJ': 'fr', 'KM': 'fr',
-    'RE': 'fr', 'YT': 'fr',
-    'NC': 'fr', 'PF': 'fr', 'WF': 'fr', 'VU': 'fr', 'BI': 'fr', 'RW': 'fr',
-    'SC': 'fr',
-    'MU': 'fr', 'HT': 'fr', 'GP': 'fr', 'MQ': 'fr', 'GF': 'fr', 'BL': 'fr',
-    'MF': 'fr', 'PM': 'fr',
-    // Polish
-    'PL': 'pl',
-    // Spanish
-    'ES': 'es', 'MX': 'es', 'AR': 'es', 'CO': 'es', 'PE': 'es', 'VE': 'es',
-    'CL': 'es',
-    'EC': 'es', 'GT': 'es', 'CU': 'es', 'BO': 'es', 'DO': 'es', 'HN': 'es',
-    'PY': 'es',
-    'SV': 'es', 'NI': 'es', 'CR': 'es', 'PA': 'es', 'UY': 'es', 'PR': 'es',
-    // Italian
-    'IT': 'it', 'SM': 'it', 'VA': 'it',
-    // Portuguese
-    'PT': 'pt', 'BR': 'pt', 'AO': 'pt', 'MZ': 'pt', 'GW': 'pt', 'CV': 'pt',
-    'ST': 'pt',
-    'TL': 'pt', 'MO': 'pt',
-    // Dutch
-    'NL': 'nl', 'BE': 'nl', 'SR': 'nl', 'AW': 'nl', 'CW': 'nl', 'SX': 'nl',
-    'BQ': 'nl',
-    // Finnish
-    'FI': 'fi',
+    'ZA': 'en'
   };
 
   // Initialize the translation service

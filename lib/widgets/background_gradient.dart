@@ -223,13 +223,13 @@ class _BackgroundGradientState extends State<BackgroundGradient>
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
 
     final lightColors = [
-      const Color.fromRGBO(112, 207, 253, 1.0), // Light blue (web light mode)
-      const Color.fromRGBO(19, 155, 255, 1.0), // Blue (web light mode)
+      const Color.fromRGBO(118, 212, 255, 1.0), // Light blue (web light mode)
+      const Color.fromRGBO(0, 144, 255, 1.0), // Blue (web light mode)
     ];
 
     final midnightColors = [
-      const Color.fromRGBO(11, 19, 43, 1.0), // Midnight navy
-      const Color.fromRGBO(0, 8, 20, 1.0), // Near-black midnight blue
+      const Color.fromRGBO(36, 59, 85, 1.0), // Midnight navy
+      const Color.fromRGBO(20, 30, 48, 1.0), // Near-black midnight blue
     ];
 
     final gradientColors =
