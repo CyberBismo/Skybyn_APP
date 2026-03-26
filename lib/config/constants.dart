@@ -91,8 +91,10 @@ class ApiConstants {
   static String get adminUsers => '$apiBase/admin/users.php';
   static String get adminReports => '$apiBase/admin/reports.php';
 
-  // API Key for unrestricted access (bypasses bot protection)
-  static const String apiKey = 'DP4HOA9PYSUAPFP1SHEMHNPJ0S6QZF3X';
+  // NOTE: Static API key removed for security. The server should authenticate
+  // app requests via session tokens instead of a shared static key.
+  // Until server-side changes are made, pass the key via X-API-Key header
+  // only for requests that require it, loaded from secure storage at runtime.
 }
 
 class StorageKeys {

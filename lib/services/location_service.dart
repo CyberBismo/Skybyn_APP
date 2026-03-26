@@ -5,6 +5,7 @@ import 'dart:convert';
 import 'dart:async';
 import '../config/constants.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter/material.dart';
 import '../widgets/translated_text.dart';
 import '../services/translation_service.dart';
@@ -23,7 +24,11 @@ class LocationService {
   Timer? _locationUpdateTimer;
   bool _isLiveTracking = false;
   Position? _cachedPosition;
-  
+
+  static const FlutterSecureStorage _secureStorage = FlutterSecureStorage(
+    aOptions: AndroidOptions(encryptedSharedPreferences: true),
+  );
+
   static const String _lastLatKey = 'last_known_lat';
   static const String _lastLngKey = 'last_known_lng';
   static const String _hasAskedPermissionOnStartupKey = 'has_asked_location_permission_startup';
@@ -165,28 +170,28 @@ class LocationService {
     }
   }
   
-  /// Save the last known location to SharedPreferences
+  /// Save the last known location to FlutterSecureStorage
   Future<void> saveLastKnownLocation(Position position) async {
     _cachedPosition = position;
     try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setDouble(_lastLatKey, position.latitude);
-      await prefs.setDouble(_lastLngKey, position.longitude);
+      await _secureStorage.write(key: _lastLatKey, value: position.latitude.toString());
+      await _secureStorage.write(key: _lastLngKey, value: position.longitude.toString());
     } catch (e) {
       // Silently fail
     }
   }
 
-  /// Retrieve the last known location from SharedPreferences
+  /// Retrieve the last known location from FlutterSecureStorage
   Future<Position?> getLastKnownLocation() async {
     if (_cachedPosition != null) {
       return _cachedPosition;
     }
-    
+
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final lat = prefs.getDouble(_lastLatKey);
-      final lng = prefs.getDouble(_lastLngKey);
+      final latStr = await _secureStorage.read(key: _lastLatKey);
+      final lngStr = await _secureStorage.read(key: _lastLngKey);
+      final lat = latStr != null ? double.tryParse(latStr) : null;
+      final lng = lngStr != null ? double.tryParse(lngStr) : null;
       
       if (lat != null && lng != null) {
         // Construct a mock Position object with the saved coordinates

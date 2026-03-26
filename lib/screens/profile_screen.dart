@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:ui' as ui;
+import 'package:flutter/foundation.dart';
 import 'dart:developer' as developer;
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -477,14 +478,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
       );
 
       // Log API response
-      print('[SKYBYN] 📥 [Profile Posts] API Response received');
-      print('[SKYBYN]    Status: Success');
-      print('[SKYBYN]    Posts Count: ${posts.length}');
+      if (kDebugMode) debugPrint('[SKYBYN] 📥 [Profile Posts] API Response received');
+      if (kDebugMode) debugPrint('[SKYBYN] Status: Success');
+      if (kDebugMode) debugPrint('[SKYBYN] Posts Count: ${posts.length}');
       if (posts.isNotEmpty) {
-        print('[SKYBYN]    First Post ID: ${posts.first.id}');
-        print('[SKYBYN]    First Post User: ${posts.first.userId}');
-        print(
-            '[SKYBYN]    First Post Content Preview: ${posts.first.content.length > 50 ? posts.first.content.substring(0, 50) + "..." : posts.first.content}');
+        if (kDebugMode) debugPrint('[SKYBYN] First Post ID: ${posts.first.id}');
+        if (kDebugMode) debugPrint('[SKYBYN] First post loaded');
       }
       developer.log('📥 [Profile Posts] API Response received',
           name: 'Profile Posts API');

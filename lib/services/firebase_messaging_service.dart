@@ -2,6 +2,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'dart:developer' as developer;
+import 'package:flutter/foundation.dart';
 
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -199,11 +200,11 @@ class FirebaseMessagingService {
 
     // Check if Firebase Core is initialized before accessing instance
     if (Firebase.apps.isEmpty) {
-      print('⚠️ [Firebase] Cannot initialize MessagingService: Firebase Core not initialized.');
+      debugPrint('⚠️ [Firebase] Cannot initialize MessagingService: Firebase Core not initialized.');
       return;
     }
 
-    print('[FCM] Initializing FCM Service...');
+    debugPrint('[FCM] Initializing FCM Service...');
     try {
       _messaging ??= FirebaseMessaging.instance;
 
@@ -230,20 +231,20 @@ class FirebaseMessagingService {
       }
       
       // 5. Sync Token (Silent - don't force perms request yet)
-      print('[FCM] Initial Token Sync...');
+      debugPrint('[FCM] Initial Token Sync...');
       syncToken();
 
       // 6. Listen for Token Refreshes
       _messaging?.onTokenRefresh.listen((newToken) {
-        print('[FCM] 🔄 Token Refreshed: $newToken');
+        debugPrint('[FCM] 🔄 Token Refreshed');
         _currentToken = newToken;
         syncToken(force: true);
       });
 
       _isInitialized = true;
-      print('[FCM] ✅ Service Initialized');
+      debugPrint('[FCM] ✅ Service Initialized');
     } catch (e) {
-      print('[FCM] ❌ Initialization Failed: $e');
+      debugPrint('[FCM] ❌ Initialization Failed: $e');
     }
   }
 
@@ -320,10 +321,10 @@ class FirebaseMessagingService {
       String? token = await _messaging!.getToken();
       _currentToken = token; // Cache the token
       if (token == null) {
-        print('[FCM] ⚠️ Token is NULL');
+        debugPrint('[FCM] ⚠️ Token is NULL');
         return;
       }
-      print('[FCM] 🔑 Current Token: $token');
+      if (kDebugMode) debugPrint('[FCM] Token retrieved successfully');
 
       // 2. Get User ID (0 if guest)
       final user = await _authService.getStoredUserProfile();
@@ -355,7 +356,7 @@ class FirebaseMessagingService {
       }
 
       // 5. Send to Server
-      print('[FCM] 🚀 Syncing Token to Server (User: $userId, Token: $token)');
+      if (kDebugMode) debugPrint('[FCM] Syncing token to server');
       final response = await http.post(
         Uri.parse(ApiConstants.token), // Ensure this endpoint handles upsert
         body: {
@@ -389,12 +390,11 @@ class FirebaseMessagingService {
   Future<void> _handleForegroundMessage(RemoteMessage message) async {
     final type = message.data['type']?.toString();
 
-    print('[FCM] 📨 Foreground Message Received:');
-    print('   MessageId: ${message.messageId}');
-    print('   Type: $type');
-    print('   Data: ${jsonEncode(message.data)}');
+    debugPrint('[FCM] 📨 Foreground Message Received:');
+    debugPrint('   MessageId: ${message.messageId}');
+    debugPrint('   Type: $type');
     if (message.notification != null) {
-      print('   Notification: ${message.notification?.title} / ${message.notification?.body}');
+      debugPrint('   Notification: ${message.notification?.title} / ${message.notification?.body}');
     }
 
     // ROUTING LOGIC:

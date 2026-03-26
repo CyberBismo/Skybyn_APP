@@ -1,5 +1,6 @@
 import 'dart:ui';
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../models/post.dart';
@@ -482,7 +483,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
     // Fetch fresh data in background
     try {
-      print('⏳ [HomeScreen] Fetching fresh timeline for user: $userId');
+      if (kDebugMode) debugPrint('⏳ [HomeScreen] Fetching fresh timeline');
       final freshPosts = await postService
           .fetchPostsForUser(userId: userId)
           .timeout(const Duration(seconds: 15));

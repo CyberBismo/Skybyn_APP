@@ -53,7 +53,7 @@ void callbackDispatcher() {
           developer.log('Starting background update download...', name: 'MessageSyncWorker');
           if (Platform.isAndroid) {
             try {
-              await FlutterDownloader.initialize(debug: false, ignoreSsl: true);
+              await FlutterDownloader.initialize(debug: false, ignoreSsl: false);
             } catch (e) {
               developer.log('FlutterDownloader init error in worker: $e');
             }

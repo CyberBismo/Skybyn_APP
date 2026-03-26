@@ -81,12 +81,11 @@ Future<void> main() async {
       if (Platform.isAndroid) {
         try {
           await FlutterDownloader.initialize(
-            debug: false, // set to false in production
-            ignoreSsl:
-                true, // option: set to false to disable HTTP links (default: false)
+            debug: false,
+            ignoreSsl: false,
           );
         } catch (e) {
-          print('FlutterDownloader initialization error: $e');
+          if (kDebugMode) debugPrint('FlutterDownloader initialization error: $e');
         }
       }
 
@@ -94,15 +93,15 @@ Future<void> main() async {
       FlutterError.onError = (FlutterErrorDetails details) {
         if (enableErrorLogging) {
           FlutterError.presentError(details);
-          print(
+          if (kDebugMode) debugPrint(
               '═══════════════════════════════════════════════════════════════');
-          print('FLUTTER ERROR');
-          print(
+          if (kDebugMode) debugPrint('FLUTTER ERROR');
+          if (kDebugMode) debugPrint(
               '═══════════════════════════════════════════════════════════════');
-          print('Exception: ${details.exception}');
-          print('Library: ${details.library}');
-          print('Stack: ${details.stack}');
-          print(
+          if (kDebugMode) debugPrint('Exception: ${details.exception}');
+          if (kDebugMode) debugPrint('Library: ${details.library}');
+          if (kDebugMode) debugPrint('Stack: ${details.stack}');
+          if (kDebugMode) debugPrint(
               '═══════════════════════════════════════════════════════════════');
         }
         // Report to server
@@ -136,7 +135,7 @@ Future<void> main() async {
       // Initialize Firebase BEFORE running the app (needed for FCM push notifications)
       await _initializeFirebase(enableErrorLogging).catchError((error) {
         if (enableErrorLogging) {
-          print('Firebase initialization error: $error');
+          if (kDebugMode) debugPrint('Firebase initialization error: $error');
         }
       });
 
@@ -146,14 +145,14 @@ Future<void> main() async {
     },
     (error, stack) {
       if (enableErrorLogging) {
-        print(
+        if (kDebugMode) debugPrint(
             '═══════════════════════════════════════════════════════════════');
-        print('ZONE ERROR (Uncaught Exception)');
-        print(
+        if (kDebugMode) debugPrint('ZONE ERROR (Uncaught Exception)');
+        if (kDebugMode) debugPrint(
             '═══════════════════════════════════════════════════════════════');
-        print('Error: $error');
-        print('Stack: $stack');
-        print(
+        if (kDebugMode) debugPrint('Error: $error');
+        if (kDebugMode) debugPrint('Stack: $stack');
+        if (kDebugMode) debugPrint(
             '═══════════════════════════════════════════════════════════════');
       }
       // Report to server
@@ -182,8 +181,8 @@ Future<void> _initializeFirebase(bool enableErrorLogging) async {
         }
       } catch (e) {
         if (enableErrorLogging) {
-          print('⚠️ [Firebase] Firebase Core initialization failed: $e');
-          print(
+          if (kDebugMode) debugPrint('⚠️ [Firebase] Firebase Core initialization failed: $e');
+          if (kDebugMode) debugPrint(
               '⚠️ [Firebase] App will continue to function normally without push notifications');
         }
         return; // Exit gracefully - app will work without Firebase
@@ -195,20 +194,20 @@ Future<void> _initializeFirebase(bool enableErrorLogging) async {
     try {
       // Lazy load FirebaseAuth to avoid unnecessarily loading it if not needed elsewhere
       // Assuming FirebaseAuth is available since we use Firebase
-      /* 
+      /*
        * Ideally we would use FirebaseAuth.instance.signInAnonymously() here
-       * but we need to import firebase_auth. 
+       * but we need to import firebase_auth.
        * Since we can't easily add imports in this block without affecting the whole file,
        * which initiates the connection.
        */
     } catch (e) {
-      if (enableErrorLogging) print('⚠️ [Firebase] Auth check failed: $e');
+      if (enableErrorLogging) { if (kDebugMode) debugPrint('⚠️ [Firebase] Auth check failed: $e'); }
     }
 
     // Skip Firebase Messaging on iOS - it requires APN configuration which is not set up
     if (Platform.isIOS) {
       if (enableErrorLogging) {
-        print(
+        if (kDebugMode) debugPrint(
             'ℹ️ [Firebase] Skipping Firebase Messaging on iOS (APN not configured)');
       }
       return;
@@ -216,10 +215,10 @@ Future<void> _initializeFirebase(bool enableErrorLogging) async {
 
     // Initialize Firebase Messaging for push notifications (Android release only)
     try {
-      print('[SKYBYN] [Firebase] Initializing Firebase Messaging Service...');
+      if (kDebugMode) debugPrint('[SKYBYN] [Firebase] Initializing Firebase Messaging Service...');
       final firebaseMessagingService = FirebaseMessagingService();
       await firebaseMessagingService.initialize();
-      print(
+      if (kDebugMode) debugPrint(
           '[SKYBYN] [Firebase] Firebase Messaging Service initialization complete.');
 
       // Token is already registered on app start in initialize() method
@@ -229,8 +228,8 @@ Future<void> _initializeFirebase(bool enableErrorLogging) async {
       }
     } catch (e) {
       if (enableErrorLogging) {
-        print('⚠️ [Firebase] Firebase Messaging initialization error: $e');
-        print(
+        if (kDebugMode) debugPrint('⚠️ [Firebase] Firebase Messaging initialization error: $e');
+        if (kDebugMode) debugPrint(
             '⚠️ [Firebase] App will continue to function normally without push notifications');
       }
       // Don't rethrow - allow app to continue without Firebase Messaging
@@ -238,13 +237,13 @@ Future<void> _initializeFirebase(bool enableErrorLogging) async {
   } catch (e, stackTrace) {
     // Print detailed error but don't crash the app
     if (enableErrorLogging) {
-      print('═══════════════════════════════════════════════════════════════');
-      print('FIREBASE INITIALIZATION ERROR');
-      print('═══════════════════════════════════════════════════════════════');
-      print('Error: $e');
-      print('Stack: $stackTrace');
-      print('═══════════════════════════════════════════════════════════════');
-      print(
+      if (kDebugMode) debugPrint('═══════════════════════════════════════════════════════════════');
+      if (kDebugMode) debugPrint('FIREBASE INITIALIZATION ERROR');
+      if (kDebugMode) debugPrint('═══════════════════════════════════════════════════════════════');
+      if (kDebugMode) debugPrint('Error: $e');
+      if (kDebugMode) debugPrint('Stack: $stackTrace');
+      if (kDebugMode) debugPrint('═══════════════════════════════════════════════════════════════');
+      if (kDebugMode) debugPrint(
           '⚠️ [Firebase] App will continue to function normally without push notifications');
     }
     // Continue without Firebase - app will still work
@@ -335,6 +334,11 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         (uri.host == 'app.skybyn.no' || uri.host == 'skybyn.com') &&
         uri.path.contains('/qr/login')) {
       code = uri.queryParameters['code'];
+    }
+
+    // Validate code format: alphanumeric only, 8–128 characters
+    if (code != null && !RegExp(r'^[a-zA-Z0-9_\-]{8,128}$').hasMatch(code)) {
+      code = null;
     }
 
     if (code != null && code.isNotEmpty) {
@@ -606,7 +610,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         final authService = AuthService();
         final currentUserId = await authService.getStoredUserId();
 
-        print('[SKYBYN]    Current UserId: ${currentUserId ?? "null"}');
+        if (kDebugMode) debugPrint('[SKYBYN] Current UserId: ${currentUserId ?? "null"}');
 
         // Only increment badge if message is for current user and from someone else
         if (currentUserId == null) {
@@ -614,8 +618,8 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         } else if (toUserId != currentUserId) {
           // print('[SKYBYN] ⏭️ [Main Chat Listener] Skipping - message not for current user (To: $toUserId, Current: $currentUserId)');
         } else if (fromUserId == currentUserId) {
-          print(
-              '[SKYBYN] ⏭️ [Main Chat Listener] Skipping - message from self (From: $fromUserId, Current: $currentUserId)');
+          if (kDebugMode) debugPrint(
+              '[SKYBYN] ⏭️ [Main Chat Listener] Skipping - message from self');
           // Message is for current user and from someone else - process it
           // print('[SKYBYN] 🔵 [Main Chat Listener] Incrementing unread count for: $fromUserId');
           // Increment unread count for this friend (with messageId and messageContent to prevent duplicates)
@@ -649,7 +653,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
 
               if (!isAppInForeground) {
                 // App is in background or closed - show system notification
-                print(
+                if (kDebugMode) debugPrint(
                     '[SKYBYN] 🔔 [Main Chat Listener] App is NOT in foreground - will show system notification');
                 try {
                   // Get friend's name for notification
@@ -685,10 +689,10 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
                     }),
                     notificationId: notificationId,
                   );
-                  print(
-                      '[SKYBYN] ✅ [Main Chat Listener] System notification shown for message from $friendName (app in background)');
+                  if (kDebugMode) debugPrint(
+                      '[SKYBYN] ✅ [Main Chat Listener] System notification shown for message from $friendName');
                 } catch (e) {
-                  print(
+                  if (kDebugMode) debugPrint(
                       '[SKYBYN] ⚠️ [Main Chat Listener] Failed to show notification: $e');
                 }
               } else {
@@ -711,9 +715,9 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   void _setupCallHandlers() {
     _webSocketService.setCallCallbacks(
       onCallInitiate: (callId, fromUserId, callType, fromUsername) async {
-        print('[SKYBYN] 📞 [Main] Incoming call detected from WebSocket');
-        print(
-            '[SKYBYN]    CallId: $callId, From: $fromUserId, Type: $callType');
+        if (kDebugMode) debugPrint('[SKYBYN] 📞 [Main] Incoming call detected from WebSocket');
+        if (kDebugMode) debugPrint(
+            '[SKYBYN] CallId: $callId, From: $fromUserId, Type: $callType');
 
         // Store active call details
         _activeCallId = callId;
@@ -814,11 +818,11 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
             }
           }
         } catch (e) {
-          print('[SKYBYN] ❌ [Main] Error handling incoming call: $e');
+          if (kDebugMode) debugPrint('[SKYBYN] ❌ [Main] Error handling incoming call: $e');
         }
       },
       onCallEnd: (callId, fromUserId, targetUserId) {
-        print('[SKYBYN] 📞 [Main] Call ended: $callId');
+        if (kDebugMode) debugPrint('[SKYBYN] 📞 [Main] Call ended: $callId');
         if (_activeCallId == callId) {
           _activeCallId = null;
           _activeCallFriend = null;
@@ -833,7 +837,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         }
       },
       onCallOffer: (callId, fromUserId, offer, callType) async {
-        print('[SKYBYN] 📞 [Main] Call offer received: $callId');
+        if (kDebugMode) debugPrint('[SKYBYN] 📞 [Main] Call offer received: $callId');
         try {
           await _callService.handleIncomingOffer(
             callId: callId,
@@ -842,15 +846,15 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
             callType: callType,
           );
         } catch (e) {
-          print('[SKYBYN] ❌ [Main] Error handling call offer: $e');
+          if (kDebugMode) debugPrint('[SKYBYN] ❌ [Main] Error handling call offer: $e');
         }
       },
       onCallAnswer: (callId, answer) async {
-        print('[SKYBYN] 📞 [Main] Call answer received: $callId');
+        if (kDebugMode) debugPrint('[SKYBYN] 📞 [Main] Call answer received: $callId');
         try {
           await _callService.handleIncomingAnswer(answer);
         } catch (e) {
-          print('[SKYBYN] ❌ [Main] Error handling call answer: $e');
+          if (kDebugMode) debugPrint('[SKYBYN] ❌ [Main] Error handling call answer: $e');
         }
       },
       onIceCandidate: (callId, candidate, sdpMid, sdpMLineIndex) async {
@@ -862,7 +866,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
             sdpMLineIndex: sdpMLineIndex,
           );
         } catch (e) {
-          print('[SKYBYN] ❌ [Main] Error handling ICE candidate: $e');
+          if (kDebugMode) debugPrint('[SKYBYN] ❌ [Main] Error handling ICE candidate: $e');
         }
       },
     );
@@ -872,7 +876,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   void _setupIncomingCallFromNotificationHandler() {
     FirebaseMessagingService.onIncomingCallFromNotification =
         (callId, fromUserId, callType) async {
-      print('[SKYBYN] 📞 [Main] Incoming call from Notification tap');
+      if (kDebugMode) debugPrint('[SKYBYN] 📞 [Main] Incoming call from Notification tap');
       // Navigate to call screen via global navigator key
       final context = navigatorKey.currentContext;
       if (context != null) {

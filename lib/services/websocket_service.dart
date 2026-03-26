@@ -1947,7 +1947,7 @@ class WebSocketService {
 
       final response = await http.post(
         Uri.parse('${ApiConstants.apiBase}/call/send_call_notification.php'),
-        headers: {'X-API-KEY': ApiConstants.apiKey},
+        headers: {},
         body: {
           'user': targetUserId,
           'from': currentUserId,

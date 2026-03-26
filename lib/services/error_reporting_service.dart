@@ -38,11 +38,26 @@ class ErrorReportingService {
       final packageInfo = await PackageInfo.fromPlatform();
       final appVersion = '${packageInfo.version}+${packageInfo.buildNumber}';
 
-      // 4. Prepare Payload
+      // 4. Prepare Payload — sanitize to avoid leaking sensitive data
+      final rawError = error.toString();
+      final rawStack = stackTrace?.toString() ?? 'No stack trace';
+
+      // Strip file paths and token-like strings from error messages
+      final sanitizedError = rawError
+          .replaceAll(RegExp(r'[A-Za-z]:[\\\/][^\s]+'), '<path>')
+          .replaceAll(RegExp(r'\/[^\s]+'), '<path>')
+          .replaceAll(RegExp(r'[a-f0-9]{32,}', caseSensitive: false), '<token>');
+
+      // Limit stack trace length and strip absolute paths
+      final sanitizedStack = rawStack
+          .replaceAll(RegExp(r'[A-Za-z]:[\\\/][^\s]+'), '<path>')
+          .replaceAll(RegExp(r'\/[^\s]+\.dart'), '<file>.dart')
+          .substring(0, rawStack.length > 3000 ? 3000 : rawStack.length);
+
       final payload = {
         'user_id': userId,
-        'error': error.toString(),
-        'stack_trace': stackTrace?.toString() ?? 'No stack trace',
+        'error': sanitizedError,
+        'stack_trace': sanitizedStack,
         'device_info': deviceInfoStr,
         'app_version': appVersion,
       };

@@ -117,7 +117,6 @@ class CallService {
       final response = await http.get(
         Uri.parse('${ApiConstants.apiBase}/call/get_ice_servers.php'), // Example endpoint
         headers: {
-          'X-API-KEY': ApiConstants.apiKey,
           'Authorization': 'Bearer $token',
         },
       ).timeout(const Duration(seconds: 5));
@@ -299,7 +298,6 @@ class CallService {
           final response = await http.get(
             Uri.parse('${ApiConstants.apiBase}/user/get_profile.php?user_id=$fromUserId'),
             headers: {
-              'X-API-KEY': ApiConstants.apiKey,
               'Authorization': 'Bearer $userId', // Some endpoints expect userId here
             },
           );
@@ -823,7 +821,7 @@ class CallService {
 
       final response = await http.post(
         Uri.parse('${ApiConstants.apiBase}/call/send_call_notification.php'),
-        headers: {'X-API-KEY': ApiConstants.apiKey},
+        headers: {},
         body: {
           'user': targetUserId,
           'from': currentUserId,

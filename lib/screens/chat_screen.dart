@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'dart:ui';
 import 'dart:developer' as developer;
 import 'dart:math' as math;
@@ -3873,9 +3874,6 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
       
       final request = http.MultipartRequest('POST', Uri.parse(uploadUrl));
       
-      // Add API Key header to bypass bot protection
-      request.headers['X-API-Key'] = ApiConstants.apiKey;
-      
       request.fields['userID'] = _currentUserId!;
       request.fields['to'] = widget.friend.id;
       request.fields['type'] = type;
@@ -3891,8 +3889,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
       ioClient.close();
 
       if (response.statusCode == 200) {
-        print('[SKYBYN] 📥 [Chat] Upload response received');
-        print('[SKYBYN]    Response body: ${response.body}');
+        if (kDebugMode) debugPrint('[SKYBYN] Upload response received: ${response.statusCode}');
         final data = json.decode(response.body);
         
         // Check for success (responseCode can be 1, "1", or true)

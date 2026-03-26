@@ -38,26 +38,26 @@ class PostService {
   }
 
   Future<List<Post>> fetchPostsForUser({String? userId}) async {
-    print('PostService: fetchPostsForUser called for user: $userId');
+    if (kDebugMode) debugPrint('PostService: fetchPostsForUser called');
     final userID = userId;
 
     try {
-      print('PostService: fetchPostsForUser: Checking cache...');
+      debugPrint('PostService: fetchPostsForUser: Checking cache...');
       // Try to load from cache first
       final cachedPosts = await loadTimelineFromCache();
       if (cachedPosts.isNotEmpty) {
-        print(
+        debugPrint(
             'PostService: fetchPostsForUser: Cache HIT (${cachedPosts.length} posts)');
         // Return cached posts immediately, but refresh in background
         _refreshTimelineInBackground(userID);
         return cachedPosts;
       }
-      print('PostService: fetchPostsForUser: Cache MISS');
+      debugPrint('PostService: fetchPostsForUser: Cache MISS');
 
       // If no cache, fetch from API
-      print('PostService: fetchPostsForUser: Calling _fetchTimelineFromAPI...');
+      debugPrint('PostService: fetchPostsForUser: Calling _fetchTimelineFromAPI...');
       final posts = await _fetchTimelineFromAPI(userID);
-      print(
+      debugPrint(
           'PostService: fetchPostsForUser: _fetchTimelineFromAPI returned ${posts.length} posts');
 
       // Cache the posts
@@ -67,10 +67,10 @@ class PostService {
 
       return posts;
     } catch (e) {
-      print('PostService: fetchPostsForUser: ERROR: $e');
+      debugPrint('PostService: fetchPostsForUser: ERROR: $e');
       // If API fails, try to return cached data as fallback
       final cachedPosts = await loadTimelineFromCache();
-      print(
+      debugPrint(
           'PostService: fetchPostsForUser: Returning ${cachedPosts.length} fallback cached posts');
       return cachedPosts;
     }
@@ -101,12 +101,12 @@ class PostService {
 
     while (attempt < maxRetries) {
       try {
-        print('PostService: Sending API request (Attempt ${attempt + 1})...');
+        debugPrint('PostService: Sending API request (Attempt ${attempt + 1})...');
         final response = await request();
-        print(
+        debugPrint(
             'PostService: Received response with status: ${response.statusCode}');
         if (response.statusCode >= 400) {
-          print('PostService: Error Response Body: ${response.body}');
+          if (kDebugMode) debugPrint('PostService: Error Response Body: ${response.body}');
         }
         if (response.statusCode < 500) {
           return response;
@@ -116,14 +116,14 @@ class PostService {
         }
         return response;
       } catch (e) {
-        print('PostService: Request attempt ${attempt + 1} failed: $e');
+        debugPrint('PostService: Request attempt ${attempt + 1} failed: $e');
         attempt++;
         if (!_isTransientError(e) || attempt >= maxRetries) {
-          print(
+          debugPrint(
               'PostService: Non-transient or final attempt reached. Rethrowing.');
           rethrow;
         }
-        print(
+        debugPrint(
             'PostService: Transient error, retrying in ${delay.inMilliseconds}ms...');
         await Future.delayed(delay);
         delay =
@@ -134,7 +134,7 @@ class PostService {
   }
 
   Future<List<Post>> _fetchTimelineFromAPI(String? userID) async {
-    print('PostService: Fetching timeline for user: $userID');
+    debugPrint('PostService: Fetching timeline');
     try {
       final response = await _retryHttpRequest(
         () => http.post(
@@ -144,13 +144,15 @@ class PostService {
         maxRetries: 2,
       );
 
-      print(
+      debugPrint(
           '@@@ PostService: Timeline API Response Status: ${response.statusCode}');
-      String bodySnippet = response.body.length > 500
-          ? '${response.body.substring(0, 500)}...'
-          : response.body;
-      print(
-          '@@@ PostService: Timeline API Response Body Snippet: $bodySnippet');
+      if (kDebugMode) {
+        String bodySnippet = response.body.length > 500
+            ? '${response.body.substring(0, 500)}...'
+            : response.body;
+        debugPrint(
+            '@@@ PostService: Timeline API Response Body Snippet: $bodySnippet');
+      }
 
       if (response.statusCode == 200) {
         final decoded = safeJsonDecode(response);
@@ -176,7 +178,7 @@ class PostService {
           }
         }
 
-        print('PostService: Decoded timeline data length: ${data.length}');
+        debugPrint('PostService: Decoded timeline data length: ${data.length}');
 
         // Detailed log of first post structure if available
         if (data.isNotEmpty) {
@@ -218,16 +220,16 @@ class PostService {
           }
         }
 
-        print(
+        debugPrint(
             'PostService: Successfully parsed ${posts.length} timeline posts');
         return posts;
       } else {
-        print(
+        debugPrint(
             'PostService: Error fetching timeline: Status ${response.statusCode}');
         throw Exception('Failed to load posts: ${response.statusCode}');
       }
     } catch (e) {
-      print('PostService: Exception caught in _fetchTimelineFromAPI: $e');
+      debugPrint('PostService: Exception caught in _fetchTimelineFromAPI: $e');
       rethrow;
     }
   }

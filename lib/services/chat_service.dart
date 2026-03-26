@@ -63,13 +63,14 @@ class ChatService {
     String content,
   ) async {
     // Log raw response for debugging
-    print('[SKYBYN] 📥 [Chat Service] API Response received');
-    print('[SKYBYN]    Status Code: ${response.statusCode}');
-    print('[SKYBYN]    Response Body Length: ${response.body.length}');
-    if (response.body.length < 500) {
-      print('[SKYBYN]    Response Body: ${response.body}');
-    } else {
-      print('[SKYBYN]    Response Body (first 500 chars): ${response.body.substring(0, 500)}...');
+    if (kDebugMode) debugPrint('[SKYBYN] Status Code: ${response.statusCode}');
+    if (kDebugMode) debugPrint('[SKYBYN] Response Body Length: ${response.body.length}');
+    if (kDebugMode) {
+      if (response.body.length < 500) {
+        debugPrint('[SKYBYN] Response Body: ${response.body}');
+      } else {
+        debugPrint('[SKYBYN] Response Body (first 500 chars): ${response.body.substring(0, 500)}...');
+      }
     }
     
     // Try to parse response body regardless of status code
@@ -77,10 +78,10 @@ class ChatService {
     try {
       responseData = safeJsonDecode(response) as Map<String, dynamic>?;
       if (responseData != null) {
-        print('[SKYBYN]    Parsed JSON: responseCode=${responseData['responseCode']}, messageId=${responseData['messageId']}, message=${responseData['message']}');
+        if (kDebugMode) debugPrint('[SKYBYN] Parsed JSON: responseCode=${responseData['responseCode']}, messageId=${responseData['messageId']}, message=${responseData['message']}');
       }
     } catch (e) {
-      print('[SKYBYN]    ❌ JSON Parse Error: $e');
+      debugPrint('[SKYBYN] ❌ JSON Parse Error: $e');
       // If we can't parse JSON and it's not HTML, it might be an error
       if (response.statusCode != 200) {
         throw Exception('Invalid response from server. Please try again.');
@@ -92,8 +93,8 @@ class ChatService {
         final responseCode = responseData['responseCode'];
         if ((responseCode == 1 || responseCode == '1') && responseData['messageId'] != null) {
           final messageId = responseData['messageId'].toString();
-          print('[SKYBYN]    ✅ Message stored successfully in database');
-          print('[SKYBYN]    ✅ Message ID: $messageId');
+          debugPrint('[SKYBYN] ✅ Message stored successfully in database');
+          debugPrint('[SKYBYN] ✅ Message ID: $messageId');
           // Create message object
           return Message(
             id: messageId,
@@ -106,26 +107,26 @@ class ChatService {
           );
         }
         // Server returned 200 but with error in response body
-        print('[SKYBYN]    ❌ Server returned 200 but responseCode is not 1 or messageId is missing');
+        debugPrint('[SKYBYN] ❌ Server returned 200 but responseCode is not 1 or messageId is missing');
         throw Exception(responseData['message'] ?? 'Failed to send message');
       }
-      print('[SKYBYN]    ❌ Response data is null');
+      debugPrint('[SKYBYN] ❌ Response data is null');
       throw Exception('Invalid response format from server');
     }
     
     // Handle non-200 status codes
-    print('[SKYBYN]    ❌ HTTP Error ${response.statusCode}');
+    debugPrint('[SKYBYN] ❌ HTTP Error ${response.statusCode}');
     // Check if response body contains error message
     if (responseData != null && responseData.containsKey('message')) {
       final errorMessage = responseData['message'] as String?;
-      print('[SKYBYN]    Error Message: $errorMessage');
+      debugPrint('[SKYBYN] Error Message: $errorMessage');
       // Handle 409 Conflict specifically (duplicate message)
       if (response.statusCode == 409) {
         // For 409, the message might have been sent already (duplicate)
         // Check if response contains messageId (message was sent)
         if (responseData.containsKey('messageId') && responseData['messageId'] != null) {
           final messageId = responseData['messageId'].toString();
-          print('[SKYBYN]    ⚠️ Conflict (409) but messageId found: $messageId - treating as success');
+          debugPrint('[SKYBYN] ⚠️ Conflict (409) but messageId found: $messageId - treating as success');
           // Message was sent, return it as success
           return Message(
             id: messageId,
@@ -138,7 +139,7 @@ class ChatService {
           );
         }
         // No messageId - message may have been sent but we can't confirm
-        print('[SKYBYN]    ⚠️ Conflict (409) but no messageId - message may have been sent already');
+        debugPrint('[SKYBYN] ⚠️ Conflict (409) but no messageId - message may have been sent already');
         throw Exception(errorMessage ?? 'Message may have been sent already');
       }
       
@@ -154,7 +155,7 @@ class ChatService {
     } else if (response.statusCode >= 500) {
       statusMessage = 'Server error. Please try again later.';
     }
-    print('[SKYBYN]    ❌ Throwing exception: $statusMessage');
+    if (kDebugMode) debugPrint('[SKYBYN] ❌ Exception: $statusMessage');
     throw Exception(statusMessage);
   }
 
@@ -175,8 +176,8 @@ class ChatService {
       }
     } catch (e) {
     }
-    // Fallback key (should not happen in production)
-    return 'defaultkey123456789012345678901234';
+    // Should never reach here in production — throw instead of using a hardcoded key
+    throw StateError('Encryption key unavailable: user not authenticated');
   }
 
   /// Encrypt message content (server will encrypt, but we send plain text)
@@ -276,12 +277,11 @@ class ChatService {
       final encryptedContent = await _encryptMessage(content);
 
       final url = ApiConstants.chatSend;
-      // Build headers with optional protection cookie and API key
+      // Build headers with optional protection cookie
       final headers = <String, String>{
         'Content-Type': 'application/x-www-form-urlencoded',
         'Accept': 'application/json',
         'X-Requested-With': 'XMLHttpRequest', // Helps bypass some bot protection
-        'X-API-Key': ApiConstants.apiKey, // API key for unrestricted access
       };
       
       // Add protection cookie if we have one
@@ -296,7 +296,6 @@ class ChatService {
         'to': toUserId.toString(),
         'message': encryptedContent,
         'clientMsgId': tempId,
-        'api_key': ApiConstants.apiKey, // Also send in POST body for compatibility
       };
       
       // Use Map format - http package will automatically encode it as form-urlencoded
@@ -347,9 +346,8 @@ class ChatService {
               'to': toUserId.toString(),
               'message': encryptedContent,
               'clientMsgId': tempId!,
-              'api_key': ApiConstants.apiKey, // Also send in POST body for compatibility
             };
-            
+
             // Make a direct request without retry wrapper to avoid nested retries
             // Use Map format - http package will automatically encode it correctly
             final retryResponse = await _client.post(
@@ -359,7 +357,6 @@ class ChatService {
                 'Content-Type': 'application/x-www-form-urlencoded',
                 'Accept': 'application/json',
                 'X-Requested-With': 'XMLHttpRequest',
-                'X-API-Key': ApiConstants.apiKey, // API key for unrestricted access
                 'Cookie': _protectionCookie!,
               },
               encoding: utf8, // Explicitly set encoding
@@ -690,7 +687,6 @@ class ChatService {
             'Content-Type': 'application/x-www-form-urlencoded',
             'Accept': 'application/json',
             'X-Requested-With': 'XMLHttpRequest',
-            'X-API-Key': ApiConstants.apiKey, // API key for unrestricted access
           },
         ).timeout(const Duration(seconds: 10)),
         maxRetries: 2,
@@ -769,7 +765,6 @@ class ChatService {
             'Content-Type': 'application/x-www-form-urlencoded',
             'Accept': 'application/json',
             'X-Requested-With': 'XMLHttpRequest',
-            'X-API-Key': ApiConstants.apiKey,
           };
 
           final bodyMap = <String, String>{
@@ -778,7 +773,6 @@ class ChatService {
             'to': toUserId.toString(),
             'message': encryptedContent,
             'clientMsgId': tempId,
-            'api_key': ApiConstants.apiKey,
           };
 
           final response = await _client.post(
@@ -852,12 +846,10 @@ class ChatService {
         'Content-Type': 'application/x-www-form-urlencoded',
         'Accept': 'application/json',
         'X-Requested-With': 'XMLHttpRequest',
-        'X-API-Key': ApiConstants.apiKey,
       };
 
       final bodyMap = <String, String>{
         'userID': userId.toString(),
-        'api_key': ApiConstants.apiKey,
       };
 
       if (messageIDs != null && messageIDs.isNotEmpty) {
@@ -878,20 +870,20 @@ class ChatService {
         maxRetries: 1, // Only retry once for read operations
       );
 
-      print('[SKYBYN] 📥 [Chat Service] Mark Read API Response received');
-      print('[SKYBYN]    Status Code: ${response.statusCode}');
+      debugPrint('[SKYBYN] 📥 [Chat Service] Mark Read API Response received');
+      debugPrint('[SKYBYN] Status Code: ${response.statusCode}');
       developer.log('📥 [Chat Service] Mark Read API Response received', name: 'Chat API');
       developer.log('   Status Code: ${response.statusCode}', name: 'Chat API');
 
       if (response.statusCode == 200) {
         final responseData = safeJsonDecode(response) as Map<String, dynamic>?;
         if (responseData != null) {
-          print('[SKYBYN]    Response: ${responseData['responseCode'] == 1 ? 'Success' : 'Failed'}');
+          debugPrint('[SKYBYN] Response: ${responseData['responseCode'] == 1 ? 'Success' : 'Failed'}');
           developer.log('   Response: ${responseData['responseCode'] == 1 ? 'Success' : 'Failed'}', name: 'Chat API');
           
           if (responseData['responseCode'] == 1) {
             final affectedRows = responseData['affectedRows'] ?? 0;
-            print('[SKYBYN]    ✅ Marked $affectedRows message(s) as read in database');
+            debugPrint('[SKYBYN] ✅ Marked $affectedRows message(s) as read in database');
             developer.log('   ✅ Marked $affectedRows message(s) as read in database', name: 'Chat API');
             
             // Update local database
@@ -916,11 +908,11 @@ class ChatService {
         throw Exception('Invalid response format');
       }
 
-      print('[SKYBYN]    ❌ HTTP Error ${response.statusCode}');
+      debugPrint('[SKYBYN] ❌ HTTP Error ${response.statusCode}');
       developer.log('   ❌ HTTP Error ${response.statusCode}', name: 'Chat API');
       throw Exception('Failed to mark messages as read: ${response.statusCode}');
     } catch (e) {
-      print('[SKYBYN] ❌ [Chat Service] Error marking messages as read: $e');
+      debugPrint('[SKYBYN] ❌ [Chat Service] Error marking messages as read: $e');
       developer.log('❌ [Chat Service] Error marking messages as read: $e', name: 'Chat API');
       return false; // Don't throw, just return false - read status is not critical
     }

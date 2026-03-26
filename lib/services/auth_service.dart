@@ -118,13 +118,13 @@ class AuthService {
 
       // Parse response regardless of status code to get actual API message
       final data = safeJsonDecode(response);
-      print('DEBUG: AuthService.login response body: ${response.body}');
+      if (kDebugMode) debugPrint('DEBUG: AuthService.login response body: ${response.body}');
 
       if (response.statusCode == 200) {
         if (data['responseCode'] == '1') {
           final isEmulator = deviceInfo['isPhysicalDevice'] == false;
           final userId = data['userID']?.toString();
-          print('DEBUG: AuthService.login success. Received userID: $userId');
+          if (kDebugMode) debugPrint('DEBUG: AuthService.login success.');
           
           // Block emulators from logging in
           if (isEmulator) {
@@ -138,7 +138,7 @@ class AuthService {
           await initPrefs();
           // Convert userID to string to avoid type mismatch
           final userIdStr = data['userID'].toString();
-          print('DEBUG: AuthService.login storing userID: $userIdStr');
+          if (kDebugMode) debugPrint('DEBUG: AuthService.login storing userID');
           await _prefs?.setString(userIdKey, userIdStr);
           await _prefs?.setString(usernameKey, username);
           await _secureStorage.write(key: userIdKey, value: userIdStr);
@@ -163,14 +163,14 @@ class AuthService {
           try {
             final firebaseService = FirebaseMessagingService();
             if (firebaseService.isInitialized) {
-              print('📱 [Auth] Registering FCM token after login...');
+              debugPrint('📱 [Auth] Registering FCM token after login...');
               await firebaseService.sendFCMTokenToServer();
-              print('📱 [Auth] FCM token registration completed');
+              debugPrint('📱 [Auth] FCM token registration completed');
             } else {
-              print('⚠️ [Auth] FCM service not initialized, cannot register token');
+              debugPrint('⚠️ [Auth] FCM service not initialized, cannot register token');
             }
           } catch (e) {
-            print('❌ [Auth] Failed to register FCM token after login: $e');
+            debugPrint('❌ [Auth] Failed to register FCM token after login: $e');
             // Don't fail login if FCM registration fails, but log the error
           }
 
@@ -631,21 +631,21 @@ class AuthService {
             // print('[SKYBYN]    ✅ [Profile API] Successfully parsed profile data');
             return User.fromJson(data);
           } else {
-            print('[SKYBYN]    ❌ [Profile API] responseCode is not "1": ${data['responseCode']}');
-            print('[SKYBYN]    ❌ [Profile API] Error message: ${data['message'] ?? 'No message'}');
+            debugPrint('[SKYBYN] ❌ [Profile API] responseCode is not "1": ${data['responseCode']}');
+            debugPrint('[SKYBYN] ❌ [Profile API] Error message: ${data['message'] ?? 'No message'}');
           }
         } catch (e) {
-          print('[SKYBYN]    ❌ [Profile API] JSON decode error: $e');
-          print('[SKYBYN]    ❌ [Profile API] Raw response: ${response.body}');
+          debugPrint('[SKYBYN] ❌ [Profile API] JSON decode error: $e');
+          if (kDebugMode) debugPrint('[SKYBYN] ❌ [Profile API] Raw response: ${response.body}');
         }
       } else {
-        print('[SKYBYN]    ❌ [Profile API] HTTP status code is not 200: ${response.statusCode}');
-        print('[SKYBYN]    ❌ [Profile API] Response body: ${response.body}');
+        debugPrint('[SKYBYN] ❌ [Profile API] HTTP status code is not 200: ${response.statusCode}');
+        if (kDebugMode) debugPrint('[SKYBYN] ❌ [Profile API] Response body: ${response.body}');
       }
       return null;
     } catch (e, stackTrace) {
-      print('[SKYBYN]    ❌ [Profile API] Exception: $e');
-      print('[SKYBYN]    ❌ [Profile API] Stack trace: $stackTrace');
+      debugPrint('[SKYBYN] ❌ [Profile API] Exception: $e');
+      debugPrint('[SKYBYN] ❌ [Profile API] Stack trace: $stackTrace');
       return null;
     }
   }

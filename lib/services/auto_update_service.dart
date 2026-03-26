@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:convert';
 import 'dart:developer' as developer;
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -21,10 +22,10 @@ import 'dart:ui';
 
 @pragma('vm:entry-point')
 void downloadCallback(String id, int status, int progress) {
-  print('[AutoUpdateService] Callback: task=$id, status=$status, progress=$progress');
+  if (kDebugMode) debugPrint('[AutoUpdateService] Callback: task=$id, status=$status, progress=$progress');
   final SendPort? send = IsolateNameServer.lookupPortByName('downloader_send_port');
   if (send == null) {
-    print('[AutoUpdateService] Error: Could not find downloader_send_port');
+    if (kDebugMode) debugPrint('[AutoUpdateService] Error: Could not find downloader_send_port');
   }
   send?.send([id, status, progress]);
 }
@@ -76,17 +77,17 @@ class AutoUpdateService {
 
   static Future<UpdateInfo?> checkForUpdates() async {
     if (!Platform.isAndroid) {
-      print('[Update Check] Skipping - not Android platform');
+      if (kDebugMode) debugPrint('[Update Check] Skipping - not Android platform');
       return null;
     }
 
     try {
-      print('[Update Check] Starting update check...');
-      
+      if (kDebugMode) debugPrint('[Update Check] Starting update check...');
+
       // Get current app version (semantic version "1.0.0") instead of build number
       final PackageInfo packageInfo = await PackageInfo.fromPlatform();
       final String installedVersion = packageInfo.version;
-      print('[Update Check] Current installed version: $installedVersion');
+      if (kDebugMode) debugPrint('[Update Check] Current installed version: $installedVersion');
 
       // Get stored User ID for staged rollout logic
       final String? userId = await AuthService().getStoredUserId();
@@ -99,37 +100,37 @@ class AutoUpdateService {
           'uid': userId ?? '0',
         },
       );
-      print('[Update Check] Checking update at: $uri');
+      if (kDebugMode) debugPrint('[Update Check] Checking update at: $uri');
 
       final response = await http.get(uri);
-      print('[Update Check] Response status code: ${response.statusCode}');
+      if (kDebugMode) debugPrint('[Update Check] Response status code: ${response.statusCode}');
 
       if (response.statusCode == 200) {
         // Check if response is JSON
         final contentType = response.headers['content-type'] ?? '';
-        print('[Update Check] Response content-type: $contentType');
-        
+        if (kDebugMode) debugPrint('[Update Check] Response content-type: $contentType');
+
         if (!contentType.contains('application/json') && !contentType.contains('text/json')) {
-          print('[Update Check] Warning: Response is not JSON, but will try to parse anyway');
+          if (kDebugMode) debugPrint('[Update Check] Warning: Response is not JSON, but will try to parse anyway');
         }
 
         // Validate response body is not empty and looks like JSON
         final trimmedBody = response.body.trim();
         if (trimmedBody.isEmpty) {
-          print('[Update Check] Error: Server returned an empty response');
+          if (kDebugMode) debugPrint('[Update Check] Error: Server returned an empty response');
           throw const FormatException('Server returned an empty response. The update check endpoint may not be properly configured.');
         }
 
         // Check if response starts with HTML tags (common error indicator)
         if (trimmedBody.startsWith('<')) {
-          print('[Update Check] Error: Server returned HTML instead of JSON');
+          if (kDebugMode) debugPrint('[Update Check] Error: Server returned HTML instead of JSON');
           throw FormatException(
             'Server returned HTML instead of JSON. The update check endpoint may not be properly configured.',
             trimmedBody,
           );
         }
 
-        print('[Update Check] Response body: $trimmedBody');
+        if (kDebugMode) debugPrint('[Update Check] Response body: $trimmedBody');
 
         try {
           final Map<String, dynamic> data = jsonDecode(trimmedBody) as Map<String, dynamic>;
@@ -141,18 +142,20 @@ class AutoUpdateService {
           final latestVersion = data['currentVersion']?.toString() ?? installedVersion;
           final message = data['message']?.toString() ?? '';
 
-          print('[Update Check] Parsed response:');
-          print('  - responseCode: $responseCode');
-          print('  - currentVersion: $latestVersion');
-          print('  - yourVersion: ${data['yourVersion']}');
-          print('  - downloadUrl: $downloadUrl');
-          print('  - message: $message');
+          if (kDebugMode) {
+            debugPrint('[Update Check] Parsed response:');
+            debugPrint('  - responseCode: $responseCode');
+            debugPrint('  - currentVersion: $latestVersion');
+            debugPrint('  - yourVersion: ${data['yourVersion']}');
+            debugPrint('  - downloadUrl: $downloadUrl');
+            debugPrint('  - message: $message');
+          }
 
           // Check if update is available (responseCode == 1 means update available)
           final isUpdateAvailable = responseCode == 1 && downloadUrl.isNotEmpty;
 
           if (isUpdateAvailable) {
-            print('[Update Check] ✓ Update available! Latest version: $latestVersion, Current: $installedVersion');
+            if (kDebugMode) debugPrint('[Update Check] ✓ Update available! Latest version: $latestVersion, Current: $installedVersion');
             // Update available
             return UpdateInfo(
               version: latestVersion,
@@ -162,7 +165,7 @@ class AutoUpdateService {
               isAvailable: true,
             );
           } else {
-            print('[Update Check] ✓ No update available. Current version is up to date.');
+            if (kDebugMode) debugPrint('[Update Check] ✓ No update available. Current version is up to date.');
             // No update available
             return UpdateInfo(
               version: installedVersion,
@@ -173,17 +176,17 @@ class AutoUpdateService {
             );
           }
         } catch (jsonError) {
-          print('[Update Check] Error parsing JSON: $jsonError');
+          if (kDebugMode) debugPrint('[Update Check] Error parsing JSON: $jsonError');
           rethrow;
         }
       } else {
-        print('[Update Check] Error: HTTP ${response.statusCode} - ${response.reasonPhrase}');
-        print('[Update Check] Response Body: ${response.body}');
+        if (kDebugMode) debugPrint('[Update Check] Error: HTTP ${response.statusCode} - ${response.reasonPhrase}');
+        if (kDebugMode) debugPrint('[Update Check] Response Body: ${response.body}');
       }
     } catch (e, stackTrace) {
       // Update check failed
-      print('[Update Check] ✗ Update check failed: $e');
-      print('[Update Check] Stack trace: $stackTrace');
+      if (kDebugMode) debugPrint('[Update Check] ✗ Update check failed: $e');
+      if (kDebugMode) debugPrint('[Update Check] Stack trace: $stackTrace');
     }
     return null;
   }
@@ -217,7 +220,7 @@ class AutoUpdateService {
         final int statusInt = data[1] as int;
         final int progress = data[2] as int;
         
-        print('[AutoUpdateService] Listener: task=$taskId, status=$statusInt, progress=$progress');
+        if (kDebugMode) debugPrint('[AutoUpdateService] Listener: task=$taskId, status=$statusInt, progress=$progress');
         
         // Convert int to enum for safer comparison in 1.12.0+
         final DownloadTaskStatus status = DownloadTaskStatus.values[statusInt];
@@ -281,7 +284,7 @@ class AutoUpdateService {
         return await downloadCompleter.future;
       }
     } catch (e) {
-      print('[AutoUpdateService] Error downloading update: $e');
+      if (kDebugMode) debugPrint('[AutoUpdateService] Error downloading update: $e');
       IsolateNameServer.removePortNameMapping('downloader_send_port');
       port.close();
       return false;
@@ -417,7 +420,7 @@ class AutoUpdateService {
         await downloadUpdate(updateInfo.downloadUrl, version: updateInfo.version);
       }
     } catch (e) {
-      print('[AutoUpdateService] Background update failed: $e');
+      if (kDebugMode) debugPrint('[AutoUpdateService] Background update failed: $e');
       await notificationService.cancelUpdateProgressNotification();
     } finally {
       _isBackgroundDownload = false;
@@ -458,7 +461,7 @@ class AutoUpdateService {
         if (version != null) {
           final downloadedVersion = await getDownloadedVersion();
           if (downloadedVersion != version) {
-            print('[AutoUpdateService] Local APK version ($downloadedVersion) mismatch with requested ($version). Cleaning up.');
+            if (kDebugMode) debugPrint('[AutoUpdateService] Local APK version ($downloadedVersion) mismatch with requested ($version). Cleaning up.');
             await deleteDownloadedApk();
             return false;
           }
@@ -467,7 +470,7 @@ class AutoUpdateService {
       }
       return false;
     } catch (e) {
-      print('[AutoUpdateService] Error checking downloaded update: $e');
+      if (kDebugMode) debugPrint('[AutoUpdateService] Error checking downloaded update: $e');
       return false;
     }
   }
@@ -490,13 +493,13 @@ class AutoUpdateService {
         final File file = File('${directory.path}/app-update.apk');
         if (await file.exists()) {
           await file.delete();
-          print('[AutoUpdateService] Deleted downloaded APK');
+          if (kDebugMode) debugPrint('[AutoUpdateService] Deleted downloaded APK');
         }
       }
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove(_downloadedUpdateVersionKey);
     } catch (e) {
-      print('[AutoUpdateService] Error deleting APK: $e');
+      if (kDebugMode) debugPrint('[AutoUpdateService] Error deleting APK: $e');
     }
   }
 
@@ -513,7 +516,7 @@ class AutoUpdateService {
         // Simplified version comparison for purge logic
         // If versions are same, or installed is newer, the APK is stale
         if (_isVersionGreaterOrEqual(installedVersion, downloadedVersion)) {
-          print('[AutoUpdateService] Cleanup: Installed version ($installedVersion) >= Downloaded version ($downloadedVersion). Deleting APK.');
+          if (kDebugMode) debugPrint('[AutoUpdateService] Cleanup: Installed version ($installedVersion) >= Downloaded version ($downloadedVersion). Deleting APK.');
           await deleteDownloadedApk();
         }
       } else {
@@ -522,13 +525,13 @@ class AutoUpdateService {
         if (directory != null) {
           final File file = File('${directory.path}/app-update.apk');
           if (await file.exists()) {
-            print('[AutoUpdateService] Cleanup: No version record for existing APK. Deleting.');
+            if (kDebugMode) debugPrint('[AutoUpdateService] Cleanup: No version record for existing APK. Deleting.');
             await deleteDownloadedApk();
           }
         }
       }
     } catch (e) {
-      print('[AutoUpdateService] Error during cleanup: $e');
+      if (kDebugMode) debugPrint('[AutoUpdateService] Error during cleanup: $e');
     }
   }
 
@@ -596,15 +599,15 @@ class AutoUpdateService {
           }
         } on PlatformException catch (e) {
           // MethodChannel not implemented or failed - fall through to OpenFile
-          print('MethodChannel installApk failed: ${e.code} - ${e.message}');
+          if (kDebugMode) debugPrint('MethodChannel installApk failed: ${e.code} - ${e.message}');
         } catch (e) {
           // Fall through to OpenFile method
-          print('MethodChannel installApk error: $e');
+          if (kDebugMode) debugPrint('MethodChannel installApk error: $e');
         }
       }
 
       // Fallback to OpenFile package
-      print('Attempting to open APK file: $apkPath');
+      if (kDebugMode) debugPrint('Attempting to open APK file: $apkPath');
       
       // Verify file exists and get file info before opening
       // Note: 'file' variable is already declared above, reuse it
@@ -619,10 +622,10 @@ class AutoUpdateService {
       
       // fileSize is already declared above, just get URI for logging
       final fileUri = file.uri;
-      print('APK file exists: ${await file.exists()}, size: $fileSize bytes, URI: $fileUri');
-      
+      if (kDebugMode) debugPrint('APK file exists: ${await file.exists()}, size: $fileSize bytes, URI: $fileUri');
+
       final result = await OpenFile.open(apkPath);
-      print('OpenFile result: type=${result.type}, message=${result.message}');
+      if (kDebugMode) debugPrint('OpenFile result: type=${result.type}, message=${result.message}');
       
       if (result.type == ResultType.done) {
         return true;
@@ -672,14 +675,14 @@ class AutoUpdateService {
   /// Manually trigger an update check and show dialog if available
   /// Useful for debugging and forcing the check from UI or background tasks
   static Future<void> manualTriggerUpdateCheck() async {
-    print('[AutoUpdateService] Manual update check triggered');
+    if (kDebugMode) debugPrint('[AutoUpdateService] Manual update check triggered');
     final info = await checkForUpdates();
     if (info != null && info.isAvailable) {
-      print('[AutoUpdateService] Manual check found update: ${info.version}');
+      if (kDebugMode) debugPrint('[AutoUpdateService] Manual check found update: ${info.version}');
       // We don't show the dialog here because this might be called from background,
       // but we log it. The UI should use checkForUpdates() directly.
     } else {
-      print('[AutoUpdateService] Manual check: No update available or check failed');
+      if (kDebugMode) debugPrint('[AutoUpdateService] Manual check: No update available or check failed');
     }
   }
 }
