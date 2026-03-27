@@ -68,7 +68,6 @@ dependencies:
   font_awesome_flutter: ^10.7.0
   video_player: ^2.8.2
   youtube_player_flutter: ^9.1.0
-  webview_flutter: ^4.4.2
   record: ^5.2.1
   just_audio: ^0.9.46
   sqflite: ^2.3.3+2

@@ -48,9 +48,9 @@ void callbackDispatcher() {
           developer.log('Full sync completed', name: 'MessageSyncWorker');
           break;
 
+        case 'checkForUpdates':
         case 'download_update':
-          // Background update download
-          developer.log('Starting background update download...', name: 'MessageSyncWorker');
+          developer.log('Starting background update check...', name: 'MessageSyncWorker');
           if (Platform.isAndroid) {
             try {
               await FlutterDownloader.initialize(debug: false, ignoreSsl: false);

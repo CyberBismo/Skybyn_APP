@@ -25,7 +25,6 @@ import '../services/post_service.dart';
 import '../services/location_service.dart';
 import '../services/notification_sound_service.dart';
 import '../widgets/translated_text.dart';
-import '../widgets/update_dialog.dart';
 
 import '../config/constants.dart';
 import '../utils/cache_utils.dart';
@@ -2325,178 +2324,75 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final translationService = TranslationService();
 
     if (!Platform.isAndroid) {
-      if (mounted) {
-        setState(() {
-          _updateCheckStatus = translationService.translate(TranslationKeys.autoUpdatesOnlyAndroid);
-          _isCheckingForUpdates = false;
-        });
-        // Reset status after 3 seconds
-        Future.delayed(const Duration(seconds: 3), () {
-          if (mounted) {
-            setState(() {
-              _updateCheckStatus = '';
-            });
-          }
-        });
-      }
+      if (mounted) setState(() { _updateCheckStatus = translationService.translate(TranslationKeys.autoUpdatesOnlyAndroid); _isCheckingForUpdates = false; });
+      Future.delayed(const Duration(seconds: 3), () { if (mounted) setState(() { _updateCheckStatus = ''; }); });
       return;
     }
 
-    // Prevent multiple dialogs from showing at once
-    if (AutoUpdateService.isDialogShowing) {
-      if (mounted) {
-        setState(() {
-          _updateCheckStatus = 'Update check already in progress';
-          _isCheckingForUpdates = false;
-        });
-        // Reset status after 2 seconds
-        Future.delayed(const Duration(seconds: 2), () {
-          if (mounted) {
-            setState(() {
-              _updateCheckStatus = '';
-            });
-          }
-        });
-      }
-      return;
+    if (_isCheckingForUpdates) return;
+
+    void setStatus(String status, {bool checking = false}) {
+      if (mounted) setState(() { _updateCheckStatus = status; _isCheckingForUpdates = checking; });
     }
 
-    // Set initial status
-    if (mounted) {
-      setState(() {
-        _isCheckingForUpdates = true;
-        _updateCheckStatus = translationService.translate(TranslationKeys.checkingForUpdates) ?? 'Checking for updates...';
-      });
+    void resetAfter(Duration delay) {
+      Future.delayed(delay, () { if (mounted) setState(() { _updateCheckStatus = ''; _isCheckingForUpdates = false; }); });
     }
+
+    setStatus(translationService.translate(TranslationKeys.checkingForUpdates) ?? 'Checking for updates...', checking: true);
 
     try {
-      // 1. Check for latest version from API first
       final updateInfo = await AutoUpdateService.checkForUpdates();
-      
+
       if (updateInfo == null) {
-        if (mounted) {
-          setState(() {
-            _updateCheckStatus = translationService.translate(TranslationKeys.updateCheckFailed) ?? 'Failed to check for updates';
-            _isCheckingForUpdates = false;
-          });
-        }
+        setStatus(translationService.translate(TranslationKeys.updateCheckFailed) ?? 'Failed to check for updates');
+        resetAfter(const Duration(seconds: 3));
         return;
       }
 
-      // 2. Check if a local APK already exists
-      final isDownloaded = await AutoUpdateService.isUpdateDownloaded();
-      String? localVersion;
+      if (!updateInfo.isAvailable) {
+        await AutoUpdateService.deleteDownloadedApk();
+        setStatus(translationService.translate(TranslationKeys.noUpdatesAvailable) ?? 'You are using the latest version');
+        resetAfter(const Duration(seconds: 3));
+        return;
+      }
+
+      // Update available — check if already downloaded
+      final isDownloaded = await AutoUpdateService.isUpdateDownloaded(version: updateInfo.version);
+
       if (isDownloaded) {
-        localVersion = await AutoUpdateService.getDownloadedVersion();
+        // Already downloaded — just install
+        setStatus('Update ready — opening installer...');
+        await AutoUpdateService.installUpdate();
+        resetAfter(const Duration(seconds: 5));
+        return;
       }
 
-      if (mounted) {
-        if (updateInfo.isAvailable) {
-          // Latest version from API is newer than installed version
-          
-          if (isDownloaded && localVersion == updateInfo.version) {
-            // Local APK matches the latest version available
-            setState(() {
-              _updateCheckStatus = 'Update already downloaded, ready to install.';
-              _isCheckingForUpdates = false;
-            });
-            
-            // Offer to install the local APK
-            final installResult = await showDialog<bool>(
-              context: context,
-              builder: (context) => AlertDialog(
-                title: const Text('Install Update'),
-                content: Text('Skybyn ${updateInfo.version} is already downloaded. Would you like to install it now?'),
-                actions: [
-                  TextButton(
-                    onPressed: () => Navigator.pop(context, false),
-                    child: const Text('Later'),
-                  ),
-                  ElevatedButton(
-                    onPressed: () => Navigator.pop(context, true),
-                    child: const Text('Install Now'),
-                  ),
-                ],
-              ),
-            );
+      // Delete stale local APK if version mismatch
+      await AutoUpdateService.deleteDownloadedApk();
 
-            if (installResult == true) {
-              await AutoUpdateService.installUpdate();
-            }
-            return; // Exit after offering install
-          } else {
-            // No local APK, or local APK is outdated compared to API
-            if (isDownloaded && localVersion != updateInfo.version) {
-              print('[Settings] local APK version ($localVersion) is not the latest ($updateInfo.version). Deleting.');
-              await AutoUpdateService.deleteDownloadedApk();
-            }
-            
-            // Show normal update dialog to download if not already showing
-            if (!AutoUpdateService.isDialogShowing) {
-              AutoUpdateService.setDialogShowing(true);
-              
-              final packageInfo = await PackageInfo.fromPlatform();
-              final currentVersion = packageInfo.version;
-              await AutoUpdateService.markUpdateShownForVersion(updateInfo.version);
-              
-              await showDialog(
-                context: context,
-                barrierDismissible: false,
-                builder: (context) => UpdateDialog(
-                  currentVersion: currentVersion,
-                  latestVersion: updateInfo.version,
-                  releaseNotes: updateInfo.releaseNotes,
-                  downloadUrl: updateInfo.downloadUrl,
-                ),
-              ).then((_) {
-                AutoUpdateService.setDialogShowing(false);
-                if (mounted) {
-                  setState(() {
-                    _updateCheckStatus = '';
-                  });
-                }
-              });
-            }
-          }
-        } else {
-          // No update available on API
+      // Start background download — show progress in button, notification fires when done
+      setStatus('Downloading update ${updateInfo.version}...', checking: true);
+      AutoUpdateService.downloadUpdate(
+        updateInfo.downloadUrl,
+        version: updateInfo.version,
+        onProgress: (progress, status) {
+          if (mounted) setState(() { _updateCheckStatus = 'Downloading... $progress%'; });
+        },
+      ).then((success) {
+        if (mounted) {
           setState(() {
-            _updateCheckStatus = translationService.translate(TranslationKeys.noUpdatesAvailable) ?? 'You are using the latest version';
             _isCheckingForUpdates = false;
+            _updateCheckStatus = success
+                ? 'Update ready — check your notifications'
+                : 'Download failed. Try again.';
           });
-          
-          // Cleanup local APK if it exists but API says we are up to date
-          if (isDownloaded) {
-            await AutoUpdateService.deleteDownloadedApk();
-          }
-
-          // Reset status after 3 seconds
-          Future.delayed(const Duration(seconds: 3), () {
-            if (mounted) {
-              setState(() {
-                _updateCheckStatus = '';
-              });
-            }
-          });
+          resetAfter(const Duration(seconds: 5));
         }
-      }
+      });
     } catch (e) {
-      // Update button status with error
-      if (mounted) {
-        setState(() {
-          _updateCheckStatus = translationService.translate(TranslationKeys.errorCheckingUpdates) ?? 'Error checking for updates';
-          _isCheckingForUpdates = false;
-        });
-        
-        // Reset status after 3 seconds
-        Future.delayed(const Duration(seconds: 3), () {
-          if (mounted) {
-            setState(() {
-              _updateCheckStatus = '';
-            });
-          }
-        });
-      }
+      setStatus(translationService.translate(TranslationKeys.errorCheckingUpdates) ?? 'Error checking for updates');
+      resetAfter(const Duration(seconds: 3));
     }
   }
 

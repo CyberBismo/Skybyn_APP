@@ -21,7 +21,6 @@ import 'websocket_service.dart';
 import 'call_service.dart';
 import 'auth_service.dart';
 import 'friend_service.dart';
-import '../widgets/update_dialog.dart';
 import '../models/friend.dart';
 import '../main.dart';
 import '../config/constants.dart';
@@ -483,67 +482,10 @@ class NotificationService {
   }
 
   /// Trigger update check for app_update notifications
-  /// This shows the update dialog directly when notification is tapped
+  /// Downloads in background and fires a system notification when ready
   Future<void> _triggerUpdateCheck() async {
-    if (!Platform.isAndroid) {
-      // Only Android supports auto-updates
-      return;
-    }
-
-    // Prevent multiple dialogs from showing at once
-    if (AutoUpdateService.isDialogShowing) {
-      return;
-    }
-
-    try {
-      // Check for updates
-      final updateInfo = await AutoUpdateService.checkForUpdates();
-
-      if (updateInfo != null && updateInfo.isAvailable) {
-        // Only show if dialog is not already showing (don't check version history)
-        if (AutoUpdateService.isDialogShowing) {
-          return;
-        }
-
-        // Get current version
-        final packageInfo = await PackageInfo.fromPlatform();
-        final currentVersion = packageInfo.version;
-
-        // Mark this version as shown (so we don't spam, but still allow if user dismissed)
-        await AutoUpdateService.markUpdateShownForVersion(updateInfo.version);
-
-        // Show update dialog using navigator key
-        final navigator = navigatorKey.currentState;
-        if (navigator != null && !AutoUpdateService.isDialogShowing) {
-          // Mark dialog as showing immediately to prevent duplicates
-          AutoUpdateService.setDialogShowing(true);
-          await showDialog(
-            context: navigator.context,
-            barrierDismissible: false,
-            builder: (context) => UpdateDialog(
-              currentVersion: currentVersion,
-              latestVersion: updateInfo.version,
-              releaseNotes: updateInfo.releaseNotes,
-              downloadUrl: updateInfo.downloadUrl,
-            ),
-          ).then((_) {
-            // Dialog closed, mark as not showing
-            AutoUpdateService.setDialogShowing(false);
-          });
-        } else {
-          // Fallback to callback if navigator not available
-          FirebaseMessagingService.triggerUpdateCheck();
-        }
-      } else {
-        // Also trigger callback in case HomeScreen wants to show a message
-        FirebaseMessagingService.triggerUpdateCheck();
-      }
-    } catch (e) {
-      // Mark dialog as not showing on error
-      AutoUpdateService.setDialogShowing(false);
-      // Fallback to callback
-      FirebaseMessagingService.triggerUpdateCheck();
-    }
+    if (!Platform.isAndroid) return;
+    await AutoUpdateService.triggerBackgroundUpdate();
   }
 
   Future<void> _createNotificationChannels() async {
