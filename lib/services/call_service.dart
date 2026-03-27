@@ -39,6 +39,7 @@ class CallService {
           print('✅ [CallKit] User accepted call');
           if (callState == CallState.ringing) {
             acceptCall();
+            onCallAcceptedByNativeUI?.call();
           }
           break;
         case Event.actionCallDecline:
@@ -80,6 +81,8 @@ class CallService {
   Function(MediaStream?)? onLocalStream;
   Function(MediaStream?)? onRemoteStream;
   Function(String)? onCallError;
+  /// Called when user accepts an incoming call via the native CallKit UI
+  Function()? onCallAcceptedByNativeUI;
 
   // Getters
   CallState get callState => _callState;
@@ -285,7 +288,16 @@ class CallService {
       await _peerConnection!.setRemoteDescription(
         RTCSessionDescription(offer, 'offer'),
       );
-      
+
+      // Drain any ICE candidates that arrived before remote description was set
+      if (_remoteIceCandidateQueue.isNotEmpty) {
+        debugPrint('🧊 [Call] Draining ${_remoteIceCandidateQueue.length} queued ICE candidates after setRemoteDescription');
+        for (final candidate in _remoteIceCandidateQueue) {
+          try { await _peerConnection!.addCandidate(candidate); } catch (_) {}
+        }
+        _remoteIceCandidateQueue.clear();
+      }
+
       // Do NOT send answer automatically. Wait for user to accept.
       // The state is already set to ringing above.
       
@@ -388,7 +400,16 @@ class CallService {
       await _peerConnection!.setRemoteDescription(
         RTCSessionDescription(answer, 'answer'),
       );
-      
+
+      // Drain any ICE candidates that arrived before remote description was set
+      if (_remoteIceCandidateQueue.isNotEmpty) {
+        debugPrint('🧊 [Call] Draining ${_remoteIceCandidateQueue.length} queued ICE candidates after answer setRemoteDescription');
+        for (final candidate in _remoteIceCandidateQueue) {
+          try { await _peerConnection!.addCandidate(candidate); } catch (_) {}
+        }
+        _remoteIceCandidateQueue.clear();
+      }
+
       // Log current ICE connection state after setting answer
       final iceState = _peerConnection?.iceConnectionState;
       debugPrint('🧊 [Call] ICE State after answer: $iceState');
@@ -599,15 +620,7 @@ class CallService {
       final config = await _configuration;
       _peerConnection = await createPeerConnection(config);
     debugPrint('📞 [Call] Peer connection created');
-
-    // Drain queued remote ICE candidates
-    if (_remoteIceCandidateQueue.isNotEmpty) {
-      debugPrint('🧊 [Call] Draining ${_remoteIceCandidateQueue.length} queued ICE candidates');
-      for (final candidate in _remoteIceCandidateQueue) {
-        await _peerConnection!.addCandidate(candidate);
-      }
-      _remoteIceCandidateQueue.clear();
-    }
+    // ICE candidates are drained AFTER setRemoteDescription — see handleIncomingOffer / handleIncomingAnswer
 
       // Handle ICE candidates
       _peerConnection!.onIceCandidate = (RTCIceCandidate candidate) {

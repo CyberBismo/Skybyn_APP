@@ -28,6 +28,7 @@ import '../widgets/app_colors.dart';
 import '../widgets/global_search_overlay.dart';
 import '../widgets/update_dialog.dart';
 import '../config/constants.dart';
+import 'spotlight_screen.dart';
 import '../services/translation_service.dart';
 
 import '../widgets/translated_text.dart';
@@ -1022,6 +1023,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           children: [
             _buildMapPage(),
             _buildHomeContent(),
+            const SpotlightScreen(),
           ],
         ),
       ),

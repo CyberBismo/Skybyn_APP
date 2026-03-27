@@ -51,7 +51,6 @@ import 'services/chat_service.dart';
 import 'services/auto_update_service.dart';
 import 'config/constants.dart';
 // Widgets and Models
-import 'widgets/incoming_call_notification.dart';
 import 'widgets/background_gradient.dart';
 import 'models/friend.dart';
 // Firebase background handler - must be imported at top level
@@ -263,7 +262,6 @@ class MyApp extends StatefulWidget {
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
-  bool _isIncomingCallDialogShowing = false;
   final NotificationService _notificationService = NotificationService();
   final WebSocketService _webSocketService = WebSocketService();
   final BackgroundUpdateScheduler _backgroundUpdateScheduler =
@@ -716,129 +714,43 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   void _setupCallHandlers() {
     _webSocketService.setCallCallbacks(
       onCallInitiate: (callId, fromUserId, callType, fromUsername) async {
-        if (kDebugMode) debugPrint('[SKYBYN] 📞 [Main] Incoming call detected from WebSocket');
-        if (kDebugMode) debugPrint(
-            '[SKYBYN] CallId: $callId, From: $fromUserId, Type: $callType');
-
-        // Store active call details
+        // Just store the call ID — the CallKit native UI will be shown when
+        // call_offer arrives (which carries the actual SDP and triggers CallKit).
+        if (kDebugMode) debugPrint('[SKYBYN] 📞 [Main] call_initiate from $fromUserId — awaiting call_offer');
         _activeCallId = callId;
-
-        try {
-          // Fetch friend details (the caller)
-          final authService = AuthService();
-          final currentUserId = await authService.getStoredUserId();
-
-          if (currentUserId != null) {
-            final friends =
-                await _friendService.fetchFriendsForUser(userId: currentUserId);
-            final caller = friends.firstWhere(
-              (f) => f.id == fromUserId,
-              orElse: () => Friend(
-                id: fromUserId,
-                username: fromUsername.isNotEmpty ? fromUsername : 'Unknown',
-                nickname: 'Unknown Caller',
-                avatar: '',
-                online: true,
-              ),
-            );
-
-            _activeCallFriend = caller;
-
-            if (mounted) {
-              // Show incoming call notification overlay using Dialog
-              _isIncomingCallDialogShowing = true;
-              showDialog(
-                context: navigatorKey
-                    .currentContext!, // Use global key context to ensure it shows
-                barrierDismissible: false,
-                builder: (context) => IncomingCallNotification(
-                  callId: callId,
-                  fromUserId: fromUserId,
-                  fromUsername: caller.nickname.isNotEmpty
-                      ? caller.nickname
-                      : caller.username,
-                  avatarUrl: caller.avatar,
-                  callType:
-                      callType == 'video' ? CallType.video : CallType.audio,
-                  onAccept: () {
-                    Navigator.of(context).pop(); // Close dialog
-                    _isIncomingCallDialogShowing = false;
-
-                    // Navigate to call screen
-                    final nav = navigatorKey.currentState;
-                    if (nav != null) {
-                      nav.push(
-                        MaterialPageRoute(
-                          builder: (context) => CallScreen(
-                            friend: caller,
-                            callType: callType == 'video'
-                                ? CallType.video
-                                : CallType.audio,
-                            isIncoming: true,
-                          ),
-                        ),
-                      );
-                    }
-                    _activeCallId = null;
-                    _activeCallFriend = null;
-                  },
-                  onReject: () {
-                    Navigator.of(context).pop(); // Close dialog
-                    _isIncomingCallDialogShowing = false;
-
-                    // Send decline message
-                    _webSocketService.sendCallEnd(
-                      callId: callId,
-                      targetUserId: fromUserId,
-                    );
-                    _activeCallId = null;
-                    _activeCallFriend = null;
-                  },
-                ),
-              ).then((_) => _isIncomingCallDialogShowing = false);
-            } else {
-              // App is in background, show system notification
-              final callerName = caller.nickname.isNotEmpty
-                  ? caller.nickname
-                  : caller.username;
-              final isVideo = callType == 'video';
-
-              await _notificationService.showNotification(
-                title: 'Incoming ${isVideo ? "Video" : "Voice"} Call',
-                body: '$callerName is calling you',
-                channelId: 'calls', // Use dedicated call channel
-                payload: jsonEncode({
-                  'type': 'call',
-                  'callId': callId,
-                  'fromUserId': fromUserId,
-                  'callType': callType,
-                  'fromName': callerName,
-                  'fromAvatar': caller.avatar,
-                }),
-              );
-            }
-          }
-        } catch (e) {
-          if (kDebugMode) debugPrint('[SKYBYN] ❌ [Main] Error handling incoming call: $e');
-        }
       },
       onCallEnd: (callId, fromUserId, targetUserId) {
         if (kDebugMode) debugPrint('[SKYBYN] 📞 [Main] Call ended: $callId');
         if (_activeCallId == callId) {
           _activeCallId = null;
           _activeCallFriend = null;
-          // Close dialog if showing
-          if (_isIncomingCallDialogShowing) {
-            final nav = navigatorKey.currentState;
-            if (nav != null && nav.canPop()) {
-              nav.pop(); // Close dialog
-            }
-            _isIncomingCallDialogShowing = false;
-          }
         }
       },
       onCallOffer: (callId, fromUserId, offer, callType) async {
         if (kDebugMode) debugPrint('[SKYBYN] 📞 [Main] Call offer received: $callId');
+
+        // Fetch and store caller info so we can navigate to CallScreen on accept
+        _activeCallId = callId;
+        try {
+          final authService = AuthService();
+          final currentUserId = await authService.getStoredUserId();
+          if (currentUserId != null) {
+            final friends = await _friendService.fetchFriendsForUser(userId: currentUserId);
+            _activeCallFriend = friends.firstWhere(
+              (f) => f.id == fromUserId,
+              orElse: () => Friend(
+                id: fromUserId,
+                username: fromUserId,
+                nickname: '',
+                avatar: '',
+                online: true,
+              ),
+            );
+          }
+        } catch (e) {
+          if (kDebugMode) debugPrint('[SKYBYN] ⚠️ [Main] Could not fetch caller info: $e');
+        }
+
         try {
           await _callService.handleIncomingOffer(
             callId: callId,
@@ -859,7 +771,6 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         }
       },
       onIceCandidate: (callId, candidate, sdpMid, sdpMLineIndex) async {
-        // print('[SKYBYN] 🧊 [Main] ICE candidate received');
         try {
           await _callService.handleIceCandidate(
             candidate: candidate,
@@ -871,6 +782,24 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         }
       },
     );
+
+    // When the user accepts via native CallKit, navigate to CallScreen
+    _callService.onCallAcceptedByNativeUI = () {
+      final friend = _activeCallFriend;
+      final callType = _callService.currentCallType;
+      if (friend == null || callType == null) return;
+      final nav = navigatorKey.currentState;
+      if (nav == null) return;
+      nav.push(MaterialPageRoute(
+        builder: (context) => CallScreen(
+          friend: friend,
+          callType: callType,
+          isIncoming: true,
+        ),
+      ));
+      _activeCallId = null;
+      _activeCallFriend = null;
+    };
   }
 
   /// Set up handler for incoming calls via Notification
