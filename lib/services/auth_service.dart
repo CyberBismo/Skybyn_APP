@@ -61,20 +61,51 @@ class AuthService {
     }
   }
 
+  /// On Android, FlutterSecureStorage data can survive an app uninstall/reinstall
+  /// because the backing EncryptedSharedPreferences file may still exist while the
+  /// Keystore key has been regenerated, causing read/write operations to hang or throw.
+  ///
+  /// SharedPreferences IS cleared on uninstall. We use a flag there to detect a
+  /// fresh install and wipe SecureStorage when stale data is found.
+  static Future<void> clearStaleSecureStorageOnReinstall() async {
+    try {
+      const seenKey = 'app_secure_storage_initialized';
+      final prefs = await SharedPreferences.getInstance();
+      final alreadyInitialized = prefs.getBool(seenKey) ?? false;
+
+      if (!alreadyInitialized) {
+        // First run after install — clear any leftover secure storage data.
+        try {
+          await _secureStorage.deleteAll().timeout(const Duration(seconds: 5));
+        } catch (_) {}
+        await prefs.setBool(seenKey, true);
+      }
+    } catch (e) {
+      debugPrint('AuthService: clearStaleSecureStorageOnReinstall error: $e');
+    }
+  }
+
   Future<Map<String, dynamic>> login(String username, String password) async {
     try {
       // Ensure HTTP client is initialized
       _httpClient ??= _createHttpClient();
-      
+
       final deviceService = DeviceService();
       final deviceInfo = await deviceService.getDeviceInfo();
+
+      // Block emulators before making any API call
+      if (deviceInfo['isPhysicalDevice'] == false) {
+        return {
+          'responseCode': '0',
+          'message': 'This device is not allowed to login.'
+        };
+      }
 
       // Get FCM token if available and add it to deviceInfo
       try {
         final firebaseService = FirebaseMessagingService();
         if (firebaseService.isInitialized && firebaseService.fcmToken != null) {
           deviceInfo['fcmToken'] = firebaseService.fcmToken!;
-        } else {
         }
       } catch (e) {
         debugPrint('AuthService: Failed to get FCM token during login: $e');
@@ -113,18 +144,7 @@ class AuthService {
 
       if (response.statusCode == 200) {
         if (data['responseCode'] == '1') {
-          final isEmulator = deviceInfo['isPhysicalDevice'] == false;
-          final userId = data['userID']?.toString();
           if (kDebugMode) debugPrint('DEBUG: AuthService.login success.');
-          
-          // Block emulators from logging in
-          if (isEmulator) {
-            return {
-              'responseCode': '0',
-              'message': 'This device is not allowed to login.'
-            };
-          }
-
 
           await initPrefs();
           // Convert userID to string to avoid type mismatch
@@ -132,13 +152,24 @@ class AuthService {
           if (kDebugMode) debugPrint('DEBUG: AuthService.login storing userID');
           await _prefs?.setString(userIdKey, userIdStr);
           await _prefs?.setString(usernameKey, username);
-          await _secureStorage.write(key: userIdKey, value: userIdStr);
-          await _secureStorage.write(key: usernameKey, value: username);
+          try {
+            await _secureStorage.write(key: userIdKey, value: userIdStr)
+                .timeout(const Duration(seconds: 5));
+            await _secureStorage.write(key: usernameKey, value: username)
+                .timeout(const Duration(seconds: 5));
+          } catch (e) {
+            debugPrint('AuthService: Secure storage write failed, falling back to prefs: $e');
+          }
 
           // Store session token for authenticated API requests
           final sessionToken = data['sessionToken']?.toString();
           if (sessionToken != null && sessionToken.isNotEmpty) {
-            await _secureStorage.write(key: StorageKeys.sessionToken, value: sessionToken);
+            try {
+              await _secureStorage.write(key: StorageKeys.sessionToken, value: sessionToken)
+                  .timeout(const Duration(seconds: 5));
+            } catch (e) {
+              debugPrint('AuthService: Failed to store session token: $e');
+            }
           }
 
           // Try to fetch user profile, but don't fail login if it fails
@@ -194,10 +225,18 @@ class AuthService {
   Future<Map<String, dynamic>> loginWithSocial(String provider, String token) async {
     try {
       _httpClient ??= _createHttpClient();
-      
+
       final deviceService = DeviceService();
       final deviceInfo = await deviceService.getDeviceInfo();
-      
+
+      // Block emulators before making any API call
+      if (deviceInfo['isPhysicalDevice'] == false) {
+        return {
+          'responseCode': '0',
+          'message': 'This device is not allowed to login.'
+        };
+      }
+
       // Get FCM token if available and add it to deviceInfo
       try {
         final firebaseService = FirebaseMessagingService();
@@ -238,17 +277,7 @@ class AuthService {
 
       if (response.statusCode == 200) {
         if (data['responseCode'] == '1') {
-          final isEmulator = deviceInfo['isPhysicalDevice'] == false;
           final userId = data['userID']?.toString() ?? data['data']?['userID']?.toString();
-          
-          // Block emulators from social login
-          if (isEmulator) {
-            return {
-              'responseCode': '0',
-              'message': 'This device is not allowed to login.'
-            };
-          }
-
 
           // Social login successful
           await initPrefs();
@@ -256,28 +285,40 @@ class AuthService {
           // Store user ID (convert to string)
           if (userId != null) {
             await _prefs?.setString(userIdKey, userId);
-            await _secureStorage.write(key: userIdKey, value: userId);
+            try {
+              await _secureStorage.write(key: userIdKey, value: userId)
+                  .timeout(const Duration(seconds: 5));
+            } catch (e) {
+              debugPrint('AuthService: Secure storage write failed for userId: $e');
+            }
           }
-          
+
           // Store session token for authenticated API requests
           final sessionToken = data['sessionToken']?.toString();
           if (sessionToken != null && sessionToken.isNotEmpty) {
-            await _secureStorage.write(key: StorageKeys.sessionToken, value: sessionToken);
+            try {
+              await _secureStorage.write(key: StorageKeys.sessionToken, value: sessionToken)
+                  .timeout(const Duration(seconds: 5));
+            } catch (e) {
+              debugPrint('AuthService: Failed to store session token: $e');
+            }
           }
 
           // Fetch user profile immediately to get username and other details
-          // We don't have username from social login directly unless we added it to response
-          // But fetchUserProfile uses stored userID
           try {
-            // First fetch profile using ID
             final user = await fetchAnyUserProfile(userId: userId);
             if (user != null) {
-                await _prefs?.setString(usernameKey, user.username);
-                // Also update stored profile
-                final profileJson = json.encode(user.toJson());
-                await _prefs?.setString(userProfileKey, profileJson);
-                await _secureStorage.write(key: usernameKey, value: user.username);
-                await _secureStorage.write(key: userProfileKey, value: profileJson);
+              await _prefs?.setString(usernameKey, user.username);
+              final profileJson = json.encode(user.toJson());
+              await _prefs?.setString(userProfileKey, profileJson);
+              try {
+                await _secureStorage.write(key: usernameKey, value: user.username)
+                    .timeout(const Duration(seconds: 5));
+                await _secureStorage.write(key: userProfileKey, value: profileJson)
+                    .timeout(const Duration(seconds: 5));
+              } catch (e) {
+                debugPrint('AuthService: Secure storage write failed for profile: $e');
+              }
             }
           } catch (e) {
             debugPrint('AuthService: Failed to fetch user profile after social login: $e');
@@ -309,27 +350,64 @@ class AuthService {
   }
 
   Future<bool> getSocialLoginStatus() async {
+    const cacheKey = 'social_login_enabled';
+    const cacheTimestampKey = 'social_login_checked_at';
+    const cacheTtlSeconds = 3600; // 1 hour
+
     try {
+      await initPrefs();
+
+      // Return cached value if still fresh
+      final cachedAt = _prefs?.getInt(cacheTimestampKey) ?? 0;
+      final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+      if (now - cachedAt < cacheTtlSeconds) {
+        return _prefs?.getBool(cacheKey) ?? false;
+      }
+
       _httpClient ??= _createHttpClient();
       final client = _client;
-      // Note: Make sure ApiConstants.socialLogin is defined in your constants file. 
-      // If not, use '${ApiConstants.apiBase}social_login.php'
-      final socialLoginUrl = '${ApiConstants.apiBase}/social_login.php'; 
-      
+      final socialLoginUrl = '${ApiConstants.apiBase}/social_login.php';
+
       final response = await client.get(
         Uri.parse(socialLoginUrl),
       ).timeout(const Duration(seconds: 10));
-      
+
       if (response.statusCode == 200) {
         final data = safeJsonDecode(response);
         if (data['responseCode'] == '1' && data['data'] != null) {
-          return data['data']['enabled'] == true;
+          final enabled = data['data']['enabled'] == true;
+          await _prefs?.setBool(cacheKey, enabled);
+          await _prefs?.setInt(cacheTimestampKey, now);
+          return enabled;
         }
       }
-      return false; // Default to false on error or disabled
+      return false;
     } catch (e) {
       debugPrint('AuthService: Failed to check social login status: $e');
+      return _prefs?.getBool(cacheKey) ?? false;
+    }
+  }
+
+  /// Validates the stored session against the server.
+  /// Returns true if the session is still valid, false otherwise.
+  /// If the session is invalid (banned, deleted, expired), calls logout() automatically.
+  Future<bool> validateSession() async {
+    try {
+      final userId = await getStoredUserId();
+      if (userId == null || userId.isEmpty) return false;
+
+      final user = await fetchUserProfile('');
+      if (user != null) return true;
+
+      // fetchUserProfile returns null if the server rejected the session;
+      // it already calls logout() internally for ban/deactivated cases.
+      // Clear local auth data for any other failure (e.g., expired token).
+      await logout();
       return false;
+    } catch (e) {
+      debugPrint('AuthService: Session validation failed: $e');
+      // On network error keep the user logged in to avoid spurious logouts
+      return true;
     }
   }
 
@@ -403,18 +481,29 @@ class AuthService {
     }
   }
 
+  /// Wraps any FlutterSecureStorage operation with a 5-second timeout.
+  /// Falls back to [fallback] on timeout or error rather than hanging.
+  static Future<T?> _secureOp<T>(Future<T?> Function() op, {T? fallback}) async {
+    try {
+      return await op().timeout(const Duration(seconds: 5));
+    } catch (e) {
+      debugPrint('AuthService: SecureStorage op failed/timed out: $e');
+      return fallback;
+    }
+  }
+
   Future<String?> getStoredSessionToken() async {
-    return await _secureStorage.read(key: StorageKeys.sessionToken);
+    return await _secureOp(() => _secureStorage.read(key: StorageKeys.sessionToken));
   }
 
   Future<String?> getStoredUserId() async {
     await initPrefs();
-    String? userId = await _secureStorage.read(key: userIdKey);
-    
+    String? userId = await _secureOp(() => _secureStorage.read(key: userIdKey));
+
     if (userId == null) {
       userId = _prefs?.getString(userIdKey);
       if (userId != null) {
-        await _secureStorage.write(key: userIdKey, value: userId);
+        _secureOp(() => _secureStorage.write(key: userIdKey, value: userId!));
       }
     }
     return userId;
@@ -422,12 +511,12 @@ class AuthService {
 
   Future<String?> getStoredUsername() async {
     await initPrefs();
-    String? username = await _secureStorage.read(key: usernameKey);
-    
+    String? username = await _secureOp(() => _secureStorage.read(key: usernameKey));
+
     if (username == null) {
       username = _prefs?.getString(usernameKey);
       if (username != null) {
-        await _secureStorage.write(key: usernameKey, value: username);
+        _secureOp(() => _secureStorage.write(key: usernameKey, value: username!));
       }
     }
     return username;
@@ -435,12 +524,12 @@ class AuthService {
 
   Future<User?> getStoredUserProfile() async {
     await initPrefs();
-    String? profileJson = await _secureStorage.read(key: userProfileKey);
-    
+    String? profileJson = await _secureOp(() => _secureStorage.read(key: userProfileKey));
+
     if (profileJson == null) {
       profileJson = _prefs?.getString(userProfileKey);
       if (profileJson != null) {
-        await _secureStorage.write(key: userProfileKey, value: profileJson);
+        _secureOp(() => _secureStorage.write(key: userProfileKey, value: profileJson!));
       }
     }
     
@@ -551,12 +640,13 @@ class AuthService {
     await _prefs?.remove(userIdKey);
     await _prefs?.remove(userProfileKey);
     await _prefs?.remove(usernameKey);
+    await _prefs?.remove('social_login_checked_at');
 
     // Also clear any data stored in FlutterSecureStorage
-    await _secureStorage.delete(key: userIdKey);
-    await _secureStorage.delete(key: userProfileKey);
-    await _secureStorage.delete(key: usernameKey);
-    await _secureStorage.delete(key: StorageKeys.sessionToken);
+    await _secureOp(() => _secureStorage.delete(key: userIdKey));
+    await _secureOp(() => _secureStorage.delete(key: userProfileKey));
+    await _secureOp(() => _secureStorage.delete(key: usernameKey));
+    await _secureOp(() => _secureStorage.delete(key: StorageKeys.sessionToken));
 
     // Clear last navigation route on logout
     try {

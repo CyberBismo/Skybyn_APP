@@ -77,6 +77,10 @@ Future<void> main() async {
         AutoUpdateService.validateAndCleanupApk();
       }
 
+      // Clear stale FlutterSecureStorage data on fresh install to prevent
+      // keystore mismatches that cause storage reads/writes to hang.
+      await AuthService.clearStaleSecureStorageOnReinstall();
+
       // Initialize FlutterDownloader for background update downloads
       if (Platform.isAndroid) {
         try {
@@ -967,7 +971,6 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
 
   Future<bool> _checkLoginStatus() async {
     final authService = AuthService();
-    final userId = await authService.getStoredUserId();
-    return userId != null && userId.isNotEmpty;
+    return await authService.validateSession();
   }
 }
