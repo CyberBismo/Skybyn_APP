@@ -7,7 +7,6 @@ gradle-wrapper.jar
 GeneratedPluginRegistrant.java
 .cxx/
 
-# Remember to never publicly share your keystore.
-# See https://flutter.dev/to/reference-keystore
-**/*.keystore
-**/*.jks
+# Keystore is committed to this private repo for safekeeping
+# **/*.keystore
+# **/*.jks

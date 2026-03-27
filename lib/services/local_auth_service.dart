@@ -22,10 +22,6 @@ class LocalAuthService {
       if (!canCheck) return false;
       return await auth.authenticate(
         localizedReason: 'Authenticate to enable biometric lock',
-        options: const AuthenticationOptions(
-          stickyAuth: true,
-          useErrorDialogs: true,
-        ),
       );
     } on PlatformException {
       return false;

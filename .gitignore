@@ -37,6 +37,7 @@ build/
 **/android/captures/
 **/android/local.properties
 **/android/**/GeneratedPluginRegistrant.java
+# key.properties is committed to this private repo
 
 # iOS/XCode related
 **/ios/**/*.mode1v3
