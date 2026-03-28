@@ -58,8 +58,6 @@ class _MapViewState extends State<MapView>
   static const String _lastMapLngKey = 'last_map_longitude';
   static const String _lastMapZoomKey = 'last_map_zoom';
 
-  // Bottom nav height constants (50dp nav + 8dp scaffold padding)
-  static const double _bottomNavHeight = 58.0;
 
   @override
   void initState() {
@@ -578,9 +576,9 @@ class _MapViewState extends State<MapView>
           : 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
     }
 
-    // Position controls above the bottom nav
+    // padding.bottom already includes the bottom nav height (extendBody: true)
     final bottomInset = MediaQuery.of(context).padding.bottom;
-    final avatarBarBottom = bottomInset + _bottomNavHeight + 16.0;
+    final avatarBarBottom = bottomInset + 16.0;
     final recenterBottom = avatarBarBottom + 52.0 + 12.0;
 
     return Stack(
