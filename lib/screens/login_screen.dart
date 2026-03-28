@@ -1,10 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:ui';
-import 'dart:async';
 import '../services/auth_service.dart';
-import '../services/notification_service.dart';
-import '../services/firebase_messaging_service.dart';
-import 'dart:io';
 import '../widgets/background_gradient.dart';
 import '../widgets/app_colors.dart';
 import '../widgets/translated_text.dart';
@@ -59,28 +55,6 @@ class _LoginScreenState extends State<LoginScreen> {
 
   Future<void> _onLoginSuccess() async {
     if (!mounted) return;
-
-    try {
-      final notificationService = NotificationService();
-      final firebaseMessagingService = FirebaseMessagingService();
-      await notificationService.requestPermissions();
-      await firebaseMessagingService.requestPermissions();
-      final isEnabled = await notificationService.areNotificationsEnabled();
-      if (Platform.isIOS) await notificationService.checkIOSNotificationStatus();
-
-      if (isEnabled) {
-        final int notificationId = await notificationService.showNotification(
-          title: TranslationKeys.loginSuccessful.tr,
-          body: TranslationKeys.welcomeToSkybyn.tr,
-          payload: 'login_success',
-        );
-        if (notificationId >= 0) {
-          Timer(const Duration(seconds: 3), () {
-            notificationService.cancelNotification(notificationId);
-          });
-        }
-      }
-    } catch (e) {}
 
     await NavigationService.saveLastRoute('/home');
 

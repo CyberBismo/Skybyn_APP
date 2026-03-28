@@ -57,6 +57,7 @@ import 'models/friend.dart';
 import 'services/firebase_messaging_service.dart'
     show firebaseMessagingBackgroundHandler;
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:easy_localization/easy_localization.dart';
 
 import 'services/error_reporting_service.dart';
 
@@ -71,6 +72,7 @@ Future<void> main() async {
     () async {
       // Ensure Flutter is initialized first
       WidgetsFlutterBinding.ensureInitialized();
+      await EasyLocalization.ensureInitialized();
 
       // Cleanup stale APKs on startup
       if (Platform.isAndroid) {
@@ -128,8 +130,7 @@ Future<void> main() async {
       // Run theme service initialization (fast, local only)
       await themeService.initialize();
 
-      // Initialize translation service BEFORE showing UI to prevent translation keys from showing
-      // This loads cached translations first (fast), then updates from API in background
+      // TranslationService kept for TranslationKeys constants only (no longer fetches from API)
       await translationService.initialize();
 
       // CRITICAL: Register Firebase background message handler BEFORE runApp()
@@ -144,8 +145,13 @@ Future<void> main() async {
       });
 
       // Run the app after Firebase and translations are loaded
-      runApp(ChangeNotifierProvider.value(
-          value: themeService, child: const MyApp()));
+      runApp(EasyLocalization(
+        supportedLocales: const [Locale('en')],
+        path: 'assets/translations',
+        fallbackLocale: const Locale('en'),
+        child: ChangeNotifierProvider.value(
+            value: themeService, child: const MyApp()),
+      ));
     },
     (error, stack) {
       if (enableErrorLogging) {
@@ -886,6 +892,9 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       navigatorKey: navigatorKey, // Set global navigator key
       title: 'Skybyn',
       debugShowCheckedModeBanner: false,
+      localizationsDelegates: context.localizationDelegates,
+      supportedLocales: context.supportedLocales,
+      locale: context.locale,
       themeMode: themeService.themeMode, // Use theme mode from service
       theme: ThemeData.light(useMaterial3: true), // Define light theme
       darkTheme: ThemeData.dark(useMaterial3: true), // Define dark theme

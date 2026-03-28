@@ -1,22 +1,5 @@
 import 'package:flutter/material.dart';
-import '../services/translation_service.dart';
-
-// Helper function to check if a translated text is likely a humanized key
-bool _isHumanizedKey(String translatedText, String originalKey) {
-  // If the translated text is the same as the original key, it's definitely humanized
-  if (translatedText == originalKey) return true;
-  
-  // Check if the translated text looks like a humanized version of the key
-  // (e.g., "checking_for_updates" -> "Checking For Updates")
-  final humanized = originalKey
-      .split('_')
-      .map((word) => word.isEmpty 
-          ? '' 
-          : word[0].toUpperCase() + word.substring(1).toLowerCase())
-      .join(' ');
-  
-  return translatedText == humanized;
-}
+import 'package:easy_localization/easy_localization.dart' as ez;
 
 class TranslatedText extends StatelessWidget {
   final String textKey;
@@ -40,30 +23,17 @@ class TranslatedText extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final translationService = TranslationService();
-    
-    // Listen to translation service changes
-    return ListenableBuilder(
-      listenable: translationService,
-      builder: (context, child) {
-        final translatedText = translationService.translate(textKey);
-        
-        // If fallback is provided and translation appears to be auto-generated (humanized key),
-        // prefer the fallback. Otherwise use the translation.
-        // Note: translate() now always returns a readable string, never the raw key
-        final displayText = fallback != null && _isHumanizedKey(translatedText, textKey)
-            ? fallback!
-            : translatedText;
+    final translated = ez.tr(textKey);
+    // If translation returned the key unchanged (missing key), use fallback if provided
+    final displayText = (translated == textKey && fallback != null) ? fallback! : translated;
 
-        return Text(
-          displayText,
-          style: style,
-          textAlign: textAlign,
-          maxLines: maxLines,
-          overflow: overflow,
-          softWrap: softWrap ?? true,
-        );
-      },
+    return Text(
+      displayText,
+      style: style,
+      textAlign: textAlign,
+      maxLines: maxLines,
+      overflow: overflow,
+      softWrap: softWrap ?? true,
     );
   }
 }
@@ -74,7 +44,7 @@ class TranslatedText extends StatelessWidget {
 // use TranslatedText widget instead.
 extension StringTranslation on String {
   String get tr {
-    return TranslationService().translate(this);
+    return ez.tr(this);
   }
 }
 
@@ -102,25 +72,16 @@ class ReactiveTranslatedText extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final translationService = TranslationService();
-    
-    return ListenableBuilder(
-      listenable: translationService,
-      builder: (context, child) {
-        final translatedText = translationService.translate(translationKey);
-        final displayText = fallback != null && _isHumanizedKey(translatedText, translationKey)
-            ? fallback!
-            : translatedText;
-        
-        return Text(
-          displayText,
-          style: style,
-          textAlign: textAlign,
-          maxLines: maxLines,
-          overflow: overflow,
-          softWrap: softWrap ?? true,
-        );
-      },
+    final translated = ez.tr(translationKey);
+    final displayText = (translated == translationKey && fallback != null) ? fallback! : translated;
+
+    return Text(
+      displayText,
+      style: style,
+      textAlign: textAlign,
+      maxLines: maxLines,
+      overflow: overflow,
+      softWrap: softWrap ?? true,
     );
   }
 }

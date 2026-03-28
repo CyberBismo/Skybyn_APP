@@ -117,6 +117,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     final notificationService = NotificationService();
     notificationService.requestAndroidPermissions();
     notificationService.requestIOSPermissions();
+    FirebaseMessagingService().requestPermissions();
 
     // Check and request location permission on app start
     WidgetsBinding.instance.addPostFrameCallback((_) async {
