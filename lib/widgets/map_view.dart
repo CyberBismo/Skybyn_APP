@@ -43,6 +43,7 @@ class _MapViewState extends State<MapView>
   bool _isLoading = true;
   Timer? _refreshTimer;
   Timer? _locationUploadTimer;
+  StreamSubscription<Position>? _positionStream;
   AnimationController? _moveAnimationController;
   final Map<String, String> _friendAvatarUrls = {};
   SharedPreferences? _prefs;
@@ -73,6 +74,7 @@ class _MapViewState extends State<MapView>
     WidgetsBinding.instance.removeObserver(this);
     _refreshTimer?.cancel();
     _locationUploadTimer?.cancel();
+    _positionStream?.cancel();
     _moveAnimationController?.dispose();
     if (widget.mapController == null) {
       _mapController.dispose();
@@ -86,7 +88,9 @@ class _MapViewState extends State<MapView>
         state == AppLifecycleState.detached) {
       _refreshTimer?.cancel();
       _locationUploadTimer?.cancel();
+      _positionStream?.pause();
     } else if (state == AppLifecycleState.resumed) {
+      _positionStream?.resume();
       _startTimers();
     }
   }
@@ -153,6 +157,22 @@ class _MapViewState extends State<MapView>
           }
         }
       });
+
+      // Stream GPS position updates locally in real-time (no server upload)
+      final hasPermission = await _locationService.hasLocationPermission();
+      if (hasPermission) {
+        _positionStream = Geolocator.getPositionStream(
+          locationSettings: const LocationSettings(
+            accuracy: LocationAccuracy.high,
+            distanceFilter: 5, // update marker every 5 metres of movement
+          ),
+        ).listen((position) {
+          if (mounted) {
+            setState(() => _currentPosition = position);
+            _locationService.saveLastKnownLocation(position);
+          }
+        });
+      }
 
       await _loadFriendsLocations();
       _startTimers();
