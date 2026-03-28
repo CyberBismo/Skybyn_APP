@@ -576,9 +576,7 @@ class _MapViewState extends State<MapView>
           : 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
     }
 
-    // padding.bottom already includes the bottom nav height (extendBody: true)
-    final bottomInset = MediaQuery.of(context).padding.bottom;
-    final avatarBarBottom = bottomInset + 16.0;
+    final avatarBarBottom = 100.0;
     final recenterBottom = avatarBarBottom + 52.0 + 12.0;
 
     return Stack(
