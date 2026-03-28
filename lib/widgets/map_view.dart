@@ -29,7 +29,8 @@ class MapView extends StatefulWidget {
   State<MapView> createState() => _MapViewState();
 }
 
-class _MapViewState extends State<MapView> with TickerProviderStateMixin {
+class _MapViewState extends State<MapView>
+    with TickerProviderStateMixin, WidgetsBindingObserver {
   final AuthService _authService = AuthService();
   final LocationService _locationService = LocationService();
   late final MapController _mapController;
@@ -41,8 +42,10 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin {
   List<Friend> _friendsWithLocations = [];
   bool _isLoading = true;
   Timer? _refreshTimer;
+  Timer? _locationUploadTimer;
   AnimationController? _moveAnimationController;
   final Map<String, String> _friendAvatarUrls = {};
+  SharedPreferences? _prefs;
 
   LatLng _center = const LatLng(59.9139, 10.7522); // Default to Oslo
   double _zoom = 3.0;
@@ -54,16 +57,22 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin {
   static const String _lastMapLngKey = 'last_map_longitude';
   static const String _lastMapZoomKey = 'last_map_zoom';
 
+  // Bottom nav height constants (50dp nav + 8dp scaffold padding)
+  static const double _bottomNavHeight = 58.0;
+
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _mapController = widget.mapController ?? MapController();
     _initializeMap();
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _refreshTimer?.cancel();
+    _locationUploadTimer?.cancel();
     _moveAnimationController?.dispose();
     if (widget.mapController == null) {
       _mapController.dispose();
@@ -71,10 +80,30 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin {
     super.dispose();
   }
 
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.detached) {
+      _refreshTimer?.cancel();
+      _locationUploadTimer?.cancel();
+    } else if (state == AppLifecycleState.resumed) {
+      _startTimers();
+    }
+  }
+
+  void _startTimers() {
+    _refreshTimer?.cancel();
+    _locationUploadTimer?.cancel();
+    _refreshTimer = Timer.periodic(
+        const Duration(seconds: 10), (_) => _loadFriendsLocations());
+    _locationUploadTimer = Timer.periodic(
+        const Duration(seconds: 60), (_) => _uploadCurrentLocation());
+  }
+
   Future<void> _initializeMap() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      _useSatelliteView = prefs.getBool(_mapLayerPreferenceKey) ?? false;
+      _prefs = await SharedPreferences.getInstance();
+      _useSatelliteView = _prefs!.getBool(_mapLayerPreferenceKey) ?? false;
 
       final userId = await _authService.getStoredUserId();
       if (userId == null) {
@@ -83,25 +112,16 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin {
       }
 
       final userProfile = await _authService.getStoredUserProfile();
-      String? avatarUrl;
-      if (userProfile != null && userProfile.avatar.isNotEmpty) {
-        avatarUrl = userProfile.avatar;
-        if (!avatarUrl.startsWith('http')) {
-          avatarUrl = 'https://skybyn.no$avatarUrl';
-        }
-        avatarUrl = avatarUrl.replaceAll('skybyn.com', 'skybyn.no');
-      }
-
       if (mounted) {
         setState(() {
           _currentUserId = userId;
-          _currentUserAvatar = avatarUrl;
+          _currentUserAvatar = _normalizeAvatarUrl(userProfile?.avatar);
           _isGhostMode = userProfile?.locationPrivateMode == '1' ||
               userProfile?.locationPrivateMode == true;
         });
       }
 
-      // Load cached position
+      // Load cached position first (fast)
       final cachedPosition = await _locationService.getLastKnownLocation();
       if (mounted) {
         setState(() {
@@ -109,34 +129,53 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin {
             _currentPosition = cachedPosition;
             _center = LatLng(cachedPosition.latitude, cachedPosition.longitude);
           }
-          final savedZoom = prefs.getDouble(_lastMapZoomKey);
+          final savedZoom = _prefs!.getDouble(_lastMapZoomKey);
           _zoom = savedZoom ?? 15.0;
           _isLoading = false;
         });
       }
 
-      // Accurate location in background
+      // Get accurate position in background, then upload to server
       _locationService.getCurrentLocation().then((position) {
         if (position != null && mounted) {
           setState(() {
             _currentPosition = position;
-            // Only move map if we haven't already set a center from cache/move
-            if (prefs.getDouble(_lastMapLatKey) == null) {
+            if (_prefs!.getDouble(_lastMapLatKey) == null) {
               _center = LatLng(position.latitude, position.longitude);
               _zoom = 15.0;
               _animatedMapMove(_center, _zoom);
             }
           });
+          // Push own location to server so friends can see us
+          if (_currentUserId != null && !_isGhostMode) {
+            _locationService.updateUserLocation(
+                _currentUserId!, position.latitude, position.longitude);
+          }
         }
       });
 
       await _loadFriendsLocations();
-      _refreshTimer = Timer.periodic(
-          const Duration(seconds: 10), (_) => _loadFriendsLocations());
+      _startTimers();
     } catch (e) {
       debugPrint('Error initializing map: $e');
       if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  Future<void> _uploadCurrentLocation() async {
+    if (_currentUserId == null || _isGhostMode) return;
+    final position = await _locationService.getCurrentLocation();
+    if (position != null && mounted) {
+      setState(() => _currentPosition = position);
+      await _locationService.updateUserLocation(
+          _currentUserId!, position.latitude, position.longitude);
+    }
+  }
+
+  String? _normalizeAvatarUrl(String? url) {
+    if (url == null || url.isEmpty) return null;
+    if (!url.startsWith('http')) url = 'https://skybyn.no$url';
+    return url.replaceAll('skybyn.com', 'skybyn.no');
   }
 
   Future<void> _toggleGhostMode() async {
@@ -157,7 +196,6 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin {
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         if (data['responseCode'] != '1' && data['success'] != true) {
-          // Revert if failed
           if (mounted) setState(() => _isGhostMode = !newMode);
         }
       } else {
@@ -198,11 +236,8 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin {
       if (friend.latitude == null || _friendAvatarUrls.containsKey(friend.id)) {
         continue;
       }
-      String url = friend.avatar;
-      if (url.isNotEmpty && !url.startsWith('http')) {
-        url = 'https://skybyn.no$url';
-      }
-      _friendAvatarUrls[friend.id] = url.replaceAll('skybyn.com', 'skybyn.no');
+      _friendAvatarUrls[friend.id] =
+          _normalizeAvatarUrl(friend.avatar) ?? friend.avatar;
     }
   }
 
@@ -286,7 +321,7 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin {
         markers.add(_buildUserMarker(
             friend.id,
             friend.nickname.isNotEmpty ? friend.nickname : friend.username,
-            _friendAvatarUrls[friend.id] ?? friend.avatar,
+            _friendAvatarUrls[friend.id] ?? _normalizeAvatarUrl(friend.avatar),
             false,
             LatLng(friend.latitude!, friend.longitude!)));
       }
@@ -298,18 +333,13 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin {
       [LatLng? point]) {
     final markerPoint = point ??
         LatLng(_currentPosition!.latitude, _currentPosition!.longitude);
-    String? finalAvatarUrl = avatar;
-    if (finalAvatarUrl != null && !finalAvatarUrl.startsWith('http')) {
-      finalAvatarUrl = 'https://skybyn.no$finalAvatarUrl';
-    }
-    finalAvatarUrl = finalAvatarUrl?.replaceAll('skybyn.com', 'skybyn.no');
+    final finalAvatarUrl = _normalizeAvatarUrl(avatar);
 
     return Marker(
       point: markerPoint,
       width: 50,
       height: 80,
-      alignment: const Alignment(
-          0, -0.375), // Center the circular avatar on the coordinate
+      alignment: const Alignment(0, -0.375),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -380,13 +410,11 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin {
   }
 
   Widget _buildFriendAvatarBar() {
-    // Show bar if at least the user is available
     if (_currentPosition == null && _friendsWithLocations.isEmpty) {
       return const SizedBox.shrink();
     }
 
     final allItems = <Map<String, dynamic>>[];
-    // Add self
     if (_currentPosition != null) {
       allItems.add({
         'id': _currentUserId,
@@ -397,7 +425,6 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin {
         'isSelf': true,
       });
     }
-    // Add friends
     for (final friend in _friendsWithLocations) {
       if (friend.latitude != null && friend.longitude != null) {
         allItems.add({
@@ -435,8 +462,9 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin {
               itemBuilder: (context, index) {
                 final item = allItems[index];
                 final avatarUrl = item['avatar'] as String?;
+                final normalizedUrl = _normalizeAvatarUrl(avatarUrl);
                 final hasValidAvatar =
-                    avatarUrl != null && avatarUrl.isNotEmpty;
+                    normalizedUrl != null && normalizedUrl.isNotEmpty;
 
                 return GestureDetector(
                   onTap: () {
@@ -450,14 +478,11 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin {
                     margin: const EdgeInsets.only(right: 8),
                     width: 40,
                     height: 40,
-                    decoration: BoxDecoration(shape: BoxShape.circle),
+                    decoration: const BoxDecoration(shape: BoxShape.circle),
                     child: ClipOval(
                       child: hasValidAvatar
                           ? CachedNetworkImage(
-                              imageUrl: avatarUrl.startsWith('http')
-                                  ? avatarUrl
-                                  : 'https://skybyn.no${avatarUrl.startsWith('/') ? '' : '/'}$avatarUrl'
-                                      .replaceAll('skybyn.com', 'skybyn.no'),
+                              imageUrl: normalizedUrl,
                               fit: BoxFit.cover,
                               placeholder: (context, url) => Container(
                                 color: Colors.grey[300]!.withOpacity(0.5),
@@ -533,6 +558,11 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin {
           : 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
     }
 
+    // Position controls above the bottom nav
+    final bottomInset = MediaQuery.of(context).padding.bottom;
+    final avatarBarBottom = bottomInset + _bottomNavHeight + 16.0;
+    final recenterBottom = avatarBarBottom + 52.0 + 12.0;
+
     return Stack(
       children: [
         FlutterMap(
@@ -546,14 +576,12 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin {
               }
             },
             onPositionChanged: (camera, hasGesture) {
-              if (hasGesture) {
+              if (hasGesture && _prefs != null) {
                 final center = camera.center;
                 final zoom = camera.zoom;
-                SharedPreferences.getInstance().then((prefs) {
-                  prefs.setDouble(_lastMapLatKey, center.latitude);
-                  prefs.setDouble(_lastMapLngKey, center.longitude);
-                  prefs.setDouble(_lastMapZoomKey, zoom);
-                });
+                _prefs!.setDouble(_lastMapLatKey, center.latitude);
+                _prefs!.setDouble(_lastMapLngKey, center.longitude);
+                _prefs!.setDouble(_lastMapZoomKey, zoom);
               }
             },
           ),
@@ -600,8 +628,7 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin {
                     setState(() {
                       _useSatelliteView = !_useSatelliteView;
                     });
-                    SharedPreferences.getInstance().then((prefs) => prefs
-                        .setBool(_mapLayerPreferenceKey, _useSatelliteView));
+                    _prefs?.setBool(_mapLayerPreferenceKey, _useSatelliteView);
                   },
                   tooltip: _useSatelliteView
                       ? 'Switch to Street'
@@ -626,7 +653,7 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin {
             ),
           ),
           Positioned(
-            bottom: 145,
+            bottom: recenterBottom,
             left: 0,
             right: 0,
             child: Center(
@@ -645,7 +672,7 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin {
             ),
           ),
           Positioned(
-            bottom: 85,
+            bottom: avatarBarBottom,
             left: 0,
             right: 0,
             child: _buildFriendAvatarBar(),
