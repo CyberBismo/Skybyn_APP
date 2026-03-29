@@ -271,6 +271,7 @@ class _CreatePostWidgetState extends State<CreatePostWidget> {
           userId: userId,
           content: content,
           mediaFile: _selectedMedia,
+          isVideo: _isVideo,
         );
 
         final postId = result['postID'];
