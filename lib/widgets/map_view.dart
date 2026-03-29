@@ -576,8 +576,7 @@ class _MapViewState extends State<MapView>
           : 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
     }
 
-    final avatarBarBottom = 100.0;
-    final recenterBottom = avatarBarBottom + 52.0 + 12.0;
+    final avatarBarBottom = 130.0;
 
     return Stack(
       children: [
@@ -666,25 +665,6 @@ class _MapViewState extends State<MapView>
                     tooltip: 'Show All Friends',
                   ),
               ],
-            ),
-          ),
-          Positioned(
-            bottom: recenterBottom,
-            left: 0,
-            right: 0,
-            child: Center(
-              child: _buildMapFab(
-                icon: Icons.my_location,
-                onPressed: () {
-                  if (_currentPosition != null) {
-                    _animatedMapMove(
-                        LatLng(_currentPosition!.latitude,
-                            _currentPosition!.longitude),
-                        15.0);
-                  }
-                },
-                tooltip: 'My Location',
-              ),
             ),
           ),
           Positioned(
