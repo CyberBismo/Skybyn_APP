@@ -60,10 +60,6 @@ class _QrScannerScreenState extends State<QrScannerScreen> with WidgetsBindingOb
       }
       final authenticated = await _localAuth.authenticate(
         localizedReason: 'Authenticate to use the QR scanner',
-        options: const AuthenticationOptions(
-          biometricOnly: false, // allow PIN/pattern/password fallback
-          stickyAuth: true,
-        ),
       );
       if (mounted) {
         if (authenticated) {
