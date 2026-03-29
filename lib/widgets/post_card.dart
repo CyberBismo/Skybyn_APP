@@ -1,5 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:video_player/video_player.dart';
 import '../models/post.dart';
 
 import '../widgets/comment_card.dart';
@@ -176,6 +177,8 @@ class _PostCardState extends State<PostCard> {
   final PostService _postService = PostService();
   String? _currentUsername;
   bool _isFetchingDetails = false;
+  VideoPlayerController? _videoController;
+  bool _videoPlaying = false;
 
   @override
   void initState() {
@@ -183,6 +186,17 @@ class _PostCardState extends State<PostCard> {
     _currentPost = widget.post;
     _currentUserId = widget.currentUserId ?? '';
     _isLiked = _currentPost.isLiked;
+
+    if (_currentPost.mediaType == 'video' &&
+        _currentPost.image != null &&
+        _currentPost.image!.isNotEmpty) {
+      final ctrl = VideoPlayerController.networkUrl(
+          Uri.parse(_currentPost.image!));
+      ctrl.initialize().then((_) {
+        if (mounted) setState(() {});
+      });
+      _videoController = ctrl;
+    }
 
     // Listen to keyboard visibility changes
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -1108,7 +1122,55 @@ class _PostCardState extends State<PostCard> {
 
     Widget? imageWidget;
     if (_currentPost.image != null && _currentPost.image!.isNotEmpty) {
-      if (_currentPost.image!.startsWith('http')) {
+      if (_currentPost.mediaType == 'video') {
+        final ctrl = _videoController;
+        if (ctrl == null) {
+          imageWidget = Container(
+            height: 200,
+            color: Colors.white.withOpacity(0.1),
+            child: const Center(child: CircularProgressIndicator()),
+          );
+        } else {
+          imageWidget = GestureDetector(
+            onTap: () {
+              setState(() {
+                if (ctrl.value.isPlaying) {
+                  ctrl.pause();
+                  _videoPlaying = false;
+                } else {
+                  ctrl.play();
+                  _videoPlaying = true;
+                }
+              });
+            },
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                ctrl.value.isInitialized
+                    ? AspectRatio(
+                        aspectRatio: ctrl.value.aspectRatio,
+                        child: VideoPlayer(ctrl),
+                      )
+                    : Container(
+                        height: 200,
+                        color: Colors.white.withOpacity(0.1),
+                        child: const Center(child: CircularProgressIndicator()),
+                      ),
+                if (!ctrl.value.isPlaying)
+                  Container(
+                    decoration: const BoxDecoration(
+                      color: Colors.black38,
+                      shape: BoxShape.circle,
+                    ),
+                    padding: const EdgeInsets.all(12),
+                    child: const Icon(Icons.play_arrow,
+                        color: Colors.white, size: 40),
+                  ),
+              ],
+            ),
+          );
+        }
+      } else if (_currentPost.image!.startsWith('http')) {
         imageWidget = CachedNetworkImage(
           imageUrl: UrlHelper.convertUrl(_currentPost.image!),
           width: double.infinity,
@@ -1682,6 +1744,7 @@ class _PostCardState extends State<PostCard> {
     _commentFocusNode.dispose();
     _popupMenuFocusNode.dispose();
     _commentController.dispose();
+    _videoController?.dispose();
     super.dispose();
   }
 }
