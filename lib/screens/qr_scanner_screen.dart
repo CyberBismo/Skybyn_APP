@@ -11,6 +11,7 @@ import '../services/translation_service.dart';
 import '../widgets/translated_text.dart';
 import '../widgets/header.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:local_auth/local_auth.dart';
 
 class QrScannerScreen extends StatefulWidget {
   final String? qrCode; // Optional QR code for confirmation mode (from deep links)
@@ -27,6 +28,8 @@ class QrScannerScreen extends StatefulWidget {
 class _QrScannerScreenState extends State<QrScannerScreen> with WidgetsBindingObserver {
   MobileScannerController cameraController = MobileScannerController();
   final AuthService _authService = AuthService();
+  final LocalAuthentication _localAuth = LocalAuthentication();
+  bool _isAuthenticated = false;
   String? _userId;
   OverlayEntry? _overlayEntry;
   String? _lastScannedCode;
@@ -42,7 +45,41 @@ class _QrScannerScreenState extends State<QrScannerScreen> with WidgetsBindingOb
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _loadUserId();
-    
+    _authenticate();
+  }
+
+  Future<void> _authenticate() async {
+    try {
+      final canAuth = await _localAuth.canCheckBiometrics ||
+          await _localAuth.isDeviceSupported();
+      if (!canAuth) {
+        // Device has no lock set up — allow access
+        if (mounted) setState(() => _isAuthenticated = true);
+        _initScanner();
+        return;
+      }
+      final authenticated = await _localAuth.authenticate(
+        localizedReason: 'Authenticate to use the QR scanner',
+        options: const AuthenticationOptions(
+          biometricOnly: false, // allow PIN/pattern/password fallback
+          stickyAuth: true,
+        ),
+      );
+      if (mounted) {
+        if (authenticated) {
+          setState(() => _isAuthenticated = true);
+          _initScanner();
+        } else {
+          Navigator.of(context).pop();
+        }
+      }
+    } catch (e) {
+      // Auth error — pop back
+      if (mounted) Navigator.of(context).pop();
+    }
+  }
+
+  void _initScanner() {
     // If QR code is provided (from deep link), skip camera and go to confirmation mode
     if (widget.qrCode != null) {
       // Automatically confirm login after a brief delay to show the screen
@@ -289,6 +326,12 @@ class _QrScannerScreenState extends State<QrScannerScreen> with WidgetsBindingOb
 
   @override
   Widget build(BuildContext context) {
+    if (!_isAuthenticated) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
     // If QR code is provided (confirmation mode from deep link), show confirmation UI
     if (widget.qrCode != null) {
       return Scaffold(
