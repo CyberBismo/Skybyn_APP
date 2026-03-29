@@ -119,18 +119,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     notificationService.requestIOSPermissions();
     FirebaseMessagingService().requestPermissions();
 
-    // Check and request location permission on app start
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      if (mounted) {
-        final locationService = LocationService();
-        final hasPermission = await locationService
-            .checkAndRequestLocationPermission(context, isStartup: true);
-        if (hasPermission) {
-          // Preload location into cache early
-          await locationService.getCurrentLocation();
-        }
-      }
-    });
 
     // Safety timeout: ensure loading always completes after max 20 seconds
     Timer(const Duration(seconds: 20), () {
