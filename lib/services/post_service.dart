@@ -459,9 +459,8 @@ class PostService {
     required String userId,
     required String content,
     File? mediaFile,
+    bool isVideo = false,
   }) async {
-    // Send plain text content to server (server will handle encryption)
-
     if (mediaFile == null) {
       final response = await globalAuthClient.post(
         Uri.parse(ApiConstants.timeline),
@@ -483,29 +482,30 @@ class PostService {
       }
       return data;
     } else {
-      // Compress image before upload
-      final File processedFile = await ImageUtils.compressImage(mediaFile);
+      // Compress images only — skip compression for videos
+      final File processedFile =
+          isVideo ? mediaFile : await ImageUtils.compressImage(mediaFile);
 
-      // Use MultipartRequest for file upload
       final request =
           http.MultipartRequest('POST', Uri.parse(ApiConstants.timeline));
       request.fields['action'] = 'add';
       request.fields['userID'] = userId;
       request.fields['content'] = content;
+      if (isVideo) request.fields['media_type'] = 'video';
 
-      final stream = http.ByteStream(processedFile.openRead());
       final length = await processedFile.length();
+      final stream = http.ByteStream(processedFile.openRead());
+      final filename = processedFile.path.split(RegExp(r'[/\\]')).last;
 
-      final multipartFile = http.MultipartFile(
+      request.files.add(http.MultipartFile(
         'file',
         stream,
         length,
-        filename: processedFile.path.split('/').last,
-      );
+        filename: filename,
+      ));
 
-      request.files.add(multipartFile);
-
-      final streamedResponse = await request.send();
+      // Send through globalAuthClient so auth headers are included
+      final streamedResponse = await globalAuthClient.send(request);
       final response = await http.Response.fromStream(streamedResponse);
 
       if (response.statusCode != 200) {
