@@ -8,6 +8,7 @@ class Post {
   final String? avatar;
   final String content;
   final String? image;
+  final String? mediaType; // 'image', 'video', or null
   final int likes;
   final int comments;
   final List<Comment> commentsList;
@@ -21,6 +22,7 @@ class Post {
     this.avatar,
     required this.content,
     this.image,
+    this.mediaType,
     required this.likes,
     required this.comments,
     this.commentsList = const [],
@@ -163,8 +165,9 @@ class Post {
     // Try alternative field names for username
     String? username;
     if (userMap != null) {
-      username = userMap['username']?.toString() ?? 
-                 userMap['name']?.toString() ?? 
+      username = userMap['displayname']?.toString() ??
+                 userMap['username']?.toString() ??
+                 userMap['name']?.toString() ??
                  userMap['user']?.toString();
     }
     
@@ -175,16 +178,21 @@ class Post {
                  json['user_name']?.toString();
     }
 
-    String? image;
-    final videoJson = json['video'];
-    if (videoJson is Map) {
-      image = videoJson['thumbnail']?.toString();
-    } else if (videoJson is List && videoJson.isNotEmpty) {
-      final firstVideo = videoJson.first;
-      if (firstVideo is Map) {
-        image = firstVideo['thumbnail']?.toString();
+    // Prefer fileUrl from timeline API; fall back to legacy video thumbnail
+    String? image = json['fileUrl']?.toString();
+    if (image == null || image.isEmpty) {
+      final videoJson = json['video'];
+      if (videoJson is Map) {
+        image = videoJson['thumbnail']?.toString();
+      } else if (videoJson is List && videoJson.isNotEmpty) {
+        final firstVideo = videoJson.first;
+        if (firstVideo is Map) {
+          image = firstVideo['thumbnail']?.toString();
+        }
       }
     }
+
+    final mediaType = json['mediaType']?.toString();
 
     // Handle comments - check if it's a list or a count
     final commentsData = json['comments'];
@@ -230,7 +238,8 @@ class Post {
       avatar: buildAvatarUrl(avatarPath),
       content: json['content'] ?? '',
       image: image,
-      likes: parseCount(json['likes']), // 'likes' is missing in PHP, defaults to 0
+      mediaType: mediaType,
+      likes: parseCount(json['likes']),
       comments: commentsCount,
       commentsList: finalCommentsList,
       createdAt: parseCreatedAt(json['created']),
@@ -245,12 +254,13 @@ class Post {
       'userId': userId,
       'avatar': avatar,
       'content': content,
-      'image': image,
+      'fileUrl': image,
+      'mediaType': mediaType,
       'likes': likes,
       'comments': comments,
       'commentsList': commentsList.map((c) => c.toJson()).toList(),
       'created': createdAt.toIso8601String(),
-      'createdAt': createdAt.toIso8601String(), // Keep both for compatibility
+      'createdAt': createdAt.toIso8601String(),
       'ilike': isLiked ? '1' : '0',
     };
   }
@@ -262,6 +272,7 @@ class Post {
     String? avatar,
     String? content,
     String? image,
+    String? mediaType,
     int? likes,
     int? comments,
     List<Comment>? commentsList,
@@ -275,6 +286,7 @@ class Post {
       avatar: avatar ?? this.avatar,
       content: content ?? this.content,
       image: image ?? this.image,
+      mediaType: mediaType ?? this.mediaType,
       likes: likes ?? this.likes,
       comments: comments ?? this.comments,
       commentsList: commentsList ?? this.commentsList,
