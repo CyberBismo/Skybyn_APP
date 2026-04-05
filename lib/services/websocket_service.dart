@@ -39,6 +39,7 @@ class WebSocketService {
 
   static const String _serverHost = 'server.skybyn.no';
   static const int _serverPort = 4433;
+  static const String _wsKey = 'fd0d656a4049a26879fb361c82aa80bc2fbf88f2aa46b5e0bc80c885eaed2fd5';
 
   WebSocketChannel? _channel;
   String? _userId;
@@ -272,8 +273,7 @@ class WebSocketService {
 
   /// Get WebSocket URL
   String _getWebSocketUrl() {
-    // Use production port and host
-    return 'wss://$_serverHost:$_serverPort';
+    return 'wss://$_serverHost:$_serverPort?k=$_wsKey';
   }
 
   /// Create WebSocket channel with SSL certificate handling
