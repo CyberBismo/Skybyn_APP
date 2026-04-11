@@ -263,9 +263,9 @@ class WebSocketService {
   Future<void> initialize() async {
     try {
       if (_sessionId == null) {
-        final random = Random();
-        _sessionId =
-            'session_${DateTime.now().millisecondsSinceEpoch}_${random.nextInt(10000)}';
+        final random = Random.secure();
+        final randomPart = random.nextInt(0x7FFFFFFF);
+        _sessionId = 'session_${DateTime.now().millisecondsSinceEpoch}_$randomPart';
       }
       _isInitialized = true;
     } catch (e) {}
@@ -286,18 +286,8 @@ class WebSocketService {
       // but configure it to handle the certificate chain properly
       final httpClient = HttpClient();
 
-      // Set up certificate validation callback
-      // This allows proper validation of the server's certificate
-      httpClient.badCertificateCallback =
-          (X509Certificate cert, String host, int port) {
-        // For server.skybyn.no on port 4433, we trust the certificate
-        // The certificate is valid and works, so we accept it
-        if (host == _serverHost && port == _serverPort) {
-          return true;
-        }
-        // For other hosts, use standard validation
-        return false;
-      };
+      // Use system certificate validation — do NOT bypass for any host.
+      // If the server certificate is self-signed or expired, fix it on the server.
 
       // Create WebSocket connection using the custom HttpClient
       final webSocket = await WebSocket.connect(

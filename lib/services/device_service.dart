@@ -1,4 +1,6 @@
+import 'dart:convert';
 import 'dart:io';
+import 'package:crypto/crypto.dart';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -11,11 +13,17 @@ class DeviceService {
 
   static const String _deviceIdKey = 'device_id';
   static const String _secureDeviceIdKey = 'secure_device_id';
+
+  // On iOS, Keychain (used by FlutterSecureStorage) survives app uninstalls —
+  // so a hardware-derived ID written here persists through reinstalls.
+  // On Android, EncryptedSharedPreferences survives reinstalls as long as the
+  // signing key and user account are the same.
   static const FlutterSecureStorage _secureStorage = FlutterSecureStorage(
-    aOptions: AndroidOptions(
-      encryptedSharedPreferences: true,
-    ),
+    aOptions: AndroidOptions(encryptedSharedPreferences: true),
+    iOptions: IOSOptions(accessibility: KeychainAccessibility.first_unlock),
   );
+
+  // ── Public API ─────────────────────────────────────────────────────────────
 
   Future<Map<String, dynamic>> getDeviceInfo() async {
     final deviceInfoPlugin = DeviceInfoPlugin();
@@ -23,9 +31,8 @@ class DeviceService {
     final timestamp = DateTime.now().toIso8601String();
 
     try {
-      // Get consistent device ID (UUID) first
       final deviceId = await getDeviceId();
-      
+
       if (Platform.isAndroid) {
         final androidInfo = await deviceInfoPlugin.androidInfo;
         deviceInfo.addAll({
@@ -39,7 +46,7 @@ class DeviceService {
           'brand': androidInfo.brand,
           'hardware': androidInfo.hardware,
           'product': androidInfo.product,
-          'androidId': androidInfo.id, // Keep Android ID separate
+          'androidId': androidInfo.id,
           'isPhysicalDevice': androidInfo.isPhysicalDevice,
         });
       } else if (Platform.isIOS) {
@@ -57,19 +64,16 @@ class DeviceService {
         });
       }
 
-      // Add device ID - use consistent UUID for both 'deviceId' and 'id' (API expects 'id')
       deviceInfo['deviceId'] = deviceId;
-      deviceInfo['id'] = deviceId; // API expects 'id' field for device identifier
-      
+      deviceInfo['id'] = deviceId;
       return deviceInfo;
     } catch (e) {
-      // Return basic device info if there's an error
       final deviceId = await getDeviceId();
       return {
         'platform': Platform.isAndroid ? 'Android' : 'iOS',
         'timestamp': timestamp,
         'deviceId': deviceId,
-        'id': deviceId, // API expects 'id' field
+        'id': deviceId,
         'error': e.toString(),
       };
     }
@@ -77,46 +81,120 @@ class DeviceService {
 
   Future<String> getDeviceId() async {
     try {
-      // Step 1: Try to get from secure storage first
-      String? deviceId = await _secureStorage.read(key: _secureDeviceIdKey);
-      
-      // Step 2: Validate if it's a proper UUID
-      if (deviceId != null && _isValidUuid(deviceId)) {
-        // Cache in SharedPreferences for faster access
+      // 1. Check secure storage first — on iOS this survives uninstalls via
+      //    Keychain, so a previously computed hardware ID is recovered here.
+      final stored = await _secureStorage.read(key: _secureDeviceIdKey);
+      if (stored != null && _isValidUuid(stored)) {
+        // Keep SharedPreferences in sync for fast access.
         final prefs = await SharedPreferences.getInstance();
-        await prefs.setString(_deviceIdKey, deviceId);
-        return deviceId;
+        await prefs.setString(_deviceIdKey, stored);
+        return stored;
       }
-      
-      // Step 3: Check SharedPreferences (fallback)
+
+      // 2. Derive a deterministic ID from hardware identifiers.
+      //    Same hardware always produces the same UUID — closest to a serial
+      //    number without requiring special permissions.
+      final hardwareId = await _deriveHardwareId();
+      if (hardwareId != null) {
+        await _persist(hardwareId);
+        return hardwareId;
+      }
+
+      // 3. Fallback: check SharedPreferences (migration / partial clear).
       final prefs = await SharedPreferences.getInstance();
-      deviceId = prefs.getString(_deviceIdKey);
-      
-      if (deviceId != null && _isValidUuid(deviceId)) {
-        // Migrate to secure storage
-        await _secureStorage.write(key: _secureDeviceIdKey, value: deviceId);
-        return deviceId;
+      final cached = prefs.getString(_deviceIdKey);
+      if (cached != null && _isValidUuid(cached)) {
+        await _secureStorage.write(key: _secureDeviceIdKey, value: cached);
+        return cached;
       }
-      
-      // Step 4: Generate new UUID (Always use UUID v4 for uniqueness)
-      // We previously used hardware IDs but they proved non-unique on some android builds
-      deviceId = const Uuid().v4();
-      
-      // Store in both secure storage and SharedPreferences
-      await _secureStorage.write(key: _secureDeviceIdKey, value: deviceId);
-      await prefs.setString(_deviceIdKey, deviceId);
-      
-      return deviceId;
+
+      // 4. Last resort: random UUID (e.g. emulators with no stable hardware IDs).
+      final fallback = const Uuid().v4();
+      await _persist(fallback);
+      return fallback;
     } catch (e) {
-      return const Uuid().v4(); // Fallback
+      return const Uuid().v4();
     }
   }
 
-  bool _isValidUuid(String id) {
-    // Explicitly reject known non-unique hardware IDs or anything starting with typical hardware prefix
-    if (id.startsWith('BP2A')) return false;
+  // ── Private helpers ────────────────────────────────────────────────────────
 
-    // Validate UUID format (8-4-4-4-12 hex chars)
-    return RegExp(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$', caseSensitive: false).hasMatch(id);
+  /// Builds a UUID from stable hardware identifiers using SHA-256.
+  ///
+  /// Android: ANDROID_ID (stable per user+signing-key+device, resets only on
+  ///   factory reset) combined with immutable hardware fields.
+  /// iOS: identifierForVendor (stable until ALL vendor apps are removed) plus
+  ///   machine model string. Combined with Keychain persistence above, the ID
+  ///   survives reinstalls even if identifierForVendor were to change.
+  Future<String?> _deriveHardwareId() async {
+    try {
+      final deviceInfoPlugin = DeviceInfoPlugin();
+      String raw;
+
+      if (Platform.isAndroid) {
+        final info = await deviceInfoPlugin.androidInfo;
+
+        // ANDROID_ID is null or '9774d56d682e549c' on some emulators/rooted
+        // devices — treat those as unusable.
+        final androidId = info.id;
+        if (androidId.isEmpty ||
+            androidId == '9774d56d682e549c' ||
+            !info.isPhysicalDevice) {
+          return null;
+        }
+
+        raw = [
+          androidId,
+          info.manufacturer,
+          info.model,
+          info.brand,
+          info.hardware,
+        ].join('|');
+      } else if (Platform.isIOS) {
+        final info = await deviceInfoPlugin.iosInfo;
+        final idfv = info.identifierForVendor;
+        if (idfv == null || idfv.isEmpty || !info.isPhysicalDevice) {
+          return null;
+        }
+        raw = [idfv, info.utsname.machine, info.systemName].join('|');
+      } else {
+        return null;
+      }
+
+      return _hashToUuid(raw);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// SHA-256 hash of [input] formatted as a UUID (variant 1, version 8).
+  String _hashToUuid(String input) {
+    final bytes = sha256.convert(utf8.encode('skybyn:$input')).bytes;
+
+    // Set version (4 bits) = 8 (custom/hash-based) and variant bits.
+    final b = List<int>.from(bytes.take(16));
+    b[6] = (b[6] & 0x0f) | 0x80; // version 8
+    b[8] = (b[8] & 0x3f) | 0x80; // variant 1
+
+    String h(int byte) => byte.toRadixString(16).padLeft(2, '0');
+    final hex = b.map(h).join();
+    return '${hex.substring(0, 8)}-'
+        '${hex.substring(8, 12)}-'
+        '${hex.substring(12, 16)}-'
+        '${hex.substring(16, 20)}-'
+        '${hex.substring(20, 32)}';
+  }
+
+  Future<void> _persist(String id) async {
+    await _secureStorage.write(key: _secureDeviceIdKey, value: id);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_deviceIdKey, id);
+  }
+
+  bool _isValidUuid(String id) {
+    return RegExp(
+      r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$',
+      caseSensitive: false,
+    ).hasMatch(id);
   }
 }

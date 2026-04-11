@@ -24,3 +24,9 @@ plugins {
 }
 
 include(":app")
+
+// Redirect all build outputs to local storage to avoid network drive file operation limitations
+val localBuildDir = "/tmp/skybyn-build"
+gradle.beforeProject {
+    layout.buildDirectory.set(file("$localBuildDir/${project.name}"))
+}

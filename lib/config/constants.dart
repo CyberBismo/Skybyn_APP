@@ -88,8 +88,9 @@ class ApiConstants {
   static String get videoFeed => '$apiBase/video/feed.php';
 
   // Spotlight — YouTube Data API v3
-  // Get your key at: console.cloud.google.com → APIs & Services → YouTube Data API v3
-  static const String youtubeApiKey = 'AIzaSyCivdTeGKJZlnE5SYjBr1RwyTqFPfb5cTo';
+  // Key must be loaded at runtime from secure storage — do NOT hardcode here.
+  // Store the key via: FlutterSecureStorage().write(key: 'youtube_api_key', value: '...')
+  static const String youtubeApiKey = '';
 
   // Admin
   static String get adminUsers => '$apiBase/admin/users.php';

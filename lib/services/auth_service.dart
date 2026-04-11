@@ -20,6 +20,7 @@ import 'chat_message_count_service.dart';
 import 'post_service.dart';
 import 'friend_service.dart';
 import 'chat_service.dart';
+import 'user_cache_service.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../config/constants.dart';
 
@@ -93,14 +94,6 @@ class AuthService {
       final deviceService = DeviceService();
       final deviceInfo = await deviceService.getDeviceInfo();
 
-      // Block emulators before making any API call
-      if (deviceInfo['isPhysicalDevice'] == false) {
-        return {
-          'responseCode': '0',
-          'message': 'This device is not allowed to login.'
-        };
-      }
-
       // Get FCM token if available and add it to deviceInfo
       try {
         final firebaseService = FirebaseMessagingService();
@@ -140,16 +133,13 @@ class AuthService {
 
       // Parse response regardless of status code to get actual API message
       final data = safeJsonDecode(response);
-      if (kDebugMode) debugPrint('DEBUG: AuthService.login response body: ${response.body}');
 
       if (response.statusCode == 200) {
         if (data['responseCode'] == '1') {
-          if (kDebugMode) debugPrint('DEBUG: AuthService.login success.');
 
           await initPrefs();
-          // Convert userID to string to avoid type mismatch
           final userIdStr = data['userID'].toString();
-          if (kDebugMode) debugPrint('DEBUG: AuthService.login storing userID');
+          // Always write to SharedPreferences as primary fallback
           await _prefs?.setString(userIdKey, userIdStr);
           await _prefs?.setString(usernameKey, username);
           try {
@@ -158,7 +148,7 @@ class AuthService {
             await _secureStorage.write(key: usernameKey, value: username)
                 .timeout(const Duration(seconds: 5));
           } catch (e) {
-            debugPrint('AuthService: Secure storage write failed, falling back to prefs: $e');
+            debugPrint('AuthService: Secure storage write failed: $e');
           }
 
           // Store session token for authenticated API requests
@@ -229,14 +219,6 @@ class AuthService {
       final deviceService = DeviceService();
       final deviceInfo = await deviceService.getDeviceInfo();
 
-      // Block emulators before making any API call
-      if (deviceInfo['isPhysicalDevice'] == false) {
-        return {
-          'responseCode': '0',
-          'message': 'This device is not allowed to login.'
-        };
-      }
-
       // Get FCM token if available and add it to deviceInfo
       try {
         final firebaseService = FirebaseMessagingService();
@@ -284,7 +266,6 @@ class AuthService {
           
           // Store user ID (convert to string)
           if (userId != null) {
-            await _prefs?.setString(userIdKey, userId);
             try {
               await _secureStorage.write(key: userIdKey, value: userId)
                   .timeout(const Duration(seconds: 5));
@@ -308,9 +289,7 @@ class AuthService {
           try {
             final user = await fetchAnyUserProfile(userId: userId);
             if (user != null) {
-              await _prefs?.setString(usernameKey, user.username);
               final profileJson = json.encode(user.toJson());
-              await _prefs?.setString(userProfileKey, profileJson);
               try {
                 await _secureStorage.write(key: usernameKey, value: user.username)
                     .timeout(const Duration(seconds: 5));
@@ -447,10 +426,8 @@ class AuthService {
             _lastKnownOnlineStatus = user.online == '1' || user.online.toLowerCase() == 'true';
           }
           
-          // Store user profile locally
-          await initPrefs();
+          // Store user profile in secure storage only
           final profileJson = json.encode(user.toJson());
-          await _prefs?.setString(userProfileKey, profileJson);
           await _secureStorage.write(key: userProfileKey, value: profileJson);
           return user;
         } else {
@@ -647,6 +624,9 @@ class AuthService {
     await _secureOp(() => _secureStorage.delete(key: userProfileKey));
     await _secureOp(() => _secureStorage.delete(key: usernameKey));
     await _secureOp(() => _secureStorage.delete(key: StorageKeys.sessionToken));
+
+    // Clear in-memory user profile cache
+    UserCacheService().clear();
 
     // Clear last navigation route on logout
     try {

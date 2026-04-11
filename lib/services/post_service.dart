@@ -9,12 +9,13 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../config/constants.dart';
 import '../utils/http_client.dart';
+import 'user_cache_service.dart';
 
 class PostService {
   static const String _cacheKey = 'cached_timeline_posts';
   static const String _cacheTimestampKey = 'cached_timeline_posts_timestamp';
   static const Duration _cacheExpiry =
-      Duration(minutes: 5); // Cache for 5 minutes
+      Duration(minutes: 30); // Cache for 30 minutes
 
   PostService() {
     _checkAndClearLegacyCache();
@@ -135,12 +136,16 @@ class PostService {
   }
 
   Future<List<Post>> _fetchTimelineFromAPI(String? userID) async {
-    debugPrint('PostService: Fetching timeline');
+    debugPrint('PostService: Fetching timeline (userID: $userID)');
+    if (userID == null || userID.isEmpty) {
+      debugPrint('PostService: userID is null/empty, skipping API call');
+      return [];
+    }
     try {
       final response = await _retryHttpRequest(
         () => globalAuthClient.post(
           Uri.parse(ApiConstants.timeline),
-          body: {'action': 'timeline', 'userID': userID},
+          body: {'userID': userID},
         ).timeout(const Duration(seconds: 10)),
         maxRetries: 2,
       );
@@ -215,6 +220,16 @@ class PostService {
               }
               if (post.content.isEmpty || post.content.trim().isEmpty) {
                 continue;
+              }
+              // Populate user cache from post data
+              if (post.userId != null) {
+                final userMap = item['user'];
+                UserCacheService().store(
+                  post.userId!,
+                  username: userMap is Map ? userMap['username']?.toString() : null,
+                  displayname: userMap is Map ? userMap['displayname']?.toString() : null,
+                  avatar: post.avatar,
+                );
               }
               posts.add(post);
             } catch (e) {}
@@ -318,15 +333,14 @@ class PostService {
       debugPrint(
           'PostService: Fetching user timeline for user: $userId, currentUserID: $currentUserId');
       final requestBody = {
-        'action': 'timeline',
-        'userID': userId,
+        'profileID': userId,
         if (currentUserId != null) 'currentUserID': currentUserId,
       };
       debugPrint(
           'PostService: User Timeline API Request URL: ${ApiConstants.timeline}');
       debugPrint('PostService: User Timeline API Request Body: $requestBody');
 
-      final response = await http
+      final response = await globalAuthClient
           .post(
             Uri.parse(ApiConstants.timeline),
             body: requestBody,
@@ -460,15 +474,20 @@ class PostService {
     required String content,
     File? mediaFile,
     bool isVideo = false,
+    String? mediaUrl,
   }) async {
     if (mediaFile == null) {
+      final body = <String, String>{
+        'action': 'add',
+        'userID': userId,
+        'content': content,
+      };
+      if (mediaUrl != null && mediaUrl.isNotEmpty) {
+        body['media_url'] = mediaUrl;
+      }
       final response = await globalAuthClient.post(
         Uri.parse(ApiConstants.timeline),
-        body: {
-          'action': 'add',
-          'userID': userId,
-          'content': content,
-        },
+        body: body,
       );
 
       if (response.statusCode != 200) {

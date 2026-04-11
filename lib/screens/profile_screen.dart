@@ -453,9 +453,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     // Log API request details
     final apiUrl = ApiConstants.timeline;
     final requestParams = {
-      'action': 'timeline',
-      'userID': targetUserId,
-      if (currentUserId != null) 'currentUserId': currentUserId!,
+      'profileID': targetUserId,
+      if (currentUserId != null) 'currentUserID': currentUserId!,
     };
 
     print('[SKYBYN] ═══════════════════════════════════════════════════════');
