@@ -69,6 +69,7 @@ class NotificationService {
         }
       }
     } catch (e) {
+      debugPrint('[NotificationService] Initialization error: $e');
     }
   }
 
@@ -158,7 +159,7 @@ class NotificationService {
     
     // Handle call notification actions
     if (action != null && (action == 'answer' || action == 'decline')) {
-      print('[SKYBYN] 📞 [NotificationService] Call action detected: $action');
+      debugPrint('[SKYBYN] 📞 [NotificationService] Call action detected: $action');
       await _handleCallNotificationAction(action, payload);
       return;
     }
@@ -232,7 +233,7 @@ class NotificationService {
           // Add this block to handle tapping on the notification body!
           await _handleDynamicAction('install_update', data);
         } else if (type == 'call') {
-          print('[SKYBYN] 📞 [NotificationService] Call notification tapped');
+          debugPrint('[SKYBYN] 📞 [NotificationService] Call notification tapped');
           _handleCallNotificationTap(data);
         } else if (type == 'chat') {
           await _handleChatNotificationTap(data);
@@ -454,19 +455,19 @@ class NotificationService {
 
     final callType = callTypeStr == 'video' ? CallType.video : CallType.audio;
 
-    print('[SKYBYN] 📞 [NotificationService] Navigating to call screen. AutoAccept: $autoAccept');
+    debugPrint('[SKYBYN] 📞 [NotificationService] Navigating to call screen. AutoAccept: $autoAccept');
 
     // Wait for navigator to be ready if it's a cold start
     int retryCount = 0;
     while (navigatorKey.currentState == null && retryCount < 20) {
-      print('[SKYBYN] ⏳ [NotificationService] Waiting for navigator... (attempt ${retryCount + 1})');
+      debugPrint('[SKYBYN] ⏳ [NotificationService] Waiting for navigator... (attempt ${retryCount + 1})');
       await Future.delayed(const Duration(milliseconds: 500));
       retryCount++;
     }
 
     final navigator = navigatorKey.currentState;
     if (navigator != null) {
-      print('[SKYBYN] 🚀 [NotificationService] Pushing /call route');
+      debugPrint('[SKYBYN] 🚀 [NotificationService] Pushing /call route');
       navigator.pushNamed(
         '/call',
         arguments: {
@@ -682,7 +683,7 @@ class NotificationService {
              await AutoUpdateService.installUpdate();
              // The progress notification is handled within installUpdate
           } catch (e) {
-             print('[NotificationService] Failed to trigger install from action: $e');
+             debugPrint('[NotificationService] Failed to trigger install from action: $e');
           }
       } else if (actionId == 'ignore_update' || actionId == 'dismiss') {
           // Handled by cancelNotification: true
@@ -955,7 +956,7 @@ class NotificationService {
           );
         } catch (e) {
           // Fallback to default if download fails
-          print('Failed to download large icon: $e');
+          debugPrint('Failed to download large icon: $e');
         }
       }
 

@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../utils/api_utils.dart';
@@ -14,6 +15,7 @@ class CommentService {
     required String content,
     Function(String commentId)? onSuccess,
   }) async {
+    debugPrint('[CommentService] postComment: postId=$postId userId=$userId');
     // Send plain text content to server (server will handle encryption)
     // Make API call to add comment
     final response = await globalAuthClient.post(
@@ -26,6 +28,7 @@ class CommentService {
       },
     );
 
+    debugPrint('[CommentService] postComment: status=${response.statusCode} body=${response.body}');
     if (response.statusCode != 200) {
       throw Exception('Failed to add comment: HTTP ${response.statusCode}');
     }
@@ -38,6 +41,7 @@ class CommentService {
       }
 
       final commentId = data['commentID']?.toString();
+      debugPrint('[CommentService] postComment: success commentId=$commentId');
       // Call the success callback with the comment ID
       if (commentId != null && commentId.isNotEmpty && onSuccess != null) {
         onSuccess(commentId);
@@ -102,6 +106,7 @@ class CommentService {
     required String commentId,
     required String userId,
   }) async {
+    debugPrint('[CommentService] deleteComment: commentId=$commentId userId=$userId');
     try {
       final response = await globalAuthClient.post(
         Uri.parse(ApiConstants.comment),
@@ -112,6 +117,7 @@ class CommentService {
         },
       );
 
+      debugPrint('[CommentService] deleteComment: status=${response.statusCode} body=${response.body}');
       if (response.statusCode != 200) {
         throw Exception(
             'Failed to delete comment: HTTP ${response.statusCode}');
@@ -123,6 +129,7 @@ class CommentService {
           final message = data['message'] ?? 'Failed to delete comment';
           throw Exception(message);
         }
+        debugPrint('[CommentService] deleteComment: success');
       } catch (e) {
         // If we can't parse the response but got 200, assume success
       }
@@ -136,6 +143,7 @@ class CommentService {
     required String userId,
     required String content,
   }) async {
+    debugPrint('[CommentService] updateComment: commentId=$commentId userId=$userId');
     final response = await globalAuthClient.post(
       Uri.parse(ApiConstants.comment),
       body: {
@@ -146,6 +154,7 @@ class CommentService {
       },
     );
 
+    debugPrint('[CommentService] updateComment: status=${response.statusCode} body=${response.body}');
     if (response.statusCode != 200) {
       throw Exception('Failed to update comment');
     }
@@ -155,6 +164,7 @@ class CommentService {
       final message = data['message'] ?? 'Failed to update comment';
       throw Exception(message);
     }
+    debugPrint('[CommentService] updateComment: success');
   }
 
   Future<void> reportComment({
@@ -162,6 +172,7 @@ class CommentService {
     required String userId,
     required String reason,
   }) async {
+    debugPrint('[CommentService] reportComment: commentId=$commentId userId=$userId reason=$reason');
     final response = await globalAuthClient.post(
       Uri.parse(ApiConstants.report),
       body: {
@@ -172,6 +183,7 @@ class CommentService {
       },
     );
 
+    debugPrint('[CommentService] reportComment: status=${response.statusCode} body=${response.body}');
     if (response.statusCode != 200) {
       throw Exception('Failed to report comment');
     }
@@ -181,5 +193,6 @@ class CommentService {
       final message = data['message'] ?? 'Failed to report comment';
       throw Exception(message);
     }
+    debugPrint('[CommentService] reportComment: success');
   }
 }

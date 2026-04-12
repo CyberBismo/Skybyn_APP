@@ -307,12 +307,15 @@ class PostService {
               continue;
             }
             posts.add(post);
-          } catch (e) {}
+          } catch (e) {
+            debugPrint('PostService: Failed to parse post item: $e');
+          }
         }
       }
 
       return posts;
     } catch (e) {
+      debugPrint('PostService: fetchUserTimeline error: $e');
       return [];
     }
   }
@@ -453,10 +456,12 @@ class PostService {
     required String postId,
     required String userId,
   }) async {
+    debugPrint('[PostService] deletePost: postId=$postId userId=$userId');
     final response = await globalAuthClient.post(
       Uri.parse(ApiConstants.timeline),
       body: {'action': 'delete', 'postID': postId, 'userID': userId},
     );
+    debugPrint('[PostService] deletePost: status=${response.statusCode} body=${response.body}');
     if (response.statusCode != 200) {
       throw Exception('Failed to delete post');
     }
@@ -467,6 +472,7 @@ class PostService {
       final message = data['message'] ?? 'Failed to delete post';
       throw Exception(message);
     }
+    debugPrint('[PostService] deletePost: success');
   }
 
   Future<Map<String, dynamic>> createPost({
@@ -476,6 +482,7 @@ class PostService {
     bool isVideo = false,
     String? mediaUrl,
   }) async {
+    debugPrint('[PostService] createPost: userId=$userId hasFile=${mediaFile != null} isVideo=$isVideo mediaUrl=$mediaUrl');
     if (mediaFile == null) {
       final body = <String, String>{
         'action': 'add',
@@ -490,6 +497,7 @@ class PostService {
         body: body,
       );
 
+      debugPrint('[PostService] createPost: status=${response.statusCode} body=${response.body}');
       if (response.statusCode != 200) {
         throw Exception('Failed to create post');
       }
@@ -499,6 +507,7 @@ class PostService {
         final message = data['message'] ?? 'Failed to create post';
         throw Exception(message);
       }
+      debugPrint('[PostService] createPost: success postId=${data['postID']}');
       return data;
     } else {
       // Compress images only — skip compression for videos
@@ -527,6 +536,7 @@ class PostService {
       final streamedResponse = await globalAuthClient.send(request);
       final response = await http.Response.fromStream(streamedResponse);
 
+      debugPrint('[PostService] createPost (file): status=${response.statusCode} body=${response.body}');
       if (response.statusCode != 200) {
         throw Exception('Failed to create post');
       }
@@ -536,6 +546,7 @@ class PostService {
         final message = data['message'] ?? 'Failed to create post';
         throw Exception(message);
       }
+      debugPrint('[PostService] createPost (file): success postId=${data['postID']}');
       return data;
     }
   }
@@ -545,6 +556,7 @@ class PostService {
     required String userId,
     required String content,
   }) async {
+    debugPrint('[PostService] updatePost: postId=$postId userId=$userId');
     // Send plain text content to server (server will handle encryption)
 
     final response = await globalAuthClient.post(
@@ -557,6 +569,7 @@ class PostService {
       },
     );
 
+    debugPrint('[PostService] updatePost: status=${response.statusCode} body=${response.body}');
     if (response.statusCode != 200) {
       throw Exception('Failed to update post');
     }
@@ -566,17 +579,20 @@ class PostService {
       final message = data['message'] ?? 'Failed to update post';
       throw Exception(message);
     }
+    debugPrint('[PostService] updatePost: success');
   }
 
   Future<void> toggleLike({
     required String postId,
     required String userId,
   }) async {
+    debugPrint('[PostService] toggleLike: postId=$postId userId=$userId');
     final response = await globalAuthClient.post(
       Uri.parse(ApiConstants.timeline),
       body: {'action': 'like', 'postID': postId, 'userID': userId},
     );
 
+    debugPrint('[PostService] toggleLike: status=${response.statusCode} body=${response.body}');
     if (response.statusCode != 200) {
       throw Exception('Failed to toggle like');
     }
@@ -586,17 +602,20 @@ class PostService {
       final message = data['message'] ?? 'Failed to toggle like';
       throw Exception(message);
     }
+    debugPrint('[PostService] toggleLike: success');
   }
 
   Future<void> hidePost({
     required String postId,
     required String userId,
   }) async {
+    debugPrint('[PostService] hidePost: postId=$postId userId=$userId');
     final response = await globalAuthClient.post(
       Uri.parse(ApiConstants.timeline),
       body: {'action': 'hide', 'postID': postId, 'userID': userId},
     );
 
+    debugPrint('[PostService] hidePost: status=${response.statusCode} body=${response.body}');
     if (response.statusCode != 200) {
       throw Exception('Failed to hide post');
     }
@@ -606,6 +625,7 @@ class PostService {
       final message = data['message'] ?? 'Failed to hide post';
       throw Exception(message);
     }
+    debugPrint('[PostService] hidePost: success');
   }
 
   Future<void> reportPost({
@@ -613,6 +633,7 @@ class PostService {
     required String userId,
     required String reason,
   }) async {
+    debugPrint('[PostService] reportPost: postId=$postId userId=$userId reason=$reason');
     final response = await globalAuthClient.post(
       Uri.parse(ApiConstants.report),
       body: {
@@ -623,6 +644,7 @@ class PostService {
       },
     );
 
+    debugPrint('[PostService] reportPost: status=${response.statusCode} body=${response.body}');
     if (response.statusCode != 200) {
       throw Exception('Failed to report post');
     }
@@ -632,5 +654,6 @@ class PostService {
       final message = data['message'] ?? 'Failed to report post';
       throw Exception(message);
     }
+    debugPrint('[PostService] reportPost: success');
   }
 }

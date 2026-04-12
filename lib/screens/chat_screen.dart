@@ -22,6 +22,7 @@ import '../models/message.dart';
 import '../services/auth_service.dart';
 import '../services/call_service.dart';
 import '../services/chat_service.dart';
+import '../services/friend_service.dart';
 import '../services/websocket_service.dart';
 import '../widgets/translated_text.dart';
 import '../services/translation_service.dart';
@@ -34,6 +35,7 @@ import 'call_screen.dart';
 import '../config/constants.dart';
 import '../config/constants.dart' show UrlHelper;
 import '../utils/http_client.dart';
+import '../utils/api_utils.dart';
 import '../widgets/chat_list_modal.dart';
 import '../widgets/app_colors.dart';
 import '../services/chat_message_count_service.dart';
@@ -399,9 +401,9 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
       final shouldLog = _isFirstOnlineStatusCheck;
       
       if (shouldLog) {
-        print('[SKYBYN] 📤 [Chat] Checking friend online status');
-        print('[SKYBYN]    URL: $apiUrl');
-        print('[SKYBYN]    Parameters: ${jsonEncode(requestParams)}');
+        debugPrint('[SKYBYN] 📤 [Chat] Checking friend online status');
+        debugPrint('[SKYBYN]    URL: $apiUrl');
+        debugPrint('[SKYBYN]    Parameters: ${jsonEncode(requestParams)}');
         developer.log('📤 [Chat] Checking friend online status', name: 'Chat API');
         developer.log('   URL: $apiUrl', name: 'Chat API');
         developer.log('   Parameters: ${jsonEncode(requestParams)}', name: 'Chat API');
@@ -416,8 +418,8 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
       if (!mounted) return;
 
       if (shouldLog) {
-        print('[SKYBYN] 📥 [Chat] Online Status API Response received');
-        print('[SKYBYN]    Status Code: ${response.statusCode}');
+        debugPrint('[SKYBYN] 📥 [Chat] Online Status API Response received');
+        debugPrint('[SKYBYN]    Status Code: ${response.statusCode}');
         developer.log('📥 [Chat] Online Status API Response received', name: 'Chat API');
         developer.log('   Status Code: ${response.statusCode}', name: 'Chat API');
       }
@@ -426,7 +428,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
         final data = json.decode(response.body);
         if (data is Map && data['responseCode'] == '1') {
           if (shouldLog) {
-            print('[SKYBYN]    Response: Success');
+            debugPrint('[SKYBYN]    Response: Success');
             developer.log('   Response: Success', name: 'Chat API');
           }
           // Check last_active timestamp
@@ -434,7 +436,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
           // Away: last_active > 2 minutes (shown as offline in UI)
           final lastActiveValue = data['last_active'];
           if (shouldLog) {
-            print('[SKYBYN]    Last Active (raw): $lastActiveValue');
+            debugPrint('[SKYBYN]    Last Active (raw): $lastActiveValue');
             developer.log('   Last Active (raw): $lastActiveValue', name: 'Chat API');
           }
           int? lastActive;
@@ -461,7 +463,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
           
           // Log if first check, status changed, or if logging is enabled
           if (shouldLog || statusChanged) {
-            print('[SKYBYN]    Online Status: ${isOnline ? "Online" : "Offline"}${statusChanged ? " (Changed)" : ""}');
+            debugPrint('[SKYBYN]    Online Status: ${isOnline ? "Online" : "Offline"}${statusChanged ? " (Changed)" : ""}');
             developer.log('   Online Status: ${isOnline ? "Online" : "Offline"}${statusChanged ? " (Changed)" : ""}', name: 'Chat API');
           }
 
@@ -478,12 +480,12 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
           }
         } else {
           // Always log errors
-          print('[SKYBYN]    Response: Failed - responseCode is not "1"');
+          debugPrint('[SKYBYN]    Response: Failed - responseCode is not "1"');
           developer.log('   Response: Failed - responseCode is not "1"', name: 'Chat API');
         }
       } else {
         // Always log errors
-        print('[SKYBYN]    Response: HTTP Error ${response.statusCode}');
+        debugPrint('[SKYBYN]    Response: HTTP Error ${response.statusCode}');
         developer.log('   Response: HTTP Error ${response.statusCode}', name: 'Chat API');
       }
     } catch (e) {
@@ -491,7 +493,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
       if (!mounted) return;
       
       // Always log errors
-      print('[SKYBYN] ❌ [Chat] Error checking online status: $e');
+      debugPrint('[SKYBYN] ❌ [Chat] Error checking online status: $e');
       developer.log('❌ [Chat] Error checking online status: $e', name: 'Chat API');
       // Silently fail - don't spam errors for online status checks
     }
@@ -553,7 +555,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
           }
       }
     } catch (e) {
-      print('[SKYBYN] ❌ [Chat] Error loading messages: $e');
+      debugPrint('[SKYBYN] ❌ [Chat] Error loading messages: $e');
       developer.log('❌ [Chat] Error loading messages: $e', name: 'Chat API');
     } finally {
       if (mounted) {
@@ -742,7 +744,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
       _messages.add(message);
       _messages.sort((a, b) => a.date.compareTo(b.date));
     });
-    print('🟢 [ChatScreen] Added NEW message ${message.id} to UI. Content: ${message.content.substring(0, math.min(20, message.content.length))}');
+    debugPrint('🟢 [ChatScreen] Added NEW message ${message.id} to UI. Content: ${message.content.substring(0, math.min(20, message.content.length))}');
   }
 
   /// Update an existing message (e.g., replace temp ID with real ID)
@@ -940,7 +942,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
       return; // No unread messages
     }
 
-    print('[SKYBYN] 📤 [Chat] Marking ${unreadMessages.length} message(s) as read');
+    debugPrint('[SKYBYN] 📤 [Chat] Marking ${unreadMessages.length} message(s) as read');
     developer.log('📤 [Chat] Marking ${unreadMessages.length} message(s) as read', name: 'Chat API');
     developer.log('   Friend ID: ${widget.friend.id}', name: 'Chat API');
 
@@ -975,15 +977,15 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
           _webSocketService.sendReadReceipt(message.id, widget.friend.id);
         }
 
-        print('[SKYBYN] ✅ Successfully marked ${unreadMessages.length} message(s) as read');
+        debugPrint('[SKYBYN] ✅ Successfully marked ${unreadMessages.length} message(s) as read');
         developer.log('✅ Successfully marked ${unreadMessages.length} message(s) as read', name: 'Chat API');
       } else {
-        print('[SKYBYN] ⚠️ Failed to mark messages as read (API returned false)');
+        debugPrint('[SKYBYN] ⚠️ Failed to mark messages as read (API returned false)');
         developer.log('⚠️ Failed to mark messages as read (API returned false)', name: 'Chat API');
       }
     } catch (e) {
       // Non-critical error - don't show to user
-      print('[SKYBYN] ⚠️ Failed to mark messages as read: $e');
+      debugPrint('[SKYBYN] ⚠️ Failed to mark messages as read: $e');
       developer.log('⚠️ Failed to mark messages as read: $e', name: 'Chat API');
     }
   }
@@ -1064,14 +1066,14 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
         'content': message.length > 50 ? message.substring(0, 50) + '...' : message,
       };
       
-      print('[SKYBYN] ═══════════════════════════════════════════════════════');
-      print('[SKYBYN] 📤 [Chat] Sending message to API');
-      print('[SKYBYN]    URL: $apiUrl');
-      print('[SKYBYN]    To User ID: ${widget.friend.id}');
-      print('[SKYBYN]    Message Length: ${message.length}');
-      print('[SKYBYN]    Message Preview: ${message.length > 50 ? message.substring(0, 50) + "..." : message}');
-      print('[SKYBYN]    Temp ID: $tempId');
-      print('[SKYBYN]    Method: POST');
+      debugPrint('[SKYBYN] ═══════════════════════════════════════════════════════');
+      debugPrint('[SKYBYN] 📤 [Chat] Sending message to API');
+      debugPrint('[SKYBYN]    URL: $apiUrl');
+      debugPrint('[SKYBYN]    To User ID: ${widget.friend.id}');
+      debugPrint('[SKYBYN]    Message Length: ${message.length}');
+      debugPrint('[SKYBYN]    Message Preview: ${message.length > 50 ? message.substring(0, 50) + "..." : message}');
+      debugPrint('[SKYBYN]    Temp ID: $tempId');
+      debugPrint('[SKYBYN]    Method: POST');
       developer.log('📤 [Chat] Sending message to API', name: 'Chat API');
       developer.log('   URL: $apiUrl', name: 'Chat API');
       developer.log('   To User ID: ${widget.friend.id}', name: 'Chat API');
@@ -1094,7 +1096,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
               content: message,
             );
           } catch (e) {
-            print('[SKYBYN] ⚠️ [Chat] WebSocket send failed: $e');
+            debugPrint('[SKYBYN] ⚠️ [Chat] WebSocket send failed: $e');
           }
         }
 
@@ -1107,23 +1109,23 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
         // Log API response
         if (sentMessage != null) {
           messageSentSuccessfully = true;
-          print('[SKYBYN] 📥 [Chat] Send Message API Response received');
-          print('[SKYBYN]    Status: Success');
-          print('[SKYBYN]    Message ID: ${sentMessage.id}');
-          print('[SKYBYN]    From: ${sentMessage.from}');
-          print('[SKYBYN]    To: ${sentMessage.to}');
+          debugPrint('[SKYBYN] 📥 [Chat] Send Message API Response received');
+          debugPrint('[SKYBYN]    Status: Success');
+          debugPrint('[SKYBYN]    Message ID: ${sentMessage.id}');
+          debugPrint('[SKYBYN]    From: ${sentMessage.from}');
+          debugPrint('[SKYBYN]    To: ${sentMessage.to}');
           developer.log('📥 [Chat] Send Message API Response received', name: 'Chat API');
           developer.log('   Status: Success', name: 'Chat API');
           developer.log('   Message ID: ${sentMessage.id}', name: 'Chat API');
           developer.log('   From: ${sentMessage.from}', name: 'Chat API');
           developer.log('   To: ${sentMessage.to}', name: 'Chat API');
         } else {
-          print('[SKYBYN] 📥 [Chat] Send Message API Response received');
-          print('[SKYBYN]    Status: Failed (null response)');
+          debugPrint('[SKYBYN] 📥 [Chat] Send Message API Response received');
+          debugPrint('[SKYBYN]    Status: Failed (null response)');
           developer.log('📥 [Chat] Send Message API Response received', name: 'Chat API');
           developer.log('   Status: Failed (null response)', name: 'Chat API');
         }
-        print('[SKYBYN] ═══════════════════════════════════════════════════════');
+        debugPrint('[SKYBYN] ═══════════════════════════════════════════════════════');
         developer.log('═══════════════════════════════════════════════════════', name: 'Chat API');
       } catch (e) {
         // Only show error if message was NOT successfully sent
@@ -1200,7 +1202,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
         } else {
           // Message was sent successfully, but there was an error after (e.g., WebSocket/Firebase)
           // Don't show error to user - message was successfully saved
-          print('[SKYBYN] ⚠️ [Chat] Message sent successfully, but error occurred after: $e');
+          debugPrint('[SKYBYN] ⚠️ [Chat] Message sent successfully, but error occurred after: $e');
           developer.log('⚠️ [Chat] Message sent successfully, but error occurred after: $e', name: 'Chat API');
         }
       }
@@ -1262,7 +1264,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
 
   Future<void> _refreshMessages() async {
     try {
-      print('[SKYBYN] 🔄 [Chat] Refreshing messages');
+      debugPrint('[SKYBYN] 🔄 [Chat] Refreshing messages');
       developer.log('🔄 [Chat] Refreshing messages', name: 'Chat API');
       
       // Clear cache to force fresh fetch
@@ -1286,7 +1288,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
         // Mark messages as read
         _markMessagesAsRead();
         
-        print('[SKYBYN] ✅ [Chat] Messages refreshed: ${messages.length} message(s)');
+        debugPrint('[SKYBYN] ✅ [Chat] Messages refreshed: ${messages.length} message(s)');
         developer.log('✅ [Chat] Messages refreshed: ${messages.length} message(s)', name: 'Chat API');
         
         // Show success message at top of chat box
@@ -1307,7 +1309,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
         }
       }
     } catch (e) {
-      print('[SKYBYN] ❌ [Chat] Error refreshing messages: $e');
+      debugPrint('[SKYBYN] ❌ [Chat] Error refreshing messages: $e');
       developer.log('❌ [Chat] Error refreshing messages: $e', name: 'Chat API');
       
       // Show error message at top of chat box
@@ -1330,7 +1332,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
   }
 
   Future<void> _loadOlderMessages() async {
-    print('[SKYBYN] [Chat] Loading older messages... isLoading=${_isLoadingOlder}, hasMore=${_hasMoreMessages}');
+    debugPrint('[SKYBYN] [Chat] Loading older messages... isLoading=${_isLoadingOlder}, hasMore=${_hasMoreMessages}');
     if (_isLoadingOlder || !_hasMoreMessages) return;
 
     setState(() {
@@ -2630,14 +2632,18 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
   }
 
   Future<void> _likeMessage(Message message) async {
-    // TODO: Implement like message functionality
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Like message feature coming soon'),
-          duration: Duration(seconds: 2),
-        ),
-      );
+    try {
+      final response = await globalAuthClient.post(
+        Uri.parse(ApiConstants.chatLike),
+        body: {'messageID': message.id},
+      ).timeout(const Duration(seconds: 10));
+      final data = safeJsonDecode(response);
+      if (data['responseCode'] != '1' && data['liked'] == null) {
+        throw Exception(data['message'] ?? 'Failed to like message');
+      }
+      debugPrint('[ChatScreen] Like toggled on message ${message.id}: liked=${data['liked']}, count=${data['likeCount']}');
+    } catch (e) {
+      debugPrint('[ChatScreen] Like message error: $e');
     }
   }
 
@@ -2694,12 +2700,12 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
           'content': result.length > 50 ? result.substring(0, 50) + '...' : result,
         };
         
-        print('[SKYBYN] ═══════════════════════════════════════════════════════');
-        print('[SKYBYN] 📤 [Chat] Editing message via API');
-        print('[SKYBYN]    URL: $apiUrl');
-        print('[SKYBYN]    Message ID: ${message.id}');
-        print('[SKYBYN]    New Content Length: ${result.length}');
-        print('[SKYBYN]    Method: POST');
+        debugPrint('[SKYBYN] ═══════════════════════════════════════════════════════');
+        debugPrint('[SKYBYN] 📤 [Chat] Editing message via API');
+        debugPrint('[SKYBYN]    URL: $apiUrl');
+        debugPrint('[SKYBYN]    Message ID: ${message.id}');
+        debugPrint('[SKYBYN]    New Content Length: ${result.length}');
+        debugPrint('[SKYBYN]    Method: POST');
         developer.log('📤 [Chat] Editing message via API', name: 'Chat API');
         developer.log('   URL: $apiUrl', name: 'Chat API');
         developer.log('   Message ID: ${message.id}', name: 'Chat API');
@@ -2718,15 +2724,15 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
           },
         ).timeout(const Duration(seconds: 10));
         
-        print('[SKYBYN] 📥 [Chat] Edit Message API Response received');
-        print('[SKYBYN]    Status Code: ${response.statusCode}');
+        debugPrint('[SKYBYN] 📥 [Chat] Edit Message API Response received');
+        debugPrint('[SKYBYN]    Status Code: ${response.statusCode}');
         developer.log('📥 [Chat] Edit Message API Response received', name: 'Chat API');
         developer.log('   Status Code: ${response.statusCode}', name: 'Chat API');
 
         if (response.statusCode == 200) {
           final data = json.decode(response.body);
           if (data['responseCode'] == 1) {
-            print('[SKYBYN]    Response: Success');
+            debugPrint('[SKYBYN]    Response: Success');
             developer.log('   Response: Success', name: 'Chat API');
             
             // Update message in list
@@ -2762,7 +2768,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
               });
             }
           } else {
-            print('[SKYBYN]    Response: Failed - ${data['message'] ?? 'Unknown error'}');
+            debugPrint('[SKYBYN]    Response: Failed - ${data['message'] ?? 'Unknown error'}');
             developer.log('   Response: Failed - ${data['message'] ?? 'Unknown error'}', name: 'Chat API');
             
             // Show error message at top of chat box
@@ -2783,7 +2789,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
             }
           }
         } else {
-          print('[SKYBYN]    Response: HTTP Error ${response.statusCode}');
+          debugPrint('[SKYBYN]    Response: HTTP Error ${response.statusCode}');
           developer.log('   Response: HTTP Error ${response.statusCode}', name: 'Chat API');
           
           // Show error message at top of chat box
@@ -2803,10 +2809,10 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
             });
           }
         }
-        print('[SKYBYN] ═══════════════════════════════════════════════════════');
+        debugPrint('[SKYBYN] ═══════════════════════════════════════════════════════');
         developer.log('═══════════════════════════════════════════════════════', name: 'Chat API');
       } catch (e) {
-        print('[SKYBYN] ❌ [Chat] Error editing message: $e');
+        debugPrint('[SKYBYN] ❌ [Chat] Error editing message: $e');
         developer.log('❌ [Chat] Error editing message: $e', name: 'Chat API');
         
         // Show error message at top of chat box
@@ -2867,11 +2873,11 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
           'messageID': message.id,
         };
         
-        print('[SKYBYN] ═══════════════════════════════════════════════════════');
-        print('[SKYBYN] 📤 [Chat] Deleting message via API');
-        print('[SKYBYN]    URL: $apiUrl');
-        print('[SKYBYN]    Message ID: ${message.id}');
-        print('[SKYBYN]    Method: POST');
+        debugPrint('[SKYBYN] ═══════════════════════════════════════════════════════');
+        debugPrint('[SKYBYN] 📤 [Chat] Deleting message via API');
+        debugPrint('[SKYBYN]    URL: $apiUrl');
+        debugPrint('[SKYBYN]    Message ID: ${message.id}');
+        debugPrint('[SKYBYN]    Method: POST');
         developer.log('📤 [Chat] Deleting message via API', name: 'Chat API');
         developer.log('   URL: $apiUrl', name: 'Chat API');
         developer.log('   Message ID: ${message.id}', name: 'Chat API');
@@ -2885,15 +2891,15 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
           },
         ).timeout(const Duration(seconds: 10));
         
-        print('[SKYBYN] 📥 [Chat] Delete Message API Response received');
-        print('[SKYBYN]    Status Code: ${response.statusCode}');
+        debugPrint('[SKYBYN] 📥 [Chat] Delete Message API Response received');
+        debugPrint('[SKYBYN]    Status Code: ${response.statusCode}');
         developer.log('📥 [Chat] Delete Message API Response received', name: 'Chat API');
         developer.log('   Status Code: ${response.statusCode}', name: 'Chat API');
 
         if (response.statusCode == 200) {
           final data = json.decode(response.body);
           if (data['responseCode'] == 1) {
-            print('[SKYBYN]    Response: Success');
+            debugPrint('[SKYBYN]    Response: Success');
             developer.log('   Response: Success', name: 'Chat API');
             
             // Remove message from list
@@ -2901,16 +2907,16 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
               final countBefore = _messages.length;
               _messages.removeWhere((m) => m.id == message.id);
               final countAfter = _messages.length;
-              print('[SKYBYN] [Chat] Removed message ${message.id} from UI list. Count: $countBefore -> $countAfter');
+              debugPrint('[SKYBYN] [Chat] Removed message ${message.id} from UI list. Count: $countBefore -> $countAfter');
             });
             
             // Delete from local database
             await _chatService.deleteMessage(message.id);
-            print('[SKYBYN] [Chat] Message deleted from local DB: ${message.id}');
+            debugPrint('[SKYBYN] [Chat] Message deleted from local DB: ${message.id}');
             
 
           } else {
-            print('[SKYBYN]    Response: Failed - ${data['message'] ?? 'Unknown error'}');
+            debugPrint('[SKYBYN]    Response: Failed - ${data['message'] ?? 'Unknown error'}');
             developer.log('   Response: Failed - ${data['message'] ?? 'Unknown error'}', name: 'Chat API');
             
             // Show error message at top of chat box
@@ -2931,7 +2937,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
             }
           }
         } else {
-          print('[SKYBYN]    Response: HTTP Error ${response.statusCode}');
+          debugPrint('[SKYBYN]    Response: HTTP Error ${response.statusCode}');
           developer.log('   Response: HTTP Error ${response.statusCode}', name: 'Chat API');
           
           // Show error message at top of chat box
@@ -2951,10 +2957,10 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
             });
           }
         }
-        print('[SKYBYN] ═══════════════════════════════════════════════════════');
+        debugPrint('[SKYBYN] ═══════════════════════════════════════════════════════');
         developer.log('═══════════════════════════════════════════════════════', name: 'Chat API');
       } catch (e) {
-        print('[SKYBYN] ❌ [Chat] Error deleting message: $e');
+        debugPrint('[SKYBYN] ❌ [Chat] Error deleting message: $e');
         developer.log('❌ [Chat] Error deleting message: $e', name: 'Chat API');
         
         // Show error message at top of chat box
@@ -3161,8 +3167,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
   /// Block user
   Future<void> _blockUser() async {
     try {
-      // TODO: Implement API call to block user
-      // This should call an API endpoint to block the user
+      await FriendService().blockUser(friendId: widget.friend.id);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -3170,10 +3175,10 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
             duration: Duration(seconds: 2),
           ),
         );
-        // Navigate back after blocking
         Navigator.of(context).pop();
       }
     } catch (e) {
+      debugPrint('[ChatScreen] Block user error: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -3219,8 +3224,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
   /// Unfriend user
   Future<void> _unfriendUser() async {
     try {
-      // TODO: Implement API call to unfriend user
-      // This should call an API endpoint to remove the friendship
+      await FriendService().removeFriend(friendId: widget.friend.id);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -3228,10 +3232,10 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
             duration: Duration(seconds: 2),
           ),
         );
-        // Navigate back after unfriending
         Navigator.of(context).pop();
       }
     } catch (e) {
+      debugPrint('[ChatScreen] Unfriend user error: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -3575,7 +3579,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
         });
       }
     } catch (e) {
-      print('[SKYBYN] ❌ [Chat] Error picking image: $e');
+      debugPrint('[SKYBYN] ❌ [Chat] Error picking image: $e');
       if (mounted) {
         setState(() {
           _chatStatusMessage = 'Failed to pick image';
@@ -3607,7 +3611,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
         });
       }
     } catch (e) {
-      print('[SKYBYN] ❌ [Chat] Error picking video: $e');
+      debugPrint('[SKYBYN] ❌ [Chat] Error picking video: $e');
       if (mounted) {
         setState(() {
           _chatStatusMessage = 'Failed to pick video';
@@ -3640,7 +3644,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
         });
       }
     } catch (e) {
-      print('[SKYBYN] ❌ [Chat] Error picking file: $e');
+      debugPrint('[SKYBYN] ❌ [Chat] Error picking file: $e');
       if (mounted) {
         setState(() {
           _chatStatusMessage = 'Failed to pick file';
@@ -3738,7 +3742,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
         });
       } catch (e) {
         // If amplitude monitoring is not available, use a simulated wave
-        print('[SKYBYN] ⚠️ [Chat] Amplitude monitoring not available: $e');
+        debugPrint('[SKYBYN] ⚠️ [Chat] Amplitude monitoring not available: $e');
         // Start a timer to simulate audio levels with more variation
         Timer.periodic(const Duration(milliseconds: 50), (timer) {
           if (!_isRecording) {
@@ -3769,7 +3773,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
 
       // Visualizer is shown via _buildAudioVisualizerOverlay() in the Stack
     } catch (e) {
-      print('[SKYBYN] ❌ [Chat] Error starting recording: $e');
+      debugPrint('[SKYBYN] ❌ [Chat] Error starting recording: $e');
       if (mounted) {
         setState(() {
           _isRecording = false;
@@ -3843,7 +3847,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
         }
       }
     } catch (e) {
-      print('[SKYBYN] ❌ [Chat] Error stopping recording: $e');
+      debugPrint('[SKYBYN] ❌ [Chat] Error stopping recording: $e');
       if (mounted) {
         setState(() {
           _isRecording = false;
@@ -3861,7 +3865,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
         _isSending = true;
       });
 
-      print('[SKYBYN] 📤 [Chat] Uploading file: $fileName, type: $type');
+      debugPrint('[SKYBYN] 📤 [Chat] Uploading file: $fileName, type: $type');
 
       // Upload file
       final uploadUrl = '${ApiConstants.apiBase}/chat/upload.php';
@@ -3901,7 +3905,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
             throw Exception('File URL not found in response');
           }
 
-          print('[SKYBYN] ✅ [Chat] File uploaded: $fileUrl');
+          debugPrint('[SKYBYN] ✅ [Chat] File uploaded: $fileUrl');
 
           // Create message with attachment using a UUID
           final tempId = const Uuid().v4();
@@ -3952,7 +3956,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
               content: type == 'voice' ? '🎤 Voice message' : (tempMessage.content.isNotEmpty ? tempMessage.content : '📎 File'),
             );
           } catch (e) {
-            print('[SKYBYN] ⚠️ [Chat] WebSocket send failed (non-critical): $e');
+            debugPrint('[SKYBYN] ⚠️ [Chat] WebSocket send failed (non-critical): $e');
           }
 
           // Mark messages as read
@@ -3967,14 +3971,14 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
           });
         } else {
           // Log the actual response for debugging
-          print('[SKYBYN] ❌ [Chat] Upload failed - responseCode: ${data['responseCode']}, message: ${data['message']}');
+          debugPrint('[SKYBYN] ❌ [Chat] Upload failed - responseCode: ${data['responseCode']}, message: ${data['message']}');
           throw Exception(data['message'] ?? 'Upload failed');
         }
       } else {
         throw Exception('Upload failed with status ${response.statusCode}');
       }
     } catch (e) {
-      print('[SKYBYN] ❌ [Chat] Error uploading file: $e');
+      debugPrint('[SKYBYN] ❌ [Chat] Error uploading file: $e');
       if (mounted) {
         setState(() {
           _chatStatusMessage = 'Failed to send file';
@@ -4049,7 +4053,7 @@ class _AudioPlayerWidgetState extends State<_AudioPlayerWidget> {
         }
       });
     } catch (e) {
-      print('[SKYBYN] ❌ [Chat] Error initializing audio player: $e');
+      debugPrint('[SKYBYN] ❌ [Chat] Error initializing audio player: $e');
     }
   }
 
@@ -4071,7 +4075,7 @@ class _AudioPlayerWidgetState extends State<_AudioPlayerWidget> {
         });
       }
     } catch (e) {
-      print('[SKYBYN] ❌ [Chat] Error toggling playback: $e');
+      debugPrint('[SKYBYN] ❌ [Chat] Error toggling playback: $e');
       setState(() {
         _isLoading = false;
       });

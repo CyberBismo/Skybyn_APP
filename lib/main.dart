@@ -411,8 +411,6 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       // Set up global chat message listener for badge count
       _setupGlobalChatMessageListener();
 
-      // Start periodic activity updates (every 5 seconds      // Cleanly removed early HTTP activity updates
-
       // Start periodic profile checks (every 5 minutes to detect bans/deactivations)
       _startProfileChecks();
 

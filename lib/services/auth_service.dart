@@ -11,7 +11,6 @@ import 'device_service.dart';
 import 'firebase_messaging_service.dart';
 import 'translation_service.dart';
 import 'websocket_service.dart';
-// import 'background_activity_service.dart';
 import 'notification_service.dart';
 import 'navigation_service.dart';
 import '../utils/api_utils.dart';
@@ -47,8 +46,6 @@ class AuthService {
   static http.Client _createHttpClient() {
     return createAuthenticatedHttpClient(userAgent: 'Skybyn-App/1.0');
   }
-  // final fb_auth.FirebaseAuth _auth = fb_auth.FirebaseAuth.instance;
-  
   // Track last known online status to prevent duplicate updates
   static bool? _lastKnownOnlineStatus;
 
@@ -154,11 +151,13 @@ class AuthService {
           // Store session token for authenticated API requests
           final sessionToken = data['sessionToken']?.toString();
           if (sessionToken != null && sessionToken.isNotEmpty) {
+            // Always write to SharedPreferences as fallback first
+            await _prefs?.setString(StorageKeys.sessionToken, sessionToken);
             try {
               await _secureStorage.write(key: StorageKeys.sessionToken, value: sessionToken)
                   .timeout(const Duration(seconds: 5));
             } catch (e) {
-              debugPrint('AuthService: Failed to store session token: $e');
+              debugPrint('AuthService: Failed to store session token in secure storage: $e');
             }
           }
 
@@ -277,11 +276,13 @@ class AuthService {
           // Store session token for authenticated API requests
           final sessionToken = data['sessionToken']?.toString();
           if (sessionToken != null && sessionToken.isNotEmpty) {
+            // Always write to SharedPreferences as fallback first
+            await _prefs?.setString(StorageKeys.sessionToken, sessionToken);
             try {
               await _secureStorage.write(key: StorageKeys.sessionToken, value: sessionToken)
                   .timeout(const Duration(seconds: 5));
             } catch (e) {
-              debugPrint('AuthService: Failed to store session token: $e');
+              debugPrint('AuthService: Failed to store session token in secure storage: $e');
             }
           }
 
@@ -649,14 +650,25 @@ class AuthService {
 
   Future<void> updateUserProfile(User updatedUser) async {
     try {
-      // TODO: Implement API call to update user profile
-      // For now, we'll just update the local storage
+      final response = await _client.post(
+        Uri.parse(ApiConstants.profileUpdate),
+        body: {
+          'displayname': updatedUser.nickname,
+          'bio': updatedUser.bio,
+          if (updatedUser.avatar != null) 'avatar': updatedUser.avatar!,
+        },
+      ).timeout(const Duration(seconds: 15));
+      final data = safeJsonDecode(response);
+      if (data['responseCode'] != '1') {
+        throw Exception(data['message'] ?? 'Failed to update profile');
+      }
+      // Update local storage to reflect the change
       await initPrefs();
       final profileJson = jsonEncode(updatedUser.toJson());
       await _prefs?.setString(userProfileKey, profileJson);
-      await _secureStorage.write(key: userProfileKey, value: profileJson);
+      await _secureOp(() => _secureStorage.write(key: userProfileKey, value: profileJson));
     } catch (e) {
-      throw Exception('Failed to update profile');
+      throw Exception('Failed to update profile: $e');
     }
   }
 

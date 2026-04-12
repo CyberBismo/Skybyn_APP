@@ -45,6 +45,12 @@ class ApiConstants {
   static String get friend => '$apiBase/friend/friend.php';
   static String get friends => '$apiBase/friend/friends.php';
 
+  // Profile update
+  static String get profileUpdate => '$apiBase/profile_update.php';
+
+  // Chat
+  static String get chatLike => '$apiBase/chat/like.php';
+
   // Reports
   static String get report => '$apiBase/report.php';
 
@@ -90,7 +96,7 @@ class ApiConstants {
   // Spotlight — YouTube Data API v3
   // Key must be loaded at runtime from secure storage — do NOT hardcode here.
   // Store the key via: FlutterSecureStorage().write(key: 'youtube_api_key', value: '...')
-  static const String youtubeApiKey = '';
+  static const String youtubeApiKey = 'AIzaSyBSdAJ35GG6oDvg-2WWBYDK-Ndcqo6ZtBA';
 
   // Admin
   static String get adminUsers => '$apiBase/admin/users.php';

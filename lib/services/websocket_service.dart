@@ -387,11 +387,11 @@ class WebSocketService {
           _handleMessage(message); // Fire and forget - async method
         },
         onError: (error) {
-          print('[WebSocket] ❌ Connection Error: $error'); // Added Log
+          debugPrint('[WebSocket] ❌ Connection Error: $error'); // Added Log
           _onConnectionError(error);
         },
         onDone: () {
-          print('[WebSocket] 🔌 Connection Closed'); // Added Log
+          debugPrint('[WebSocket] 🔌 Connection Closed'); // Added Log
           _onConnectionClosed();
         },
         cancelOnError: false,
@@ -408,7 +408,7 @@ class WebSocketService {
         _updateConnectionMetrics(
             'connected'); // This already logs the connection message
 
-        print('[WebSocket] ✅ Connected to ${wsUrl}'); // Added Log
+        debugPrint('[WebSocket] ✅ Connected to ${wsUrl}'); // Added Log
 
         // Process any queued messages now that we're connected
         _processMessageQueue();

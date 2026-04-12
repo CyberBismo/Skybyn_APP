@@ -453,10 +453,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     bool hasCachedData = false;
     try {
       // Try to get cached posts immediately
-      print('⏳ [HomeScreen] Loading timeline from cache...');
+      debugPrint('⏳ [HomeScreen] Loading timeline from cache...');
       final cachedPosts = await postService.loadTimelineFromCache();
       if (cachedPosts.isNotEmpty && mounted) {
-        print('✅ [HomeScreen] Loaded ${cachedPosts.length} posts from cache');
+        debugPrint('✅ [HomeScreen] Loaded ${cachedPosts.length} posts from cache');
         setState(() {
           _posts = cachedPosts;
           _isLoading = false; // Show cached data immediately
@@ -464,11 +464,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         _stopNoPostsTimer();
         hasCachedData = true;
       } else {
-        print('ℹ️ [HomeScreen] No cached timeline found');
+        debugPrint('ℹ️ [HomeScreen] No cached timeline found');
         setState(() => _isLoading = true);
       }
     } catch (e) {
-      print('⚠️ [HomeScreen] Error loading cache: $e');
+      debugPrint('⚠️ [HomeScreen] Error loading cache: $e');
       setState(() => _isLoading = true);
     }
 
@@ -484,7 +484,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
       if (mounted) {
         final duration = DateTime.now().difference(startTime);
-        print(
+        debugPrint(
             '✅ [HomeScreen] Fresh timeline loaded in ${duration.inMilliseconds}ms. Count: ${freshPosts.length}');
 
         setState(() {
@@ -718,7 +718,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     final translationService = TranslationService();
 
     if (!Platform.isAndroid) {
-      print('[App Update] Verification skipped: Not on Android');
+      debugPrint('[App Update] Verification skipped: Not on Android');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
             content: Text(translationService
@@ -729,16 +729,16 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
     // Prevent multiple dialogs from showing at once
     if (AutoUpdateService.isDialogShowing) {
-      print('[App Update] Update dialog is already showing - skipping check');
+      debugPrint('[App Update] Update dialog is already showing - skipping check');
       return;
     }
 
     try {
-      print('[App Update] Checking for available updates...');
+      debugPrint('[App Update] Checking for available updates...');
       final updateInfo = await AutoUpdateService.checkForUpdates();
 
       if (updateInfo != null && updateInfo.isAvailable) {
-        print('[App Update] Update available: version ${updateInfo.version}');
+        debugPrint('[App Update] Update available: version ${updateInfo.version}');
         // Show update dialog if not already showing
         if (mounted && !AutoUpdateService.isDialogShowing) {
           // Mark dialog as showing immediately to prevent duplicates
@@ -747,7 +747,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           // Get current version for logging
           final packageInfo = await PackageInfo.fromPlatform();
           final currentVersion = packageInfo.version;
-          print(
+          debugPrint(
               '[App Update] Current version: $currentVersion. Showing update dialog.');
 
           // Mark this version as shown (so we don't spam the user)
@@ -764,12 +764,12 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             ),
           ).then((_) {
             // Dialog closed, mark as not showing
-            print('[App Update] Update dialog closed');
+            debugPrint('[App Update] Update dialog closed');
             AutoUpdateService.setDialogShowing(false);
           });
         }
       } else {
-        print('[App Update] No updates available.');
+        debugPrint('[App Update] No updates available.');
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -779,7 +779,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         }
       }
     } catch (e) {
-      print('[App Update] Error checking for updates: $e');
+      debugPrint('[App Update] Error checking for updates: $e');
       // Mark dialog as not showing on error
       AutoUpdateService.setDialogShowing(false);
 
@@ -845,15 +845,19 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             return; // Success, no need to fallback
           } else {}
         } else {}
-      } catch (e) {}
+      } catch (e) {
+        debugPrint('[HomeScreen] Error updating comment in post: $e');
+      }
 
       // Fallback: Update the entire post to get the latest comments
       await _updatePost(postId);
     } catch (e) {
-      // Final fallback: try to update the post
+      debugPrint('[HomeScreen] Error adding comment, falling back to post refresh: $e');
       try {
         await _updatePost(postId);
-      } catch (updateError) {}
+      } catch (updateError) {
+        debugPrint('[HomeScreen] Fallback post refresh also failed: $updateError');
+      }
     }
   }
 
@@ -932,6 +936,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   late final PageController _pageController;
   int _currentPageIndex = 1;
+  final ValueNotifier<bool> _spotlightActive = ValueNotifier(false);
 
   void _initializePageController() {
     _pageController = PageController(initialPage: 1);
@@ -941,6 +946,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         setState(() {
           _currentPageIndex = page;
         });
+        _spotlightActive.value = page == 2;
       }
     });
   }
@@ -952,6 +958,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     _webSocketService.disconnect();
     _scrollController.dispose();
     _pageController.dispose();
+    _spotlightActive.dispose();
     if (_lifecycleEventHandler != null) {
       WidgetsBinding.instance.removeObserver(_lifecycleEventHandler!);
     }
@@ -977,7 +984,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           },
           isSearchFormVisible: _showSearchForm,
         ),
-        bottomNavigationBar: Padding(
+        bottomNavigationBar: _currentPageIndex == 2 ? null : Padding(
           padding: EdgeInsets.only(
             bottom: Theme.of(context).platform == TargetPlatform.iOS
                 ? 8.0
@@ -1012,7 +1019,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           children: [
             _buildMapPage(),
             _buildHomeContent(),
-            const SpotlightScreen(),
+            SpotlightScreen(isActive: _spotlightActive),
           ],
         ),
       ),

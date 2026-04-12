@@ -22,7 +22,7 @@ class SpotlightService {
     final params = <String, String>{
       'part': 'snippet',
       'type': 'video',
-      'videoDimension': 'tall', // portrait videos only
+      'videoDimension': '2d',
       'q': '%23shorts',
       'maxResults': '15',
       'safeSearch': 'moderate',

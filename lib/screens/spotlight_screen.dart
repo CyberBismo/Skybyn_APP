@@ -1,11 +1,13 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:youtube_player_flutter/youtube_player_flutter.dart';
 import '../models/spotlight_video.dart';
 import '../services/spotlight_service.dart';
 
 class SpotlightScreen extends StatefulWidget {
-  const SpotlightScreen({super.key});
+  final ValueNotifier<bool> isActive;
+  const SpotlightScreen({super.key, required this.isActive});
 
   @override
   State<SpotlightScreen> createState() => _SpotlightScreenState();
@@ -30,6 +32,15 @@ class _SpotlightScreenState extends State<SpotlightScreen>
   void initState() {
     super.initState();
     _loadVideos();
+    widget.isActive.addListener(_onActiveChanged);
+  }
+
+  void _onActiveChanged() {
+    if (!widget.isActive.value) {
+      _controllers[_currentIndex]?.pause();
+    } else {
+      _controllers[_currentIndex]?.play();
+    }
   }
 
   Future<void> _loadVideos({bool refresh = false}) async {
@@ -58,6 +69,7 @@ class _SpotlightScreenState extends State<SpotlightScreen>
         });
       }
     } catch (e) {
+      debugPrint('[Spotlight] Error loading videos: $e');
       if (!mounted) return;
       setState(() {
         _isLoading = false;
@@ -86,10 +98,12 @@ class _SpotlightScreenState extends State<SpotlightScreen>
     final controller = YoutubePlayerController(
       initialVideoId: _videos[index].id,
       flags: const YoutubePlayerFlags(
-        autoPlay: false,
+        autoPlay: true,
         loop: true,
         mute: false,
-        useHybridComposition: true,
+        useHybridComposition: false,
+        disableDragSeek: true,
+        hideThumbnail: true,
       ),
     );
     _controllers[index] = controller;
@@ -106,9 +120,6 @@ class _SpotlightScreenState extends State<SpotlightScreen>
     Timer(const Duration(milliseconds: 200), () {
       if (mounted && _currentIndex == index) controller.play();
     });
-
-    // Pre-init next video
-    if (index + 1 < _videos.length) _initController(index + 1);
 
     // Dispose controllers that are far from current page
     _controllers.keys
@@ -132,6 +143,7 @@ class _SpotlightScreenState extends State<SpotlightScreen>
 
   @override
   void dispose() {
+    widget.isActive.removeListener(_onActiveChanged);
     _disposeAllControllers();
     _pageController.dispose();
     super.dispose();
@@ -163,6 +175,16 @@ class _SpotlightScreenState extends State<SpotlightScreen>
                 'Could not load videos',
                 style: TextStyle(color: Colors.white, fontSize: 16),
               ),
+              const SizedBox(height: 8),
+              if (kDebugMode)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: Text(
+                    _error!,
+                    style: const TextStyle(color: Colors.red, fontSize: 11),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
               const SizedBox(height: 8),
               TextButton(
                 onPressed: () => _loadVideos(refresh: true),

@@ -398,6 +398,7 @@ class _PostCardState extends State<PostCard> {
 
     try {
       final userId = await _authService.getStoredUserId();
+      debugPrint('[PostCard] _postComment: postId=${_currentPost.id} userId=$userId');
       if (userId == null) throw Exception('User not logged in');
 
       await _commentService.postComment(
@@ -956,6 +957,7 @@ class _PostCardState extends State<PostCard> {
 
     try {
       final userId = await _authService.getStoredUserId();
+      debugPrint('[PostCard] _performHidePost: postId=${_currentPost.id} userId=$userId');
       if (userId == null) throw Exception('User not logged in');
 
       await _postService.hidePost(postId: _currentPost.id, userId: userId);
@@ -1003,6 +1005,7 @@ class _PostCardState extends State<PostCard> {
   Future<void> _toggleLike() async {
     try {
       final userId = await _authService.getStoredUserId();
+      debugPrint('[PostCard] _toggleLike: postId=${_currentPost.id} userId=$userId');
       if (userId == null) throw Exception('User not logged in');
 
       final wasLiked = _currentPost.isLiked;
@@ -1017,7 +1020,9 @@ class _PostCardState extends State<PostCard> {
 
       try {
         await _postService.toggleLike(postId: _currentPost.id, userId: userId);
+        debugPrint('[PostCard] _toggleLike: success wasLiked=$wasLiked now=${!wasLiked}');
       } catch (e) {
+        debugPrint('[PostCard] _toggleLike ERROR: $e');
         if (mounted) {
           setState(() {
             _currentPost = _currentPost.copyWith(
@@ -1034,6 +1039,7 @@ class _PostCardState extends State<PostCard> {
         }
       }
     } catch (e) {
+      debugPrint('[PostCard] _toggleLike outer ERROR: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
