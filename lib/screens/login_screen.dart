@@ -6,6 +6,7 @@ import '../widgets/app_colors.dart';
 import '../widgets/translated_text.dart';
 import '../services/translation_service.dart';
 import '../services/navigation_service.dart';
+import '../widgets/app_banner.dart';
 import 'home_screen.dart';
 import 'register_screen.dart';
 import 'forgot_password_screen.dart';
@@ -27,17 +28,27 @@ class _LoginScreenState extends State<LoginScreen> {
   final AuthService _authService = AuthService();
   bool _isLoading = false;
   bool _obscurePassword = true;
-  String? _errorMessage;
-
-
-
   bool _isSocialLoginEnabled = false;
+
+  // Remembered user — shown instead of the full login form
+  Map<String, String?>? _rememberedUser;
+  bool _rememberedUserChecked = false;
 
   @override
   void initState() {
     super.initState();
-    // Username field is no longer auto-focused
     _checkSocialLoginStatus();
+    _loadRememberedUser();
+  }
+
+  Future<void> _loadRememberedUser() async {
+    final user = await _authService.getRememberedUser();
+    if (mounted) {
+      setState(() {
+        _rememberedUser = user;
+        _rememberedUserChecked = true;
+      });
+    }
   }
 
   Future<void> _checkSocialLoginStatus() async {
@@ -68,7 +79,6 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _handleGoogleLogin() async {
     setState(() {
       _isLoading = true;
-      _errorMessage = null;
     });
 
     try {
@@ -91,21 +101,17 @@ class _LoginScreenState extends State<LoginScreen> {
       }
 
       final response = await _authService.loginWithSocial('google', idToken);
-      
+
       if (!mounted) return;
 
       if (response['responseCode'] == '1') {
         await _onLoginSuccess();
       } else {
-        setState(() {
-           _errorMessage = response['message'] ?? 'Google Login failed';
-        });
+        AppBanner.error(response['message'] ?? 'Google Login failed');
       }
     } catch (e) {
       if (!mounted) return;
-      setState(() {
-        _errorMessage = 'Google Sign-In Error: $e';
-      });
+      AppBanner.error('Google Sign-In Error: $e');
     } finally {
       if (mounted) {
         setState(() {
@@ -163,22 +169,22 @@ class _LoginScreenState extends State<LoginScreen> {
   */
 
   Future<void> _handleLogin() async {
-    if (_usernameController.text.isEmpty || _passwordController.text.isEmpty) {
-      setState(() {
-        _errorMessage = TranslationKeys.fieldRequired.tr;
-      });
+    final username = _rememberedUser != null
+        ? _rememberedUser!['username']!
+        : _usernameController.text;
+
+    if (username.isEmpty || _passwordController.text.isEmpty) {
+      AppBanner.error(TranslationKeys.fieldRequired.tr);
       return;
     }
 
     setState(() {
       _isLoading = true;
-      _errorMessage = null;
     });
 
     try {
-      // Debug platform info
       final response = await _authService.login(
-        _usernameController.text,
+        username,
         _passwordController.text,
       );
 
@@ -187,15 +193,11 @@ class _LoginScreenState extends State<LoginScreen> {
       if (response['responseCode'] == '1') {
         await _onLoginSuccess();
       } else {
-        setState(() {
-          _errorMessage = response['message'] ?? TranslationKeys.loginFailedCheckCredentials.tr;
-        });
+        AppBanner.error(response['message'] ?? TranslationKeys.loginFailedCheckCredentials.tr);
       }
     } catch (e) {
       if (!mounted) return;
-      setState(() {
-        _errorMessage = TranslationKeys.connectionError.tr;
-      });
+      AppBanner.error(TranslationKeys.connectionError.tr);
     } finally {
       if (mounted) {
         setState(() {
@@ -212,6 +214,259 @@ class _LoginScreenState extends State<LoginScreen> {
     _usernameController.dispose();
     _passwordController.dispose();
     super.dispose();
+  }
+
+  Widget _buildPasswordField() {
+    return ListenableBuilder(
+      listenable: TranslationService(),
+      builder: (context, _) {
+        final translationService = TranslationService();
+        return ClipRRect(
+          borderRadius: BorderRadius.circular(10),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+            child: Container(
+              decoration: BoxDecoration(
+                color: AppColors.getCardBackgroundColor(context).withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.3), width: 1.5),
+              ),
+              child: TextField(
+                controller: _passwordController,
+                focusNode: _passwordFocusNode,
+                obscureText: _obscurePassword,
+                textInputAction: TextInputAction.go,
+                decoration: InputDecoration(
+                  filled: true,
+                  fillColor: Colors.transparent,
+                  hintText: translationService.translate(TranslationKeys.password),
+                  hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 16),
+                  prefixIcon: const Icon(Icons.lock, color: Colors.white),
+                  suffixIcon: IconButton(
+                    icon: Icon(
+                      _obscurePassword ? Icons.visibility : Icons.visibility_off,
+                      color: Colors.white.withValues(alpha: 0.7),
+                    ),
+                    onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                  ),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                ),
+                style: const TextStyle(color: Colors.white, fontSize: 16),
+                onSubmitted: (_) => _handleLogin(),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildLoginButton() {
+    return SizedBox(
+      width: double.infinity,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(10),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
+          child: Container(
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Color.fromRGBO(70, 130, 180, 0.8), Color.fromRGBO(100, 149, 237, 0.8)],
+              ),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.3), width: 1.5),
+            ),
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: _isLoading ? null : _handleLogin,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  child: Center(
+                    child: _isLoading
+                        ? const SizedBox(
+                            height: 24,
+                            width: 24,
+                            child: CircularProgressIndicator(strokeWidth: 2.5, valueColor: AlwaysStoppedAnimation<Color>(Colors.white)),
+                          )
+                        : const Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.login_rounded, color: Colors.white, size: 20),
+                              SizedBox(width: 8),
+                              TranslatedText(TranslationKeys.login, style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: Colors.white, letterSpacing: 0.5)),
+                            ],
+                          ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRegisterButton() {
+    return Center(
+      child: SizedBox(
+        width: MediaQuery.of(context).size.width * 0.7,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(10),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 3, sigmaY: 3),
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [Color.fromRGBO(50, 205, 50, 0.8), Color.fromRGBO(34, 139, 34, 0.8)],
+                ),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.3), width: 1.0),
+              ),
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (context) => const RegisterScreen())),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    child: const Center(
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.person_add_rounded, color: Colors.white, size: 16),
+                          SizedBox(width: 6),
+                          TranslatedText(TranslationKeys.register, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.white, letterSpacing: 0.5)),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRememberedUserCard() {
+    final username = _rememberedUser!['username'] ?? '';
+    final avatarUrl = _rememberedUser!['avatar'];
+    final fullAvatarUrl = avatarUrl != null && avatarUrl.isNotEmpty
+        ? (avatarUrl.startsWith('http') ? avatarUrl : 'https://skybyn.no/$avatarUrl')
+        : null;
+
+    return Column(
+      children: [
+        const SizedBox(height: 10),
+        // Avatar
+        CircleAvatar(
+          radius: 48,
+          backgroundColor: Colors.white.withValues(alpha: 0.2),
+          backgroundImage: fullAvatarUrl != null ? NetworkImage(fullAvatarUrl) : null,
+          child: fullAvatarUrl == null
+              ? const Icon(Icons.person, size: 48, color: Colors.white)
+              : null,
+        ),
+        const SizedBox(height: 12),
+        // Username
+        Text(
+          username,
+          style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white),
+        ),
+        const SizedBox(height: 24),
+        // Password field only
+        _buildPasswordField(),
+        const SizedBox(height: 20),
+        _buildLoginButton(),
+        const SizedBox(height: 16),
+        // Change account
+        TextButton.icon(
+          onPressed: () => setState(() {
+            _rememberedUser = null;
+            _passwordController.clear();
+          }),
+          icon: const Icon(Icons.swap_horiz, color: Colors.white70, size: 18),
+          label: const Text('Change account', style: TextStyle(color: Colors.white70, fontSize: 16)),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFullLoginForm() {
+    return Column(
+      children: [
+        // Username field
+        ListenableBuilder(
+          listenable: TranslationService(),
+          builder: (context, _) {
+            final translationService = TranslationService();
+            return ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: AppColors.getCardBackgroundColor(context).withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: Colors.white.withValues(alpha: 0.3), width: 1.5),
+                  ),
+                  child: TextField(
+                    controller: _usernameController,
+                    focusNode: _usernameFocusNode,
+                    textInputAction: TextInputAction.next,
+                    decoration: InputDecoration(
+                      filled: true,
+                      fillColor: Colors.transparent,
+                      hintText: translationService.translate(TranslationKeys.username),
+                      hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 16),
+                      prefixIcon: const Icon(Icons.person, color: Colors.white),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                    ),
+                    style: const TextStyle(color: Colors.white, fontSize: 16),
+                    onSubmitted: (_) => _passwordFocusNode.requestFocus(),
+                  ),
+                ),
+              ),
+            );
+          },
+        ),
+        const SizedBox(height: 20),
+        _buildPasswordField(),
+        const SizedBox(height: 30),
+        _buildLoginButton(),
+        if (_isSocialLoginEnabled) ...[
+          const SizedBox(height: 20),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              icon: Image.asset('assets/images/google_logo.png', height: 24),
+              label: const TranslatedText(TranslationKeys.signInWithGoogle, style: TextStyle(color: Colors.white, fontSize: 16)),
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                side: BorderSide(color: Colors.white.withValues(alpha: 0.5)),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                backgroundColor: Colors.white.withValues(alpha: 0.1),
+              ),
+              onPressed: _isLoading ? null : _handleGoogleLogin,
+            ),
+          ),
+        ],
+        Align(
+          alignment: Alignment.centerLeft,
+          child: TextButton(
+            onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (context) => const ForgotPasswordScreen())),
+            child: TranslatedText(TranslationKeys.forgotPassword, style: TextStyle(color: Colors.white.withValues(alpha: 0.8), fontSize: 18)),
+          ),
+        ),
+      ],
+    );
   }
 
   @override
@@ -275,341 +530,13 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                       ],
                     ),
-                    const SizedBox(height: 10),
-                    // Username field
-                    ListenableBuilder(
-                      listenable: TranslationService(),
-                      builder: (context, _) {
-                        final translationService = TranslationService();
-                        return ClipRRect(
-                          borderRadius: BorderRadius.circular(10),
-                          child: BackdropFilter(
-                            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                            child: Container(
-                              decoration: BoxDecoration(
-                                color: AppColors.getCardBackgroundColor(context).withValues(alpha: 0.1), // Keep original background
-                                borderRadius: BorderRadius.circular(10),
-                                border: Border.all(
-                                  color: Colors.white.withValues(alpha: 0.3), // White border in both modes
-                                  width: 1.5,
-                                ),
-                              ),
-                              child: TextField(
-                                controller: _usernameController,
-                                focusNode: _usernameFocusNode,
-                                textInputAction: TextInputAction.next,
-                                decoration: InputDecoration(
-                                  filled: true,
-                                  fillColor: Colors.transparent,
-                                  hintText: translationService.translate(TranslationKeys.username),
-                                  hintStyle: TextStyle(
-                                    color: Colors.white.withValues(alpha: 0.7), // White hint in both modes
-                                    fontSize: 16,
-                                  ),
-                                  prefixIcon: const Icon(Icons.person, color: Colors.white), // White icon in both modes
-                                  border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(10),
-                                    borderSide: BorderSide.none,
-                                  ),
-                                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-                                ),
-                                style: const TextStyle(
-                                  color: Colors.white, // White text in both modes
-                                  fontSize: 16,
-                                ),
-                                onTap: () {
-                                  // Unfocus other fields to prevent context menu conflicts
-                                  _passwordFocusNode.unfocus();
-                                },
-                                onSubmitted: (_) {
-                                  // Move focus to password field when username is submitted
-                                  _passwordFocusNode.requestFocus();
-                                },
-                              ),
-                            ),
-                          ),
-                        );
-                      },
-                    ),
                     const SizedBox(height: 20),
-                    // Password field
-                    ListenableBuilder(
-                      listenable: TranslationService(),
-                      builder: (context, _) {
-                        final translationService = TranslationService();
-                        return ClipRRect(
-                          borderRadius: BorderRadius.circular(10),
-                          child: BackdropFilter(
-                            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                            child: Container(
-                              decoration: BoxDecoration(
-                                color: AppColors.getCardBackgroundColor(context).withValues(alpha: 0.1), // Keep original background
-                                borderRadius: BorderRadius.circular(10),
-                                border: Border.all(
-                                  color: Colors.white.withValues(alpha: 0.3), // White border in both modes
-                                  width: 1.5,
-                                ),
-                              ),
-                              child: TextField(
-                                controller: _passwordController,
-                                focusNode: _passwordFocusNode,
-                                obscureText: _obscurePassword,
-                                textInputAction: TextInputAction.go,
-                                decoration: InputDecoration(
-                                  filled: true,
-                                  fillColor: Colors.transparent,
-                                  hintText: translationService.translate(TranslationKeys.password),
-                                  hintStyle: TextStyle(
-                                    color: Colors.white.withValues(alpha: 0.7), // White hint in both modes
-                                    fontSize: 16,
-                                  ),
-                                  prefixIcon: const Icon(Icons.lock, color: Colors.white), // White icon in both modes
-                                  suffixIcon: IconButton(
-                                    icon: Icon(
-                                      _obscurePassword ? Icons.visibility : Icons.visibility_off,
-                                      color: Colors.white.withValues(alpha: 0.7), // White icon in both modes
-                                    ),
-                                    onPressed: () {
-                                      setState(() {
-                                        _obscurePassword = !_obscurePassword;
-                                      });
-                                    },
-                                  ),
-                                  border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(10),
-                                    borderSide: BorderSide.none,
-                                  ),
-                                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-                                ),
-                                style: const TextStyle(
-                                  color: Colors.white, // White text in both modes
-                                  fontSize: 16,
-                                ),
-                                onTap: () {
-                                  // Unfocus other fields to prevent context menu conflicts
-                                  _usernameFocusNode.unfocus();
-                                },
-                                onSubmitted: (_) {
-                                  // Attempt login when password is submitted
-                                  _handleLogin();
-                                },
-                              ),
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                    if (_errorMessage != null) ...[
-                      const SizedBox(height: 10),
-                      Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: Colors.red.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: Colors.red.withValues(alpha: 0.3)),
-                        ),
-                        child: Row(
-                          children: [
-                            const Icon(Icons.error_outline, color: Colors.red, size: 20),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                _errorMessage!,
-                                style: const TextStyle(
-                                  color: Colors.red,
-                                  fontSize: 14,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                    const SizedBox(height: 30),
-                    // Login button
-                    SizedBox(
-                      width: double.infinity, // 100% width
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(10),
-                        child: BackdropFilter(
-                          filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
-                          child: Container(
-                            width: double.infinity, // 100% width
-                            decoration: BoxDecoration(
-                              gradient: const LinearGradient(
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
-                                colors: [
-                                  Color.fromRGBO(70, 130, 180, 0.8), // Steel blue
-                                  Color.fromRGBO(100, 149, 237, 0.8), // Cornflower blue
-                                ],
-                              ),
-                              borderRadius: BorderRadius.circular(10),
-                              border: Border.all(
-                                color: Colors.white.withValues(alpha: 0.3), // White border in both modes
-                                width: 1.5,
-                              ),
-                            ),
-                            child: Material(
-                              color: Colors.transparent,
-                              child: InkWell(
-                                onTap: _isLoading ? null : _handleLogin,
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(vertical: 16),
-                                  child: Center(
-                                    child: _isLoading
-                                        ? const SizedBox(
-                                            height: 24,
-                                            width: 24,
-                                            child: CircularProgressIndicator(
-                                              strokeWidth: 2.5,
-                                              valueColor: AlwaysStoppedAnimation<Color>(Colors.white), // White loading indicator in both modes
-                                            ),
-                                          )
-                                        : const Row(
-                                            mainAxisAlignment: MainAxisAlignment.center,
-                                            children: [
-                                              Icon(
-                                                Icons.login_rounded,
-                                                color: Colors.white, // White icon in both modes
-                                                size: 20,
-                                              ),
-                                              SizedBox(width: 8),
-                                              TranslatedText(
-                                                TranslationKeys.login,
-                                                style: TextStyle(
-                                                  fontSize: 18,
-                                                  fontWeight: FontWeight.w600,
-                                                  color: Colors.white, // White text in both modes
-                                                  letterSpacing: 0.5,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                    if (_isSocialLoginEnabled) ...[
-                      const SizedBox(height: 20),
-                      // Social Login Buttons
-                      SizedBox(
-                        width: double.infinity,
-                        child: OutlinedButton.icon(
-                          icon: Image.asset(
-                            'assets/images/google_logo.png', // Ensure you have this asset
-                            height: 24,
-                          ),
-                          label: const TranslatedText(
-                            TranslationKeys.signInWithGoogle,
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 16,
-                            ),
-                          ),
-                          style: OutlinedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            side: BorderSide(color: Colors.white.withValues(alpha: 0.5)),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            backgroundColor: Colors.white.withValues(alpha: 0.1),
-                          ),
-                          onPressed: _isLoading ? null : _handleGoogleLogin,
-                        ),
-                      ),
-                      // Facebook Login Button - Removed per user request
-                    ],
-                    // Forgot password text
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: TextButton(
-                        onPressed: () {
-                          Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (context) => const ForgotPasswordScreen(),
-                            ),
-                          );
-                        },
-                        child: TranslatedText(
-                          TranslationKeys.forgotPassword,
-                          style: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.8),
-                            fontSize: 18,
-                          ),
-                        ),
-                      ),
-                    ),
+                    if (_rememberedUserChecked && _rememberedUser != null)
+                      _buildRememberedUserCard()
+                    else if (_rememberedUserChecked)
+                      _buildFullLoginForm(),
                     const SizedBox(height: 20),
-                    // Register button
-                    Center(
-                      child: SizedBox(
-                        width: MediaQuery.of(context).size.width * 0.7, // 80% of screen width
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(10),
-                          child: BackdropFilter(
-                            filter: ImageFilter.blur(sigmaX: 3, sigmaY: 3),
-                            child: Container(
-                              width: double.infinity, // Take full width of SizedBox
-                              decoration: BoxDecoration(
-                                gradient: const LinearGradient(
-                                  begin: Alignment.topLeft,
-                                  end: Alignment.bottomRight,
-                                  colors: [
-                                    Color.fromRGBO(50, 205, 50, 0.8), // Lime green
-                                    Color.fromRGBO(34, 139, 34, 0.8), // Forest green
-                                  ],
-                                ),
-                                borderRadius: BorderRadius.circular(10),
-                                border: Border.all(
-                                  color: Colors.white.withValues(alpha: 0.3), // White border in both modes
-                                  width: 1.0,
-                                ),
-                              ),
-                              child: Material(
-                                color: Colors.transparent,
-                                child: InkWell(
-                                  onTap: () {
-                                    Navigator.of(context).push(
-                                      MaterialPageRoute(builder: (context) => const RegisterScreen()),
-                                    );
-                                  },
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(vertical: 8), // Even smaller padding
-                                    child: const Center(
-                                      child: Row(
-                                        mainAxisAlignment: MainAxisAlignment.center,
-                                        children: [
-                                          Icon(
-                                            Icons.person_add_rounded,
-                                            color: Colors.white, // White icon in both modes
-                                            size: 16, // Even smaller icon
-                                          ),
-                                          SizedBox(width: 6), // Smaller spacing
-                                          TranslatedText(
-                                            TranslationKeys.register,
-                                            style: TextStyle(
-                                              fontSize: 14, // Even smaller font
-                                              fontWeight: FontWeight.w600,
-                                              color: Colors.white, // White text in both modes
-                                              letterSpacing: 0.5,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
+                    _buildRegisterButton(),
                   ],
                 ),
               ),

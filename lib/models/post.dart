@@ -239,11 +239,12 @@ class Post {
       content: json['content'] ?? '',
       image: image,
       mediaType: mediaType,
-      likes: parseCount(json['likes']),
+      likes: parseCount(json['likeCount'] ?? json['likes']),
       comments: commentsCount,
       commentsList: finalCommentsList,
       createdAt: parseCreatedAt(json['created']),
-      isLiked: json['ilike'] == '1' || json['ilike'] == 1 || json['ilike'] == true,
+      isLiked: json['likedByMe'] == true || json['likedByMe'] == 1 || json['likedByMe'] == '1'
+             || json['ilike'] == '1' || json['ilike'] == 1 || json['ilike'] == true,
     );
   }
 

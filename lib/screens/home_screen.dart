@@ -34,6 +34,7 @@ import '../services/translation_service.dart';
 import '../widgets/translated_text.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import '../widgets/skeleton_loader.dart';
+import '../widgets/app_banner.dart';
 
 // Lifecycle event handler for keyboard-aware scrolling
 class LifecycleEventHandler extends WidgetsBindingObserver {
@@ -229,14 +230,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               if (Platform.isIOS) {
                 WidgetsBinding.instance.addPostFrameCallback((_) {
                   if (mounted) {
-                    _scaffoldMessengerKey.currentState?.showSnackBar(
-                      SnackBar(
-                        content: Text('📢 Broadcast: $message'),
-                        backgroundColor: Colors.blue,
-                        duration: const Duration(seconds: 5),
-                        behavior: SnackBarBehavior.fixed,
-                      ),
-                    );
+                    AppBanner.info('📢 Broadcast: $message');
                   }
                 });
               }
@@ -407,16 +401,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     } catch (e) {
       // If fetching fails, show a message to the user
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: ListenableBuilder(
-              listenable: TranslationService(),
-              builder: (context, _) => Text(
-                  '${TranslationKeys.postCreatedButCouldNotLoadDetails.tr}: ${e.toString()}'),
-            ),
-            backgroundColor: Colors.orange,
-          ),
-        );
+        AppBanner.warning('${TranslationKeys.postCreatedButCouldNotLoadDetails.tr}: ${e.toString()}');
       }
     }
   }
@@ -576,31 +561,14 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           // (optional - can be removed if too noisy)
           if (newPosts.length != oldPostCount) {
             if (newPosts.isNotEmpty) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(translationService
-                      .translate(TranslationKeys.refreshedFoundPosts)
-                      .replaceAll('{count}', newPosts.length.toString())),
-                  backgroundColor: Colors.green,
-                  duration: const Duration(seconds: 1),
-                  behavior: SnackBarBehavior.floating,
-                ),
-              );
+              AppBanner.success(translationService.translate(TranslationKeys.refreshedFoundPosts));
             }
           }
         }
       } else {
         debugPrint('⚠️ [HomeScreen] Manual refresh skipped: No user ID');
         if (mounted) {
-          _scaffoldMessengerKey.currentState?.showSnackBar(
-            SnackBar(
-              content: Text(translationService
-                  .translate(TranslationKeys.pleaseLoginToRefresh)),
-              backgroundColor: Colors.orange,
-              duration: const Duration(seconds: 2),
-              behavior: SnackBarBehavior.floating,
-            ),
-          );
+          AppBanner.warning(translationService.translate(TranslationKeys.pleaseLoginToRefresh));
         }
       }
     } catch (e) {
@@ -609,15 +577,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         setState(() {
           _isLoading = false;
         });
-        _scaffoldMessengerKey.currentState?.showSnackBar(
-          SnackBar(
-            content: Text(
-                '${translationService.translate(TranslationKeys.failedToRefresh)}: ${e.toString()}'),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 3),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
+        AppBanner.error('${translationService.translate(TranslationKeys.failedToRefresh)}: ${e.toString()}');
       }
     }
   }
@@ -719,11 +679,15 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
     if (!Platform.isAndroid) {
       debugPrint('[App Update] Verification skipped: Not on Android');
+<<<<<<< Updated upstream
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
             content: Text(translationService
                 .translate(TranslationKeys.autoUpdatesOnlyAndroid))),
       );
+=======
+      AppBanner.info(translationService.translate(TranslationKeys.autoUpdatesOnlyAndroid));
+>>>>>>> Stashed changes
       return;
     }
 
@@ -771,11 +735,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       } else {
         debugPrint('[App Update] No updates available.');
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-                content: Text(translationService
-                    .translate(TranslationKeys.noUpdatesAvailable))),
-          );
+          AppBanner.info(translationService.translate(TranslationKeys.noUpdatesAvailable));
         }
       }
     } catch (e) {
@@ -784,11 +744,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       AutoUpdateService.setDialogShowing(false);
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-              content: Text(
-                  '${translationService.translate(TranslationKeys.errorCheckingUpdates)}: $e')),
-        );
+        AppBanner.error('${translationService.translate(TranslationKeys.errorCheckingUpdates)}: $e');
       }
     }
   }

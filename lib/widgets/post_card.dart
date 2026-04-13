@@ -20,6 +20,7 @@ import '../config/constants.dart';
 import '../widgets/translated_text.dart';
 import '../services/translation_service.dart';
 import '../screens/profile_screen.dart';
+import '../widgets/app_banner.dart';
 
 /// Centralized styling for the PostCard widget - matches web platform exactly
 class PostCardStyles {
@@ -438,13 +439,7 @@ class _PostCardState extends State<PostCard> {
     } catch (e) {
       Navigator.pop(context); // Dismiss loading indicador
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-                '${TranslationKeys.failedToPostComment.tr}: ${e.toString()}'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        AppBanner.error('${TranslationKeys.failedToPostComment.tr}: ${e.toString()}');
       }
     }
   }
@@ -460,13 +455,7 @@ class _PostCardState extends State<PostCard> {
       }
     } catch (refreshError) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: TranslatedText(
-                TranslationKeys.commentPostedButCouldNotLoadDetails),
-            backgroundColor: Colors.orange,
-          ),
-        );
+        AppBanner.warning(TranslationKeys.commentPostedButCouldNotLoadDetails.tr);
       }
     }
   }
@@ -522,28 +511,23 @@ class _PostCardState extends State<PostCard> {
         userId: userId,
       );
 
-      // Refresh post details to get updated comment list
-      final updatedPost = await _postService.fetchPost(
-        postId: _currentPost.id,
-        userId: userId,
-      );
-
       Navigator.pop(context); // Dismiss loading indicator
 
       if (mounted) {
         setState(() {
-          _currentPost = updatedPost;
+          final updatedComments = _currentPost.commentsList
+              .where((c) => c.id != commentId)
+              .toList();
+          _currentPost = _currentPost.copyWith(
+            commentsList: updatedComments,
+            comments: updatedComments.length,
+          );
         });
       }
     } catch (e) {
       Navigator.pop(context); // Dismiss loading indicator
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to delete comment: ${e.toString()}'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        AppBanner.error('Failed to delete comment: ${e.toString()}');
       }
     }
   }
@@ -623,12 +607,7 @@ class _PostCardState extends State<PostCard> {
     } catch (e) {
       Navigator.pop(context); // Dismiss loading indicator
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to update comment: ${e.toString()}'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        AppBanner.error('Failed to update comment: ${e.toString()}');
       }
     }
   }
@@ -708,23 +687,12 @@ class _PostCardState extends State<PostCard> {
       Navigator.pop(context); // Dismiss loading indicator
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content:
-                TranslatedText(TranslationKeys.commentReportedSuccessfully),
-            backgroundColor: Colors.green,
-          ),
-        );
+        AppBanner.success(TranslationKeys.commentReportedSuccessfully.tr);
       }
     } catch (e) {
       Navigator.pop(context); // Dismiss loading indicator
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to report comment: ${e.toString()}'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        AppBanner.error('Failed to report comment: ${e.toString()}');
       }
     }
   }
@@ -790,16 +758,7 @@ class _PostCardState extends State<PostCard> {
     } catch (e) {
       Navigator.pop(context); // Dismiss loading indicator
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: ListenableBuilder(
-              listenable: TranslationService(),
-              builder: (context, _) => Text(
-                  '${TranslationKeys.failedToDeletePost.tr}: ${e.toString()}'),
-            ),
-            backgroundColor: Colors.red,
-          ),
-        );
+        AppBanner.error('${TranslationKeys.failedToDeletePost.tr}: ${e.toString()}');
       }
     }
   }
@@ -808,10 +767,7 @@ class _PostCardState extends State<PostCard> {
     final postUrl = '${ApiConstants.webBase}/post/${_currentPost.id}';
     await Clipboard.setData(ClipboardData(text: postUrl));
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content: TranslatedText(TranslationKeys.postLinkCopiedToClipboard)),
-      );
+      AppBanner.info(TranslationKeys.postLinkCopiedToClipboard.tr);
     }
   }
 
@@ -888,26 +844,12 @@ class _PostCardState extends State<PostCard> {
       Navigator.pop(context); // Dismiss loading indicator
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: TranslatedText(TranslationKeys.postReportedSuccessfully),
-            backgroundColor: Colors.green,
-          ),
-        );
+        AppBanner.success(TranslationKeys.postReportedSuccessfully.tr);
       }
     } catch (e) {
       Navigator.pop(context); // Dismiss loading indicator
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: ListenableBuilder(
-              listenable: TranslationService(),
-              builder: (context, _) => Text(
-                  '${TranslationKeys.failedToReportPost.tr}: ${e.toString()}'),
-            ),
-            backgroundColor: Colors.red,
-          ),
-        );
+        AppBanner.error('${TranslationKeys.failedToReportPost.tr}: ${e.toString()}');
       }
     }
   }
@@ -965,27 +907,13 @@ class _PostCardState extends State<PostCard> {
       Navigator.pop(context); // Dismiss loading indicator
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: TranslatedText(TranslationKeys.postHiddenSuccessfully),
-            backgroundColor: Colors.green,
-          ),
-        );
+        AppBanner.success(TranslationKeys.postHiddenSuccessfully.tr);
         widget.onPostDeleted?.call(_currentPost.id);
       }
     } catch (e) {
       Navigator.pop(context); // Dismiss loading indicator
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: ListenableBuilder(
-              listenable: TranslationService(),
-              builder: (context, _) => Text(
-                  '${TranslationKeys.failedToHidePost.tr}: ${e.toString()}'),
-            ),
-            backgroundColor: Colors.red,
-          ),
-        );
+        AppBanner.error('${TranslationKeys.failedToHidePost.tr}: ${e.toString()}');
       }
     }
   }
@@ -1003,7 +931,18 @@ class _PostCardState extends State<PostCard> {
   }
 
   Future<void> _toggleLike() async {
+    // Optimistic update
+    final wasLiked = _currentPost.isLiked;
+    final originalLikes = _currentPost.likes;
+    setState(() {
+      _currentPost = _currentPost.copyWith(
+        likes: wasLiked ? _currentPost.likes - 1 : _currentPost.likes + 1,
+        isLiked: !wasLiked,
+      );
+    });
+
     try {
+<<<<<<< Updated upstream
       final userId = await _authService.getStoredUserId();
       debugPrint('[PostCard] _toggleLike: postId=${_currentPost.id} userId=$userId');
       if (userId == null) throw Exception('User not logged in');
@@ -1040,13 +979,34 @@ class _PostCardState extends State<PostCard> {
       }
     } catch (e) {
       debugPrint('[PostCard] _toggleLike outer ERROR: $e');
+=======
+      debugPrint('[PostCard] _toggleLike: postId=${_currentPost.id}');
+      final result = await _postService.toggleLike(postId: _currentPost.id);
+
+      // Apply server-authoritative values
+>>>>>>> Stashed changes
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error: ${e.toString()}'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        setState(() {
+          _currentPost = _currentPost.copyWith(
+            isLiked: result['liked'] as bool,
+            likes: (result['likeCount'] as int) >= 0
+                ? result['likeCount'] as int
+                : _currentPost.likes,
+          );
+        });
+      }
+      debugPrint('[PostCard] _toggleLike: confirmed liked=${result['liked']} count=${result['likeCount']}');
+    } catch (e) {
+      debugPrint('[PostCard] _toggleLike ERROR: $e');
+      // Revert optimistic update on failure
+      if (mounted) {
+        setState(() {
+          _currentPost = _currentPost.copyWith(
+            likes: originalLikes,
+            isLiked: wasLiked,
+          );
+        });
+        AppBanner.error('Failed to update like: ${e.toString()}');
       }
     }
   }

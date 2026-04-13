@@ -30,6 +30,7 @@ import '../config/constants.dart';
 import '../utils/cache_utils.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../widgets/app_banner.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -466,12 +467,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error: ${e.toString()}'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        AppBanner.error('Error: ${e.toString()}');
       }
     }
   }
@@ -515,46 +511,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
               _newAvatarFile = null;
               _isUploadingAvatar = false;
             });
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(data['message'] ?? TranslationKeys.profileUpdateSuccess.tr),
-                backgroundColor: Colors.green,
-              ),
-            );
+            AppBanner.success(data['message'] ?? TranslationKeys.profileUpdateSuccess.tr);
             // Reload profile data
             await _loadUserProfile();
           }
         } else {
           if (mounted) {
             setState(() => _isUploadingAvatar = false);
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(data['message'] ?? TranslationKeys.profileUpdateError.tr),
-                backgroundColor: Colors.red,
-              ),
-            );
+            AppBanner.error(data['message'] ?? TranslationKeys.profileUpdateError.tr);
           }
         }
       } catch (e) {
         if (mounted) {
           setState(() => _isUploadingAvatar = false);
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('${TranslationKeys.profileUpdateError.tr}: ${response.body}'),
-              backgroundColor: Colors.red,
-            ),
-          );
+          AppBanner.error('${TranslationKeys.profileUpdateError.tr}: ${response.body}');
         }
       }
     } catch (e) {
       if (mounted) {
         setState(() => _isUploadingAvatar = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(TranslationKeys.profileUpdateError.tr),
-            backgroundColor: Colors.red,
-          ),
-        );
+        AppBanner.error(TranslationKeys.profileUpdateError.tr);
       }
     }
   }
@@ -589,46 +565,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
               _newBackgroundFile = null;
               _isUploadingWallpaper = false;
             });
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(data['message'] ?? TranslationKeys.profileUpdateSuccess.tr),
-                backgroundColor: Colors.green,
-              ),
-            );
+            AppBanner.success(data['message'] ?? TranslationKeys.profileUpdateSuccess.tr);
             // Reload profile data
             await _loadUserProfile();
           }
         } else {
           if (mounted) {
             setState(() => _isUploadingWallpaper = false);
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(data['message'] ?? TranslationKeys.profileUpdateError.tr),
-                backgroundColor: Colors.red,
-              ),
-            );
+            AppBanner.error(data['message'] ?? TranslationKeys.profileUpdateError.tr);
           }
         }
       } catch (e) {
         if (mounted) {
           setState(() => _isUploadingWallpaper = false);
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('${TranslationKeys.profileUpdateError.tr}: ${response.body}'),
-              backgroundColor: Colors.red,
-            ),
-          );
+          AppBanner.error('${TranslationKeys.profileUpdateError.tr}: ${response.body}');
         }
       }
     } catch (e) {
       if (mounted) {
         setState(() => _isUploadingWallpaper = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(TranslationKeys.profileUpdateError.tr),
-            backgroundColor: Colors.red,
-          ),
-        );
+        AppBanner.error(TranslationKeys.profileUpdateError.tr);
       }
     }
   }
@@ -652,12 +608,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           }
         } catch (e) {
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('Error selecting image: ${e.toString()}'),
-                backgroundColor: Colors.red,
-              ),
-            );
+            AppBanner.error('Error selecting image: ${e.toString()}');
           }
           return;
         }
@@ -666,12 +617,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           imageFile = await _getFileFromUrl(profileImage);
         } catch (e) {
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('Error loading image: ${e.toString()}'),
-                backgroundColor: Colors.red,
-              ),
-            );
+            AppBanner.error('Error loading image: ${e.toString()}');
           }
           return;
         }
@@ -707,23 +653,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
           }
         } catch (e) {
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('Error cropping image: ${e.toString()}'),
-                backgroundColor: Colors.red,
-              ),
-            );
+            AppBanner.error('Error cropping image: ${e.toString()}');
           }
         }
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error processing image: ${e.toString()}'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        AppBanner.error('Error processing image: ${e.toString()}');
       }
     }
   }
@@ -747,12 +683,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           }
         } catch (e) {
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('Error selecting image: ${e.toString()}'),
-                backgroundColor: Colors.red,
-              ),
-            );
+            AppBanner.error('Error selecting image: ${e.toString()}');
           }
           return;
         }
@@ -761,12 +692,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           imageFile = await _getFileFromUrl(backgroundImage);
         } catch (e) {
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('Error loading image: ${e.toString()}'),
-                backgroundColor: Colors.red,
-              ),
-            );
+            AppBanner.error('Error loading image: ${e.toString()}');
           }
           return;
         }
@@ -802,23 +728,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
           }
         } catch (e) {
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('Error cropping image: ${e.toString()}'),
-                backgroundColor: Colors.red,
-              ),
-            );
+            AppBanner.error('Error cropping image: ${e.toString()}');
           }
         }
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error processing image: ${e.toString()}'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        AppBanner.error('Error processing image: ${e.toString()}');
       }
     }
   }
@@ -2159,21 +2075,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 onChanged: (String? value) async {
                   if (value != null) {
                     await translationService.setLanguage(value);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: const TranslatedText(
-                          TranslationKeys.languageChanged,
-                          fallback: 'Language changed successfully!',
-                        ),
-                        backgroundColor: Colors.green,
-                        action: SnackBarAction(
-                          label: TranslationKeys.ok.tr,
-                          onPressed: () {
-                            ScaffoldMessenger.of(context).hideCurrentSnackBar();
-                          },
-                        ),
-                      ),
-                    );
+                    AppBanner.success(TranslationKeys.languageChanged.tr);
                   }
                 },
                 decoration: InputDecoration(
@@ -2524,32 +2426,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
           // Refresh user profile
           await AuthService().fetchUserProfile(user!.username);
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(data['message'] ?? TranslationKeys.profileUpdateSuccess.tr),
-                backgroundColor: Colors.green,
-              ),
-            );
+            AppBanner.success(data['message'] ?? TranslationKeys.profileUpdateSuccess.tr);
           }
         } else {
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(data['message'] ?? TranslationKeys.profileUpdateError.tr),
-                backgroundColor: Colors.red,
-              ),
-            );
+            AppBanner.error(data['message'] ?? TranslationKeys.profileUpdateError.tr);
           }
         }
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(TranslationKeys.profileUpdateError.tr),
-            backgroundColor: Colors.red,
-          ),
-        );
+        AppBanner.error(TranslationKeys.profileUpdateError.tr);
       }
     }
   }
@@ -2560,12 +2447,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
     if (_newPasswordController.text != _confirmPasswordController.text) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(TranslationKeys.passwordsDoNotMatch.tr),
-            backgroundColor: Colors.red,
-          ),
-        );
+        AppBanner.error(TranslationKeys.passwordsDoNotMatch.tr);
       }
       return;
     }
@@ -2584,12 +2466,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(data['message'] ?? ''),
-              backgroundColor: data['responseCode'] == '1' ? Colors.green : Colors.red,
-            ),
-          );
+          AppBanner.error(data['message'] ?? '');
         }
 
         if (data['responseCode'] == '1') {
@@ -2600,12 +2477,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(TranslationKeys.errorOccurred.tr),
-            backgroundColor: Colors.red,
-          ),
-        );
+        AppBanner.error(TranslationKeys.errorOccurred.tr);
       }
     }
   }
@@ -2619,24 +2491,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (pinv > 0) {
       if (_newPinController.text != _confirmPinController.text) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(TranslationKeys.pinsDoNotMatch.tr),
-              backgroundColor: Colors.red,
-            ),
-          );
+          AppBanner.error(TranslationKeys.pinsDoNotMatch.tr);
         }
         return;
       }
 
       if (_newPinController.text.length != pinv) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('PIN must be $pinv digits'),
-              backgroundColor: Colors.red,
-            ),
-          );
+          AppBanner.error('PIN must be $pinv digits');
         }
         return;
       }
@@ -2664,12 +2526,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(data['message'] ?? ''),
-              backgroundColor: data['responseCode'] == '1' ? Colors.green : Colors.red,
-            ),
-          );
+          AppBanner.error(data['message'] ?? '');
         }
 
         if (data['responseCode'] == '1') {
@@ -2682,12 +2539,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(TranslationKeys.errorOccurred.tr),
-            backgroundColor: Colors.red,
-          ),
-        );
+        AppBanner.error(TranslationKeys.errorOccurred.tr);
       }
     }
   }
@@ -2698,24 +2550,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
     if (_secQOneController.text.trim().isEmpty || _secAOneController.text.trim().isEmpty) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Security question 1 and answer are required'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        AppBanner.error('Security question 1 and answer are required');
       }
       return;
     }
 
     if (_secQTwoController.text.trim().isEmpty || _secATwoController.text.trim().isEmpty) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Security question 2 and answer are required'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        AppBanner.error('Security question 2 and answer are required');
       }
       return;
     }
@@ -2735,12 +2577,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(data['message'] ?? ''),
-              backgroundColor: data['responseCode'] == '1' ? Colors.green : Colors.red,
-            ),
-          );
+          AppBanner.error(data['message'] ?? '');
         }
 
         if (data['responseCode'] == '1') {
@@ -2750,12 +2587,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(TranslationKeys.errorOccurred.tr),
-            backgroundColor: Colors.red,
-          ),
-        );
+        AppBanner.error(TranslationKeys.errorOccurred.tr);
       }
     }
   }
@@ -2902,21 +2734,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
       try {
         await TranslationService().clearCache();
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: TranslatedText(TranslationKeys.cacheClearedSuccessfully),
-              backgroundColor: Colors.green,
-            ),
-          );
+          AppBanner.error(TranslationKeys.cacheClearedSuccessfully.tr);
         }
       } catch (e) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Error clearing cache: ${e.toString()}'),
-              backgroundColor: Colors.red,
-            ),
-          );
+          AppBanner.error('Error clearing cache: ${e.toString()}');
         }
       }
     }
@@ -2947,21 +2769,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
         final postService = PostService();
         await postService.clearTimelineCache();
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: TranslatedText(TranslationKeys.cacheClearedSuccessfully),
-              backgroundColor: Colors.green,
-            ),
-          );
+          AppBanner.error(TranslationKeys.cacheClearedSuccessfully.tr);
         }
       } catch (e) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Error clearing cache: ${e.toString()}'),
-              backgroundColor: Colors.red,
-            ),
-          );
+          AppBanner.error('Error clearing cache: ${e.toString()}');
         }
       }
     }
@@ -2992,21 +2804,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
         final friendService = FriendService();
         await friendService.clearCache();
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: TranslatedText(TranslationKeys.cacheClearedSuccessfully),
-              backgroundColor: Colors.green,
-            ),
-          );
+          AppBanner.error(TranslationKeys.cacheClearedSuccessfully.tr);
         }
       } catch (e) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Error clearing cache: ${e.toString()}'),
-              backgroundColor: Colors.red,
-            ),
-          );
+          AppBanner.error('Error clearing cache: ${e.toString()}');
         }
       }
     }
@@ -3053,22 +2855,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
         _loadTotalCacheSize();
         
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: TranslatedText(TranslationKeys.cacheClearedSuccessfully),
-              backgroundColor: Colors.green,
-              duration: Duration(seconds: 2),
-            ),
-          );
+          AppBanner.error(TranslationKeys.cacheClearedSuccessfully.tr);
         }
       } catch (e) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Error clearing cache: ${e.toString()}'),
-              backgroundColor: Colors.red,
-            ),
-          );
+          AppBanner.error('Error clearing cache: ${e.toString()}');
         }
       }
     }
@@ -3123,22 +2914,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
         await _notificationSoundService.playNotificationSound();
         
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('${TranslationKeys.customSoundSet.tr}: $fileName'),
-              backgroundColor: Colors.green,
-            ),
-          );
+          AppBanner.success('${TranslationKeys.customSoundSet.tr}: $fileName');
         }
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('${TranslationKeys.errorSelectingSoundFile.tr}: ${e.toString()}'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        AppBanner.error('${TranslationKeys.errorSelectingSoundFile.tr}: ${e.toString()}');
       }
     }
   }

@@ -9,6 +9,7 @@ import '../widgets/translated_text.dart';
 import '../services/translation_service.dart';
 
 import 'package:video_player/video_player.dart';
+import '../widgets/app_banner.dart';
 
 class CreatePostWidget extends StatefulWidget {
   final bool isEditing;
@@ -229,9 +230,7 @@ class _CreatePostWidgetState extends State<CreatePostWidget> {
         }
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to pick media: $e')),
-      );
+      AppBanner.info('Failed to pick media: $e');
     }
   }
 
@@ -239,12 +238,16 @@ class _CreatePostWidgetState extends State<CreatePostWidget> {
     final content = _contentController.text.trim();
     final mediaUrl = _urlController.text.trim();
     if (content.isEmpty && _selectedMedia == null && mediaUrl.isEmpty) {
+<<<<<<< Updated upstream
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: TranslatedText(TranslationKeys.fieldRequired),
           backgroundColor: Colors.red,
         ),
       );
+=======
+      AppBanner.error(TranslationKeys.fieldRequired.tr);
+>>>>>>> Stashed changes
       return;
     }
 
@@ -291,13 +294,7 @@ class _CreatePostWidgetState extends State<CreatePostWidget> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-                'Failed to ${widget.isEditing ? 'update' : 'create'} post: ${e.toString()}'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        AppBanner.error('Failed to ${widget.isEditing ? 'update' : 'create'} post: ${e.toString()}');
       }
     } finally {
       if (mounted) {

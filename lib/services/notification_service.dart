@@ -22,7 +22,7 @@ import 'call_service.dart';
 import 'auth_service.dart';
 import 'friend_service.dart';
 import '../models/friend.dart';
-import '../main.dart';
+import '../utils/navigator_key.dart';
 import '../config/constants.dart';
 
 class NotificationService {

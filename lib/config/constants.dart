@@ -113,6 +113,9 @@ class StorageKeys {
   static const String userProfile = 'user_profile';
   static const String username = 'username';
   static const String sessionToken = 'session_token';
+  // Remembered user — persists across logout so the login screen can show who was logged in
+  static const String rememberedUsername = 'remembered_username';
+  static const String rememberedAvatar = 'remembered_avatar';
 }
 
 /// Utility class for URL conversion

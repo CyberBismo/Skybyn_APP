@@ -25,6 +25,7 @@ import '../widgets/skeleton_loader.dart';
 import 'chat_screen.dart';
 import 'package:share_plus/share_plus.dart';
 import '../models/friend.dart';
+import '../widgets/app_banner.dart';
 
 class ProfileScreen extends StatefulWidget {
   final String? userId;
@@ -638,13 +639,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           });
 
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(data['message'] ?? 'Friend request sent'),
-                backgroundColor: Colors.green,
-                duration: const Duration(seconds: 2),
-              ),
-            );
+            AppBanner.success(data['message'] ?? 'Friend request sent');
           }
         } else {
           setState(() {
@@ -652,14 +647,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           });
 
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content:
-                    Text(data['message'] ?? 'Failed to send friend request'),
-                backgroundColor: Colors.red,
-                duration: const Duration(seconds: 2),
-              ),
-            );
+            AppBanner.error(data['message'] ?? 'Failed to send friend request');
           }
         }
       } else {
@@ -1252,12 +1240,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
 
     if (menuItems.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('No friend actions available'),
-          duration: Duration(seconds: 2),
-        ),
-      );
+      AppBanner.info('No friend actions available');
       return;
     }
 
@@ -1385,46 +1368,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
         final data = json.decode(response.body);
         if (data['responseCode'] == '1' || data['responseCode'] == 1) {
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(data['message'] ??
-                    'User reported successfully. Thank you for your report.'),
-                backgroundColor: Colors.green,
-                duration: const Duration(seconds: 3),
-              ),
-            );
+            AppBanner.success(data['message'] ??
+                    'User reported successfully. Thank you for your report.');
           }
         } else {
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(data['message'] ?? 'Failed to report user'),
-                backgroundColor: Colors.red,
-                duration: const Duration(seconds: 3),
-              ),
-            );
+            AppBanner.error(data['message'] ?? 'Failed to report user');
           }
         }
       } else {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Error reporting user. Please try again.'),
-              backgroundColor: Colors.red,
-              duration: Duration(seconds: 3),
-            ),
-          );
+          AppBanner.error('Error reporting user. Please try again.');
         }
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Error reporting user. Please try again.'),
-            backgroundColor: Colors.red,
-            duration: Duration(seconds: 3),
-          ),
-        );
+        AppBanner.error('Error reporting user. Please try again.');
       }
     }
   }
@@ -1440,13 +1399,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       await Share.share(shareText);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Error sharing profile'),
-            backgroundColor: Colors.red,
-            duration: Duration(seconds: 2),
-          ),
-        );
+        AppBanner.error('Error sharing profile');
       }
     }
   }
@@ -1599,13 +1552,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           elevation: 20,
           itemBuilder: (BuildContext context) {
             // Show toast when menu opens
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Dropdown menu opened'),
-                duration: Duration(seconds: 1),
-                backgroundColor: Colors.blue,
-              ),
-            );
+            AppBanner.info('Dropdown menu opened');
             return menuItems;
           },
           onSelected: (String value) {
@@ -1645,36 +1592,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
           await _checkFriendshipStatus();
 
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(data['message'] ?? 'Action completed'),
-                backgroundColor: Colors.green,
-                duration: const Duration(seconds: 2),
-              ),
-            );
+            AppBanner.success(data['message'] ?? 'Action completed');
           }
         } else {
           // Show error message
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(data['message'] ?? 'Action failed'),
-                backgroundColor: Colors.red,
-                duration: const Duration(seconds: 2),
-              ),
-            );
+            AppBanner.error(data['message'] ?? 'Action failed');
           }
         }
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Error performing action'),
-            backgroundColor: Colors.red,
-            duration: Duration(seconds: 2),
-          ),
-        );
+        AppBanner.error('Error performing action');
       }
     }
   }

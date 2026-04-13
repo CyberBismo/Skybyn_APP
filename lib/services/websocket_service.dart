@@ -22,7 +22,7 @@ import 'notification_sound_service.dart';
 import 'friend_service.dart';
 import 'in_app_notification_service.dart';
 import 'local_message_database.dart';
-import '../main.dart';
+import '../utils/navigator_key.dart';
 import '../config/constants.dart';
 
 // Helper function to log chat events - always logs regardless of zone filters

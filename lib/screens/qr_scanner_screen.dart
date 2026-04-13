@@ -12,6 +12,7 @@ import '../widgets/translated_text.dart';
 import '../widgets/header.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:local_auth/local_auth.dart';
+import '../widgets/app_banner.dart';
 
 class QrScannerScreen extends StatefulWidget {
   final String? qrCode; // Optional QR code for confirmation mode (from deep links)
@@ -242,13 +243,7 @@ class _QrScannerScreenState extends State<QrScannerScreen> with WidgetsBindingOb
       if (data['responseCode'] == '1') {
         if (mounted) {
           // Show success message
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Login confirmed successfully!'),
-              backgroundColor: Colors.green,
-              duration: Duration(seconds: 2),
-            ),
-          );
+          AppBanner.success('Login confirmed successfully!');
           
           // Navigate back
           Navigator.of(context).pop();
@@ -697,9 +692,7 @@ class _QrScannerScreenState extends State<QrScannerScreen> with WidgetsBindingOb
       if (data['responseCode'] == '1') {
         if (!mounted) return;
         // Show brief success feedback if needed or just pop
-        ScaffoldMessenger.of(context).showSnackBar(
-           const SnackBar(content: Text('Login confirmed!'), backgroundColor: Colors.green, duration: Duration(seconds: 1)),
-        );
+        AppBanner.success('Login confirmed!');
         Navigator.of(context).pop(); // Go back to previous screen
       } else {
         setState(() {

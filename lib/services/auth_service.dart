@@ -161,9 +161,15 @@ class AuthService {
             }
           }
 
+          // Save remembered user (survives logout so login screen can show who was here)
+          await _prefs?.setString(StorageKeys.rememberedUsername, username);
+
           // Try to fetch user profile, but don't fail login if it fails
           try {
-            await fetchUserProfile(username);
+            final user = await fetchUserProfile(username);
+            if (user != null && user.avatar.isNotEmpty) {
+              await _prefs?.setString(StorageKeys.rememberedAvatar, user.avatar);
+            }
           } catch (e) {
             debugPrint('AuthService: Failed to fetch user profile after login: $e');
           }
@@ -376,6 +382,16 @@ class AuthService {
       final userId = await getStoredUserId();
       if (userId == null || userId.isEmpty) return false;
 
+      // Require a session token — without it every authenticated action fails.
+      // This catches the case where a reinstall cleared secure storage but
+      // SharedPreferences still had the userId, giving a false "logged in" state.
+      final token = await getStoredSessionToken();
+      if (token == null || token.isEmpty) {
+        debugPrint('AuthService: No session token found — forcing re-login');
+        await logout();
+        return false;
+      }
+
       final user = await fetchUserProfile('');
       if (user != null) return true;
 
@@ -471,7 +487,22 @@ class AuthService {
   }
 
   Future<String?> getStoredSessionToken() async {
-    return await _secureOp(() => _secureStorage.read(key: StorageKeys.sessionToken));
+    await initPrefs();
+    String? token = await _secureOp(() => _secureStorage.read(key: StorageKeys.sessionToken));
+    if (token == null || token.isEmpty) {
+      token = _prefs?.getString(StorageKeys.sessionToken);
+    }
+    return token;
+  }
+
+  /// Returns the last logged-in user's username and avatar, or null if none.
+  /// This survives logout so the login screen can show who was previously logged in.
+  Future<Map<String, String?>?> getRememberedUser() async {
+    await initPrefs();
+    final username = _prefs?.getString(StorageKeys.rememberedUsername);
+    if (username == null || username.isEmpty) return null;
+    final avatar = _prefs?.getString(StorageKeys.rememberedAvatar);
+    return {'username': username, 'avatar': avatar};
   }
 
   Future<String?> getStoredUserId() async {
@@ -607,7 +638,7 @@ class AuthService {
     
     // Clear all keys except system-level preferences
     // Keep only theme and language preferences (these are device-level, not user-specific)
-    final keysToKeep = {'theme_mode', 'language'};
+    final keysToKeep = {'theme_mode', 'language', StorageKeys.rememberedUsername, StorageKeys.rememberedAvatar};
     for (final key in keys) {
       if (!keysToKeep.contains(key)) {
         await _prefs?.remove(key);

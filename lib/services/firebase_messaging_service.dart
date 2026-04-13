@@ -13,7 +13,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../config/constants.dart';
-import '../main.dart'; // for navigatorKey
+import '../utils/navigator_key.dart';
 import '../models/friend.dart';
 import 'auth_service.dart';
 import 'device_service.dart';

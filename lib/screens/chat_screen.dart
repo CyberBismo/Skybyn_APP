@@ -41,6 +41,7 @@ import '../widgets/app_colors.dart';
 import '../services/chat_message_count_service.dart';
 import '../services/notification_service.dart';
 import '../widgets/skeleton_loader.dart';
+import '../widgets/app_banner.dart';
 
 class ChatScreen extends StatefulWidget {
   final Friend friend;
@@ -1426,14 +1427,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
       return true;
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: ListenableBuilder(
-              listenable: TranslationService(),
-              builder: (context, _) => Text('${TranslationKeys.errorCheckingPermissions.tr}: $e'),
-            ),
-          ),
-        );
+        AppBanner.info('${TranslationKeys.errorCheckingPermissions.tr}: $e');
       }
       return false;
     }
@@ -3169,23 +3163,22 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
     try {
       await FriendService().blockUser(friendId: widget.friend.id);
       if (mounted) {
+<<<<<<< Updated upstream
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: TranslatedText(TranslationKeys.userBlocked),
             duration: Duration(seconds: 2),
           ),
         );
+=======
+        AppBanner.info(TranslationKeys.userBlocked.tr);
+>>>>>>> Stashed changes
         Navigator.of(context).pop();
       }
     } catch (e) {
       debugPrint('[ChatScreen] Block user error: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: TranslatedText(TranslationKeys.errorBlockingUser),
-            duration: Duration(seconds: 3),
-          ),
-        );
+        AppBanner.info(TranslationKeys.errorBlockingUser.tr);
       }
     }
   }
@@ -3226,23 +3219,22 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
     try {
       await FriendService().removeFriend(friendId: widget.friend.id);
       if (mounted) {
+<<<<<<< Updated upstream
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: TranslatedText(TranslationKeys.userUnfriended),
             duration: Duration(seconds: 2),
           ),
         );
+=======
+        AppBanner.info(TranslationKeys.userUnfriended.tr);
+>>>>>>> Stashed changes
         Navigator.of(context).pop();
       }
     } catch (e) {
       debugPrint('[ChatScreen] Unfriend user error: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: TranslatedText(TranslationKeys.errorUnfriendingUser),
-            duration: Duration(seconds: 3),
-          ),
-        );
+        AppBanner.info(TranslationKeys.errorUnfriendingUser.tr);
       }
     }
   }

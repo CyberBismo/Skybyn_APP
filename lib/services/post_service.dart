@@ -582,14 +582,20 @@ class PostService {
     debugPrint('[PostService] updatePost: success');
   }
 
+<<<<<<< Updated upstream
   Future<void> toggleLike({
     required String postId,
     required String userId,
   }) async {
     debugPrint('[PostService] toggleLike: postId=$postId userId=$userId');
+=======
+  /// Returns a map with 'liked' (bool) and 'likeCount' (int) from the server.
+  Future<Map<String, dynamic>> toggleLike({required String postId}) async {
+    debugPrint('[PostService] toggleLike: postId=$postId');
+>>>>>>> Stashed changes
     final response = await globalAuthClient.post(
       Uri.parse(ApiConstants.timeline),
-      body: {'action': 'like', 'postID': postId, 'userID': userId},
+      body: {'action': 'like', 'postID': postId},
     );
 
     debugPrint('[PostService] toggleLike: status=${response.statusCode} body=${response.body}');
@@ -602,7 +608,15 @@ class PostService {
       final message = data['message'] ?? 'Failed to toggle like';
       throw Exception(message);
     }
+<<<<<<< Updated upstream
     debugPrint('[PostService] toggleLike: success');
+=======
+
+    final liked = data['liked'] == true || data['liked'] == 1 || data['liked'] == '1';
+    final likeCount = int.tryParse(data['likeCount']?.toString() ?? '') ?? -1;
+    debugPrint('[PostService] toggleLike: success liked=$liked likeCount=$likeCount');
+    return {'liked': liked, 'likeCount': likeCount};
+>>>>>>> Stashed changes
   }
 
   Future<void> hidePost({
