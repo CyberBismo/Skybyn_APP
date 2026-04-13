@@ -3163,16 +3163,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
     try {
       await FriendService().blockUser(friendId: widget.friend.id);
       if (mounted) {
-<<<<<<< Updated upstream
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: TranslatedText(TranslationKeys.userBlocked),
-            duration: Duration(seconds: 2),
-          ),
-        );
-=======
         AppBanner.info(TranslationKeys.userBlocked.tr);
->>>>>>> Stashed changes
         Navigator.of(context).pop();
       }
     } catch (e) {
@@ -3219,16 +3210,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
     try {
       await FriendService().removeFriend(friendId: widget.friend.id);
       if (mounted) {
-<<<<<<< Updated upstream
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: TranslatedText(TranslationKeys.userUnfriended),
-            duration: Duration(seconds: 2),
-          ),
-        );
-=======
         AppBanner.info(TranslationKeys.userUnfriended.tr);
->>>>>>> Stashed changes
         Navigator.of(context).pop();
       }
     } catch (e) {

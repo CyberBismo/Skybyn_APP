@@ -238,16 +238,7 @@ class _CreatePostWidgetState extends State<CreatePostWidget> {
     final content = _contentController.text.trim();
     final mediaUrl = _urlController.text.trim();
     if (content.isEmpty && _selectedMedia == null && mediaUrl.isEmpty) {
-<<<<<<< Updated upstream
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: TranslatedText(TranslationKeys.fieldRequired),
-          backgroundColor: Colors.red,
-        ),
-      );
-=======
       AppBanner.error(TranslationKeys.fieldRequired.tr);
->>>>>>> Stashed changes
       return;
     }
 

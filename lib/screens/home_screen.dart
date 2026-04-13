@@ -679,15 +679,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
     if (!Platform.isAndroid) {
       debugPrint('[App Update] Verification skipped: Not on Android');
-<<<<<<< Updated upstream
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-            content: Text(translationService
-                .translate(TranslationKeys.autoUpdatesOnlyAndroid))),
-      );
-=======
       AppBanner.info(translationService.translate(TranslationKeys.autoUpdatesOnlyAndroid));
->>>>>>> Stashed changes
       return;
     }
 

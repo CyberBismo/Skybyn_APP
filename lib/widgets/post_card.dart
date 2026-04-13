@@ -942,49 +942,10 @@ class _PostCardState extends State<PostCard> {
     });
 
     try {
-<<<<<<< Updated upstream
-      final userId = await _authService.getStoredUserId();
-      debugPrint('[PostCard] _toggleLike: postId=${_currentPost.id} userId=$userId');
-      if (userId == null) throw Exception('User not logged in');
-
-      final wasLiked = _currentPost.isLiked;
-      final originalLikes = _currentPost.likes;
-
-      setState(() {
-        _currentPost = _currentPost.copyWith(
-          likes: wasLiked ? _currentPost.likes - 1 : _currentPost.likes + 1,
-          isLiked: !wasLiked,
-        );
-      });
-
-      try {
-        await _postService.toggleLike(postId: _currentPost.id, userId: userId);
-        debugPrint('[PostCard] _toggleLike: success wasLiked=$wasLiked now=${!wasLiked}');
-      } catch (e) {
-        debugPrint('[PostCard] _toggleLike ERROR: $e');
-        if (mounted) {
-          setState(() {
-            _currentPost = _currentPost.copyWith(
-              likes: originalLikes,
-              isLiked: wasLiked,
-            );
-          });
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Failed to update like: ${e.toString()}'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
-      }
-    } catch (e) {
-      debugPrint('[PostCard] _toggleLike outer ERROR: $e');
-=======
       debugPrint('[PostCard] _toggleLike: postId=${_currentPost.id}');
       final result = await _postService.toggleLike(postId: _currentPost.id);
 
       // Apply server-authoritative values
->>>>>>> Stashed changes
       if (mounted) {
         setState(() {
           _currentPost = _currentPost.copyWith(
