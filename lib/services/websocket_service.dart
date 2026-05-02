@@ -84,7 +84,7 @@ class WebSocketService {
   Function(String)? _onUpdatePost; // postId
   Function(String, String)? _onUpdateComment; // postId, commentId
   Function(String)? _onBroadcast; // broadcast message
-  Function()? _onAppUpdate; // app update notification
+  Function(String? url, String? version, String? iosUrl)? _onAppUpdate; // app update notification
   Function(String, String, String, String)?
       _onChatMessage; // messageId, fromUserId, toUserId, message
   final List<Function(String, String, String, String)> _onChatMessageCallbacks =
@@ -316,7 +316,7 @@ class WebSocketService {
     Function(String)? onUpdatePost,
     Function(String, String)? onUpdateComment,
     Function(String)? onBroadcast,
-    Function()? onAppUpdate,
+    Function(String? url, String? version, String? iosUrl)? onAppUpdate,
     Function(String, String, String, String)?
         onChatMessage, // messageId, fromUserId, toUserId, message
     Function(String, bool)? onTypingStatus, // userId, isTyping
@@ -813,25 +813,10 @@ class WebSocketService {
             case 'app_update':
               _logChat('WebSocket App Update',
                   '🔄 App update notification received');
-              await _handleAppUpdate();
-
-              // Show only one type of notification - in-app if foreground, system if background
-              // Note: _handleAppUpdate() already shows system notification, so we only show in-app if foreground
-              if (_isAppInForeground()) {
-                // App is in foreground - show in-app notification only (system notification is skipped in _handleAppUpdate)
-                _showInAppNotification(
-                  title: 'App Update Available',
-                  body: 'A new version of Skybyn is ready to download',
-                  icon: Icons.system_update,
-                  iconColor: Colors.orange,
-                  notificationType: 'app_update',
-                  onTap: () {
-                    // Trigger update check via callback
-                    _onAppUpdate?.call();
-                  },
-                );
-              }
-              // If app is in background, _handleAppUpdate() will show system notification
+              final updateUrl = data['url']?.toString();
+              final updateVersion = data['version']?.toString();
+              final updateIosUrl = data['ios_url']?.toString();
+              await _handleAppUpdate(url: updateUrl, version: updateVersion, iosUrl: updateIosUrl);
               break;
             case 'call_initiate':
               final callId = data['callId']?.toString() ?? '';
@@ -1103,29 +1088,8 @@ class WebSocketService {
   }
 
   /// Handle app update notification
-  Future<void> _handleAppUpdate() async {
-    // Only show system notification if app is in background
-    // If app is in foreground, the caller will show in-app notification instead
-    if (!_isAppInForeground()) {
-      try {
-        await _notificationService.showNotification(
-          title: 'App Update Available',
-          body: 'A new version of Skybyn is ready to download',
-          payload: 'app_update',
-        );
-        _logChat('WebSocket App Update',
-            'System notification shown (app in background)');
-      } catch (e) {
-        _logChat(
-            'WebSocket App Update', 'Failed to show system notification: $e');
-      }
-    } else {
-      _logChat('WebSocket App Update',
-          'Skipping system notification (app in foreground, will show in-app)');
-    }
-
-    // Trigger the update check callback to show dialog
-    _onAppUpdate?.call();
+  Future<void> _handleAppUpdate({String? url, String? version, String? iosUrl}) async {
+    _onAppUpdate?.call(url, version, iosUrl);
   }
 
   /// Handle acknowledgment

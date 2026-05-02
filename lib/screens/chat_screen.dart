@@ -410,10 +410,10 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
         developer.log('   Parameters: ${jsonEncode(requestParams)}', name: 'Chat API');
       }
       
-      final response = await http.post(
+      final response = await globalAuthClient.post(
         Uri.parse(apiUrl),
         body: requestParams,
-      ).timeout(const Duration(seconds: 5));
+      ).timeout(const Duration(seconds: 10));
 
       // Check if widget is still mounted after async operation
       if (!mounted) return;
@@ -1728,7 +1728,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
                 // Chat messages area with rounded container - stretches down to input
                 Expanded(
                   child: Padding(
-                    padding: const EdgeInsets.only(left: 16, right: 16, bottom: 16),
+                    padding: const EdgeInsets.only(left: 16, right: 16, bottom: 12),
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(20),
                       child: BackdropFilter(
@@ -1744,7 +1744,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
                           ),
                           child: _isLoading
                               ? ListView.builder(
-                                  padding: const EdgeInsets.all(16),
+                                  padding: const EdgeInsets.fromLTRB(16, 16, 12, 12),
                                   itemCount: 6,
                                   itemBuilder: (context, index) {
                                     return Padding(
@@ -1838,7 +1838,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
                                               controller: _scrollController,
                                               physics: const AlwaysScrollableScrollPhysics(), // Ensure refresh indicator works even with few items
                                               reverse: false, // Normal order: oldest at top, newest at bottom
-                                              padding: const EdgeInsets.all(16),
+                                              padding: const EdgeInsets.fromLTRB(16, 16, 12, 12),
                                               itemCount: _messages.length + (_isLoadingOlder ? 1 : 0),
                                               itemBuilder: (context, index) {
                                         // Show loading indicator at top when loading older messages
@@ -1963,7 +1963,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
                                 controller: _messageController,
                                 focusNode: _messageFocusNode,
                                 decoration: InputDecoration(
-                                  hintText: TranslationService().translate(TranslationKeys.typeMessage),
+                                  hintText: TranslationService().translate(TranslationKeys.typeYourMessage),
                                   hintStyle: TextStyle(
                                     color: Colors.white.withOpacity(0.7),
                                     fontSize: 16,
@@ -2010,9 +2010,9 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
                                     width: 40,
                                     height: 40,
                                     decoration: BoxDecoration(
-                                      color: _isRecording 
-                                          ? (_shouldCancelRecording ? Colors.orange.withOpacity(0.8) : Colors.green.withOpacity(0.8))
-                                          : Colors.white.withOpacity(0.2),
+                                      color: _isRecording
+                                          ? (_shouldCancelRecording ? Colors.orange : Colors.red)
+                                          : Colors.white.withOpacity(0.15),
                                       shape: BoxShape.circle,
                                     ),
                                     child: Icon(
@@ -2060,9 +2060,8 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
             _buildFilePreview(),
           // Attachment options menu (shown above input area)
           _buildAttachmentMenu(),
-          // Audio visualizer (shown above microphone button when recording) - on top of everything
-          if (_isRecording)
-            _buildAudioVisualizerOverlay(),
+          // Recording bar (slides up when recording)
+          _buildRecordingOverlay(),
         ],
       ),
     );
@@ -2245,53 +2244,110 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
     return _AudioPlayerWidget(audioUrl: audioUrl, isVoice: isVoice);
   }
 
-  /// Build audio visualizer overlay positioned above microphone button
-  Widget _buildAudioVisualizerOverlay() {
-    // Use simpler positioning - fixed position above input area
-    return Positioned(
-      bottom: 150, // Above the input area
-      right: 55, // Aligned with microphone button area
-      child: _buildVisualizerCircle(),
-    );
-  }
+  /// Slide-up recording bar shown while the user holds the mic button
+  Widget _buildRecordingOverlay() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bg = isDark ? const Color(0xFF1E1E1E) : Colors.white;
+    final cancelMode = _shouldCancelRecording;
+    final accentColor = cancelMode ? Colors.orange : Colors.red;
 
-  /// Build the circular visualizer container
-  Widget _buildVisualizerCircle() {
-    // Rebuild when audio level changes by using it in the widget tree
-    // Use a key based on audio level to force rebuild when it changes significantly
-    return Material(
-      color: Colors.transparent,
-      elevation: 10, // Ensure it's above other elements
-      child: Container(
-        width: 80,
-        height: 80,
-        decoration: BoxDecoration(
-          color: Colors.black.withOpacity(0.95),
-          shape: BoxShape.circle,
-          border: Border.all(
-            color: _shouldCancelRecording 
-                ? Colors.orange.withOpacity(0.9)
-                : (_isRecording ? Colors.green.withOpacity(0.9) : Colors.red.withOpacity(0.9)),
-            width: 2.5,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: (_shouldCancelRecording 
-                  ? Colors.orange 
-                  : (_isRecording ? Colors.green : Colors.red)).withOpacity(0.6),
-              blurRadius: 20,
-              spreadRadius: 4,
-            ),
-          ],
-        ),
-        child: ClipOval(
+    final mins = _recordingDuration ~/ 60;
+    final secs = _recordingDuration % 60;
+    final timerText =
+        '${mins.toString().padLeft(2, '0')}:${secs.toString().padLeft(2, '0')}';
+
+    return Positioned(
+      left: 0,
+      right: 0,
+      bottom: 0,
+      child: AnimatedSlide(
+        offset: _isRecording ? Offset.zero : const Offset(0, 1),
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeOutCubic,
+        child: AnimatedOpacity(
+          opacity: _isRecording ? 1.0 : 0.0,
+          duration: const Duration(milliseconds: 180),
           child: Container(
-            padding: const EdgeInsets.all(8),
-            alignment: Alignment.center,
-            child: _AudioVisualizerWidget(
-              audioLevel: _audioLevel,
-              isReadyToSend: _isRecording && !_shouldCancelRecording,
-              isCancelled: _shouldCancelRecording,
+            decoration: BoxDecoration(
+              color: bg,
+              borderRadius:
+                  const BorderRadius.vertical(top: Radius.circular(20)),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.15),
+                  blurRadius: 16,
+                  offset: const Offset(0, -4),
+                ),
+              ],
+            ),
+            padding: EdgeInsets.only(
+              top: 14,
+              left: 20,
+              right: 20,
+              bottom: MediaQuery.of(context).padding.bottom + 80,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Drag handle
+                Container(
+                  width: 36,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey.withOpacity(0.35),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    // Pulsing dot + timer
+                    _PulsingDot(color: accentColor),
+                    const SizedBox(width: 10),
+                    Text(
+                      timerText,
+                      style: TextStyle(
+                        color: accentColor,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        fontFeatures: const [FontFeature.tabularFigures()],
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    // Waveform
+                    Expanded(
+                      child: SizedBox(
+                        height: 40,
+                        child: _AudioVisualizerWidget(
+                          audioLevel: _audioLevel,
+                          isReadyToSend: !cancelMode,
+                          isCancelled: cancelMode,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    // Cancel / send hint icon
+                    Icon(
+                      cancelMode ? Icons.delete_outline : Icons.send,
+                      color: cancelMode
+                          ? Colors.orange
+                          : Colors.green,
+                      size: 24,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  cancelMode
+                      ? 'Release to cancel'
+                      : 'Slide up to cancel  ·  Release to send',
+                  style: TextStyle(
+                    color: (isDark ? Colors.white : Colors.black)
+                        .withOpacity(0.45),
+                    fontSize: 12,
+                  ),
+                ),
+              ],
             ),
           ),
         ),
@@ -2433,60 +2489,6 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
                 ),
               ),
             ),
-            if (isFromMe) ...[
-              const SizedBox(width: 8),
-              CircleAvatar(
-                radius: 16,
-                backgroundColor: Colors.white.withOpacity(0.2),
-                child: FutureBuilder<String?>(
-                  future: _authService.getStoredUserProfile().then((u) => u?.avatar),
-                  builder: (context, snapshot) {
-                    if (snapshot.hasData && snapshot.data != null && snapshot.data!.isNotEmpty) {
-                      return ClipRRect(
-                        borderRadius: BorderRadius.circular(16),
-                        child: CachedNetworkImage(
-                          imageUrl: UrlHelper.convertUrl(snapshot.data!),
-                          width: 32,
-                          height: 32,
-                          fit: BoxFit.cover,
-                          httpHeaders: const {},
-                          placeholder: (context, url) => ClipRRect(
-                            borderRadius: BorderRadius.circular(16),
-                            child: Image.asset(
-                              'assets/images/icon.png',
-                              width: 32,
-                              height: 32,
-                              fit: BoxFit.cover,
-                            ),
-                          ),
-                          errorWidget: (context, url, error) {
-                            // Handle all errors including 404 (HttpExceptionWithStatus)
-                            return ClipRRect(
-                              borderRadius: BorderRadius.circular(16),
-                              child: Image.asset(
-                                'assets/images/icon.png',
-                                width: 32,
-                                height: 32,
-                                fit: BoxFit.cover,
-                              ),
-                            );
-                          },
-                        ),
-                      );
-                    }
-                    return ClipRRect(
-                      borderRadius: BorderRadius.circular(16),
-                      child: Image.asset(
-                        'assets/images/icon.png',
-                        width: 32,
-                        height: 32,
-                        fit: BoxFit.cover,
-                      ),
-                    );
-                  },
-                ),
-              ),
-            ],
           ],
         ),
       ),
@@ -3224,127 +3226,126 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
   /// Get formatted last active status string
   String _getLastActiveStatus() {
     final service = TranslationService();
-    
+
     if (_friendOnline) {
       return service.translate(TranslationKeys.active) ?? 'Active';
     }
-    
+
     if (_friendLastActive == null) {
-      return service.translate(TranslationKeys.inactive) ?? 'Inactive';
+      return service.translate(TranslationKeys.lastSeen) ?? 'Last seen';
     }
-    
+
     final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
     final diff = now - _friendLastActive!;
-    
-    // Less than 5 minutes ago -> Away
-    if (diff < 300) {
-      return service.translate(TranslationKeys.away) ?? 'Away';
-    }
-    
-    // Less than 30 minutes ago -> Last seen xx ago
-    if (diff < 1800) {
-      final minutes = (diff / 60).round();
-      // If less than 1 minute, show 1 minute 
-      final displayMinutes = minutes < 1 ? 1 : minutes;
-      
-      final lastSeen = service.translate(TranslationKeys.lastSeen) ?? 'Last seen';
+
+    final lastSeenStr = service.translate(TranslationKeys.lastSeen) ?? 'Last seen';
+
+    if (diff < 3600) {
+      final minutes = (diff / 60).round().clamp(1, 59);
       final minStr = service.translate(TranslationKeys.minutesAgo) ?? 'minutes ago';
-      
-      return '$lastSeen $displayMinutes $minStr';
+      return '$lastSeenStr $minutes $minStr';
     }
-    
-    // 30 minutes or more -> Inactive
-    return service.translate(TranslationKeys.inactive) ?? 'Inactive';
+
+    if (diff < 86400) {
+      final hours = (diff / 3600).round().clamp(1, 23);
+      return '$lastSeenStr $hours ${hours == 1 ? 'hour' : 'hours'} ago';
+    }
+
+    final days = (diff / 86400).round().clamp(1, 365);
+    return '$lastSeenStr $days ${days == 1 ? 'day' : 'days'} ago';
   }
 
   Color _getStatusColor() {
     if (_friendOnline) return Colors.green;
-    if (_friendLastActive == null) return Colors.grey;
-    
-    final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
-    final diff = now - _friendLastActive!;
-    
-    if (diff < 1800) return Colors.orange;
-    
     return Colors.grey;
   }
 
-  /// Show attachment options menu
+  /// Show attachment options as a bottom sheet
   void _showAttachmentOptions() {
-    setState(() {
-      _showAttachmentMenu = !_showAttachmentMenu;
-    });
-  }
+    setState(() => _showAttachmentMenu = true);
 
-  /// Build attachment options menu (horizontal circular buttons)
-  Widget _buildAttachmentMenu() {
-    if (!_showAttachmentMenu) return const SizedBox.shrink();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final sheetBg = isDark ? const Color(0xFF1E1E1E) : Colors.white;
+    final labelColor = isDark ? Colors.white : Colors.black87;
 
-    final keyboardHeight = MediaQuery.of(context).viewInsets.bottom;
-
-    return Positioned(
-      bottom: keyboardHeight > 0 ? 55 : 103, // Above the input area if the keyboard is shown
-      left: 0,
-      right: 0,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) => Container(
         decoration: BoxDecoration(
-          color: Colors.transparent,
+          color: sheetBg,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
         ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        padding: EdgeInsets.only(
+          top: 12,
+          left: 24,
+          right: 24,
+          bottom: MediaQuery.of(sheetContext).padding.bottom + 24,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            _buildAttachmentOption(
-              icon: Icons.image,
-              label: 'Photo',
-              onTap: () {
-                setState(() {
-                  _showAttachmentMenu = false;
-                });
-                _pickImage(ImageSource.gallery);
-              },
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey.withOpacity(0.4),
+                borderRadius: BorderRadius.circular(2),
+              ),
             ),
-            _buildAttachmentOption(
-              icon: Icons.camera_alt,
-              label: 'Camera',
-              onTap: () {
-                setState(() {
-                  _showAttachmentMenu = false;
-                });
-                _pickImage(ImageSource.camera);
-              },
+            const SizedBox(height: 24),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                _buildAttachmentOption(
+                  icon: Icons.image,
+                  label: 'Photo',
+                  color: Colors.blue,
+                  labelColor: labelColor,
+                  onTap: () { Navigator.pop(sheetContext); _pickImage(ImageSource.gallery); },
+                ),
+                _buildAttachmentOption(
+                  icon: Icons.camera_alt,
+                  label: 'Camera',
+                  color: Colors.green,
+                  labelColor: labelColor,
+                  onTap: () { Navigator.pop(sheetContext); _pickImage(ImageSource.camera); },
+                ),
+                _buildAttachmentOption(
+                  icon: Icons.videocam,
+                  label: 'Video',
+                  color: Colors.red,
+                  labelColor: labelColor,
+                  onTap: () { Navigator.pop(sheetContext); _pickVideo(); },
+                ),
+                _buildAttachmentOption(
+                  icon: Icons.insert_drive_file,
+                  label: 'File',
+                  color: Colors.orange,
+                  labelColor: labelColor,
+                  onTap: () { Navigator.pop(sheetContext); _pickFile(); },
+                ),
+              ],
             ),
-            _buildAttachmentOption(
-              icon: Icons.videocam,
-              label: 'Video',
-              onTap: () {
-                setState(() {
-                  _showAttachmentMenu = false;
-                });
-                _pickVideo();
-              },
-            ),
-            _buildAttachmentOption(
-              icon: Icons.insert_drive_file,
-              label: 'File',
-              onTap: () {
-                setState(() {
-                  _showAttachmentMenu = false;
-                });
-                _pickFile();
-              },
-            ),
+            const SizedBox(height: 8),
           ],
         ),
       ),
-    );
+    ).then((_) {
+      if (mounted) setState(() => _showAttachmentMenu = false);
+    });
   }
 
-  /// Build individual attachment option button (circular)
+  /// Build attachment options menu — no longer used inline, kept for nothing
+  Widget _buildAttachmentMenu() => const SizedBox.shrink();
+
+  /// Build individual attachment option button
   Widget _buildAttachmentOption({
     required IconData icon,
     required String label,
     required VoidCallback onTap,
+    Color color = Colors.blue,
+    Color labelColor = Colors.black87,
   }) {
     return GestureDetector(
       onTap: onTap,
@@ -3352,27 +3353,19 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
         mainAxisSize: MainAxisSize.min,
         children: [
           Container(
-            width: 56,
-            height: 56,
+            width: 60,
+            height: 60,
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.15),
+              color: color.withOpacity(0.12),
               shape: BoxShape.circle,
-              border: Border.all(
-                color: Colors.white.withOpacity(0.3),
-                width: 1.5,
-              ),
             ),
-            child: Icon(
-              icon,
-              color: Colors.white,
-              size: 28,
-            ),
+            child: Icon(icon, color: color, size: 28),
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 8),
           Text(
             label,
-            style: const TextStyle(
-              color: Colors.white,
+            style: TextStyle(
+              color: labelColor,
               fontSize: 12,
               fontWeight: FontWeight.w500,
             ),
@@ -4169,6 +4162,50 @@ class _AudioPlayerWidgetState extends State<_AudioPlayerWidget> {
 }
 
 /// Audio visualizer widget that shows audio waveform
+class _PulsingDot extends StatefulWidget {
+  final Color color;
+  const _PulsingDot({required this.color});
+
+  @override
+  State<_PulsingDot> createState() => _PulsingDotState();
+}
+
+class _PulsingDotState extends State<_PulsingDot>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+  late final Animation<double> _anim;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 800),
+    )..repeat(reverse: true);
+    _anim = Tween<double>(begin: 0.4, end: 1.0).animate(
+      CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FadeTransition(
+      opacity: _anim,
+      child: Container(
+        width: 10,
+        height: 10,
+        decoration: BoxDecoration(color: widget.color, shape: BoxShape.circle),
+      ),
+    );
+  }
+}
+
 class _AudioVisualizerWidget extends StatefulWidget {
   final double audioLevel; // 0.0 to 1.0
   final bool isReadyToSend;

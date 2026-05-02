@@ -22,6 +22,8 @@ import 'in_app_notification_service.dart';
 import 'message_sync_worker.dart';
 import 'chat_message_count_service.dart';
 import 'notification_service.dart';
+import 'auto_update_service.dart';
+import 'package:url_launcher/url_launcher.dart';
 // Note: WebSocketService is intentionally NOT imported here to strictly separate concerns.
 // FCM logic should handle FCM messages completely independently of WebSocket status.
 // We assume the backend handles logic regarding whether to send a push notification or not 
@@ -65,9 +67,20 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
       payload: jsonEncode(message.data),
     );
   } else if (type == 'app_update') {
-    // Handle App Update (Background Download)
-    developer.log('🚀 FCM: Received App Update Signal (Type: $type)', name: 'FCM');
-    MessageSyncWorker.scheduleUpdateDownload();
+    developer.log('🚀 FCM: Received App Update Signal (background)', name: 'FCM');
+    final url = message.data['url']?.toString();
+    final version = message.data['version']?.toString();
+    final iosUrl = message.data['ios_url']?.toString();
+    if (Platform.isIOS) {
+      final target = iosUrl ?? url;
+      if (target != null && target.isNotEmpty) {
+        try { await launchUrl(Uri.parse(target), mode: LaunchMode.externalApplication); } catch (_) {}
+      }
+    } else if (url != null && url.isNotEmpty) {
+      MessageSyncWorker.scheduleForceDownload(url, version: version);
+    } else {
+      MessageSyncWorker.scheduleUpdateDownload();
+    }
   } else if (type == 'chat') {
       // Explicitly handle Chat messages to ensuring they "wake up" the device
       if (!hasNotificationPayload) {
@@ -431,9 +444,20 @@ class FirebaseMessagingService {
           notificationId: notificationId,
        );
     } else if (type == 'app_update') {
-       // Handle App Update (Background Download)
-       developer.log('🚀 FCM: Received App Update Signal ($type) (Foreground)', name: 'FCM');
-       MessageSyncWorker.scheduleUpdateDownload();
+       developer.log('🚀 FCM: Received App Update Signal (foreground)', name: 'FCM');
+       final url = message.data['url']?.toString();
+       final version = message.data['version']?.toString();
+       final iosUrl = message.data['ios_url']?.toString();
+       if (Platform.isIOS) {
+         final target = iosUrl ?? url;
+         if (target != null && target.isNotEmpty) {
+           try { await launchUrl(Uri.parse(target), mode: LaunchMode.externalApplication); } catch (_) {}
+         }
+       } else if (url != null && url.isNotEmpty) {
+         await AutoUpdateService.forceDownloadUpdate(url, version: version);
+       } else {
+         MessageSyncWorker.scheduleUpdateDownload();
+       }
     } else {
       // Generic System Notification as fallback
       final title = message.notification?.title ?? message.data['title']?.toString();

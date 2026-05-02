@@ -35,6 +35,7 @@ import '../widgets/translated_text.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import '../widgets/skeleton_loader.dart';
 import '../widgets/app_banner.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 // Lifecycle event handler for keyboard-aware scrolling
 class LifecycleEventHandler extends WidgetsBindingObserver {
@@ -185,7 +186,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   void _connectWebSocket() {
     _webSocketService
         .connect(
-          onAppUpdate: _checkForUpdates,
+          onAppUpdate: (url, version, iosUrl) => _checkForUpdates(forceUrl: url, forceVersion: version, forceIosUrl: iosUrl),
           onNewPost: (Post newPost) {
             if (mounted) {
               setState(() {
@@ -609,39 +610,50 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   // Check for app updates
-  Future<void> _checkForUpdates() async {
+  Future<void> _checkForUpdates({String? forceUrl, String? forceVersion, String? forceIosUrl}) async {
     final translationService = TranslationService();
 
-    if (!Platform.isAndroid) {
-      debugPrint('[App Update] Verification skipped: Not on Android');
-      AppBanner.info(translationService.translate(TranslationKeys.autoUpdatesOnlyAndroid));
+    // ── iOS: open App Store / TestFlight URL and return ──────────────────────
+    if (Platform.isIOS) {
+      final iosTarget = forceIosUrl ?? forceUrl;
+      if (iosTarget != null && iosTarget.isNotEmpty) {
+        debugPrint('[App Update] iOS — opening store URL: $iosTarget');
+        try {
+          await launchUrl(Uri.parse(iosTarget), mode: LaunchMode.externalApplication);
+        } catch (e) {
+          debugPrint('[App Update] iOS — failed to open URL: $e');
+        }
+      }
       return;
     }
 
-    // Prevent multiple dialogs from showing at once
+    // ── Android ───────────────────────────────────────────────────────────────
     if (AutoUpdateService.isDialogShowing) {
-      debugPrint('[App Update] Update dialog is already showing - skipping check');
+      debugPrint('[App Update] Update already in progress — skipping');
       return;
     }
 
     try {
+      if (forceUrl != null && forceUrl.isNotEmpty) {
+        // Admin push: download immediately, no dialog, no version check
+        debugPrint('[App Update] Force download from admin — url=$forceUrl');
+        if (mounted) AppBanner.info('Downloading update...');
+        await AutoUpdateService.forceDownloadUpdate(forceUrl, version: forceVersion);
+        return;
+      }
+
+      // Normal periodic check
       debugPrint('[App Update] Checking for available updates...');
       final updateInfo = await AutoUpdateService.checkForUpdates();
 
       if (updateInfo != null && updateInfo.isAvailable) {
         debugPrint('[App Update] Update available: version ${updateInfo.version}');
-        // Show update dialog if not already showing
         if (mounted && !AutoUpdateService.isDialogShowing) {
-          // Mark dialog as showing immediately to prevent duplicates
           AutoUpdateService.setDialogShowing(true);
 
-          // Get current version for logging
           final packageInfo = await PackageInfo.fromPlatform();
           final currentVersion = packageInfo.version;
-          debugPrint(
-              '[App Update] Current version: $currentVersion. Showing update dialog.');
 
-          // Mark this version as shown (so we don't spam the user)
           await AutoUpdateService.markUpdateShownForVersion(updateInfo.version);
 
           await showDialog(
@@ -649,13 +661,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             barrierDismissible: false,
             builder: (context) => UpdateDialog(
               currentVersion: currentVersion,
-              latestVersion: updateInfo.version,
+              latestVersion: updateInfo!.version,
               releaseNotes: updateInfo.releaseNotes,
               downloadUrl: updateInfo.downloadUrl,
             ),
           ).then((_) {
-            // Dialog closed, mark as not showing
-            debugPrint('[App Update] Update dialog closed');
             AutoUpdateService.setDialogShowing(false);
           });
         }
@@ -666,10 +676,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         }
       }
     } catch (e) {
-      debugPrint('[App Update] Error checking for updates: $e');
-      // Mark dialog as not showing on error
+      debugPrint('[App Update] Error: $e');
       AutoUpdateService.setDialogShowing(false);
-
       if (mounted) {
         AppBanner.error('${translationService.translate(TranslationKeys.errorCheckingUpdates)}: $e');
       }

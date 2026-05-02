@@ -11,6 +11,17 @@
             "statusMessage": "Hot reloading Flutter app..."
           }
         ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "INPUT=$(cat); CMD=$(echo \"$INPUT\" | jq -r '.tool_input.command // empty'); OUT=$(echo \"$INPUT\" | jq -r '.tool_response.stdout // empty'); if echo \"$CMD\" | grep -q 'flutter build apk' && echo \"$OUT\" | grep -q 'Built build/app/outputs/flutter-apk/app-release.apk'; then cp /Users/bismo/development/Skybyn_APP/build/app/outputs/flutter-apk/app-release.apk /Volumes/FD-Drive/htdocs/skybyn/app/android/skybyn.apk 2>/dev/null || true; fi",
+            "timeout": 15,
+            "statusMessage": "Copying APK to skybyn/app/android/..."
+          }
+        ]
       }
     ]
   }

@@ -284,6 +284,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   Timer? _serviceCheckTimer;
   Timer? _webSocketConnectionCheckTimer;
   Timer? _profileCheckTimer;
+  Timer? _activityTimer;
 
   // Track active incoming call
   String? _activeCallId;
@@ -538,6 +539,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     WidgetsBinding.instance.removeObserver(this);
     _webSocketConnectionCheckTimer?.cancel();
     _profileCheckTimer?.cancel();
+    _activityTimer?.cancel();
     _linkSubscription?.cancel();
     super.dispose();
   }
@@ -549,24 +551,22 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     // Manage foreground service based on app lifecycle
     switch (state) {
       case AppLifecycleState.resumed:
-        // Process offline queue immediately
         final chatService = ChatService();
         chatService.processOfflineQueue();
-
-        // Ensure WebSocket is connected (it may have been disconnected in background)
-        // Always force reconnect WebSocket when app resumes to ensure connection is alive
-        // The connection might appear connected but actually be dead after backgrounding
         _webSocketService.forceReconnect().catchError((error) {});
-        // Check profile status when app resumes (detect bans/deactivations)
         _checkProfileStatus();
-        // Activity updates continue while WebSocket is connected
+        // Kick off an immediate update then repeat every 2 minutes
+        AuthService().updateActivity();
+        _activityTimer?.cancel();
+        _activityTimer = Timer.periodic(const Duration(minutes: 2), (_) {
+          AuthService().updateActivity();
+        });
         break;
       case AppLifecycleState.paused:
       case AppLifecycleState.inactive:
       case AppLifecycleState.hidden:
-        // App is in background - keep WebSocket connected to respond to pings
-        // Friends will see user as:
-        // - Online: As long as WebSocket ping loop is active
+        _activityTimer?.cancel();
+        _activityTimer = null;
         break;
       case AppLifecycleState.detached:
         // App is being terminated

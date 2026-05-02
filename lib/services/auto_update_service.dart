@@ -405,6 +405,22 @@ class AutoUpdateService {
     }
   }
 
+  /// Force-download a specific URL without any version check.
+  /// Called when admin pushes an app_update event with a direct URL.
+  static Future<void> forceDownloadUpdate(String downloadUrl, {String? version}) async {
+    if (!Platform.isAndroid) return;
+    _isBackgroundDownload = true;
+    final notificationService = NotificationService();
+    try {
+      await downloadUpdate(downloadUrl, version: version);
+    } catch (e) {
+      if (kDebugMode) debugPrint('[AutoUpdateService] Force download failed: $e');
+      await notificationService.cancelUpdateProgressNotification();
+    } finally {
+      _isBackgroundDownload = false;
+    }
+  }
+
   /// Trigger background update (download and notify)
   /// This is called from WorkManager or background service
   static Future<void> triggerBackgroundUpdate() async {

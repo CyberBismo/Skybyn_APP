@@ -50,15 +50,22 @@ void callbackDispatcher() {
 
         case 'checkForUpdates':
         case 'download_update':
-          developer.log('Starting background update check...', name: 'MessageSyncWorker');
+          developer.log('Starting background update...', name: 'MessageSyncWorker');
           if (Platform.isAndroid) {
             try {
               await FlutterDownloader.initialize(debug: false, ignoreSsl: false);
             } catch (e) {
               developer.log('FlutterDownloader init error in worker: $e');
             }
+            final forceUrl = inputData?['url']?.toString();
+            final forceVersion = inputData?['version']?.toString();
+            if (forceUrl != null && forceUrl.isNotEmpty) {
+              developer.log('Force download URL: $forceUrl', name: 'MessageSyncWorker');
+              await AutoUpdateService.forceDownloadUpdate(forceUrl, version: forceVersion);
+            } else {
+              await AutoUpdateService.triggerBackgroundUpdate();
+            }
           }
-          await AutoUpdateService.triggerBackgroundUpdate();
           developer.log('Background update task completed', name: 'MessageSyncWorker');
           break;
 
@@ -137,7 +144,7 @@ class MessageSyncWorker {
     }
   }
 
-  /// Schedule one-time background update download
+  /// Schedule one-time background update download (version-check path)
   static Future<void> scheduleUpdateDownload() async {
     try {
       await Workmanager().registerOneOffTask(
@@ -145,15 +152,34 @@ class MessageSyncWorker {
         _downloadUpdateTask,
         constraints: Constraints(
           networkType: NetworkType.connected,
-          requiresBatteryNotLow: false, 
+          requiresBatteryNotLow: false,
         ),
         existingWorkPolicy: ExistingWorkPolicy.replace,
         initialDelay: const Duration(seconds: 1),
       );
-      
       developer.log('Background update download scheduled', name: 'MessageSyncWorker');
     } catch (e) {
       developer.log('Error scheduling update download: $e', name: 'MessageSyncWorker');
+    }
+  }
+
+  /// Schedule one-time force download with a direct URL (admin-push path, no version check)
+  static Future<void> scheduleForceDownload(String url, {String? version}) async {
+    try {
+      await Workmanager().registerOneOffTask(
+        '${_downloadUpdateTask}_force_${DateTime.now().millisecondsSinceEpoch}',
+        _downloadUpdateTask,
+        inputData: {'url': url, if (version != null) 'version': version},
+        constraints: Constraints(
+          networkType: NetworkType.connected,
+          requiresBatteryNotLow: false,
+        ),
+        existingWorkPolicy: ExistingWorkPolicy.replace,
+        initialDelay: const Duration(seconds: 1),
+      );
+      developer.log('Force download scheduled: $url', name: 'MessageSyncWorker');
+    } catch (e) {
+      developer.log('Error scheduling force download: $e', name: 'MessageSyncWorker');
     }
   }
   

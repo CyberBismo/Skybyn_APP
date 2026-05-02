@@ -165,45 +165,38 @@ class Friend {
   /// Returns translated status string
   String getLastActiveStatus() {
     final service = TranslationService();
-    
+
     if (online) {
       return service.translate(TranslationKeys.active) ?? 'Active';
     }
-    
+
     if (lastActive == null) {
-      return service.translate(TranslationKeys.inactive) ?? 'Inactive';
+      return service.translate(TranslationKeys.lastSeen) ?? 'Last seen';
     }
-    
+
     final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
     final diff = now - lastActive!;
-    
-    if (diff < 300) {
-      return service.translate(TranslationKeys.away) ?? 'Away';
-    }
-    
-    if (diff < 1800) {
-      final minutes = (diff / 60).round();
-      final displayMinutes = minutes < 1 ? 1 : minutes;
-      
-      final lastSeen = service.translate(TranslationKeys.lastSeen) ?? 'Last seen';
+
+    final lastSeenStr = service.translate(TranslationKeys.lastSeen) ?? 'Last seen';
+
+    if (diff < 3600) {
+      final minutes = (diff / 60).round().clamp(1, 59);
       final minStr = service.translate(TranslationKeys.minutesAgo) ?? 'minutes ago';
-      
-      return '$lastSeen $displayMinutes $minStr';
+      return '$lastSeenStr $minutes $minStr';
     }
-    
-    return service.translate(TranslationKeys.inactive) ?? 'Inactive';
+
+    if (diff < 86400) {
+      final hours = (diff / 3600).round().clamp(1, 23);
+      return '$lastSeenStr $hours ${hours == 1 ? 'hour' : 'hours'} ago';
+    }
+
+    final days = (diff / 86400).round().clamp(1, 365);
+    return '$lastSeenStr $days ${days == 1 ? 'day' : 'days'} ago';
   }
   
   /// Get color for status
   Color getStatusColor() {
     if (online) return Colors.green;
-    if (lastActive == null) return Colors.grey;
-    
-    final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
-    final diff = now - lastActive!;
-    
-    if (diff < 1800) return Colors.orange;
-    
     return Colors.grey;
   }
   
