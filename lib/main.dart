@@ -13,6 +13,7 @@ import 'dart:async';
 import 'dart:convert';
 // Screens - all imports in main.dart
 import 'screens/login_screen.dart';
+import 'screens/splash_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/profile_screen.dart';
 import 'screens/settings_screen.dart';
@@ -46,6 +47,7 @@ import 'services/message_sync_worker.dart';
 import 'services/friend_service.dart';
 import 'services/chat_message_count_service.dart';
 import 'services/navigation_service.dart';
+import 'utils/navigator_key.dart';
 import 'services/location_service.dart';
 import 'services/chat_service.dart';
 import 'services/auto_update_service.dart';
@@ -268,8 +270,7 @@ class MyApp extends StatefulWidget {
   State<MyApp> createState() => _MyAppState();
 }
 
-// Global navigator key for showing dialogs from anywhere
-final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+// navigatorKey is defined in utils/navigator_key.dart and imported above
 
 class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   final NotificationService _notificationService = NotificationService();
@@ -410,8 +411,6 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
 
       // Set up global chat message listener for badge count
       _setupGlobalChatMessageListener();
-
-      // Start periodic activity updates (every 5 seconds      // Cleanly removed early HTTP activity updates
 
       // Start periodic profile checks (every 5 minutes to detect bans/deactivations)
       _startProfileChecks();
@@ -955,31 +954,6 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   }
 
   Widget _getInitialScreen() {
-    // Check if user is logged in
-    return FutureBuilder<bool>(
-      future: _checkLoginStatus(),
-      builder: (context, snapshot) {
-        // Show splash screen while checking
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Scaffold(
-            body: Center(
-              child: CircularProgressIndicator(),
-            ),
-          );
-        }
-
-        // If logged in, go to Home, otherwise Login
-        if (snapshot.data == true) {
-          return const HomeScreen();
-        } else {
-          return const LoginScreen();
-        }
-      },
-    );
-  }
-
-  Future<bool> _checkLoginStatus() async {
-    final authService = AuthService();
-    return await authService.validateSession();
+    return const SplashScreen();
   }
 }

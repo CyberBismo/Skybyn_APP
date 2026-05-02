@@ -1,7 +1,9 @@
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/io_client.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../config/constants.dart';
 
 const _secureStorage = FlutterSecureStorage(
@@ -41,9 +43,25 @@ class AuthenticatedClient extends http.BaseClient {
 
   @override
   Future<http.StreamedResponse> send(http.BaseRequest request) async {
-    final token = await _secureStorage.read(key: StorageKeys.sessionToken);
+    String? token;
+    try {
+      token = await _secureStorage.read(key: StorageKeys.sessionToken)
+          .timeout(const Duration(seconds: 3));
+    } catch (e) {
+      debugPrint('[AuthClient] Secure storage read failed: $e');
+    }
+    // Fall back to SharedPreferences if secure storage returned nothing
+    if (token == null || token.isEmpty) {
+      final prefs = await SharedPreferences.getInstance();
+      token = prefs.getString(StorageKeys.sessionToken);
+      if (token != null && token.isNotEmpty) {
+        debugPrint('[AuthClient] Using token from SharedPreferences fallback');
+      }
+    }
     if (token != null && token.isNotEmpty) {
       request.headers['Authorization'] = 'Bearer $token';
+    } else {
+      debugPrint('[AuthClient] WARNING: No session token found — request will be unauthenticated');
     }
     return _inner.send(request);
   }

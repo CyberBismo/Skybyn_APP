@@ -36,7 +36,7 @@ class CallService {
       switch (event.event) {
         case Event.actionCallAccept:
           // User accepted the call from the native UI
-          print('✅ [CallKit] User accepted call');
+          debugPrint('✅ [CallKit] User accepted call');
           if (callState == CallState.ringing) {
             acceptCall();
             onCallAcceptedByNativeUI?.call();
@@ -44,17 +44,17 @@ class CallService {
           break;
         case Event.actionCallDecline:
           // User rejected the call from the native UI
-          print('❌ [CallKit] User declined call');
+          debugPrint('❌ [CallKit] User declined call');
           rejectCall();
           break;
         case Event.actionCallEnded:
           // Call ended from native UI
-          print('🛑 [CallKit] User ended call');
+          debugPrint('🛑 [CallKit] User ended call');
           endCall();
           break;
         case Event.actionCallTimeout:
           // Native UI timed out
-          print('⏰ [CallKit] Call timed out');
+          debugPrint('⏰ [CallKit] Call timed out');
           endCall();
           break;
         default:
@@ -326,7 +326,7 @@ class CallService {
           }
         }
       } catch (e) {
-        print("Error fetching caller info for CallKit: $e");
+        debugPrint("Error fetching caller info for CallKit: $e");
       }
 
       // Show native incoming call UI

@@ -1563,9 +1563,6 @@ PODS:
     - Flutter
     - FlutterMacOS
   - WebRTC-SDK (137.7151.04)
-  - webview_flutter_wkwebview (0.0.1):
-    - Flutter
-    - FlutterMacOS
   - workmanager_apple (0.0.1):
     - Flutter
 
@@ -1604,7 +1601,6 @@ DEPENDENCIES:
   - sqflite_darwin (from `.symlinks/plugins/sqflite_darwin/darwin`)
   - url_launcher_ios (from `.symlinks/plugins/url_launcher_ios/ios`)
   - video_player_avfoundation (from `.symlinks/plugins/video_player_avfoundation/darwin`)
-  - webview_flutter_wkwebview (from `.symlinks/plugins/webview_flutter_wkwebview/darwin`)
   - workmanager_apple (from `.symlinks/plugins/workmanager_apple/ios`)
 
 SPEC REPOS:
@@ -1717,8 +1713,6 @@ EXTERNAL SOURCES:
     :path: ".symlinks/plugins/url_launcher_ios/ios"
   video_player_avfoundation:
     :path: ".symlinks/plugins/video_player_avfoundation/darwin"
-  webview_flutter_wkwebview:
-    :path: ".symlinks/plugins/webview_flutter_wkwebview/darwin"
   workmanager_apple:
     :path: ".symlinks/plugins/workmanager_apple/ios"
 
@@ -1795,9 +1789,8 @@ SPEC CHECKSUMS:
   url_launcher_ios: bb13df5870e8c4234ca12609d04010a21be43dfa
   video_player_avfoundation: 7993f492ae0bd77edaea24d9dc051d8bb2cd7c86
   WebRTC-SDK: 40d4f5ba05cadff14e4db5614aec402a633f007e
-  webview_flutter_wkwebview: 29eb20d43355b48fe7d07113835b9128f84e3af4
   workmanager_apple: 7bac258335c310689a641e2d66e88d4845d372e9
 
-PODFILE CHECKSUM: 48dbd6e1d7d3992b716adc39f94de735ec088ff9
+PODFILE CHECKSUM: 657751b9ee58c65d6d3af33a2a75fefdb5fdd749
 
-COCOAPODS: 1.15.2
+COCOAPODS: 1.16.2

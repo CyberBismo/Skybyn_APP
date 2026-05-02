@@ -13,6 +13,7 @@ import '../services/firebase_messaging_service.dart'; // Added for _onLoginSucce
 import '../services/navigation_service.dart'; // Added for _onLoginSuccess
 import '../widgets/background_gradient.dart';
 import 'home_screen.dart';
+import '../widgets/app_banner.dart';
 
 
 class RegisterScreen extends StatefulWidget {
@@ -367,13 +368,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
             });
             
             // Show message that email is already verified
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(_translationService.translate(result['message'] ?? 'Email already verified')),
-                backgroundColor: Colors.green,
-                duration: const Duration(seconds: 2),
-              ),
-            );
+            AppBanner.success(_translationService.translate(result['message'] ?? 'Email already verified'));
             return true; // Return early to prevent normal flow
           }
 
@@ -385,12 +380,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
             _expectedVerificationCode = result['verificationCode'];
           });
 
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(_translationService.translate(result['message'] ?? TranslationKeys.verificationCodeSentTo)),
-              backgroundColor: Colors.green,
-            ),
-          );
+          AppBanner.success(_translationService.translate(result['message'] ?? TranslationKeys.verificationCodeSentTo));
           return true;
         } else {
           setState(() {
@@ -430,12 +420,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
       if (mounted) {
         if (result['success']) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(_translationService.translate(result['message'])),
-              backgroundColor: Colors.green,
-            ),
-          );
+          AppBanner.success(_translationService.translate(result['message']));
           return true;
         } else {
           setState(() {
@@ -644,13 +629,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       if (mounted) {
         if (result['success'] == true) {
           // Show success message
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(_translationService.translate(result['message'] ?? TranslationKeys.registrationSuccessful)),
-              backgroundColor: Colors.green,
-              duration: const Duration(seconds: 3),
-            ),
-          );
+          AppBanner.success(_translationService.translate(result['message'] ?? TranslationKeys.registrationSuccessful));
           
           // Navigate to home screen (user is now logged in)
           Navigator.of(context).pushReplacement(

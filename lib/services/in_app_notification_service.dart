@@ -2,7 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../widgets/in_app_notification.dart';
 import '../models/friend.dart';
-import '../main.dart';
+import '../utils/navigator_key.dart';
 import 'chat_message_count_service.dart';
 
 /// Service to manage in-app notifications for all notification types

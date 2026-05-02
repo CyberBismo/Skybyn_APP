@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:path_provider/path_provider.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'dart:developer' as developer;
+import 'skybyn_cache_manager.dart';
 
 class CacheUtils {
   /// Calculates the total size of the app's cache in bytes.
@@ -43,8 +44,9 @@ class CacheUtils {
   /// Clears the app's internal cache and temporary files.
   static Future<bool> clearCache() async {
     try {
-      // 1. Clear standard flutter_cache_manager cache (used by network images)
+      // 1. Clear image caches
       await DefaultCacheManager().emptyCache();
+      await SkybynCacheManager().emptyCache();
 
       // 2. Delete temporary directory contents
       final tempDir = await getTemporaryDirectory();

@@ -17,12 +17,13 @@ import '../models/message.dart';
 import '../models/user.dart';
 import 'auth_service.dart';
 import 'device_service.dart';
+import '../utils/http_client.dart';
 import 'notification_service.dart';
 import 'notification_sound_service.dart';
 import 'friend_service.dart';
 import 'in_app_notification_service.dart';
 import 'local_message_database.dart';
-import '../main.dart';
+import '../utils/navigator_key.dart';
 import '../config/constants.dart';
 
 // Helper function to log chat events - always logs regardless of zone filters
@@ -80,6 +81,8 @@ class WebSocketService {
   Function(String, String)? _onNewComment; // postId, commentId
   Function(String)? _onDeletePost;
   Function(String, String)? _onDeleteComment; // postId, commentId
+  Function(String)? _onUpdatePost; // postId
+  Function(String, String)? _onUpdateComment; // postId, commentId
   Function(String)? _onBroadcast; // broadcast message
   Function()? _onAppUpdate; // app update notification
   Function(String, String, String, String)?
@@ -263,9 +266,9 @@ class WebSocketService {
   Future<void> initialize() async {
     try {
       if (_sessionId == null) {
-        final random = Random();
-        _sessionId =
-            'session_${DateTime.now().millisecondsSinceEpoch}_${random.nextInt(10000)}';
+        final random = Random.secure();
+        final randomPart = random.nextInt(0x7FFFFFFF);
+        _sessionId = 'session_${DateTime.now().millisecondsSinceEpoch}_$randomPart';
       }
       _isInitialized = true;
     } catch (e) {}
@@ -286,18 +289,8 @@ class WebSocketService {
       // but configure it to handle the certificate chain properly
       final httpClient = HttpClient();
 
-      // Set up certificate validation callback
-      // This allows proper validation of the server's certificate
-      httpClient.badCertificateCallback =
-          (X509Certificate cert, String host, int port) {
-        // For server.skybyn.no on port 4433, we trust the certificate
-        // The certificate is valid and works, so we accept it
-        if (host == _serverHost && port == _serverPort) {
-          return true;
-        }
-        // For other hosts, use standard validation
-        return false;
-      };
+      // Use system certificate validation — do NOT bypass for any host.
+      // If the server certificate is self-signed or expired, fix it on the server.
 
       // Create WebSocket connection using the custom HttpClient
       final webSocket = await WebSocket.connect(
@@ -320,6 +313,8 @@ class WebSocketService {
     Function(String, String)? onNewComment,
     Function(String)? onDeletePost,
     Function(String, String)? onDeleteComment,
+    Function(String)? onUpdatePost,
+    Function(String, String)? onUpdateComment,
     Function(String)? onBroadcast,
     Function()? onAppUpdate,
     Function(String, String, String, String)?
@@ -333,6 +328,8 @@ class WebSocketService {
     if (onNewComment != null) _onNewComment = onNewComment;
     if (onDeletePost != null) _onDeletePost = onDeletePost;
     if (onDeleteComment != null) _onDeleteComment = onDeleteComment;
+    if (onUpdatePost != null) _onUpdatePost = onUpdatePost;
+    if (onUpdateComment != null) _onUpdateComment = onUpdateComment;
     if (onBroadcast != null) _onBroadcast = onBroadcast;
     if (onAppUpdate != null) _onAppUpdate = onAppUpdate;
     if (onChatMessage != null) {
@@ -397,11 +394,11 @@ class WebSocketService {
           _handleMessage(message); // Fire and forget - async method
         },
         onError: (error) {
-          print('[WebSocket] ❌ Connection Error: $error'); // Added Log
+          debugPrint('[WebSocket] ❌ Connection Error: $error'); // Added Log
           _onConnectionError(error);
         },
         onDone: () {
-          print('[WebSocket] 🔌 Connection Closed'); // Added Log
+          debugPrint('[WebSocket] 🔌 Connection Closed'); // Added Log
           _onConnectionClosed();
         },
         cancelOnError: false,
@@ -418,7 +415,7 @@ class WebSocketService {
         _updateConnectionMetrics(
             'connected'); // This already logs the connection message
 
-        print('[WebSocket] ✅ Connected to ${wsUrl}'); // Added Log
+        debugPrint('[WebSocket] ✅ Connected to ${wsUrl}'); // Added Log
 
         // Process any queued messages now that we're connected
         _processMessageQueue();
@@ -680,6 +677,22 @@ class WebSocketService {
               _logChat('WebSocket Delete Comment',
                   '🗑️ Comment deleted: postId=$postId, commentId=$commentId');
               _handleDeleteComment(postId ?? '', commentId ?? '');
+              break;
+
+            case 'update_post':
+              final updatedPostId = data['id']?.toString();
+              _logChat('WebSocket Update Post', '✏️ Post updated: postId=$updatedPostId');
+              if (updatedPostId != null) _onUpdatePost?.call(updatedPostId);
+              break;
+
+            case 'update_comment':
+              final updateCommentPostId = data['pid']?.toString();
+              final updateCommentId = data['cid']?.toString();
+              _logChat('WebSocket Update Comment',
+                  '✏️ Comment updated: postId=$updateCommentPostId, commentId=$updateCommentId');
+              if (updateCommentPostId != null && updateCommentId != null) {
+                _onUpdateComment?.call(updateCommentPostId, updateCommentId);
+              }
               break;
 
             case 'notification':
@@ -1173,6 +1186,14 @@ class WebSocketService {
       'id': postId,
     };
     _sendMessageInternal(newPostMessage);
+  }
+
+  void sendUpdatePost(String postId) {
+    _sendMessageInternal({'type': 'update_post', 'id': postId});
+  }
+
+  void sendUpdateComment(String postId, String commentId) {
+    _sendMessageInternal({'type': 'update_comment', 'pid': postId, 'cid': commentId});
   }
 
   /// Send new comment message
@@ -1864,12 +1885,9 @@ class WebSocketService {
       _logChat('WebSocket Firebase Notification',
           'Data: ${json.encode(firebaseData)}');
 
-      final response = await http.post(
+      final response = await globalAuthClient.post(
         Uri.parse(firebaseUrl),
         body: firebaseData,
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
       ).timeout(
         const Duration(seconds: 5),
         onTimeout: () {
@@ -1945,9 +1963,8 @@ class WebSocketService {
       final currentUserId = await authService.getStoredUserId();
       if (currentUserId == null) return;
 
-      final response = await http.post(
+      final response = await globalAuthClient.post(
         Uri.parse('${ApiConstants.apiBase}/call/send_call_notification.php'),
-        headers: {},
         body: {
           'user': targetUserId,
           'from': currentUserId,

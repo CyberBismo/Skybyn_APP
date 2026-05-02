@@ -9,6 +9,7 @@ import '../widgets/translated_text.dart';
 import '../services/translation_service.dart';
 
 import 'package:video_player/video_player.dart';
+import '../widgets/app_banner.dart';
 
 class CreatePostWidget extends StatefulWidget {
   final bool isEditing;
@@ -80,6 +81,7 @@ class CreatePostWidget extends StatefulWidget {
 
 class _CreatePostWidgetState extends State<CreatePostWidget> {
   final TextEditingController _contentController = TextEditingController();
+  final TextEditingController _urlController = TextEditingController();
   final FocusNode _focusNode = FocusNode();
   final PostService _postService = PostService();
   final AuthService _authService = AuthService();
@@ -88,6 +90,7 @@ class _CreatePostWidgetState extends State<CreatePostWidget> {
   bool _isVideo = false;
   final ImagePicker _picker = ImagePicker();
   bool _isPosting = false;
+  bool _showUrlField = false;
 
   @override
   void initState() {
@@ -108,6 +111,7 @@ class _CreatePostWidgetState extends State<CreatePostWidget> {
   void dispose() {
     _focusNode.dispose();
     _contentController.dispose();
+    _urlController.dispose();
     _videoController?.dispose();
     super.dispose();
   }
@@ -226,21 +230,15 @@ class _CreatePostWidgetState extends State<CreatePostWidget> {
         }
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to pick media: $e')),
-      );
+      AppBanner.info('Failed to pick media: $e');
     }
   }
 
   Future<void> _submitPost() async {
     final content = _contentController.text.trim();
-    if (content.isEmpty && _selectedMedia == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: TranslatedText(TranslationKeys.fieldRequired),
-          backgroundColor: Colors.red,
-        ),
-      );
+    final mediaUrl = _urlController.text.trim();
+    if (content.isEmpty && _selectedMedia == null && mediaUrl.isEmpty) {
+      AppBanner.error(TranslationKeys.fieldRequired.tr);
       return;
     }
 
@@ -272,6 +270,7 @@ class _CreatePostWidgetState extends State<CreatePostWidget> {
           content: content,
           mediaFile: _selectedMedia,
           isVideo: _isVideo,
+          mediaUrl: _selectedMedia == null ? mediaUrl : null,
         );
 
         final postId = result['postID'];
@@ -286,13 +285,7 @@ class _CreatePostWidgetState extends State<CreatePostWidget> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-                'Failed to ${widget.isEditing ? 'update' : 'create'} post: ${e.toString()}'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        AppBanner.error('Failed to ${widget.isEditing ? 'update' : 'create'} post: ${e.toString()}');
       }
     } finally {
       if (mounted) {
@@ -354,6 +347,14 @@ class _CreatePostWidgetState extends State<CreatePostWidget> {
                       onPressed: () => _pickMedia(ImageSource.camera, true),
                       tooltip: 'Take Video',
                     ),
+                    IconButton(
+                      icon: Icon(
+                        Icons.link,
+                        color: _showUrlField ? Colors.white : Colors.white70,
+                      ),
+                      onPressed: () => setState(() => _showUrlField = !_showUrlField),
+                      tooltip: 'Add Media URL',
+                    ),
                     const Spacer(),
                     IconButton(
                       icon: _isPosting
@@ -372,6 +373,24 @@ class _CreatePostWidgetState extends State<CreatePostWidget> {
                   ],
                 ),
               ),
+              if (_showUrlField) ...[
+                const Divider(height: 1, color: Colors.white24),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                  child: TextField(
+                    controller: _urlController,
+                    style: const TextStyle(color: Colors.white, fontSize: 13),
+                    keyboardType: TextInputType.url,
+                    decoration: const InputDecoration(
+                      hintText: 'Paste image or video URL…',
+                      hintStyle: TextStyle(color: Colors.white38, fontSize: 13),
+                      border: InputBorder.none,
+                      icon: Icon(Icons.link, color: Colors.white38, size: 18),
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                  ),
+                ),
+              ],
             ],
           ),
         ),

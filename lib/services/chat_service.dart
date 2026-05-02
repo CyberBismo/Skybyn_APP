@@ -16,6 +16,7 @@ import 'local_message_database.dart';
 import '../utils/image_utils.dart';
 import 'package:crypto/crypto.dart';
 import 'package:uuid/uuid.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'dart:developer' as developer;
 
 class ChatService {
@@ -146,24 +147,25 @@ class ChatService {
     throw Exception(statusMessage);
   }
 
-  /// Get encryption key from stored user token
+  /// Get encryption key from stored user token (reads from SecureStorage only)
   Future<String> _getEncryptionKey() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final userProfileJson = prefs.getString(StorageKeys.userProfile);
+      const secureStorage = FlutterSecureStorage(
+        aOptions: AndroidOptions(encryptedSharedPreferences: true),
+      );
+      final userProfileJson = await secureStorage.read(key: StorageKeys.userProfile);
       if (userProfileJson != null) {
         final userProfile = jsonDecode(userProfileJson);
         final token = userProfile['token'] as String?;
         if (token != null && token.isNotEmpty) {
-          // Use first 32 characters of token hash as encryption key
           final bytes = utf8.encode(token);
           final hash = sha256.convert(bytes);
           return hash.toString().substring(0, 32);
         }
       }
     } catch (e) {
+      developer.log('Failed to read encryption key from secure storage: $e', name: 'ChatService');
     }
-    // Should never reach here in production — throw instead of using a hardcoded key
     throw StateError('Encryption key unavailable: user not authenticated');
   }
 

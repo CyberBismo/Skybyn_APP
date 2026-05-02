@@ -9,12 +9,13 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../config/constants.dart';
 import '../utils/http_client.dart';
+import 'user_cache_service.dart';
 
 class PostService {
   static const String _cacheKey = 'cached_timeline_posts';
   static const String _cacheTimestampKey = 'cached_timeline_posts_timestamp';
   static const Duration _cacheExpiry =
-      Duration(minutes: 5); // Cache for 5 minutes
+      Duration(minutes: 30); // Cache for 30 minutes
 
   PostService() {
     _checkAndClearLegacyCache();
@@ -135,12 +136,16 @@ class PostService {
   }
 
   Future<List<Post>> _fetchTimelineFromAPI(String? userID) async {
-    debugPrint('PostService: Fetching timeline');
+    debugPrint('PostService: Fetching timeline (userID: $userID)');
+    if (userID == null || userID.isEmpty) {
+      debugPrint('PostService: userID is null/empty, skipping API call');
+      return [];
+    }
     try {
       final response = await _retryHttpRequest(
         () => globalAuthClient.post(
           Uri.parse(ApiConstants.timeline),
-          body: {'action': 'timeline', 'userID': userID},
+          body: {'userID': userID},
         ).timeout(const Duration(seconds: 10)),
         maxRetries: 2,
       );
@@ -215,6 +220,16 @@ class PostService {
               }
               if (post.content.isEmpty || post.content.trim().isEmpty) {
                 continue;
+              }
+              // Populate user cache from post data
+              if (post.userId != null) {
+                final userMap = item['user'];
+                UserCacheService().store(
+                  post.userId!,
+                  username: userMap is Map ? userMap['username']?.toString() : null,
+                  displayname: userMap is Map ? userMap['displayname']?.toString() : null,
+                  avatar: post.avatar,
+                );
               }
               posts.add(post);
             } catch (e) {}
@@ -292,12 +307,15 @@ class PostService {
               continue;
             }
             posts.add(post);
-          } catch (e) {}
+          } catch (e) {
+            debugPrint('PostService: Failed to parse post item: $e');
+          }
         }
       }
 
       return posts;
     } catch (e) {
+      debugPrint('PostService: fetchUserTimeline error: $e');
       return [];
     }
   }
@@ -318,15 +336,14 @@ class PostService {
       debugPrint(
           'PostService: Fetching user timeline for user: $userId, currentUserID: $currentUserId');
       final requestBody = {
-        'action': 'timeline',
-        'userID': userId,
+        'profileID': userId,
         if (currentUserId != null) 'currentUserID': currentUserId,
       };
       debugPrint(
           'PostService: User Timeline API Request URL: ${ApiConstants.timeline}');
       debugPrint('PostService: User Timeline API Request Body: $requestBody');
 
-      final response = await http
+      final response = await globalAuthClient
           .post(
             Uri.parse(ApiConstants.timeline),
             body: requestBody,
@@ -439,10 +456,12 @@ class PostService {
     required String postId,
     required String userId,
   }) async {
+    debugPrint('[PostService] deletePost: postId=$postId userId=$userId');
     final response = await globalAuthClient.post(
       Uri.parse(ApiConstants.timeline),
       body: {'action': 'delete', 'postID': postId, 'userID': userId},
     );
+    debugPrint('[PostService] deletePost: status=${response.statusCode} body=${response.body}');
     if (response.statusCode != 200) {
       throw Exception('Failed to delete post');
     }
@@ -453,6 +472,14 @@ class PostService {
       final message = data['message'] ?? 'Failed to delete post';
       throw Exception(message);
     }
+    debugPrint('[PostService] deletePost: success');
+
+    // Remove deleted post from cache immediately
+    final cached = await loadTimelineFromCache();
+    if (cached.isNotEmpty) {
+      cached.removeWhere((p) => p.id == postId);
+      await _saveTimelineToCache(cached);
+    }
   }
 
   Future<Map<String, dynamic>> createPost({
@@ -460,17 +487,24 @@ class PostService {
     required String content,
     File? mediaFile,
     bool isVideo = false,
+    String? mediaUrl,
   }) async {
+    debugPrint('[PostService] createPost: userId=$userId hasFile=${mediaFile != null} isVideo=$isVideo mediaUrl=$mediaUrl');
     if (mediaFile == null) {
+      final body = <String, String>{
+        'action': 'add',
+        'userID': userId,
+        'content': content,
+      };
+      if (mediaUrl != null && mediaUrl.isNotEmpty) {
+        body['media_url'] = mediaUrl;
+      }
       final response = await globalAuthClient.post(
         Uri.parse(ApiConstants.timeline),
-        body: {
-          'action': 'add',
-          'userID': userId,
-          'content': content,
-        },
+        body: body,
       );
 
+      debugPrint('[PostService] createPost: status=${response.statusCode} body=${response.body}');
       if (response.statusCode != 200) {
         throw Exception('Failed to create post');
       }
@@ -480,6 +514,7 @@ class PostService {
         final message = data['message'] ?? 'Failed to create post';
         throw Exception(message);
       }
+      debugPrint('[PostService] createPost: success postId=${data['postID']}');
       return data;
     } else {
       // Compress images only — skip compression for videos
@@ -508,6 +543,7 @@ class PostService {
       final streamedResponse = await globalAuthClient.send(request);
       final response = await http.Response.fromStream(streamedResponse);
 
+      debugPrint('[PostService] createPost (file): status=${response.statusCode} body=${response.body}');
       if (response.statusCode != 200) {
         throw Exception('Failed to create post');
       }
@@ -517,6 +553,7 @@ class PostService {
         final message = data['message'] ?? 'Failed to create post';
         throw Exception(message);
       }
+      debugPrint('[PostService] createPost (file): success postId=${data['postID']}');
       return data;
     }
   }
@@ -526,6 +563,7 @@ class PostService {
     required String userId,
     required String content,
   }) async {
+    debugPrint('[PostService] updatePost: postId=$postId userId=$userId');
     // Send plain text content to server (server will handle encryption)
 
     final response = await globalAuthClient.post(
@@ -538,6 +576,7 @@ class PostService {
       },
     );
 
+    debugPrint('[PostService] updatePost: status=${response.statusCode} body=${response.body}');
     if (response.statusCode != 200) {
       throw Exception('Failed to update post');
     }
@@ -547,17 +586,18 @@ class PostService {
       final message = data['message'] ?? 'Failed to update post';
       throw Exception(message);
     }
+    debugPrint('[PostService] updatePost: success');
   }
 
-  Future<void> toggleLike({
-    required String postId,
-    required String userId,
-  }) async {
+  /// Returns a map with 'liked' (bool) and 'likeCount' (int) from the server.
+  Future<Map<String, dynamic>> toggleLike({required String postId}) async {
+    debugPrint('[PostService] toggleLike: postId=$postId');
     final response = await globalAuthClient.post(
       Uri.parse(ApiConstants.timeline),
-      body: {'action': 'like', 'postID': postId, 'userID': userId},
+      body: {'action': 'like', 'postID': postId},
     );
 
+    debugPrint('[PostService] toggleLike: status=${response.statusCode} body=${response.body}');
     if (response.statusCode != 200) {
       throw Exception('Failed to toggle like');
     }
@@ -567,17 +607,24 @@ class PostService {
       final message = data['message'] ?? 'Failed to toggle like';
       throw Exception(message);
     }
+
+    final liked = data['liked'] == true || data['liked'] == 1 || data['liked'] == '1';
+    final likeCount = int.tryParse(data['likeCount']?.toString() ?? '') ?? -1;
+    debugPrint('[PostService] toggleLike: success liked=$liked likeCount=$likeCount');
+    return {'liked': liked, 'likeCount': likeCount};
   }
 
   Future<void> hidePost({
     required String postId,
     required String userId,
   }) async {
+    debugPrint('[PostService] hidePost: postId=$postId userId=$userId');
     final response = await globalAuthClient.post(
       Uri.parse(ApiConstants.timeline),
       body: {'action': 'hide', 'postID': postId, 'userID': userId},
     );
 
+    debugPrint('[PostService] hidePost: status=${response.statusCode} body=${response.body}');
     if (response.statusCode != 200) {
       throw Exception('Failed to hide post');
     }
@@ -587,6 +634,7 @@ class PostService {
       final message = data['message'] ?? 'Failed to hide post';
       throw Exception(message);
     }
+    debugPrint('[PostService] hidePost: success');
   }
 
   Future<void> reportPost({
@@ -594,6 +642,7 @@ class PostService {
     required String userId,
     required String reason,
   }) async {
+    debugPrint('[PostService] reportPost: postId=$postId userId=$userId reason=$reason');
     final response = await globalAuthClient.post(
       Uri.parse(ApiConstants.report),
       body: {
@@ -604,6 +653,7 @@ class PostService {
       },
     );
 
+    debugPrint('[PostService] reportPost: status=${response.statusCode} body=${response.body}');
     if (response.statusCode != 200) {
       throw Exception('Failed to report post');
     }
@@ -613,5 +663,6 @@ class PostService {
       final message = data['message'] ?? 'Failed to report post';
       throw Exception(message);
     }
+    debugPrint('[PostService] reportPost: success');
   }
 }

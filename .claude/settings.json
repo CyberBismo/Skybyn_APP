@@ -1,0 +1,17 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "FILE=$(jq -r '.tool_input.file_path // empty'); if echo \"$FILE\" | grep -q 'Skybyn_APP/lib/'; then PID=$(pgrep -f 'flutter_tools.snapshot' | head -1); [ -n \"$PID\" ] && kill -SIGUSR1 \"$PID\" 2>/dev/null || true; fi",
+            "timeout": 10,
+            "statusMessage": "Hot reloading Flutter app..."
+          }
+        ]
+      }
+    ]
+  }
+}

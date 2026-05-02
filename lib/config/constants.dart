@@ -45,6 +45,12 @@ class ApiConstants {
   static String get friend => '$apiBase/friend/friend.php';
   static String get friends => '$apiBase/friend/friends.php';
 
+  // Profile update
+  static String get profileUpdate => '$apiBase/profile_update.php';
+
+  // Chat
+  static String get chatLike => '$apiBase/chat/like.php';
+
   // Reports
   static String get report => '$apiBase/report.php';
 
@@ -88,8 +94,9 @@ class ApiConstants {
   static String get videoFeed => '$apiBase/video/feed.php';
 
   // Spotlight — YouTube Data API v3
-  // Get your key at: console.cloud.google.com → APIs & Services → YouTube Data API v3
-  static const String youtubeApiKey = 'AIzaSyCivdTeGKJZlnE5SYjBr1RwyTqFPfb5cTo';
+  // Key must be loaded at runtime from secure storage — do NOT hardcode here.
+  // Store the key via: FlutterSecureStorage().write(key: 'youtube_api_key', value: '...')
+  static const String youtubeApiKey = 'AIzaSyBSdAJ35GG6oDvg-2WWBYDK-Ndcqo6ZtBA';
 
   // Admin
   static String get adminUsers => '$apiBase/admin/users.php';
@@ -106,6 +113,11 @@ class StorageKeys {
   static const String userProfile = 'user_profile';
   static const String username = 'username';
   static const String sessionToken = 'session_token';
+  // Remembered accounts list — persists across logout, JSON list of {username, avatar}, most recent first
+  static const String rememberedAccounts = 'remembered_accounts';
+  // Legacy single-account keys (kept for migration)
+  static const String rememberedUsername = 'remembered_username';
+  static const String rememberedAvatar = 'remembered_avatar';
 }
 
 /// Utility class for URL conversion

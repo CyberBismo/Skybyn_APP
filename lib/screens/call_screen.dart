@@ -53,7 +53,7 @@ class _CallScreenState extends State<CallScreen> {
     } else {
       // For incoming calls, handle the offer if provided directly via arguments
       if (widget.offer != null && widget.callId != null) {
-        print('[SKYBYN] 📞 [CallScreen] Initializing call from provided offer/callId');
+        debugPrint('[SKYBYN] 📞 [CallScreen] Initializing call from provided offer/callId');
         _callService.handleIncomingOffer(
           callId: widget.callId!,
           fromUserId: widget.friend.id,
@@ -62,7 +62,7 @@ class _CallScreenState extends State<CallScreen> {
         ).then((_) {
             _checkAndSetExistingStreams();
         }).catchError((e) {
-            print('[SKYBYN] ❌ [CallScreen] Error handling provided offer: $e');
+            debugPrint('[SKYBYN] ❌ [CallScreen] Error handling provided offer: $e');
         });
       }
 

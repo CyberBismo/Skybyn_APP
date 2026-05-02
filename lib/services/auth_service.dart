@@ -11,7 +11,6 @@ import 'device_service.dart';
 import 'firebase_messaging_service.dart';
 import 'translation_service.dart';
 import 'websocket_service.dart';
-// import 'background_activity_service.dart';
 import 'notification_service.dart';
 import 'navigation_service.dart';
 import '../utils/api_utils.dart';
@@ -20,6 +19,7 @@ import 'chat_message_count_service.dart';
 import 'post_service.dart';
 import 'friend_service.dart';
 import 'chat_service.dart';
+import 'user_cache_service.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../config/constants.dart';
 
@@ -46,8 +46,6 @@ class AuthService {
   static http.Client _createHttpClient() {
     return createAuthenticatedHttpClient(userAgent: 'Skybyn-App/1.0');
   }
-  // final fb_auth.FirebaseAuth _auth = fb_auth.FirebaseAuth.instance;
-  
   // Track last known online status to prevent duplicate updates
   static bool? _lastKnownOnlineStatus;
 
@@ -93,14 +91,6 @@ class AuthService {
       final deviceService = DeviceService();
       final deviceInfo = await deviceService.getDeviceInfo();
 
-      // Block emulators before making any API call
-      if (deviceInfo['isPhysicalDevice'] == false) {
-        return {
-          'responseCode': '0',
-          'message': 'This device is not allowed to login.'
-        };
-      }
-
       // Get FCM token if available and add it to deviceInfo
       try {
         final firebaseService = FirebaseMessagingService();
@@ -140,16 +130,13 @@ class AuthService {
 
       // Parse response regardless of status code to get actual API message
       final data = safeJsonDecode(response);
-      if (kDebugMode) debugPrint('DEBUG: AuthService.login response body: ${response.body}');
 
       if (response.statusCode == 200) {
         if (data['responseCode'] == '1') {
-          if (kDebugMode) debugPrint('DEBUG: AuthService.login success.');
 
           await initPrefs();
-          // Convert userID to string to avoid type mismatch
           final userIdStr = data['userID'].toString();
-          if (kDebugMode) debugPrint('DEBUG: AuthService.login storing userID');
+          // Always write to SharedPreferences as primary fallback
           await _prefs?.setString(userIdKey, userIdStr);
           await _prefs?.setString(usernameKey, username);
           try {
@@ -158,25 +145,30 @@ class AuthService {
             await _secureStorage.write(key: usernameKey, value: username)
                 .timeout(const Duration(seconds: 5));
           } catch (e) {
-            debugPrint('AuthService: Secure storage write failed, falling back to prefs: $e');
+            debugPrint('AuthService: Secure storage write failed: $e');
           }
 
           // Store session token for authenticated API requests
           final sessionToken = data['sessionToken']?.toString();
           if (sessionToken != null && sessionToken.isNotEmpty) {
+            // Always write to SharedPreferences as fallback first
+            await _prefs?.setString(StorageKeys.sessionToken, sessionToken);
             try {
               await _secureStorage.write(key: StorageKeys.sessionToken, value: sessionToken)
                   .timeout(const Duration(seconds: 5));
             } catch (e) {
-              debugPrint('AuthService: Failed to store session token: $e');
+              debugPrint('AuthService: Failed to store session token in secure storage: $e');
             }
           }
 
           // Try to fetch user profile, but don't fail login if it fails
           try {
-            await fetchUserProfile(username);
+            final user = await fetchUserProfile(username);
+            // Save to remembered accounts list (survives logout)
+            await saveRememberedAccount(username, user?.avatar.isNotEmpty == true ? user!.avatar : null);
           } catch (e) {
             debugPrint('AuthService: Failed to fetch user profile after login: $e');
+            await saveRememberedAccount(username, null);
           }
 
           // Subscribe to user-specific topics after successful login
@@ -229,14 +221,6 @@ class AuthService {
       final deviceService = DeviceService();
       final deviceInfo = await deviceService.getDeviceInfo();
 
-      // Block emulators before making any API call
-      if (deviceInfo['isPhysicalDevice'] == false) {
-        return {
-          'responseCode': '0',
-          'message': 'This device is not allowed to login.'
-        };
-      }
-
       // Get FCM token if available and add it to deviceInfo
       try {
         final firebaseService = FirebaseMessagingService();
@@ -284,7 +268,6 @@ class AuthService {
           
           // Store user ID (convert to string)
           if (userId != null) {
-            await _prefs?.setString(userIdKey, userId);
             try {
               await _secureStorage.write(key: userIdKey, value: userId)
                   .timeout(const Duration(seconds: 5));
@@ -296,11 +279,13 @@ class AuthService {
           // Store session token for authenticated API requests
           final sessionToken = data['sessionToken']?.toString();
           if (sessionToken != null && sessionToken.isNotEmpty) {
+            // Always write to SharedPreferences as fallback first
+            await _prefs?.setString(StorageKeys.sessionToken, sessionToken);
             try {
               await _secureStorage.write(key: StorageKeys.sessionToken, value: sessionToken)
                   .timeout(const Duration(seconds: 5));
             } catch (e) {
-              debugPrint('AuthService: Failed to store session token: $e');
+              debugPrint('AuthService: Failed to store session token in secure storage: $e');
             }
           }
 
@@ -308,9 +293,7 @@ class AuthService {
           try {
             final user = await fetchAnyUserProfile(userId: userId);
             if (user != null) {
-              await _prefs?.setString(usernameKey, user.username);
               final profileJson = json.encode(user.toJson());
-              await _prefs?.setString(userProfileKey, profileJson);
               try {
                 await _secureStorage.write(key: usernameKey, value: user.username)
                     .timeout(const Duration(seconds: 5));
@@ -396,6 +379,16 @@ class AuthService {
       final userId = await getStoredUserId();
       if (userId == null || userId.isEmpty) return false;
 
+      // Require a session token — without it every authenticated action fails.
+      // This catches the case where a reinstall cleared secure storage but
+      // SharedPreferences still had the userId, giving a false "logged in" state.
+      final token = await getStoredSessionToken();
+      if (token == null || token.isEmpty) {
+        debugPrint('AuthService: No session token found — forcing re-login');
+        await logout();
+        return false;
+      }
+
       final user = await fetchUserProfile('');
       if (user != null) return true;
 
@@ -447,10 +440,8 @@ class AuthService {
             _lastKnownOnlineStatus = user.online == '1' || user.online.toLowerCase() == 'true';
           }
           
-          // Store user profile locally
-          await initPrefs();
+          // Store user profile in secure storage only
           final profileJson = json.encode(user.toJson());
-          await _prefs?.setString(userProfileKey, profileJson);
           await _secureStorage.write(key: userProfileKey, value: profileJson);
           return user;
         } else {
@@ -493,7 +484,48 @@ class AuthService {
   }
 
   Future<String?> getStoredSessionToken() async {
-    return await _secureOp(() => _secureStorage.read(key: StorageKeys.sessionToken));
+    await initPrefs();
+    String? token = await _secureOp(() => _secureStorage.read(key: StorageKeys.sessionToken));
+    if (token == null || token.isEmpty) {
+      token = _prefs?.getString(StorageKeys.sessionToken);
+    }
+    return token;
+  }
+
+  /// Returns the list of remembered accounts (most recent first, max 5).
+  /// Survives logout so the login screen can show who has logged in on this device.
+  Future<List<Map<String, String?>>> getRememberedAccounts() async {
+    await initPrefs();
+    final raw = _prefs?.getString(StorageKeys.rememberedAccounts);
+    if (raw != null && raw.isNotEmpty) {
+      try {
+        final list = json.decode(raw) as List<dynamic>;
+        return list.map((e) => Map<String, String?>.from(e as Map)).toList();
+      } catch (_) {}
+    }
+    // Migrate legacy single-account keys
+    final legacyUsername = _prefs?.getString(StorageKeys.rememberedUsername);
+    if (legacyUsername != null && legacyUsername.isNotEmpty) {
+      final legacyAvatar = _prefs?.getString(StorageKeys.rememberedAvatar);
+      final account = {'username': legacyUsername, 'avatar': legacyAvatar};
+      await _saveRememberedAccounts([account]);
+      return [account];
+    }
+    return [];
+  }
+
+  Future<void> _saveRememberedAccounts(List<Map<String, String?>> accounts) async {
+    await _prefs?.setString(StorageKeys.rememberedAccounts, json.encode(accounts));
+  }
+
+  /// Adds or moves an account to the front of the remembered accounts list.
+  Future<void> saveRememberedAccount(String username, String? avatar) async {
+    await initPrefs();
+    final accounts = await getRememberedAccounts();
+    accounts.removeWhere((a) => a['username'] == username);
+    accounts.insert(0, {'username': username, 'avatar': avatar});
+    if (accounts.length > 5) accounts.removeLast();
+    await _saveRememberedAccounts(accounts);
   }
 
   Future<String?> getStoredUserId() async {
@@ -629,7 +661,7 @@ class AuthService {
     
     // Clear all keys except system-level preferences
     // Keep only theme and language preferences (these are device-level, not user-specific)
-    final keysToKeep = {'theme_mode', 'language'};
+    final keysToKeep = {'theme_mode', 'language', StorageKeys.rememberedAccounts, StorageKeys.rememberedUsername, StorageKeys.rememberedAvatar};
     for (final key in keys) {
       if (!keysToKeep.contains(key)) {
         await _prefs?.remove(key);
@@ -647,6 +679,9 @@ class AuthService {
     await _secureOp(() => _secureStorage.delete(key: userProfileKey));
     await _secureOp(() => _secureStorage.delete(key: usernameKey));
     await _secureOp(() => _secureStorage.delete(key: StorageKeys.sessionToken));
+
+    // Clear in-memory user profile cache
+    UserCacheService().clear();
 
     // Clear last navigation route on logout
     try {
@@ -669,14 +704,25 @@ class AuthService {
 
   Future<void> updateUserProfile(User updatedUser) async {
     try {
-      // TODO: Implement API call to update user profile
-      // For now, we'll just update the local storage
+      final response = await _client.post(
+        Uri.parse(ApiConstants.profileUpdate),
+        body: {
+          'displayname': updatedUser.nickname,
+          'bio': updatedUser.bio,
+          if (updatedUser.avatar != null) 'avatar': updatedUser.avatar!,
+        },
+      ).timeout(const Duration(seconds: 15));
+      final data = safeJsonDecode(response);
+      if (data['responseCode'] != '1') {
+        throw Exception(data['message'] ?? 'Failed to update profile');
+      }
+      // Update local storage to reflect the change
       await initPrefs();
       final profileJson = jsonEncode(updatedUser.toJson());
       await _prefs?.setString(userProfileKey, profileJson);
-      await _secureStorage.write(key: userProfileKey, value: profileJson);
+      await _secureOp(() => _secureStorage.write(key: userProfileKey, value: profileJson));
     } catch (e) {
-      throw Exception('Failed to update profile');
+      throw Exception('Failed to update profile: $e');
     }
   }
 
@@ -1008,7 +1054,10 @@ class AuthService {
           'visible': isVisible ? '1' : '0',
           'language': deviceLanguage,
         },
-        headers: {'Content-Type': 'application/x-www-form-urlencoded'}
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'X-Client-Type': 'app',
+        }
       );
       if (response.statusCode == 200) {
         final data = safeJsonDecode(response);

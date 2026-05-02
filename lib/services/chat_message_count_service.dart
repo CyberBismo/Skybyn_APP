@@ -77,17 +77,17 @@ class ChatMessageCountService extends ChangeNotifier {
   /// Returns true if the count was actually incremented, false if it was skipped (duplicate)
   Future<bool> incrementUnreadCount(String friendId, {String? messageId, String? messageContent}) async {
     // Use print with [SKYBYN] prefix - zone will allow it through
-    print('[SKYBYN] ═══════════════════════════════════════════════════════');
-    print('[SKYBYN] 📊 [ChatMessageCount] incrementUnreadCount called');
-    print('[SKYBYN]    FriendId: $friendId');
-    print('[SKYBYN]    MessageId: ${messageId ?? "null"}');
-    print('[SKYBYN]    MessageContent: ${messageContent != null ? (messageContent.length > 50 ? messageContent.substring(0, 50) + "..." : messageContent) : "null"}');
+    debugPrint('[SKYBYN] ═══════════════════════════════════════════════════════');
+    debugPrint('[SKYBYN] 📊 [ChatMessageCount] incrementUnreadCount called');
+    debugPrint('[SKYBYN]    FriendId: $friendId');
+    debugPrint('[SKYBYN]    MessageId: ${messageId ?? "null"}');
+    debugPrint('[SKYBYN]    MessageContent: ${messageContent != null ? (messageContent.length > 50 ? messageContent.substring(0, 50) + "..." : messageContent) : "null"}');
     
     final now = DateTime.now().millisecondsSinceEpoch;
     
     // First check: if chat is currently open for this friend, don't increment
     if (isChatOpenForFriend(friendId)) {
-      print('[SKYBYN] ⏭️ [ChatMessageCount] SKIPPING INCREMENT - Chat screen currently open for this friend');
+      debugPrint('[SKYBYN] ⏭️ [ChatMessageCount] SKIPPING INCREMENT - Chat screen currently open for this friend');
       return false; 
     }
 
@@ -95,10 +95,10 @@ class ChatMessageCountService extends ChangeNotifier {
     if (messageId != null && messageId.isNotEmpty && messageId != 'no-id' && messageId != 'null') {
       final messageKey = '${friendId}_$messageId';
       if (_processedMessageIds.contains(messageKey)) {
-        print('[SKYBYN] ⏭️ [ChatMessageCount] SKIPPING DUPLICATE - Already processed (by messageId)');
-        print('[SKYBYN]    MessageKey: $messageKey');
-        print('[SKYBYN]    Processed count: ${_processedMessageIds.length}');
-        print('[SKYBYN] ═══════════════════════════════════════════════════════');
+        debugPrint('[SKYBYN] ⏭️ [ChatMessageCount] SKIPPING DUPLICATE - Already processed (by messageId)');
+        debugPrint('[SKYBYN]    MessageKey: $messageKey');
+        debugPrint('[SKYBYN]    Processed count: ${_processedMessageIds.length}');
+        debugPrint('[SKYBYN] ═══════════════════════════════════════════════════════');
         return false; // Already processed this message
       }
     }
@@ -111,16 +111,16 @@ class ChatMessageCountService extends ChangeNotifier {
       final lastSeen = _recentMessageHashes[contentKey];
       
       if (lastSeen != null && (now - lastSeen) < 10000) { // 10 seconds window
-        print('[SKYBYN] ⏭️ [ChatMessageCount] SKIPPING DUPLICATE - Same content seen recently (temp/real ID duplicate)');
-        print('[SKYBYN]    ContentKey: $contentKey');
-        print('[SKYBYN]    Last seen: ${now - lastSeen}ms ago');
-        print('[SKYBYN] ═══════════════════════════════════════════════════════');
+        debugPrint('[SKYBYN] ⏭️ [ChatMessageCount] SKIPPING DUPLICATE - Same content seen recently (temp/real ID duplicate)');
+        debugPrint('[SKYBYN]    ContentKey: $contentKey');
+        debugPrint('[SKYBYN]    Last seen: ${now - lastSeen}ms ago');
+        debugPrint('[SKYBYN] ═══════════════════════════════════════════════════════');
         return false; // Same content from same friend within 10 seconds - likely temp/real ID duplicate
       }
       
       // Track this content
       _recentMessageHashes[contentKey] = now;
-      print('[SKYBYN] ✅ [ChatMessageCount] Content tracked: $contentKey');
+      debugPrint('[SKYBYN] ✅ [ChatMessageCount] Content tracked: $contentKey');
       
       // Clean up old content hashes (older than 30 seconds)
       _recentMessageHashes.removeWhere((key, timestamp) => (now - timestamp) > 30000);
@@ -130,7 +130,7 @@ class ChatMessageCountService extends ChangeNotifier {
     if (messageId != null && messageId.isNotEmpty && messageId != 'no-id' && messageId != 'null') {
       final messageKey = '${friendId}_$messageId';
       _processedMessageIds.add(messageKey);
-      print('[SKYBYN] ✅ [ChatMessageCount] Message ID tracked: $messageKey');
+      debugPrint('[SKYBYN] ✅ [ChatMessageCount] Message ID tracked: $messageKey');
       
       // Clean up old message IDs (keep last 1000 to prevent memory issues)
       if (_processedMessageIds.length > 1000) {
@@ -138,22 +138,22 @@ class ChatMessageCountService extends ChangeNotifier {
         _processedMessageIds.removeAll(toRemove);
       }
     } else {
-      print('[SKYBYN] ⚠️ [ChatMessageCount] No valid messageId provided');
+      debugPrint('[SKYBYN] ⚠️ [ChatMessageCount] No valid messageId provided');
     }
     
     final currentCount = _unreadCounts[friendId] ?? 0;
     final newCount = currentCount + 1;
     
-    print('[SKYBYN] 📈 [ChatMessageCount] Incrementing count:');
-    print('[SKYBYN]    Current: $currentCount');
-    print('[SKYBYN]    New: $newCount');
+    debugPrint('[SKYBYN] 📈 [ChatMessageCount] Incrementing count:');
+    debugPrint('[SKYBYN]    Current: $currentCount');
+    debugPrint('[SKYBYN]    New: $newCount');
     
     _unreadCounts[friendId] = newCount;
     _totalUnreadCount = _unreadCounts.values.fold(0, (sum, count) => sum + count);
     
-    print('[SKYBYN]    Total unread: $_totalUnreadCount');
-    print('[SKYBYN] ✅ [ChatMessageCount] Count saved and listeners notified');
-    print('[SKYBYN] ═══════════════════════════════════════════════════════');
+    debugPrint('[SKYBYN]    Total unread: $_totalUnreadCount');
+    debugPrint('[SKYBYN] ✅ [ChatMessageCount] Count saved and listeners notified');
+    debugPrint('[SKYBYN] ═══════════════════════════════════════════════════════');
     
     await _saveUnreadCount(friendId, _unreadCounts[friendId]!);
     notifyListeners();

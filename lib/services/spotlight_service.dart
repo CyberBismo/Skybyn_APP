@@ -8,6 +8,7 @@ class SpotlightService {
 
   String? _nextPageToken;
   bool _isExhausted = false;
+  final Set<String> _seenVideoIds = {};
 
   bool get hasMore => !_isExhausted;
 
@@ -15,6 +16,7 @@ class SpotlightService {
     if (refresh) {
       _nextPageToken = null;
       _isExhausted = false;
+      _seenVideoIds.clear();
     }
 
     if (_isExhausted) return [];
@@ -22,7 +24,7 @@ class SpotlightService {
     final params = <String, String>{
       'part': 'snippet',
       'type': 'video',
-      'videoDimension': 'tall', // portrait videos only
+      'videoDimension': '2d',
       'q': '%23shorts',
       'maxResults': '15',
       'safeSearch': 'moderate',
@@ -48,6 +50,7 @@ class SpotlightService {
     final items = (data['items'] as List<dynamic>)
         .where((item) => item['id']?['videoId'] != null)
         .map((item) => SpotlightVideo.fromYouTube(item as Map<String, dynamic>))
+        .where((video) => _seenVideoIds.add(video.id))
         .toList();
 
     return items;

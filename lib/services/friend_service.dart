@@ -2,11 +2,13 @@ import 'dart:convert';
 import '../utils/api_utils.dart';
 import 'dart:io';
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:crypto/crypto.dart';
 import '../config/constants.dart';
 import '../models/friend.dart';
+import '../utils/http_client.dart';
 
 class FriendService {
   static const String _cacheKey = 'cached_friends';
@@ -43,14 +45,10 @@ class FriendService {
   /// Fetch friends from API and update cache if content changed
   Future<List<Friend>> _fetchAndUpdateFriends(String userId) async {
     try {
-      final response = await http
+      final response = await globalAuthClient
           .post(
             Uri.parse(ApiConstants.friends),
             body: {'userID': userId},
-            headers: {
-              'Content-Type': 'application/x-www-form-urlencoded',
-              'User-Agent': 'Skybyn App',
-            },
           )
           .timeout(const Duration(seconds: 10));
 
@@ -142,14 +140,10 @@ class FriendService {
   ) async {
     try {
       final response = await _retryHttpRequest(
-        () => http
+        () => globalAuthClient
             .post(
               Uri.parse(ApiConstants.friends),
               body: {'userID': userId},
-              headers: {
-                'Content-Type': 'application/x-www-form-urlencoded',
-                'User-Agent': 'Skybyn App',
-              },
             )
             .timeout(const Duration(seconds: 10)),
         maxRetries: 2,
@@ -272,6 +266,30 @@ class FriendService {
       await prefs.remove(_cacheHashKey);
     } catch (e) {
     }
+  }
+
+  Future<void> blockUser({required String friendId}) async {
+    final response = await globalAuthClient.post(
+      Uri.parse(ApiConstants.friend),
+      body: {'action': 'block', 'friendID': friendId},
+    ).timeout(const Duration(seconds: 10));
+    final data = safeJsonDecode(response);
+    if (data['responseCode'] != '1') {
+      throw Exception(data['message'] ?? 'Failed to block user');
+    }
+    debugPrint('[FriendService] Blocked user $friendId');
+  }
+
+  Future<void> removeFriend({required String friendId}) async {
+    final response = await globalAuthClient.post(
+      Uri.parse(ApiConstants.friend),
+      body: {'action': 'remove', 'friendID': friendId},
+    ).timeout(const Duration(seconds: 10));
+    final data = safeJsonDecode(response);
+    if (data['responseCode'] != '1') {
+      throw Exception(data['message'] ?? 'Failed to unfriend user');
+    }
+    debugPrint('[FriendService] Unfriended user $friendId');
   }
 
   Future<void> refreshFriends({required String userId}) async {

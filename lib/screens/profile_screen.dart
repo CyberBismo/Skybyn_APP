@@ -25,6 +25,7 @@ import '../widgets/skeleton_loader.dart';
 import 'chat_screen.dart';
 import 'package:share_plus/share_plus.dart';
 import '../models/friend.dart';
+import '../widgets/app_banner.dart';
 
 class ProfileScreen extends StatefulWidget {
   final String? userId;
@@ -114,7 +115,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
       // If viewing own profile, try to load from cache first (works offline)
       if (isOwnProfile) {
-        print(
+        debugPrint(
             '[SKYBYN] 📦 [Profile] Loading own profile - checking cache first');
         developer.log('📦 [Profile] Loading own profile - checking cache first',
             name: 'Profile API');
@@ -122,7 +123,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         try {
           final cachedProfile = await authService.getStoredUserProfile();
           if (cachedProfile != null) {
-            print(
+            debugPrint(
                 '[SKYBYN] ✅ [Profile] Using cached profile data (offline support)');
             developer.log(
                 '✅ [Profile] Using cached profile data (offline support)',
@@ -151,7 +152,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             _refreshProfileFromAPI(authService, userId, username)
                 .catchError((e) {
               // Silently fail - we already have cached data
-              print(
+              debugPrint(
                   '[SKYBYN] ⚠️ [Profile] Background refresh failed (using cached data): $e');
             });
 
@@ -161,14 +162,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
             }
             return; // Exit early - we have cached data
           } else {
-            print(
+            debugPrint(
                 '[SKYBYN] ⚠️ [Profile] No cached profile found, fetching from API');
             developer.log(
                 '⚠️ [Profile] No cached profile found, fetching from API',
                 name: 'Profile API');
           }
         } catch (e) {
-          print('[SKYBYN] ⚠️ [Profile] Error loading cached profile: $e');
+          debugPrint('[SKYBYN] ⚠️ [Profile] Error loading cached profile: $e');
           developer.log('⚠️ [Profile] Error loading cached profile: $e',
               name: 'Profile API');
           // Continue to API fetch if cache fails
@@ -185,13 +186,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
         requestParams['username'] = username;
       }
 
-      print('[SKYBYN] ═══════════════════════════════════════════════════════');
-      print('[SKYBYN] 📤 [Profile] Sending request to API');
-      print('[SKYBYN]    URL: $apiUrl');
-      print('[SKYBYN]    Parameters: ${jsonEncode(requestParams)}');
-      print('[SKYBYN]    Method: POST');
+      debugPrint('[SKYBYN] ═══════════════════════════════════════════════════════');
+      debugPrint('[SKYBYN] 📤 [Profile] Sending request to API');
+      debugPrint('[SKYBYN]    URL: $apiUrl');
+      debugPrint('[SKYBYN]    Parameters: ${jsonEncode(requestParams)}');
+      debugPrint('[SKYBYN]    Method: POST');
       if (isOwnProfile) {
-        print(
+        debugPrint(
             '[SKYBYN]    Note: Refreshing own profile from API (cache was missing)');
       }
       developer.log('📤 [Profile] Sending request to API', name: 'Profile API');
@@ -208,17 +209,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
       // Log API response
       if (profile != null) {
         final profileJson = profile.toJson();
-        print('[SKYBYN] 📥 [Profile] API Response received');
-        print('[SKYBYN]    Status: Success');
-        print(
+        debugPrint('[SKYBYN] 📥 [Profile] API Response received');
+        debugPrint('[SKYBYN]    Status: Success');
+        debugPrint(
             '[SKYBYN]    User ID: ${profileJson['id'] ?? profileJson['userID']}');
-        print('[SKYBYN]    Username: ${profileJson['username']}');
-        print(
+        debugPrint('[SKYBYN]    Username: ${profileJson['username']}');
+        debugPrint(
             '[SKYBYN]    Has Avatar: ${profileJson['avatar'] != null && profileJson['avatar'].toString().isNotEmpty}');
-        print(
+        debugPrint(
             '[SKYBYN]    Has Wallpaper: ${profileJson['wallpaper'] != null && profileJson['wallpaper'].toString().isNotEmpty}');
-        print('[SKYBYN]    Online: ${profileJson['online']}');
-        print('[SKYBYN]    Full Response: ${jsonEncode(profileJson)}');
+        debugPrint('[SKYBYN]    Online: ${profileJson['online']}');
+        debugPrint('[SKYBYN]    Full Response: ${jsonEncode(profileJson)}');
         developer.log('📥 [Profile] API Response received',
             name: 'Profile API');
         developer.log('   Status: Success', name: 'Profile API');
@@ -238,15 +239,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
         developer.log('   Full Response: ${jsonEncode(profileJson)}',
             name: 'Profile API');
       } else {
-        print('[SKYBYN] 📥 [Profile] API Response received');
-        print('[SKYBYN]    Status: Failed (null response)');
-        print('[SKYBYN]    Error: Profile data is null');
+        debugPrint('[SKYBYN] 📥 [Profile] API Response received');
+        debugPrint('[SKYBYN]    Status: Failed (null response)');
+        debugPrint('[SKYBYN]    Error: Profile data is null');
         developer.log('📥 [Profile] API Response received',
             name: 'Profile API');
         developer.log('   Status: Failed (null response)', name: 'Profile API');
         developer.log('   Error: Profile data is null', name: 'Profile API');
       }
-      print('[SKYBYN] ═══════════════════════════════════════════════════════');
+      debugPrint('[SKYBYN] ═══════════════════════════════════════════════════════');
       developer.log('═══════════════════════════════════════════════════════',
           name: 'Profile API');
 
@@ -294,7 +295,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     } catch (e) {
       // On error, use default userData and show error in popup
       final errorMsg = e.toString();
-      print('[SKYBYN] ❌ [Profile] Error loading profile: $errorMsg');
+      debugPrint('[SKYBYN] ❌ [Profile] Error loading profile: $errorMsg');
       developer.log('❌ [Profile] Error loading profile: $errorMsg',
           name: 'Profile API');
 
@@ -338,7 +339,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         requestParams['username'] = username;
       }
 
-      print('[SKYBYN] 🔄 [Profile] Background refresh: Fetching from API');
+      debugPrint('[SKYBYN] 🔄 [Profile] Background refresh: Fetching from API');
       developer.log('🔄 [Profile] Background refresh: Fetching from API',
           name: 'Profile API');
 
@@ -348,7 +349,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       );
 
       if (profile != null && mounted) {
-        print('[SKYBYN] ✅ [Profile] Background refresh: Profile updated');
+        debugPrint('[SKYBYN] ✅ [Profile] Background refresh: Profile updated');
         developer.log('✅ [Profile] Background refresh: Profile updated',
             name: 'Profile API');
 
@@ -367,14 +368,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
           });
         }
       } else {
-        print(
+        debugPrint(
             '[SKYBYN] ⚠️ [Profile] Background refresh: Failed (keeping cached data)');
         developer.log(
             '⚠️ [Profile] Background refresh: Failed (keeping cached data)',
             name: 'Profile API');
       }
     } catch (e) {
-      print('[SKYBYN] ⚠️ [Profile] Background refresh error: $e');
+      debugPrint('[SKYBYN] ⚠️ [Profile] Background refresh error: $e');
       developer.log('⚠️ [Profile] Background refresh error: $e',
           name: 'Profile API');
       // Silently fail - we already have cached data displayed
@@ -436,7 +437,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         userData!['userID']?.toString() ??
         profileUserId?.toString();
     if (targetUserId == null || targetUserId.isEmpty) {
-      print(
+      debugPrint(
           '[SKYBYN] ⚠️ [Profile Posts] Cannot load posts: targetUserId is null or empty');
       developer.log(
           '⚠️ [Profile Posts] Cannot load posts: targetUserId is null or empty',
@@ -453,16 +454,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
     // Log API request details
     final apiUrl = ApiConstants.timeline;
     final requestParams = {
-      'action': 'timeline',
-      'userID': targetUserId,
-      if (currentUserId != null) 'currentUserId': currentUserId!,
+      'profileID': targetUserId,
+      if (currentUserId != null) 'currentUserID': currentUserId!,
     };
 
-    print('[SKYBYN] ═══════════════════════════════════════════════════════');
-    print('[SKYBYN] 📤 [Profile Posts] Sending request to API');
-    print('[SKYBYN]    URL: $apiUrl');
-    print('[SKYBYN]    Parameters: ${jsonEncode(requestParams)}');
-    print('[SKYBYN]    Method: POST');
+    debugPrint('[SKYBYN] ═══════════════════════════════════════════════════════');
+    debugPrint('[SKYBYN] 📤 [Profile Posts] Sending request to API');
+    debugPrint('[SKYBYN]    URL: $apiUrl');
+    debugPrint('[SKYBYN]    Parameters: ${jsonEncode(requestParams)}');
+    debugPrint('[SKYBYN]    Method: POST');
     developer.log('📤 [Profile Posts] Sending request to API',
         name: 'Profile Posts API');
     developer.log('   URL: $apiUrl', name: 'Profile Posts API');
@@ -505,7 +505,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       // Trust the API response, but log for debugging
       for (final post in posts) {
         if (post.userId != null && post.userId != targetUserId) {
-          print(
+          debugPrint(
               '[SKYBYN] ⚠️ [Profile Posts] Post ${post.id} belongs to different user (${post.userId} vs $targetUserId)');
           developer.log(
               '⚠️ [Profile Posts] Post ${post.id} belongs to different user (${post.userId} vs $targetUserId)',
@@ -532,11 +532,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
         isLoadingPosts = false;
       });
 
-      print('[SKYBYN] ═══════════════════════════════════════════════════════');
+      debugPrint('[SKYBYN] ═══════════════════════════════════════════════════════');
       developer.log('═══════════════════════════════════════════════════════',
           name: 'Profile Posts API');
     } catch (e) {
-      print('[SKYBYN] ❌ [Profile Posts] Error loading posts: $e');
+      debugPrint('[SKYBYN] ❌ [Profile Posts] Error loading posts: $e');
       developer.log('❌ [Profile Posts] Error loading posts: $e',
           name: 'Profile Posts API');
       setState(() {
@@ -639,13 +639,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           });
 
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(data['message'] ?? 'Friend request sent'),
-                backgroundColor: Colors.green,
-                duration: const Duration(seconds: 2),
-              ),
-            );
+            AppBanner.success(data['message'] ?? 'Friend request sent');
           }
         } else {
           setState(() {
@@ -653,14 +647,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           });
 
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content:
-                    Text(data['message'] ?? 'Failed to send friend request'),
-                backgroundColor: Colors.red,
-                duration: const Duration(seconds: 2),
-              ),
-            );
+            AppBanner.error(data['message'] ?? 'Failed to send friend request');
           }
         }
       } else {
@@ -1253,12 +1240,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
 
     if (menuItems.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('No friend actions available'),
-          duration: Duration(seconds: 2),
-        ),
-      );
+      AppBanner.info('No friend actions available');
       return;
     }
 
@@ -1386,46 +1368,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
         final data = json.decode(response.body);
         if (data['responseCode'] == '1' || data['responseCode'] == 1) {
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(data['message'] ??
-                    'User reported successfully. Thank you for your report.'),
-                backgroundColor: Colors.green,
-                duration: const Duration(seconds: 3),
-              ),
-            );
+            AppBanner.success(data['message'] ??
+                    'User reported successfully. Thank you for your report.');
           }
         } else {
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(data['message'] ?? 'Failed to report user'),
-                backgroundColor: Colors.red,
-                duration: const Duration(seconds: 3),
-              ),
-            );
+            AppBanner.error(data['message'] ?? 'Failed to report user');
           }
         }
       } else {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Error reporting user. Please try again.'),
-              backgroundColor: Colors.red,
-              duration: Duration(seconds: 3),
-            ),
-          );
+          AppBanner.error('Error reporting user. Please try again.');
         }
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Error reporting user. Please try again.'),
-            backgroundColor: Colors.red,
-            duration: Duration(seconds: 3),
-          ),
-        );
+        AppBanner.error('Error reporting user. Please try again.');
       }
     }
   }
@@ -1441,13 +1399,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       await Share.share(shareText);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Error sharing profile'),
-            backgroundColor: Colors.red,
-            duration: Duration(seconds: 2),
-          ),
-        );
+        AppBanner.error('Error sharing profile');
       }
     }
   }
@@ -1600,13 +1552,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           elevation: 20,
           itemBuilder: (BuildContext context) {
             // Show toast when menu opens
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Dropdown menu opened'),
-                duration: Duration(seconds: 1),
-                backgroundColor: Colors.blue,
-              ),
-            );
+            AppBanner.info('Dropdown menu opened');
             return menuItems;
           },
           onSelected: (String value) {
@@ -1646,36 +1592,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
           await _checkFriendshipStatus();
 
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(data['message'] ?? 'Action completed'),
-                backgroundColor: Colors.green,
-                duration: const Duration(seconds: 2),
-              ),
-            );
+            AppBanner.success(data['message'] ?? 'Action completed');
           }
         } else {
           // Show error message
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(data['message'] ?? 'Action failed'),
-                backgroundColor: Colors.red,
-                duration: const Duration(seconds: 2),
-              ),
-            );
+            AppBanner.error(data['message'] ?? 'Action failed');
           }
         }
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Error performing action'),
-            backgroundColor: Colors.red,
-            duration: Duration(seconds: 2),
-          ),
-        );
+        AppBanner.error('Error performing action');
       }
     }
   }

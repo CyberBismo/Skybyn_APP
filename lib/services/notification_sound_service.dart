@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -41,7 +42,7 @@ class NotificationSoundService {
       
       return _cachedSounds ?? [];
     } catch (e) {
-      print('Failed to get system sounds: $e');
+      debugPrint('Failed to get system sounds: $e');
       // Return default sound if platform channel fails
       return [
         {
@@ -133,7 +134,7 @@ class NotificationSoundService {
     } catch (e) {
       // Silently fail if sound can't be played
       // This prevents errors from breaking the notification flow
-      print('Failed to play notification sound: $e');
+      debugPrint('Failed to play notification sound: $e');
     }
   }
 

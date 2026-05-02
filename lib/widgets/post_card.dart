@@ -10,6 +10,7 @@ import '../models/comment.dart';
 import '../services/post_service.dart';
 import 'package:flutter/services.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import '../utils/skybyn_cache_manager.dart';
 import 'unified_menu.dart';
 import '../services/websocket_service.dart';
 import 'create_post_widget.dart';
@@ -19,6 +20,7 @@ import '../config/constants.dart';
 import '../widgets/translated_text.dart';
 import '../services/translation_service.dart';
 import '../screens/profile_screen.dart';
+import '../widgets/app_banner.dart';
 
 /// Centralized styling for the PostCard widget - matches web platform exactly
 class PostCardStyles {
@@ -210,6 +212,17 @@ class _PostCardState extends State<PostCard> {
     });
   }
 
+  @override
+  void didUpdateWidget(PostCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.post != oldWidget.post) {
+      setState(() {
+        _currentPost = widget.post;
+        _isLiked = widget.post.isLiked;
+      });
+    }
+  }
+
   void _onFocusChange() {
     if (mounted) {
       setState(() {
@@ -397,6 +410,7 @@ class _PostCardState extends State<PostCard> {
 
     try {
       final userId = await _authService.getStoredUserId();
+      debugPrint('[PostCard] _postComment: postId=${_currentPost.id} userId=$userId');
       if (userId == null) throw Exception('User not logged in');
 
       await _commentService.postComment(
@@ -436,13 +450,7 @@ class _PostCardState extends State<PostCard> {
     } catch (e) {
       Navigator.pop(context); // Dismiss loading indicador
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-                '${TranslationKeys.failedToPostComment.tr}: ${e.toString()}'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        AppBanner.error('${TranslationKeys.failedToPostComment.tr}: ${e.toString()}');
       }
     }
   }
@@ -458,13 +466,7 @@ class _PostCardState extends State<PostCard> {
       }
     } catch (refreshError) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: TranslatedText(
-                TranslationKeys.commentPostedButCouldNotLoadDetails),
-            backgroundColor: Colors.orange,
-          ),
-        );
+        AppBanner.warning(TranslationKeys.commentPostedButCouldNotLoadDetails.tr);
       }
     }
   }
@@ -520,28 +522,23 @@ class _PostCardState extends State<PostCard> {
         userId: userId,
       );
 
-      // Refresh post details to get updated comment list
-      final updatedPost = await _postService.fetchPost(
-        postId: _currentPost.id,
-        userId: userId,
-      );
-
       Navigator.pop(context); // Dismiss loading indicator
 
       if (mounted) {
         setState(() {
-          _currentPost = updatedPost;
+          final updatedComments = _currentPost.commentsList
+              .where((c) => c.id != commentId)
+              .toList();
+          _currentPost = _currentPost.copyWith(
+            commentsList: updatedComments,
+            comments: updatedComments.length,
+          );
         });
       }
     } catch (e) {
       Navigator.pop(context); // Dismiss loading indicator
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to delete comment: ${e.toString()}'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        AppBanner.error('Failed to delete comment: ${e.toString()}');
       }
     }
   }
@@ -617,16 +614,12 @@ class _PostCardState extends State<PostCard> {
         setState(() {
           _currentPost = updatedPost;
         });
+        WebSocketService().sendUpdateComment(_currentPost.id, commentId);
       }
     } catch (e) {
       Navigator.pop(context); // Dismiss loading indicator
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to update comment: ${e.toString()}'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        AppBanner.error('Failed to update comment: ${e.toString()}');
       }
     }
   }
@@ -706,23 +699,12 @@ class _PostCardState extends State<PostCard> {
       Navigator.pop(context); // Dismiss loading indicator
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content:
-                TranslatedText(TranslationKeys.commentReportedSuccessfully),
-            backgroundColor: Colors.green,
-          ),
-        );
+        AppBanner.success(TranslationKeys.commentReportedSuccessfully.tr);
       }
     } catch (e) {
       Navigator.pop(context); // Dismiss loading indicator
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to report comment: ${e.toString()}'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        AppBanner.error('Failed to report comment: ${e.toString()}');
       }
     }
   }
@@ -788,16 +770,7 @@ class _PostCardState extends State<PostCard> {
     } catch (e) {
       Navigator.pop(context); // Dismiss loading indicator
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: ListenableBuilder(
-              listenable: TranslationService(),
-              builder: (context, _) => Text(
-                  '${TranslationKeys.failedToDeletePost.tr}: ${e.toString()}'),
-            ),
-            backgroundColor: Colors.red,
-          ),
-        );
+        AppBanner.error('${TranslationKeys.failedToDeletePost.tr}: ${e.toString()}');
       }
     }
   }
@@ -806,10 +779,7 @@ class _PostCardState extends State<PostCard> {
     final postUrl = '${ApiConstants.webBase}/post/${_currentPost.id}';
     await Clipboard.setData(ClipboardData(text: postUrl));
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content: TranslatedText(TranslationKeys.postLinkCopiedToClipboard)),
-      );
+      AppBanner.info(TranslationKeys.postLinkCopiedToClipboard.tr);
     }
   }
 
@@ -886,26 +856,12 @@ class _PostCardState extends State<PostCard> {
       Navigator.pop(context); // Dismiss loading indicator
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: TranslatedText(TranslationKeys.postReportedSuccessfully),
-            backgroundColor: Colors.green,
-          ),
-        );
+        AppBanner.success(TranslationKeys.postReportedSuccessfully.tr);
       }
     } catch (e) {
       Navigator.pop(context); // Dismiss loading indicator
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: ListenableBuilder(
-              listenable: TranslationService(),
-              builder: (context, _) => Text(
-                  '${TranslationKeys.failedToReportPost.tr}: ${e.toString()}'),
-            ),
-            backgroundColor: Colors.red,
-          ),
-        );
+        AppBanner.error('${TranslationKeys.failedToReportPost.tr}: ${e.toString()}');
       }
     }
   }
@@ -955,6 +911,7 @@ class _PostCardState extends State<PostCard> {
 
     try {
       final userId = await _authService.getStoredUserId();
+      debugPrint('[PostCard] _performHidePost: postId=${_currentPost.id} userId=$userId');
       if (userId == null) throw Exception('User not logged in');
 
       await _postService.hidePost(postId: _currentPost.id, userId: userId);
@@ -962,27 +919,13 @@ class _PostCardState extends State<PostCard> {
       Navigator.pop(context); // Dismiss loading indicator
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: TranslatedText(TranslationKeys.postHiddenSuccessfully),
-            backgroundColor: Colors.green,
-          ),
-        );
+        AppBanner.success(TranslationKeys.postHiddenSuccessfully.tr);
         widget.onPostDeleted?.call(_currentPost.id);
       }
     } catch (e) {
       Navigator.pop(context); // Dismiss loading indicator
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: ListenableBuilder(
-              listenable: TranslationService(),
-              builder: (context, _) => Text(
-                  '${TranslationKeys.failedToHidePost.tr}: ${e.toString()}'),
-            ),
-            backgroundColor: Colors.red,
-          ),
-        );
+        AppBanner.error('${TranslationKeys.failedToHidePost.tr}: ${e.toString()}');
       }
     }
   }
@@ -996,50 +939,48 @@ class _PostCardState extends State<PostCard> {
 
     if (result == 'updated' && widget.onPostUpdated != null) {
       widget.onPostUpdated!(_currentPost.id);
+      WebSocketService().sendUpdatePost(_currentPost.id);
     }
   }
 
   Future<void> _toggleLike() async {
+    // Optimistic update
+    final wasLiked = _currentPost.isLiked;
+    final originalLikes = _currentPost.likes;
+    setState(() {
+      _currentPost = _currentPost.copyWith(
+        likes: wasLiked ? _currentPost.likes - 1 : _currentPost.likes + 1,
+        isLiked: !wasLiked,
+      );
+    });
+
     try {
-      final userId = await _authService.getStoredUserId();
-      if (userId == null) throw Exception('User not logged in');
+      debugPrint('[PostCard] _toggleLike: postId=${_currentPost.id}');
+      final result = await _postService.toggleLike(postId: _currentPost.id);
 
-      final wasLiked = _currentPost.isLiked;
-      final originalLikes = _currentPost.likes;
-
-      setState(() {
-        _currentPost = _currentPost.copyWith(
-          likes: wasLiked ? _currentPost.likes - 1 : _currentPost.likes + 1,
-          isLiked: !wasLiked,
-        );
-      });
-
-      try {
-        await _postService.toggleLike(postId: _currentPost.id, userId: userId);
-      } catch (e) {
-        if (mounted) {
-          setState(() {
-            _currentPost = _currentPost.copyWith(
-              likes: originalLikes,
-              isLiked: wasLiked,
-            );
-          });
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Failed to update like: ${e.toString()}'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
-      }
-    } catch (e) {
+      // Apply server-authoritative values
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error: ${e.toString()}'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        setState(() {
+          _currentPost = _currentPost.copyWith(
+            isLiked: result['liked'] as bool,
+            likes: (result['likeCount'] as int) >= 0
+                ? result['likeCount'] as int
+                : _currentPost.likes,
+          );
+        });
+      }
+      debugPrint('[PostCard] _toggleLike: confirmed liked=${result['liked']} count=${result['likeCount']}');
+    } catch (e) {
+      debugPrint('[PostCard] _toggleLike ERROR: $e');
+      // Revert optimistic update on failure
+      if (mounted) {
+        setState(() {
+          _currentPost = _currentPost.copyWith(
+            likes: originalLikes,
+            isLiked: wasLiked,
+          );
+        });
+        AppBanner.error('Failed to update like: ${e.toString()}');
       }
     }
   }
@@ -1081,6 +1022,7 @@ class _PostCardState extends State<PostCard> {
     if (_currentPost.avatar != null && _currentPost.avatar!.isNotEmpty) {
       if (_currentPost.avatar!.startsWith('http')) {
         avatarWidget = CachedNetworkImage(
+          cacheManager: SkybynCacheManager(),
           imageUrl: UrlHelper.convertUrl(_currentPost.avatar!),
           width: PostCardStyles.avatarSize,
           height: PostCardStyles.avatarSize,
@@ -1172,6 +1114,7 @@ class _PostCardState extends State<PostCard> {
         }
       } else if (_currentPost.image!.startsWith('http')) {
         imageWidget = CachedNetworkImage(
+          cacheManager: SkybynCacheManager(),
           imageUrl: UrlHelper.convertUrl(_currentPost.image!),
           width: double.infinity,
           fit: BoxFit.cover,
