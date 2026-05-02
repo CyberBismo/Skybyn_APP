@@ -11,9 +11,9 @@ import '../services/post_service.dart';
 import 'package:flutter/services.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../utils/skybyn_cache_manager.dart';
-import 'unified_menu.dart';
+import '../widgets/unified_menu.dart';
 import '../services/websocket_service.dart';
-import 'create_post_widget.dart';
+import '../widgets/create_post_widget.dart';
 import '../widgets/app_colors.dart';
 import '../config/constants.dart';
 
@@ -1016,7 +1016,7 @@ class _PostCardState extends State<PostCard> {
       });
 
       try {
-        await _postService.toggleLike(postId: _currentPost.id, userId: userId);
+        await _postService.toggleLike(postId: _currentPost.id);
       } catch (e) {
         if (mounted) {
           setState(() {

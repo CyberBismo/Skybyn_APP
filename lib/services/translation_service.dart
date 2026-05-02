@@ -72,6 +72,7 @@ class TranslationKeys {
   static const String done = 'done';
   static const String nickname = 'nickname';
   static const String pinCode = 'pin_code';
+  static const String pinCodeType = 'pin_code_type';
   static const String pinCodeCurrent = 'pin_code_current';
   static const String pinCodeNew = 'pin_code_new';
   static const String confirmPinCode = 'confirm_pin_code';

@@ -1391,30 +1391,42 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   title: TranslationKeys.pinCode,
                   tileColor: transparentColor,
                   children: [
-                    DropdownButtonFormField<String>(
-                      initialValue: _selectedPinOption,
-                      items: _pinOptions.map((option) {
-                        return DropdownMenuItem<String>(
-                          value: option,
-                          child: Text(option, style: TextStyle(color: AppColors.getTextColor(context))),
-                        );
-                      }).toList(),
-                      onChanged: (value) {
-                        setState(() {
-                          _selectedPinOption = value;
-                        });
-                      },
-                      decoration: InputDecoration(
-                        labelText: TranslationKeys.pinCode,
-                        labelStyle: TextStyle(color: AppColors.getSecondaryTextColor(context)),
-                        enabledBorder: UnderlineInputBorder(
-                          borderSide: BorderSide(color: AppColors.getSecondaryTextColor(context).withOpacity(0.3)),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          TranslationKeys.pinCodeType.tr,
+                          style: TextStyle(
+                            color: AppColors.getSecondaryTextColor(context),
+                            fontSize: 13,
+                          ),
                         ),
-                        focusedBorder: UnderlineInputBorder(
-                          borderSide: BorderSide(color: AppColors.getTextColor(context)),
+                        const SizedBox(height: 10),
+                        SegmentedButton<String>(
+                          segments: _pinOptions.map((option) => ButtonSegment<String>(
+                            value: option,
+                            label: Text(option, style: const TextStyle(fontSize: 13)),
+                          )).toList(),
+                          selected: {_selectedPinOption ?? _pinOptions.first},
+                          onSelectionChanged: (value) {
+                            setState(() {
+                              _selectedPinOption = value.first;
+                            });
+                          },
+                          style: ButtonStyle(
+                            backgroundColor: WidgetStateProperty.resolveWith((states) {
+                              if (states.contains(WidgetState.selected)) {
+                                return AppColors.getTextColor(context).withValues(alpha: 0.2);
+                              }
+                              return Colors.transparent;
+                            }),
+                            foregroundColor: WidgetStateProperty.all(AppColors.getTextColor(context)),
+                            side: WidgetStateProperty.all(
+                              BorderSide(color: AppColors.getSecondaryTextColor(context).withValues(alpha: 0.3)),
+                            ),
+                          ),
                         ),
-                      ),
-                      dropdownColor: AppColors.getCardBackgroundColor(context),
+                      ],
                     ),
                     if (_selectedPinOption != null && _selectedPinOption != 'No PIN') ...[
                       const SizedBox(height: 16),

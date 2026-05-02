@@ -909,7 +909,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   Widget _buildMapPage() {
-    return const MapView(showControls: true);
+    return MapView(showControls: true, isActive: _currentPageIndex == 0);
   }
 
   Widget _buildHomeContent() {

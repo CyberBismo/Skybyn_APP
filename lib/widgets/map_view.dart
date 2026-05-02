@@ -8,6 +8,7 @@ import '../utils/http_client.dart';
 import 'dart:convert';
 import 'dart:async';
 import 'dart:io';
+import 'dart:math' as math;
 import 'dart:ui';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -20,11 +21,13 @@ import '../screens/chat_screen.dart';
 class MapView extends StatefulWidget {
   final MapController? mapController;
   final bool showControls;
+  final bool isActive;
 
   const MapView({
     super.key,
     this.mapController,
     this.showControls = true,
+    this.isActive = true,
   });
 
   @override
@@ -45,10 +48,17 @@ class _MapViewState extends State<MapView>
   bool _isLoading = true;
   Timer? _refreshTimer;
   Timer? _locationUploadTimer;
+  Timer? _deadReckoningTimer;
   StreamSubscription<Position>? _positionStream;
   AnimationController? _moveAnimationController;
   final Map<String, String> _friendAvatarUrls = {};
   SharedPreferences? _prefs;
+
+  // Dead reckoning state
+  LatLng? _drPosition;   // last confirmed GPS fix
+  double _drSpeed = 0;   // m/s
+  double _drHeading = 0; // degrees, 0 = North
+  DateTime? _drTimestamp;
 
   LatLng _center = const LatLng(59.9139, 10.7522);
   double _zoom = 3.0;
@@ -56,6 +66,7 @@ class _MapViewState extends State<MapView>
   bool _isGhostMode = false;
   String _locationShareMode = 'off';
   String? _selectedFriendId; // which friend card is expanded
+  bool _followingUser = false;
 
   static const String _mapStylePreferenceKey = 'map_style';
   static const String _lastMapLatKey = 'last_map_latitude';
@@ -75,12 +86,21 @@ class _MapViewState extends State<MapView>
     WidgetsBinding.instance.removeObserver(this);
     _refreshTimer?.cancel();
     _locationUploadTimer?.cancel();
+    _deadReckoningTimer?.cancel();
     _positionStream?.cancel();
     _moveAnimationController?.dispose();
     if (widget.mapController == null) {
       _mapController.dispose();
     }
     super.dispose();
+  }
+
+  @override
+  void didUpdateWidget(MapView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.isActive != oldWidget.isActive) {
+      _startPositionStream(active: widget.isActive);
+    }
   }
 
   @override
@@ -91,9 +111,58 @@ class _MapViewState extends State<MapView>
       _locationUploadTimer?.cancel();
       _positionStream?.pause();
     } else if (state == AppLifecycleState.resumed) {
-      _positionStream?.resume();
+      _startPositionStream(active: widget.isActive);
       _startTimers();
     }
+  }
+
+  void _startPositionStream({required bool active}) {
+    _positionStream?.cancel();
+    _positionStream = Geolocator.getPositionStream(
+      locationSettings: LocationSettings(
+        accuracy: active ? LocationAccuracy.bestForNavigation : LocationAccuracy.low,
+        distanceFilter: active ? 0 : 50,
+      ),
+    ).listen((position) {
+      if (!mounted) return;
+      final fix = LatLng(position.latitude, position.longitude);
+      setState(() => _currentPosition = position);
+      _locationService.saveLastKnownLocation(position);
+      // Update dead reckoning anchor on every real GPS fix
+      _drPosition = fix;
+      _drSpeed = position.speed.clamp(0, double.infinity);
+      if (_drSpeed > 0.5) _drHeading = position.heading;
+      _drTimestamp = DateTime.now();
+    });
+
+    if (active) {
+      _deadReckoningTimer?.cancel();
+      _deadReckoningTimer = Timer.periodic(
+        const Duration(milliseconds: 16), // ~60 fps
+        (_) => _applyDeadReckoning(),
+      );
+    } else {
+      _deadReckoningTimer?.cancel();
+    }
+  }
+
+  void _applyDeadReckoning() {
+    if (!mounted || !_followingUser) return;
+    if (_drPosition == null || _drTimestamp == null || _drSpeed < 0.5) return;
+
+    final elapsed = (DateTime.now().difference(_drTimestamp!).inMilliseconds / 1000.0).clamp(0.0, 1.5);
+    if (elapsed <= 0) return;
+
+    // Project position forward using speed + heading
+    final headingRad = _drHeading * math.pi / 180.0;
+    final distMetres = _drSpeed * elapsed;
+    const metersPerDegLat = 111111.0;
+    final metersPerDegLng = 111111.0 * math.cos(_drPosition!.latitude * math.pi / 180.0);
+
+    final newLat = _drPosition!.latitude  + (distMetres * math.cos(headingRad)) / metersPerDegLat;
+    final newLng = _drPosition!.longitude + (distMetres * math.sin(headingRad)) / metersPerDegLng;
+
+    _mapController.move(LatLng(newLat, newLng), _mapController.camera.zoom);
   }
 
   void _startTimers() {
@@ -173,17 +242,7 @@ class _MapViewState extends State<MapView>
 
       final hasPermission = await _locationService.hasLocationPermission();
       if (hasPermission) {
-        _positionStream = Geolocator.getPositionStream(
-          locationSettings: const LocationSettings(
-            accuracy: LocationAccuracy.high,
-            distanceFilter: 5,
-          ),
-        ).listen((position) {
-          if (mounted) {
-            setState(() => _currentPosition = position);
-            _locationService.saveLastKnownLocation(position);
-          }
-        });
+        _startPositionStream(active: widget.isActive);
       }
 
       await _loadFriendsLocations();
@@ -300,6 +359,35 @@ class _MapViewState extends State<MapView>
     }
   }
 
+  void _smoothFollowMove(LatLng dest) {
+    if (!mounted) return;
+    _moveAnimationController?.dispose();
+    final from = _mapController.camera.center;
+    final zoom = _mapController.camera.zoom;
+    final latTween = Tween<double>(begin: from.latitude, end: dest.latitude);
+    final lngTween = Tween<double>(begin: from.longitude, end: dest.longitude);
+    final controller = AnimationController(
+      duration: const Duration(milliseconds: 300),
+      vsync: this,
+    );
+    _moveAnimationController = controller;
+    final animation = CurvedAnimation(parent: controller, curve: Curves.easeOut);
+    controller.addListener(() {
+      if (!mounted) return;
+      _mapController.move(
+        LatLng(latTween.evaluate(animation), lngTween.evaluate(animation)),
+        zoom,
+      );
+    });
+    controller.addStatusListener((status) {
+      if (status == AnimationStatus.completed) {
+        controller.dispose();
+        if (_moveAnimationController == controller) _moveAnimationController = null;
+      }
+    });
+    controller.forward();
+  }
+
   Future<void> _animatedMapMove(LatLng destLocation, double destZoom) async {
     if (!mounted) return;
     await _mapReadyCompleter.future;
@@ -334,6 +422,18 @@ class _MapViewState extends State<MapView>
       }
     });
     controller.forward();
+  }
+
+  void _toggleFollowUser() {
+    final nowFollowing = !_followingUser;
+    setState(() => _followingUser = nowFollowing);
+    if (nowFollowing && _currentPosition != null) {
+      // Animate into position once when activating, then lock to instant updates
+      _animatedMapMove(
+        LatLng(_currentPosition!.latitude, _currentPosition!.longitude),
+        15.0,
+      );
+    }
   }
 
   void _fitBounds() {
@@ -533,7 +633,7 @@ class _MapViewState extends State<MapView>
 
   List<Marker> _buildMarkers() {
     final markers = <Marker>[];
-    if (_currentPosition != null) {
+    if (_currentPosition != null && !_followingUser) {
       markers.add(
           _buildUserMarker(_currentUserId!, 'You', _currentUserAvatar, true));
     }
@@ -838,7 +938,7 @@ class _MapViewState extends State<MapView>
 
   Widget _buildMapFab({
     required IconData icon,
-    required VoidCallback onPressed,
+    required VoidCallback? onPressed,
     required String tooltip,
     Color? color,
   }) {
@@ -909,6 +1009,7 @@ class _MapViewState extends State<MapView>
                   _prefs!.setDouble(_lastMapLatKey, camera.center.latitude);
                   _prefs!.setDouble(_lastMapLngKey, camera.center.longitude);
                   _prefs!.setDouble(_lastMapZoomKey, camera.zoom);
+                  if (_followingUser) setState(() => _followingUser = false);
                 }
               },
             ),
@@ -949,6 +1050,16 @@ class _MapViewState extends State<MapView>
               child: Column(
                 children: [
                   _buildMapFab(
+                    icon: _followingUser
+                        ? Icons.my_location
+                        : Icons.location_searching,
+                    onPressed: _currentPosition != null ? _toggleFollowUser : null,
+                    tooltip: _followingUser ? 'Stop following' : 'Follow my location',
+                    color: _followingUser
+                        ? Colors.blue.withValues(alpha: 0.85)
+                        : null,
+                  ),
+                  _buildMapFab(
                     icon: Icons.settings_outlined,
                     onPressed: _showMapSettings,
                     tooltip: 'Map Settings',
@@ -976,6 +1087,50 @@ class _MapViewState extends State<MapView>
                 ],
               ),
             ),
+            // Fixed center marker shown when following
+            if (_followingUser && _currentPosition != null)
+              Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 50,
+                      height: 50,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Colors.black,
+                        border: Border.all(color: Colors.blue, width: 2),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.all(2.0),
+                        child: ClipOval(
+                          child: _currentUserAvatar != null && _currentUserAvatar!.isNotEmpty
+                              ? CachedNetworkImage(
+                                  imageUrl: _currentUserAvatar!,
+                                  fit: BoxFit.cover,
+                                  placeholder: (_, __) => Image.asset('assets/images/logo.png'),
+                                  errorWidget: (_, __, ___) => Image.asset('assets/images/logo.png'),
+                                )
+                              : Image.asset('assets/images/logo.png'),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.7),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Text('You',
+                          style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold)),
+                    ),
+                  ],
+                ),
+              ),
             // Friend expanded card
             Positioned(
               bottom: 192.0,

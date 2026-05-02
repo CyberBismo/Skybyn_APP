@@ -33,6 +33,8 @@ class _FindFriendsWidgetState extends State<FindFriendsWidget> {
   List<Map<String, dynamic>> _nearbyUsers = [];
   bool _hasSearched = false;
   String? _addFriendError;
+  final Map<String, String> _friendshipStatus = {}; // userId -> status
+  final Set<String> _loadingUsers = {};
 
   Future<void> _findFriendsInArea() async {
     setState(() {
@@ -98,25 +100,30 @@ class _FindFriendsWidgetState extends State<FindFriendsWidget> {
         radiusKm: 5.0, // 5km radius
       );
       // Update state immediately if mounted, otherwise use post-frame callback
+      final users = nearbyUsers ?? [];
+      final statusMap = <String, String>{};
+      for (final u in users) {
+        final id = u['id']?.toString() ?? '';
+        final status = u['friendship_status']?.toString() ?? 'none';
+        if (id.isNotEmpty) statusMap[id] = status;
+      }
+
       if (mounted) {
         setState(() {
           _isLoading = false;
           _hasSearched = true;
-          _nearbyUsers = nearbyUsers ?? [];
+          _nearbyUsers = users;
+          _friendshipStatus.addAll(statusMap);
         });
       } else {
-        // If not mounted, wait for next frame
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (!mounted) {
-            return;
-          }
-
+          if (!mounted) return;
           setState(() {
             _isLoading = false;
             _hasSearched = true;
-            _nearbyUsers = nearbyUsers ?? [];
+            _nearbyUsers = users;
+            _friendshipStatus.addAll(statusMap);
           });
-
         });
       }
 
@@ -210,6 +217,54 @@ class _FindFriendsWidgetState extends State<FindFriendsWidget> {
     }
   }
 
+  Future<bool> _acceptFriendRequest(String friendId) async {
+    try {
+      final userId = await _authService.getStoredUserId();
+      if (userId == null) return false;
+
+      final response = await globalAuthClient.post(
+        Uri.parse(ApiConstants.friend),
+        body: {
+          'userID': userId,
+          'friendID': friendId,
+          'action': 'accept',
+        },
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+      ).timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        return data['responseCode'] == '1' || data['responseCode'] == 1;
+      }
+      return false;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  Future<void> _handleFriendAction(String userId) async {
+    final status = _friendshipStatus[userId] ?? 'none';
+    setState(() => _loadingUsers.add(userId));
+
+    try {
+      if (status == 'received') {
+        final success = await _acceptFriendRequest(userId);
+        if (success && mounted) {
+          setState(() => _friendshipStatus[userId] = 'friends');
+        }
+      } else if (status == 'none') {
+        final success = await _sendFriendRequest(userId);
+        if (success && mounted) {
+          setState(() => _friendshipStatus[userId] = 'sent');
+        }
+      }
+    } finally {
+      if (mounted) setState(() => _loadingUsers.remove(userId));
+    }
+  }
+
   Future<void> _addFriendByUsername() async {
     final username = _referralController.text.trim();
     if (username.isEmpty) {
@@ -276,6 +331,56 @@ class _FindFriendsWidgetState extends State<FindFriendsWidget> {
   void dispose() {
     _referralController.dispose();
     super.dispose();
+  }
+
+  Widget _buildFriendButton({
+    required String? userId,
+    required String status,
+    required bool isLoading,
+    required Color contentColor,
+  }) {
+    if (userId == null) return const SizedBox.shrink();
+
+    if (isLoading) {
+      return SizedBox(
+        width: 20,
+        height: 20,
+        child: CircularProgressIndicator(
+          strokeWidth: 2,
+          valueColor: AlwaysStoppedAnimation<Color>(contentColor),
+        ),
+      );
+    }
+
+    if (status == 'friends') {
+      return Icon(Icons.check_circle, color: Colors.green, size: 22);
+    }
+
+    if (status == 'sent') {
+      return Text(
+        'Pending',
+        style: TextStyle(color: contentColor.withOpacity(0.5), fontSize: 12),
+      );
+    }
+
+    final isAccept = status == 'received';
+    return SizedBox(
+      height: 32,
+      child: ElevatedButton(
+        onPressed: () => _handleFriendAction(userId),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: isAccept ? Colors.green.shade600 : Colors.blue.shade600,
+          foregroundColor: Colors.white,
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          elevation: 0,
+        ),
+        child: Text(
+          isAccept ? 'Accept' : 'Add',
+          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+        ),
+      ),
+    );
   }
 
   @override
@@ -518,69 +623,90 @@ class _FindFriendsWidgetState extends State<FindFriendsWidget> {
                     final userId = user['id']?.toString() ?? user['userID']?.toString();
                     final username = user['username']?.toString() ?? '';
                     final nickname = user['nickname']?.toString() ?? '';
-                    // Fix double underscores in username
                     final displayName = (nickname.isNotEmpty ? nickname : username)
                         .replaceAll('__', '_');
-                    
+                    final status = userId != null ? (_friendshipStatus[userId] ?? 'none') : 'none';
+                    final isLoadingUser = userId != null && _loadingUsers.contains(userId);
+
                     return Padding(
                       padding: const EdgeInsets.only(bottom: 12),
-                      child: InkWell(
-                        onTap: () {
-                          if (userId != null && userId.isNotEmpty) {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => ProfileScreen(
-                                  userId: userId,
-                                  username: username.isNotEmpty ? username : null,
-                                ),
-                              ),
-                            );
-                          }
-                        },
-                        borderRadius: BorderRadius.circular(12),
-                        child: Padding(
-                          padding: const EdgeInsets.all(8.0),
-                          child: Row(
-                            children: [
-                              CircleAvatar(
-                                radius: 20,
-                                backgroundColor: contentColor.withOpacity(0.2),
-                                backgroundImage: user['avatar'] != null && user['avatar'].toString().isNotEmpty
-                                    ? NetworkImage(UrlHelper.convertUrl(user['avatar'].toString()))
-                                    : null,
-                                child: user['avatar'] == null || user['avatar'].toString().isEmpty
-                                    ? Icon(Icons.person, color: contentColor)
-                                    : null,
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      displayName.isNotEmpty ? displayName : 'Unknown',
-                                      style: TextStyle(
-                                        color: contentColor,
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w500,
-                                      ),
+                      child: Row(
+                        children: [
+                          InkWell(
+                            onTap: () {
+                              if (userId != null && userId.isNotEmpty) {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => ProfileScreen(
+                                      userId: userId,
+                                      username: username.isNotEmpty ? username : null,
                                     ),
-                                  ],
+                                  ),
+                                );
+                              }
+                            },
+                            borderRadius: BorderRadius.circular(12),
+                            child: Padding(
+                              padding: const EdgeInsets.all(8.0),
+                              child: Row(
+                                children: [
+                                  CircleAvatar(
+                                    radius: 20,
+                                    backgroundColor: contentColor.withOpacity(0.2),
+                                    backgroundImage: user['avatar'] != null && user['avatar'].toString().isNotEmpty
+                                        ? NetworkImage(UrlHelper.convertUrl(user['avatar'].toString()))
+                                        : null,
+                                    child: user['avatar'] == null || user['avatar'].toString().isEmpty
+                                        ? Icon(Icons.person, color: contentColor)
+                                        : null,
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        displayName.isNotEmpty ? displayName : 'Unknown',
+                                        style: TextStyle(
+                                          color: contentColor,
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                      if (user['distance'] != null)
+                                        Text(
+                                          '${user['distance']} km away',
+                                          style: TextStyle(
+                                            color: contentColor.withOpacity(0.6),
+                                            fontSize: 12,
+                                          ),
+                                        ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          const Spacer(),
+                          if (user['online'] == 1 || user['online'] == true)
+                            Padding(
+                              padding: const EdgeInsets.only(right: 8),
+                              child: Container(
+                                width: 8,
+                                height: 8,
+                                decoration: const BoxDecoration(
+                                  color: Colors.green,
+                                  shape: BoxShape.circle,
                                 ),
                               ),
-                              if (user['online'] == 1 || user['online'] == true)
-                                Container(
-                                  width: 8,
-                                  height: 8,
-                                  decoration: const BoxDecoration(
-                                    color: Colors.green,
-                                    shape: BoxShape.circle,
-                                  ),
-                                ),
-                            ],
+                            ),
+                          _buildFriendButton(
+                            userId: userId,
+                            status: status,
+                            isLoading: isLoadingUser,
+                            contentColor: contentColor,
                           ),
-                        ),
+                        ],
                       ),
                     );
                   }),

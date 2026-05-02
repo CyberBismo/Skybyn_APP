@@ -1008,15 +1008,9 @@ class _PostCardState extends State<PostCard> {
       }
     });
 
-    final theme = Theme.of(context);
-    final isDarkMode = theme.brightness == Brightness.dark;
-
     // Define theme-aware colors using centralized styles
-    final cardBackgroundColor = PostCardStyles.getCardBackgroundColor(context);
-    final cardBorderColor = PostCardStyles.getCardBorderColor(context);
     final textColor = PostCardStyles.getTextColor(context);
     final hintColor = PostCardStyles.getHintColor(context);
-    final avatarBorderColor = PostCardStyles.getAvatarBorderColor(context);
 
     Widget avatarWidget;
     if (_currentPost.avatar != null && _currentPost.avatar!.isNotEmpty) {
@@ -1225,13 +1219,14 @@ class _PostCardState extends State<PostCard> {
                                       overflow: TextOverflow.ellipsis,
                                     ),
                                     const SizedBox(height: 2),
-                                    ListenableBuilder(
-                                      listenable: TranslationService(),
-                                      builder: (context, _) => Text(
-                                        _formatTimestamp(
-                                            _currentPost.createdAt),
-                                        style: PostCardStyles
-                                            .getTimestampTextStyle(context),
+                                    StreamBuilder(
+                                      stream: Stream.periodic(const Duration(minutes: 1)),
+                                      builder: (context, _) => ListenableBuilder(
+                                        listenable: TranslationService(),
+                                        builder: (context, _) => Text(
+                                          _formatTimestamp(_currentPost.createdAt),
+                                          style: PostCardStyles.getTimestampTextStyle(context),
+                                        ),
                                       ),
                                     ),
                                   ],
