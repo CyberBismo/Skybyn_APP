@@ -498,7 +498,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         await http.MultipartFile.fromPath('avatar', _newAvatarFile!.path),
       );
 
-      final streamedResponse = await globalAuthClient.send(request);
+      final streamedResponse = await request.send();
       final response = await http.Response.fromStream(streamedResponse);
 
       try {
@@ -552,7 +552,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         await http.MultipartFile.fromPath('wallpaper', _newBackgroundFile!.path),
       );
 
-      final streamedResponse = await globalAuthClient.send(request);
+      final streamedResponse = await request.send();
       final response = await http.Response.fromStream(streamedResponse);
 
       try {
@@ -2734,7 +2734,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       try {
         await TranslationService().clearCache();
         if (mounted) {
-          AppBanner.success(TranslationKeys.cacheClearedSuccessfully.tr);
+          AppBanner.error(TranslationKeys.cacheClearedSuccessfully.tr);
         }
       } catch (e) {
         if (mounted) {
@@ -2769,7 +2769,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         final postService = PostService();
         await postService.clearTimelineCache();
         if (mounted) {
-          AppBanner.success(TranslationKeys.cacheClearedSuccessfully.tr);
+          AppBanner.error(TranslationKeys.cacheClearedSuccessfully.tr);
         }
       } catch (e) {
         if (mounted) {
@@ -2804,7 +2804,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         final friendService = FriendService();
         await friendService.clearCache();
         if (mounted) {
-          AppBanner.success(TranslationKeys.cacheClearedSuccessfully.tr);
+          AppBanner.error(TranslationKeys.cacheClearedSuccessfully.tr);
         }
       } catch (e) {
         if (mounted) {
@@ -2855,7 +2855,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         _loadTotalCacheSize();
         
         if (mounted) {
-          AppBanner.success(TranslationKeys.cacheClearedSuccessfully.tr);
+          AppBanner.error(TranslationKeys.cacheClearedSuccessfully.tr);
         }
       } catch (e) {
         if (mounted) {

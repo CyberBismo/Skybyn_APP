@@ -42,7 +42,6 @@ import '../services/chat_message_count_service.dart';
 import '../services/notification_service.dart';
 import '../widgets/skeleton_loader.dart';
 import '../widgets/app_banner.dart';
-import 'package:share_plus/share_plus.dart';
 
 class ChatScreen extends StatefulWidget {
   final Friend friend;
@@ -411,7 +410,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
         developer.log('   Parameters: ${jsonEncode(requestParams)}', name: 'Chat API');
       }
       
-      final response = await globalAuthClient.post(
+      final response = await http.post(
         Uri.parse(apiUrl),
         body: requestParams,
       ).timeout(const Duration(seconds: 5));
@@ -2558,22 +2557,6 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
                         label: 'Like',
                         onTap: () => _likeMessage(message),
                       ),
-                      // Share and Report buttons (only for received messages)
-                      if (!message.isFromMe) ...[
-                        const SizedBox(width: 8),
-                        _buildMessageOptionButton(
-                          icon: Icons.share_outlined,
-                          label: 'Share',
-                          onTap: () => _shareMessage(message),
-                        ),
-                        const SizedBox(width: 8),
-                        _buildMessageOptionButton(
-                          icon: Icons.flag_outlined,
-                          label: 'Report',
-                          onTap: () => _reportMessage(message),
-                          isDestructive: true,
-                        ),
-                      ],
                       // Edit button (only for own messages)
                       if (message.isFromMe) ...[
                         const SizedBox(width: 8),
@@ -2703,7 +2686,13 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
 
     if (result != null && result.isNotEmpty && result != message.content && _currentUserId != null) {
       try {
-        final apiUrl = '${ApiConstants.apiBase}/chat/edit.php';
+        final apiUrl = '${ApiConstants.apiBase}/message/edit.php';
+        final requestParams = {
+          'userID': _currentUserId!,
+          'friendID': widget.friend.id,
+          'messageID': message.id,
+          'content': result.length > 50 ? result.substring(0, 50) + '...' : result,
+        };
         
         debugPrint('[SKYBYN] ═══════════════════════════════════════════════════════');
         debugPrint('[SKYBYN] 📤 [Chat] Editing message via API');
@@ -2716,7 +2705,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
         developer.log('   Message ID: ${message.id}', name: 'Chat API');
         developer.log('   New Content Length: ${result.length}', name: 'Chat API');
         
-        final response = await globalAuthClient.post(
+        final response = await http.post(
           Uri.parse(apiUrl),
           body: {
             'userID': _currentUserId!,
@@ -2724,8 +2713,11 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
             'messageID': message.id,
             'content': result,
           },
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
         ).timeout(const Duration(seconds: 10));
-
+        
         debugPrint('[SKYBYN] 📥 [Chat] Edit Message API Response received');
         debugPrint('[SKYBYN]    Status Code: ${response.statusCode}');
         developer.log('📥 [Chat] Edit Message API Response received', name: 'Chat API');
@@ -2733,7 +2725,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
 
         if (response.statusCode == 200) {
           final data = json.decode(response.body);
-          if (data['responseCode'] == '1') {
+          if (data['responseCode'] == 1) {
             debugPrint('[SKYBYN]    Response: Success');
             developer.log('   Response: Success', name: 'Chat API');
             
@@ -2885,11 +2877,14 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
         developer.log('   Message ID: ${message.id}', name: 'Chat API');
         developer.log('   Method: POST', name: 'Chat API');
         
-        final response = await globalAuthClient.post(
+        final response = await http.post(
           Uri.parse(apiUrl),
           body: requestParams,
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
         ).timeout(const Duration(seconds: 10));
-
+        
         debugPrint('[SKYBYN] 📥 [Chat] Delete Message API Response received');
         debugPrint('[SKYBYN]    Status Code: ${response.statusCode}');
         developer.log('📥 [Chat] Delete Message API Response received', name: 'Chat API');
@@ -2897,7 +2892,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
 
         if (response.statusCode == 200) {
           final data = json.decode(response.body);
-          if (data['responseCode'] == '1') {
+          if (data['responseCode'] == 1) {
             debugPrint('[SKYBYN]    Response: Success');
             developer.log('   Response: Success', name: 'Chat API');
             
@@ -2979,62 +2974,6 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
           });
         }
       }
-    }
-  }
-
-  Future<void> _shareMessage(Message message) async {
-    _closeMessageOptions();
-    if (message.content.isNotEmpty) {
-      await Share.share(message.content);
-    }
-  }
-
-  Future<void> _reportMessage(Message message) async {
-    _closeMessageOptions();
-    if (_currentUserId == null) return;
-
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: Colors.black.withOpacity(0.9),
-        title: const Text('Report Message', style: TextStyle(color: Colors.white, decoration: TextDecoration.none)),
-        content: const Text('Report this message as inappropriate?', style: TextStyle(color: Colors.white70)),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel', style: TextStyle(color: Colors.white70)),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Report', style: TextStyle(color: Colors.red)),
-          ),
-        ],
-      ),
-    );
-
-    if (confirm != true || !mounted) return;
-
-    try {
-      final response = await globalAuthClient.post(
-        Uri.parse(ApiConstants.report),
-        body: {
-          'userID': _currentUserId!,
-          'type': 'message',
-          'messageID': message.id,
-          'reason': 'Inappropriate message',
-        },
-      ).timeout(const Duration(seconds: 10));
-
-      if (mounted) {
-        final data = response.statusCode == 200 ? safeJsonDecode(response) : null;
-        if (data != null && data['responseCode'] == '1') {
-          AppBanner.success('Message reported');
-        } else {
-          AppBanner.error('Failed to report message');
-        }
-      }
-    } catch (e) {
-      if (mounted) AppBanner.error('Failed to report message');
     }
   }
 

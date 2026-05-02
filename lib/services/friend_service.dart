@@ -45,10 +45,14 @@ class FriendService {
   /// Fetch friends from API and update cache if content changed
   Future<List<Friend>> _fetchAndUpdateFriends(String userId) async {
     try {
-      final response = await globalAuthClient
+      final response = await http
           .post(
             Uri.parse(ApiConstants.friends),
             body: {'userID': userId},
+            headers: {
+              'Content-Type': 'application/x-www-form-urlencoded',
+              'User-Agent': 'Skybyn App',
+            },
           )
           .timeout(const Duration(seconds: 10));
 
@@ -140,10 +144,14 @@ class FriendService {
   ) async {
     try {
       final response = await _retryHttpRequest(
-        () => globalAuthClient
+        () => http
             .post(
               Uri.parse(ApiConstants.friends),
               body: {'userID': userId},
+              headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'User-Agent': 'Skybyn App',
+              },
             )
             .timeout(const Duration(seconds: 10)),
         maxRetries: 2,

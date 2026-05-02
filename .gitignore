@@ -68,3 +68,4 @@ build/
 **/ios/ServiceDefinitions.json
 **/ios/Runner/k8s/
 /android/.kotlin/sessions
+/build_windows_backup
