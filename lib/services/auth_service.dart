@@ -29,6 +29,11 @@ class AuthService {
   static const String userProfileKey = StorageKeys.userProfile;
   static const String usernameKey = StorageKeys.username;
   SharedPreferences? _prefs;
+
+  // In-memory cache — shared across all AuthService instances
+  static String? _cachedUserId;
+  static String? _cachedUsername;
+  static String? _cachedSessionToken;
   
   static const FlutterSecureStorage _secureStorage = FlutterSecureStorage(
     aOptions: AndroidOptions(
@@ -136,6 +141,9 @@ class AuthService {
 
           await initPrefs();
           final userIdStr = data['userID'].toString();
+          // Populate in-memory cache immediately
+          _cachedUserId = userIdStr;
+          _cachedUsername = username;
           // Always write to SharedPreferences as primary fallback
           await _prefs?.setString(userIdKey, userIdStr);
           await _prefs?.setString(usernameKey, username);
@@ -151,6 +159,8 @@ class AuthService {
           // Store session token for authenticated API requests
           final sessionToken = data['sessionToken']?.toString();
           if (sessionToken != null && sessionToken.isNotEmpty) {
+            _cachedSessionToken = sessionToken;
+            cachedSessionToken = sessionToken; // shared with AuthenticatedClient
             // Always write to SharedPreferences as fallback first
             await _prefs?.setString(StorageKeys.sessionToken, sessionToken);
             try {
@@ -484,10 +494,15 @@ class AuthService {
   }
 
   Future<String?> getStoredSessionToken() async {
+    if (_cachedSessionToken != null) return _cachedSessionToken;
     await initPrefs();
     String? token = await _secureOp(() => _secureStorage.read(key: StorageKeys.sessionToken));
     if (token == null || token.isEmpty) {
       token = _prefs?.getString(StorageKeys.sessionToken);
+    }
+    if (token != null && token.isNotEmpty) {
+      _cachedSessionToken = token;
+      cachedSessionToken = token; // shared with AuthenticatedClient
     }
     return token;
   }
@@ -529,28 +544,30 @@ class AuthService {
   }
 
   Future<String?> getStoredUserId() async {
+    if (_cachedUserId != null) return _cachedUserId;
     await initPrefs();
     String? userId = await _secureOp(() => _secureStorage.read(key: userIdKey));
-
     if (userId == null) {
       userId = _prefs?.getString(userIdKey);
       if (userId != null) {
         _secureOp(() => _secureStorage.write(key: userIdKey, value: userId!));
       }
     }
+    if (userId != null) _cachedUserId = userId;
     return userId;
   }
 
   Future<String?> getStoredUsername() async {
+    if (_cachedUsername != null) return _cachedUsername;
     await initPrefs();
     String? username = await _secureOp(() => _secureStorage.read(key: usernameKey));
-
     if (username == null) {
       username = _prefs?.getString(usernameKey);
       if (username != null) {
         _secureOp(() => _secureStorage.write(key: usernameKey, value: username!));
       }
     }
+    if (username != null) _cachedUsername = username;
     return username;
   }
 
@@ -586,6 +603,11 @@ class AuthService {
     }
     */
     
+    // Clear in-memory auth cache on logout
+    _cachedUserId = null;
+    _cachedUsername = null;
+    _cachedSessionToken = null;
+    cachedSessionToken = null; // clear AuthenticatedClient cache too
     // Reset cached online status on logout
     _lastKnownOnlineStatus = null;
     

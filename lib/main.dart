@@ -416,6 +416,19 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       // Start periodic profile checks (every 5 minutes to detect bans/deactivations)
       _startProfileChecks();
 
+      // Pre-load session token into the shared in-memory cache so
+      // AuthenticatedClient never has to hit SecureStorage mid-request.
+      AuthService().getStoredSessionToken();
+
+      // Kick off immediate activity update and start timer — this must run at
+      // startup because didChangeAppLifecycleState never fires for the initial
+      // resumed state (it only fires on transitions).
+      AuthService().updateActivity();
+      _activityTimer?.cancel();
+      _activityTimer = Timer.periodic(const Duration(minutes: 2), (_) {
+        AuthService().updateActivity();
+      });
+
       // Preload location and map data (non-blocking, in background)
       _preloadLocationAndMapData();
 

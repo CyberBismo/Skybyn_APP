@@ -36,10 +36,10 @@ class _SpotlightScreenState extends State<SpotlightScreen>
   }
 
   void _onActiveChanged() {
-    if (!widget.isActive.value) {
-      _controllers[_currentIndex]?.pause();
+    if (widget.isActive.value) {
+      _loadVideos(refresh: true);
     } else {
-      _controllers[_currentIndex]?.play();
+      _controllers[_currentIndex]?.pause();
     }
   }
 

@@ -1133,14 +1133,14 @@ class _MapViewState extends State<MapView>
               ),
             // Friend expanded card
             Positioned(
-              bottom: 192.0,
+              bottom: Theme.of(context).platform == TargetPlatform.iOS ? 145.0 : 192.0,
               left: 0,
               right: 0,
               child: _buildFriendCard(),
             ),
             // Avatar bar
             Positioned(
-              bottom: 130.0,
+              bottom: Theme.of(context).platform == TargetPlatform.iOS ? 83.0 : 130.0,
               left: 0,
               right: 0,
               child: _buildFriendAvatarBar(),

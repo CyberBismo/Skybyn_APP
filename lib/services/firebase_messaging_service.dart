@@ -484,17 +484,14 @@ class FirebaseMessagingService {
 
   void _handleNavigation(Map<String, dynamic> data) {
     final type = data['type'];
-    final nav = navigatorKey.currentState;
-    
-    if (nav == null) return;
 
     switch (type) {
       case 'chat':
-        // Simplest navigation - just go to home/chat list if specific friend logic is complex
-        // Ideally: Fetch friend and push chat screen
-        nav.pushNamed('/home'); 
+        _navigateToChatFromNotification(data);
         break;
       case 'call':
+        final nav = navigatorKey.currentState;
+        if (nav == null) return;
         final callId = data['callId']?.toString();
         final fromUserId = data['fromUserId']?.toString();
         final callType = data['callType']?.toString() ?? 'video';
@@ -504,10 +501,50 @@ class FirebaseMessagingService {
         break;
       case 'broadcast':
       case 'admin':
-        // Maybe show a dialog?
         break;
       default:
+        navigatorKey.currentState?.pushNamed('/home');
+    }
+  }
+
+  Future<void> _navigateToChatFromNotification(Map<String, dynamic> data) async {
+    final fromUserId = data['from']?.toString() ?? data['sender']?.toString() ?? data['senderId']?.toString();
+    if (fromUserId == null) return;
+
+    // Wait for navigator to be ready (cold-start case)
+    int retries = 0;
+    while (navigatorKey.currentState == null && retries < 20) {
+      await Future.delayed(const Duration(milliseconds: 300));
+      retries++;
+    }
+    final nav = navigatorKey.currentState;
+    if (nav == null) return;
+
+    try {
+      final authService = AuthService();
+      final currentUserId = await authService.getStoredUserId();
+      if (currentUserId == null) {
         nav.pushNamed('/home');
+        return;
+      }
+
+      final friendService = FriendService();
+      final friends = await friendService.fetchFriendsForUser(userId: currentUserId);
+      final friend = friends.firstWhere(
+        (f) => f.id == fromUserId,
+        orElse: () => Friend(
+          id: fromUserId,
+          username: data['senderName']?.toString() ?? fromUserId,
+          nickname: '',
+          avatar: data['senderAvatar']?.toString() ?? '',
+          online: false,
+        ),
+      );
+
+      nav.pushNamed('/chat', arguments: {'friend': friend});
+    } catch (e) {
+      developer.log('Error navigating to chat from notification: $e', name: 'FCM');
+      nav.pushNamed('/home');
     }
   }
   

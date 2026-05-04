@@ -36,6 +36,10 @@ final globalAuthClient = createAuthenticatedHttpClient(
       '(KHTML, like Gecko) Chrome/91.0.4472.120 Mobile Safari/537.36 Skybyn-App/1.0',
 );
 
+/// In-memory session token cache — set by AuthService on login/logout.
+/// Checked first to avoid SecureStorage reads on every request.
+String? cachedSessionToken;
+
 /// Wraps an inner client and injects the session token header on every request.
 class AuthenticatedClient extends http.BaseClient {
   final http.Client _inner;
@@ -43,22 +47,25 @@ class AuthenticatedClient extends http.BaseClient {
 
   @override
   Future<http.StreamedResponse> send(http.BaseRequest request) async {
-    String? token;
-    try {
-      token = await _secureStorage.read(key: StorageKeys.sessionToken)
-          .timeout(const Duration(seconds: 3));
-    } catch (e) {
-      debugPrint('[AuthClient] Secure storage read failed: $e');
+    // Use in-memory cache first (set by AuthService on login)
+    String? token = cachedSessionToken;
+
+    if (token == null || token.isEmpty) {
+      try {
+        token = await _secureStorage.read(key: StorageKeys.sessionToken)
+            .timeout(const Duration(seconds: 3));
+      } catch (e) {
+        debugPrint('[AuthClient] Secure storage read failed: $e');
+      }
     }
     // Fall back to SharedPreferences if secure storage returned nothing
     if (token == null || token.isEmpty) {
       final prefs = await SharedPreferences.getInstance();
       token = prefs.getString(StorageKeys.sessionToken);
-      if (token != null && token.isNotEmpty) {
-        debugPrint('[AuthClient] Using token from SharedPreferences fallback');
-      }
     }
+    // Populate cache for next call
     if (token != null && token.isNotEmpty) {
+      cachedSessionToken = token;
       request.headers['Authorization'] = 'Bearer $token';
     } else {
       debugPrint('[AuthClient] WARNING: No session token found — request will be unauthenticated');

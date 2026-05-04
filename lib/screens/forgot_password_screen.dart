@@ -9,7 +9,6 @@ import 'package:http/http.dart' as http;
 import '../utils/http_client.dart';
 import 'dart:convert';
 import '../config/constants.dart';
-import '../config/constants.dart';
 
 class ForgotPasswordScreen extends StatefulWidget {
   const ForgotPasswordScreen({super.key});
@@ -20,15 +19,13 @@ class ForgotPasswordScreen extends StatefulWidget {
 
 class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   final TextEditingController _usernameController = TextEditingController();
-  final TextEditingController _emailController = TextEditingController();
   final FocusNode _usernameFocusNode = FocusNode();
-  final FocusNode _emailFocusNode = FocusNode();
   bool _isLoading = false;
   String? _errorMessage;
   String? _successMessage;
 
   Future<void> _handleForgotPassword() async {
-    if (_usernameController.text.isEmpty || _emailController.text.isEmpty) {
+    if (_usernameController.text.isEmpty) {
       setState(() {
         _errorMessage = TranslationKeys.fieldRequired.tr;
       });
@@ -46,7 +43,6 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
         Uri.parse(ApiConstants.forgotPassword),
         body: {
           'username': _usernameController.text.trim(),
-          'email': _emailController.text.trim(),
         },
       );
 
@@ -83,9 +79,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   @override
   void dispose() {
     _usernameFocusNode.dispose();
-    _emailFocusNode.dispose();
     _usernameController.dispose();
-    _emailController.dispose();
     super.dispose();
   }
 
@@ -164,7 +158,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                           child: TextField(
                             controller: _usernameController,
                             focusNode: _usernameFocusNode,
-                            textInputAction: TextInputAction.next,
+                            textInputAction: TextInputAction.go,
                             decoration: InputDecoration(
                               filled: true,
                               fillColor: Colors.transparent,
@@ -184,58 +178,6 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                               color: Colors.white,
                               fontSize: 16,
                             ),
-                            onTap: () {
-                              _emailFocusNode.unfocus();
-                            },
-                            onSubmitted: (_) {
-                              _emailFocusNode.requestFocus();
-                            },
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                    // Email field
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(10),
-                      child: BackdropFilter(
-                        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                        child: Container(
-                          decoration: BoxDecoration(
-                            color: AppColors.getCardBackgroundColor(context).withValues(alpha: 0.1),
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(
-                              color: Colors.white.withValues(alpha: 0.3),
-                              width: 1.5,
-                            ),
-                          ),
-                          child: TextField(
-                            controller: _emailController,
-                            focusNode: _emailFocusNode,
-                            keyboardType: TextInputType.emailAddress,
-                            textInputAction: TextInputAction.go,
-                            decoration: InputDecoration(
-                              filled: true,
-                              fillColor: Colors.transparent,
-                              hintText: TranslationKeys.email.tr,
-                              hintStyle: TextStyle(
-                                color: Colors.white.withValues(alpha: 0.7),
-                                fontSize: 16,
-                              ),
-                              prefixIcon: const Icon(Icons.email, color: Colors.white),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(10),
-                                borderSide: BorderSide.none,
-                              ),
-                              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-                            ),
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 16,
-                            ),
-                            onTap: () {
-                              _usernameFocusNode.unfocus();
-                            },
                             onSubmitted: (_) {
                               _handleForgotPassword();
                             },
@@ -310,8 +252,8 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                                 begin: Alignment.topLeft,
                                 end: Alignment.bottomRight,
                                 colors: [
-                                  Color.fromRGBO(70, 130, 180, 0.8), // Steel blue
-                                  Color.fromRGBO(100, 149, 237, 0.8), // Cornflower blue
+                                  Color.fromRGBO(70, 130, 180, 0.8),
+                                  Color.fromRGBO(100, 149, 237, 0.8),
                                 ],
                               ),
                               borderRadius: BorderRadius.circular(10),
@@ -380,8 +322,8 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                                   begin: Alignment.topLeft,
                                   end: Alignment.bottomRight,
                                   colors: [
-                                    Color.fromRGBO(50, 205, 50, 0.8), // Lime green
-                                    Color.fromRGBO(34, 139, 34, 0.8), // Forest green
+                                    Color.fromRGBO(50, 205, 50, 0.8),
+                                    Color.fromRGBO(34, 139, 34, 0.8),
                                   ],
                                 ),
                                 borderRadius: BorderRadius.circular(10),

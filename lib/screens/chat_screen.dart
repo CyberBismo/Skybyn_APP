@@ -129,8 +129,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
     _friendLastActive = widget.friend.lastActive; // Initialize with friend's last active
     // Track that this chat screen is now open
     _chatMessageCountService.setCurrentOpenChat(widget.friend.id);
-    _loadUserId();
-    _loadMessages();
+    _loadUserId().then((_) => _loadMessages());
     _setupWebSocketListener();
     _setupScrollListener();
     _setupKeyboardListener();
@@ -1267,14 +1266,9 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
     try {
       debugPrint('[SKYBYN] 🔄 [Chat] Refreshing messages');
       developer.log('🔄 [Chat] Refreshing messages', name: 'Chat API');
-      
-      // Clear cache to force fresh fetch
-      await _chatService.clearCache(widget.friend.id);
-      
-      // Reload messages from API
-      final messages = await _chatService.getMessages(
-        friendId: widget.friend.id,
-      );
+
+      // Force full server sync without wiping local messages first
+      final messages = await _chatService.refreshMessages(widget.friend.id);
       
       if (mounted) {
         setState(() {
@@ -1594,11 +1588,17 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
                                           ),
                                         ),
                                         const SizedBox(width: 6),
-                                        Text(
-                                          _getLastActiveStatus(),
-                                          style: TextStyle(
-                                            color: _getStatusColor(),
-                                            fontSize: 14,
+                                        Flexible(
+                                          child: FittedBox(
+                                            fit: BoxFit.scaleDown,
+                                            alignment: Alignment.centerLeft,
+                                            child: Text(
+                                              _getLastActiveStatus(),
+                                              style: TextStyle(
+                                                color: _getStatusColor(),
+                                                fontSize: 11,
+                                              ),
+                                            ),
                                           ),
                                         ),
                                       ],

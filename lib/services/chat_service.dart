@@ -381,9 +381,12 @@ class ChatService {
       final sentMessage = await _processSendMessageResponse(response, userId, toUserId, content);
       
       if (sentMessage != null) {
-        // Step 3: Update local database with real message ID and mark as synced
+        // Step 3: Save real message and delete the optimistic placeholder
         await _localDb.saveMessage(sentMessage, synced: true);
-        
+        if (tempId != null && tempId != sentMessage.id) {
+          await _localDb.deleteMessage(tempId!);
+        }
+
         // Remove old optimistic message if it exists
         try {
           await _localDb.removeFromOfflineQueue(tempId);
@@ -667,7 +670,7 @@ class ChatService {
       if (sinceTimestamp != null) {
         bodyMap['since'] = sinceTimestamp.toString();
       }
-      
+
       final response = await _retryHttpRequest(
         () => _client.post(
           Uri.parse(url),
@@ -683,7 +686,7 @@ class ChatService {
     
       if (response.statusCode == 200) {
         final dynamic decoded = safeJsonDecode(response);
-        
+
         // Check if response is an error object (Map) or messages array (List)
         if (decoded is Map<String, dynamic>) {
           // This is an error response
@@ -916,6 +919,28 @@ class ChatService {
       }
     } catch (e) {
       developer.log('Error clearing cache: $e', name: 'ChatService');
+    }
+  }
+
+  /// Clear local messages and re-fetch everything fresh from the server.
+  Future<List<Message>> refreshMessages(String friendId) async {
+    try {
+      final userId = await _authService.getStoredUserId();
+      if (userId == null) throw Exception('User not logged in');
+
+      // Wipe local conversation cache first
+      await _localDb.deleteConversation(friendId, userId);
+
+      // Reset sync timestamp so syncMessages fetches from the beginning
+      await _localDb.updateLastSyncTimestamp(friendId, 0, null);
+
+      // Full sync from server
+      await syncMessages(friendId, userId);
+
+      return await _localDb.getMessages(friendId, userId, limit: 100, offset: 0);
+    } catch (e) {
+      developer.log('Error refreshing messages: $e', name: 'ChatService');
+      return [];
     }
   }
 

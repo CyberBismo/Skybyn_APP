@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math';
 import 'package:http/http.dart' as http;
 import '../models/spotlight_video.dart';
 import '../config/constants.dart';
@@ -6,9 +7,23 @@ import '../config/constants.dart';
 class SpotlightService {
   static const String _baseUrl = 'https://www.googleapis.com/youtube/v3';
 
+  static const List<String> _queries = [
+    '#shorts',
+    '#shorts #funny',
+    '#shorts #trending',
+    '#shorts #viral',
+    '#shorts #entertainment',
+    '#shorts #comedy',
+    '#shorts #satisfying',
+    '#shorts #life',
+    '#shorts #amazing',
+    '#shorts #wow',
+  ];
+
   String? _nextPageToken;
   bool _isExhausted = false;
   final Set<String> _seenVideoIds = {};
+  String _currentQuery = _queries[0];
 
   bool get hasMore => !_isExhausted;
 
@@ -17,6 +32,7 @@ class SpotlightService {
       _nextPageToken = null;
       _isExhausted = false;
       _seenVideoIds.clear();
+      _currentQuery = _queries[Random().nextInt(_queries.length)];
     }
 
     if (_isExhausted) return [];
@@ -25,7 +41,7 @@ class SpotlightService {
       'part': 'snippet',
       'type': 'video',
       'videoDimension': '2d',
-      'q': '%23shorts',
+      'q': _currentQuery,
       'maxResults': '15',
       'safeSearch': 'moderate',
       'key': ApiConstants.youtubeApiKey,

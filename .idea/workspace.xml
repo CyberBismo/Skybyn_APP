@@ -6,6 +6,17 @@
   <component name="ChangeListManager">
     <list default="true" id="aa2fee3d-117a-49aa-8786-52ef1bff9255" name="Changes" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/lib/main.dart" beforeDir="false" afterPath="$PROJECT_DIR$/lib/main.dart" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/lib/screens/chat_screen.dart" beforeDir="false" afterPath="$PROJECT_DIR$/lib/screens/chat_screen.dart" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/lib/screens/forgot_password_screen.dart" beforeDir="false" afterPath="$PROJECT_DIR$/lib/screens/forgot_password_screen.dart" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/lib/screens/map_screen.dart" beforeDir="false" afterPath="$PROJECT_DIR$/lib/screens/map_screen.dart" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/lib/screens/spotlight_screen.dart" beforeDir="false" afterPath="$PROJECT_DIR$/lib/screens/spotlight_screen.dart" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/lib/services/auth_service.dart" beforeDir="false" afterPath="$PROJECT_DIR$/lib/services/auth_service.dart" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/lib/services/chat_service.dart" beforeDir="false" afterPath="$PROJECT_DIR$/lib/services/chat_service.dart" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/lib/services/firebase_messaging_service.dart" beforeDir="false" afterPath="$PROJECT_DIR$/lib/services/firebase_messaging_service.dart" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/lib/services/spotlight_service.dart" beforeDir="false" afterPath="$PROJECT_DIR$/lib/services/spotlight_service.dart" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/lib/utils/http_client.dart" beforeDir="false" afterPath="$PROJECT_DIR$/lib/utils/http_client.dart" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/lib/widgets/map_view.dart" beforeDir="false" afterPath="$PROJECT_DIR$/lib/widgets/map_view.dart" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />

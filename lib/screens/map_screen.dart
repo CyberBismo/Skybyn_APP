@@ -60,9 +60,7 @@ class _MapScreenState extends State<MapScreen> {
       ),
       bottomNavigationBar: Padding(
         padding: EdgeInsets.only(
-          bottom: Theme.of(context).platform == TargetPlatform.iOS
-              ? 8.0
-              : 8.0 + MediaQuery.of(context).padding.bottom,
+          bottom: 8.0 + MediaQuery.of(context).padding.bottom,
         ),
         child: CustomBottomNavigationBar(
           onAddPressed: () {},
