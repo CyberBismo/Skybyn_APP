@@ -221,8 +221,9 @@ class ChatService {
         }
       }
 
-      // Generate permanent UUID for optimistic UI and server Idempotency
-      tempId = _uuid.v4();
+      // Generate permanent UUID for optimistic UI and server idempotency
+      // Prefix with 'temp_' so _updateTempMessageByContent can identify it
+      tempId = 'temp_${_uuid.v4()}';
       
       // Create optimistic message (will be updated with real ID when synced)
       optimisticMessage = Message(

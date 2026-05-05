@@ -138,6 +138,12 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     // Check if app was opened from notification
     _checkNotificationIntent();
 
+    // Consume any pending cold-start FCM notification (stored by FirebaseMessagingService
+    // before the home screen was ready, e.g. app launched by tapping a chat notification)
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _handlePendingFcmNotification();
+    });
+
     // Listen to keyboard visibility changes
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
@@ -607,6 +613,18 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     } catch (e) {
       // Method channel might not be available, ignore silently
     }
+  }
+
+  Future<void> _handlePendingFcmNotification() async {
+    if (!mounted) return;
+    // FCM notification payload (app was terminated, notification had a 'notification' block)
+    final fcmData = FirebaseMessagingService.consumePendingNotification();
+    if (fcmData != null) {
+      FirebaseMessagingService().handleNavigation(fcmData);
+      return;
+    }
+    // Local notification tap (app was terminated, data-only FCM shown as local notification)
+    NotificationService().handlePendingLaunchNotification();
   }
 
   // Check for app updates

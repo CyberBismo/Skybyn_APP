@@ -32,6 +32,17 @@ class NotificationService {
 
   final FlutterLocalNotificationsPlugin _localNotifications = FlutterLocalNotificationsPlugin();
 
+  // Pending launch notification: stored when app was opened by tapping a local notification,
+  // consumed by HomeScreen after auth completes to avoid racing with the splash pushReplacement.
+  static NotificationResponse? _pendingLaunchNotificationResponse;
+  void handlePendingLaunchNotification() {
+    final response = _pendingLaunchNotificationResponse;
+    _pendingLaunchNotificationResponse = null;
+    if (response != null) {
+      _onNotificationTapped(response);
+    }
+  }
+
   static const String _notificationSettingsKey = 'notification_settings';
 
   // Notification channels for Android
@@ -57,15 +68,14 @@ class NotificationService {
       // onDidReceiveBackgroundNotificationResponse: _onBackgroundNotificationTapped,
       // Note: This is usually set in _initializeLocalNotifications but let's ensure it's here too or confirmed there.
 
-      // Handle initial notification if the app was opened via a notification tap
+      // Handle initial notification if the app was opened via a notification tap.
+      // Store as pending so HomeScreen can consume it after the splash finishes —
+      // navigating here would race with splash's pushReplacement and get wiped.
       final NotificationAppLaunchDetails? notificationAppLaunchDetails =
           await _localNotifications.getNotificationAppLaunchDetails();
       if (notificationAppLaunchDetails?.didNotificationLaunchApp ?? false) {
         if (notificationAppLaunchDetails!.notificationResponse != null) {
-          // Defer processing slightly to allow navigator to be ready
-          Future.delayed(const Duration(milliseconds: 1000), () {
-            _onNotificationTapped(notificationAppLaunchDetails.notificationResponse!);
-          });
+          _pendingLaunchNotificationResponse = notificationAppLaunchDetails.notificationResponse;
         }
       }
     } catch (e) {
@@ -604,6 +614,7 @@ class NotificationService {
       channelDescription: 'App update status',
       importance: Importance.high,
       priority: Priority.high,
+      icon: '@drawable/notification_icon',
       onlyAlertOnce: false,
       showProgress: false,
       autoCancel: true,
@@ -611,7 +622,7 @@ class NotificationService {
         AndroidNotificationAction(
           'install_update',
           'Install',
-          showsUserInterface: true, // Allow opening app context to initiate package installer intent
+          showsUserInterface: true,
           cancelNotification: true,
         ),
         AndroidNotificationAction(

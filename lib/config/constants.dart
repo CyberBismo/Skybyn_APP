@@ -25,6 +25,7 @@ class ApiConstants {
   static String get checkDevice => '$apiBase/firebase/checkDevice.php';
   static String get authFirebase => '$apiBase/firebase/getFirebaseToken.php';
   static String get forgotPassword => '$apiBase/forgot.php';
+  static String get resetPassword => '$apiBase/reset.php';
 
   // Posts
   static String get timeline => '$apiBase/timeline.php';

@@ -87,7 +87,6 @@ android {
                 // This ensures APK is always signed (even if with debug key)
                 signingConfigs.getByName("debug")
             }
-            // Enable code shrinking for smaller APK size (only for release builds)
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(

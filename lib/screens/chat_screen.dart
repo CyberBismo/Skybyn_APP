@@ -329,58 +329,27 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
     });
   }
 
-  /// Check for new messages (only fetches messages newer than the latest one we have)
+  /// Check for new messages by syncing directly with the server.
+  /// Runs unconditionally — WebSocket handles instant delivery when working,
+  /// but this ensures messages always arrive even if WebSocket is unreliable.
   Future<void> _checkForNewMessages() async {
-    if (_messages.isEmpty || _currentUserId == null) {
-      return; // Can't check if we don't have messages or user ID
-    }
-    
-    // Skip periodic check if WebSocket is connected (WebSocket handles real-time updates)
-    if (_webSocketService.isConnected) {
-      return; // WebSocket is handling real-time updates, no need for periodic check
-    }
-    
+    if (_currentUserId == null) return;
+
     try {
-      // Get the latest message timestamp
-      final latestMessage = _messages.last;
-      final latestTimestamp = latestMessage.date.millisecondsSinceEpoch ~/ 1000; // Convert to seconds
-      
-      // Fetch messages from API (will get all messages, but we'll filter)
-      final allMessages = await _chatService.getMessages(
-        friendId: widget.friend.id,
-      );
-      
-      if (mounted) {
-        // Find messages that are newer than our latest message
-        final newMessages = allMessages.where((msg) {
-          final msgTimestamp = msg.date.millisecondsSinceEpoch ~/ 1000;
-          return msgTimestamp > latestTimestamp;
-        }).toList();
-        
-        if (newMessages.isNotEmpty) {
-          // Filter out messages that already exist (by ID) to prevent duplicates
-          final existingIds = _messages.map((m) => m.id).toSet();
-          final trulyNewMessages = newMessages.where((msg) => !existingIds.contains(msg.id)).toList();
-          
-          if (trulyNewMessages.isNotEmpty) {
-            // Use the helper method to add messages safely (double-check for duplicates)
-            for (final msg in trulyNewMessages) {
-              _addMessageIfNotExists(msg);
-            }
-            // Scroll to bottom if user is at the bottom
-            if (_scrollController.hasClients) {
-              final isAtBottom = _scrollController.position.pixels >= 
-                  _scrollController.position.maxScrollExtent - 100;
-              if (isAtBottom) {
-                _scrollToBottom();
-              }
-            }
-          }
+      final newMessages = await _chatService.syncMessages(widget.friend.id, _currentUserId!);
+
+      if (newMessages.isNotEmpty && mounted) {
+        for (final msg in newMessages) {
+          _addMessageIfNotExists(msg);
+        }
+        if (_scrollController.hasClients) {
+          final isAtBottom = _scrollController.position.pixels >=
+              _scrollController.position.maxScrollExtent - 100;
+          if (isAtBottom) _scrollToBottom();
         }
       }
     } catch (e) {
-      // Silently fail - don't spam errors for periodic checks
-      // WebSocket should handle real-time updates, this is just a fallback
+      // Silently fail — periodic checks should never surface errors to the user
     }
   }
 

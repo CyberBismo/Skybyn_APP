@@ -182,6 +182,15 @@ class FirebaseMessagingService {
   final AuthService _authService = AuthService();
   bool _isInitialized = false;
 
+  // Pending cold-start notification: stored when getInitialMessage fires before
+  // the home screen is ready, consumed by HomeScreen after auth completes.
+  static Map<String, dynamic>? _pendingNotificationData;
+  static Map<String, dynamic>? consumePendingNotification() {
+    final data = _pendingNotificationData;
+    _pendingNotificationData = null;
+    return data;
+  }
+
   // Static Callbacks
   static Function(String callId, String fromUserId, String callType)? onIncomingCallFromNotification;
   static Function()? _onUpdateCheck;
@@ -230,9 +239,11 @@ class FirebaseMessagingService {
       FirebaseMessaging.onMessageOpenedApp.listen(_handleMessageOpenedApp);
 
       // 3. Check for Initial Message (Dead App -> Open via Notification)
+      // Store as pending — the home screen will consume this after auth completes,
+      // avoiding a race where pushNamed fires before the splash finishes.
       final initialMessage = await _messaging?.getInitialMessage();
       if (initialMessage != null) {
-        _handleMessageOpenedApp(initialMessage);
+        _pendingNotificationData = initialMessage.data;
       }
 
       // 4. iOS Foreground Options
@@ -479,10 +490,10 @@ class FirebaseMessagingService {
 
   void _handleMessageOpenedApp(RemoteMessage message) {
     developer.log('📱 App Opened via Notification', name: 'FCM');
-    _handleNavigation(message.data);
+    handleNavigation(message.data);
   }
 
-  void _handleNavigation(Map<String, dynamic> data) {
+  void handleNavigation(Map<String, dynamic> data) {
     final type = data['type'];
 
     switch (type) {
@@ -503,7 +514,8 @@ class FirebaseMessagingService {
       case 'admin':
         break;
       default:
-        navigatorKey.currentState?.pushNamed('/home');
+        // Unknown notification type — do not navigate, user is already on a screen
+        developer.log('Unknown notification type: $type', name: 'FCM');
     }
   }
 
@@ -524,7 +536,7 @@ class FirebaseMessagingService {
       final authService = AuthService();
       final currentUserId = await authService.getStoredUserId();
       if (currentUserId == null) {
-        nav.pushNamed('/home');
+        developer.log('Cannot navigate to chat: user not logged in', name: 'FCM');
         return;
       }
 
@@ -544,7 +556,7 @@ class FirebaseMessagingService {
       nav.pushNamed('/chat', arguments: {'friend': friend});
     } catch (e) {
       developer.log('Error navigating to chat from notification: $e', name: 'FCM');
-      nav.pushNamed('/home');
+      // Do not navigate to /home on error — user is already on some screen
     }
   }
   
