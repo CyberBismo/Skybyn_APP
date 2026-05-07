@@ -42,13 +42,17 @@ import '../services/chat_message_count_service.dart';
 import '../services/notification_service.dart';
 import '../widgets/skeleton_loader.dart';
 import '../widgets/app_banner.dart';
+import '../services/chat_bubble_service.dart';
+import '../widgets/chat_bubble_permission_dialog.dart';
 
 class ChatScreen extends StatefulWidget {
   final Friend friend;
+  final VoidCallback? onClose;
 
   const ChatScreen({
     super.key,
     required this.friend,
+    this.onClose,
   });
 
   @override
@@ -64,6 +68,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
   final ScrollController _scrollController = ScrollController();
 
   List<Message> _messages = [];
+  final Set<String> _deliveredMessageIds = {};
   bool _isLoading = true;
   bool _isLoadingOlder = false;
   bool _isSyncing = false;
@@ -139,6 +144,10 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
     _startPeriodicMessageCheck(); // Start periodic message checking
     // Clear unread count and notifications when opening chat
     _clearNotifications();
+    // Ensure overlay permission is granted so bubble can appear when app backgrounds
+    if (Platform.isAndroid) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _requestOverlayPermissionIfNeeded());
+    }
     // Messages are loaded once when opening chat, then WebSocket handles all updates
     // No need for periodic refresh - WebSocket provides real-time message delivery
     // Check online status every 10 seconds
@@ -149,14 +158,46 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
     });
   }
 
+  Future<void> _requestOverlayPermissionIfNeeded() async {
+    if (!mounted) return;
+    final granted = await ChatBubbleService().isPermissionGranted();
+    if (granted || !mounted) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Chat Bubble'),
+        content: const Text(
+          'Allow Skybyn to show a floating chat bubble when you leave this chat, so you can quickly jump back into the conversation.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Later'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Enable'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) {
+      await ChatBubbleService().requestPermission();
+    }
+  }
+
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
-    
+    debugPrint('[ChatLifecycle] state=$state friend=${widget.friend.id}');
     switch (state) {
       case AppLifecycleState.resumed:
-        // App is in foreground - resume timers
-        // Clear notifications as we are looking at the chat
+        // App is in foreground — dismiss bubble since user is back in the chat
+        if (Platform.isAndroid) {
+          ChatBubbleService().closeBubble(friendId: widget.friend.id);
+        }
         _clearNotifications();
         // Messages are handled by WebSocket - no periodic refresh needed
         if (_onlineStatusTimer == null || !_onlineStatusTimer!.isActive) {
@@ -168,9 +209,15 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
         }
         break;
       case AppLifecycleState.paused:
+        // App went to background — show chat bubble so user can return easily
+        if (Platform.isAndroid) {
+          ChatBubbleService().showBubble(friend: widget.friend);
+        }
+        _onlineStatusTimer?.cancel();
+        _onlineStatusTimer = null;
+        break;
       case AppLifecycleState.inactive:
       case AppLifecycleState.hidden:
-        // App is in background - pause timers to prevent DNS lookup failures
         _onlineStatusTimer?.cancel();
         _onlineStatusTimer = null;
         break;
@@ -601,6 +648,15 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
       }
     }
 
+    // Set up WebSocket message delivered handler
+    void _handleMessageDelivered(String messageId) {
+      if (mounted && messageId.isNotEmpty) {
+        setState(() {
+          _deliveredMessageIds.add(messageId);
+        });
+      }
+    }
+
     // Register callbacks with WebSocket service
     _webSocketChatMessageCallback = (messageId, fromUserId, toUserId, message) {
       // Debug: Log received message
@@ -664,6 +720,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
       onChatMessage: _webSocketChatMessageCallback,
       onTypingStatus: _handleTypingStatus,
       onMessageRead: _handleMessageRead,
+      onMessageDelivered: _handleMessageDelivered,
     );
     
     debugPrint('🔵 [ChatScreen] WebSocket callbacks registered. Chat callback: ${_webSocketChatMessageCallback != null}, Online callback: ${_webSocketOnlineStatusCallback != null}');
@@ -1443,8 +1500,11 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
       appBar: CustomAppBar(
         logoPath: 'assets/images/logo.png',
         onLogoPressed: () {
-          // Navigate back to home screen
-          Navigator.popUntil(context, (route) => route.isFirst);
+          if (widget.onClose != null) {
+            widget.onClose!();
+          } else {
+            Navigator.popUntil(context, (route) => route.isFirst);
+          }
         },
         onSearchFormToggle: () {
           setState(() {
@@ -1615,45 +1675,6 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
                                 },
                                 icon: const Icon(
                                   Icons.call,
-                                  color: Colors.white,
-                                  size: 20,
-                                ),
-                                padding: EdgeInsets.zero,
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            // Video call button - only visible if rank > 3
-                            Container(
-                              width: 44,
-                              height: 44,
-                              decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.15),
-                                shape: BoxShape.circle,
-                                border: Border.all(
-                                  color: Colors.white.withOpacity(0.3),
-                                  width: 1,
-                                ),
-                              ),
-                              child: IconButton(
-                                onPressed: () async {
-                                  // Check permissions before starting call
-                                  final hasPermission = await _checkCallPermissions(CallType.video);
-                                  if (hasPermission && mounted) {
-                                    Navigator.of(context, rootNavigator: false).push(
-                                      MaterialPageRoute(
-                                        builder: (newContext) => CallScreen(
-                                          friend: widget.friend,
-                                          callType: CallType.video,
-                                          isIncoming: false,
-                                        ),
-                                        // Don't use maintainState: false - it can cause navigation issues
-                                        // The chat screen should remain in the stack
-                                      ),
-                                    );
-                                  }
-                                },
-                                icon: const Icon(
-                                  Icons.videocam,
                                   color: Colors.white,
                                   size: 20,
                                 ),
@@ -2447,8 +2468,16 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
                         if (isFromMe) ...[
                           const SizedBox(width: 4),
                           Icon(
-                            message.viewed ? Icons.done_all : Icons.check,
-                            color: message.viewed ? Colors.blue[300] : Colors.white.withOpacity(0.6),
+                            message.id.startsWith('temp_')
+                                ? Icons.access_time
+                                : message.viewed
+                                    ? Icons.done_all
+                                    : _deliveredMessageIds.contains(message.id)
+                                        ? Icons.done_all
+                                        : Icons.check,
+                            color: message.viewed
+                                ? Colors.blue[300]
+                                : Colors.white.withOpacity(0.6),
                             size: 14,
                           ),
                         ],

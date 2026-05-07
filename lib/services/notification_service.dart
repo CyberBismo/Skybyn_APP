@@ -85,7 +85,7 @@ class NotificationService {
 
   Future<void> _initializeLocalNotifications() async {
     // Android initialization settings
-    const AndroidInitializationSettings initializationSettingsAndroid = AndroidInitializationSettings('@mipmap/launcher_icon');
+    const AndroidInitializationSettings initializationSettingsAndroid = AndroidInitializationSettings('@drawable/logo');
 
     // iOS initialization settings - updated for better iOS support
     final DarwinInitializationSettings initializationSettingsIOS = DarwinInitializationSettings(
@@ -614,7 +614,7 @@ class NotificationService {
       channelDescription: 'App update status',
       importance: Importance.high,
       priority: Priority.high,
-      icon: '@drawable/notification_icon',
+      icon: '@drawable/logo',
       onlyAlertOnce: false,
       showProgress: false,
       autoCancel: true,
@@ -887,8 +887,8 @@ class NotificationService {
         showWhen: !isCall,
         enableVibration: true,
         playSound: true,
-        icon: '@drawable/notification_icon',
-        largeIcon: const DrawableResourceAndroidBitmap('@drawable/notification_icon'),
+        icon: '@drawable/logo',
+        largeIcon: const DrawableResourceAndroidBitmap('@drawable/logo'),
         color: isCall ? const Color.fromRGBO(76, 175, 80, 1.0) : const Color.fromRGBO(33, 150, 243, 1.0),
         enableLights: true,
         ledColor: isCall ? const Color.fromRGBO(76, 175, 80, 1.0) : const Color.fromRGBO(33, 150, 243, 1.0),
@@ -949,7 +949,7 @@ class NotificationService {
             showWhen: !isCall,
             enableVibration: true,
             playSound: true,
-            icon: '@drawable/notification_icon',
+            icon: '@drawable/logo',
             largeIcon: FilePathAndroidBitmap(largeIconPath),
             styleInformation: styleInformation,
             color: isCall ? const Color.fromRGBO(76, 175, 80, 1.0) : const Color.fromRGBO(33, 150, 243, 1.0),
@@ -1080,7 +1080,7 @@ class NotificationService {
       onlyAlertOnce: true, // Don't buzz on every update
       enableVibration: false,
       playSound: false,
-      icon: '@drawable/notification_icon',
+      icon: '@drawable/logo',
     );
     
     final NotificationDetails platformChannelSpecifics = NotificationDetails(
@@ -1118,7 +1118,7 @@ class NotificationService {
       channelDescription: 'Important system notifications from administrators',
       importance: Importance.max,
       priority: Priority.high,
-      icon: '@drawable/notification_icon', // Uses logo.png for notification icon
+      icon: '@drawable/logo', // Uses logo.png for notification icon
       enableVibration: true,
       playSound: true,
     );

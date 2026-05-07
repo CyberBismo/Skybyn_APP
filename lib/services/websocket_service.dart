@@ -95,6 +95,7 @@ class WebSocketService {
   final List<Function(String, bool)> _onOnlineStatusCallbacks =
       []; // Multiple listeners for online status
   Function(String)? _onMessageRead; // messageId
+  Function(String)? _onMessageDelivered; // messageId
   final Set<String> _pendingPresenceSubscriptions =
       {}; // User IDs to subscribe to once connected
   final Set<String> _pendingPostSubscriptions =
@@ -322,6 +323,7 @@ class WebSocketService {
     Function(String, bool)? onTypingStatus, // userId, isTyping
     Function(String, bool)? onOnlineStatus, // userId, isOnline
     Function(String)? onMessageRead, // messageId
+    Function(String)? onMessageDelivered, // messageId
   }) async {
     // Store callbacks (merge - only update if non-null, preserve existing if null)
     if (onNewPost != null) _onNewPost = onNewPost;
@@ -355,6 +357,7 @@ class WebSocketService {
       _onOnlineStatusCallbacks.add(onOnlineStatus);
     }
     if (onMessageRead != null) _onMessageRead = onMessageRead;
+    if (onMessageDelivered != null) _onMessageDelivered = onMessageDelivered;
 
     // Ensure service is initialized before connecting
     if (!_isInitialized) {
@@ -973,6 +976,10 @@ class WebSocketService {
             case 'message_read':
               final messageId = data['messageId']?.toString() ?? '';
               _onMessageRead?.call(messageId);
+              break;
+            case 'message_delivered':
+              final deliveredId = data['messageId']?.toString() ?? '';
+              _onMessageDelivered?.call(deliveredId);
               break;
             case 'recipient_offline':
               // Check if this is for a call or a chat message

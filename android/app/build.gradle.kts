@@ -118,6 +118,11 @@ android {
         abortOnError = false
     }
 
+    // Don't compress font files so Typeface.createFromAsset() can open them
+    androidResources {
+        noCompress += listOf(".otf", ".ttf")
+    }
+
     // Forcefully exclude unused native architectures from the final binary
     // This is required when plugins (like WebRTC) include multiple ABIs that ignore abiFilters
     packaging {
