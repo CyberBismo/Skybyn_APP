@@ -62,7 +62,6 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:easy_localization/easy_localization.dart';
 
 import 'services/error_reporting_service.dart';
-import 'services/chat_bubble_service.dart';
 
 Future<void> main() async {
   // Gate all print calls behind a debug flag using Zone
@@ -414,23 +413,6 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       // Set up global chat message listener for badge count
       _setupGlobalChatMessageListener();
 
-      // Check if app was opened by tapping a chat bubble
-      if (Platform.isAndroid) {
-        final pendingFriendId = await ChatBubbleService().getPendingChatOpen();
-        if (pendingFriendId != null && pendingFriendId.isNotEmpty) {
-          final authService = AuthService();
-          final currentUserId = await authService.getStoredUserId();
-          if (currentUserId != null) {
-            final friends = await _friendService.fetchFriendsForUser(userId: currentUserId);
-            final friend = friends.firstWhere(
-              (f) => f.id == pendingFriendId,
-              orElse: () => Friend(id: pendingFriendId, username: pendingFriendId, nickname: '', avatar: '', online: false),
-            );
-            navigatorKey.currentState?.pushNamed('/chat', arguments: {'friend': friend});
-          }
-        }
-      }
-
       // Start periodic profile checks (every 5 minutes to detect bans/deactivations)
       _startProfileChecks();
 
@@ -592,10 +574,6 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         _activityTimer = Timer.periodic(const Duration(minutes: 2), (_) {
           AuthService().updateActivity();
         });
-        // Check if app was resumed by tapping a chat bubble
-        if (Platform.isAndroid) {
-          _handleBubbleTapOnResume();
-        }
         break;
       case AppLifecycleState.paused:
       case AppLifecycleState.inactive:
@@ -612,19 +590,6 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     }
   }
 
-  Future<void> _handleBubbleTapOnResume() async {
-    final pendingFriendId = await ChatBubbleService().getPendingChatOpen();
-    if (pendingFriendId == null || pendingFriendId.isEmpty) return;
-    final authService = AuthService();
-    final currentUserId = await authService.getStoredUserId();
-    if (currentUserId == null) return;
-    final friends = await _friendService.fetchFriendsForUser(userId: currentUserId);
-    final friend = friends.firstWhere(
-      (f) => f.id == pendingFriendId,
-      orElse: () => Friend(id: pendingFriendId, username: pendingFriendId, nickname: '', avatar: '', online: false),
-    );
-    navigatorKey.currentState?.pushNamed('/chat', arguments: {'friend': friend});
-  }
 
   /// Set up WebSocket connection state listener
   void _setupWebSocketConnectionListener() {
@@ -709,7 +674,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
               // print('[SKYBYN]      - detached: ${appLifecycleState == AppLifecycleState.detached}');
 
               if (!isAppInForeground) {
-                // App is in background — try bubble first, fall back to notification
+                // App is in background — show notification
                 try {
                   final friendService = FriendService();
                   final friends = await friendService.fetchFriendsForUser(
@@ -729,18 +694,6 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
                       ? friend.nickname
                       : friend.username;
 
-                  // Try showing bubble if permission granted
-                  bool showedBubble = false;
-                  if (Platform.isAndroid) {
-                    final bubbleService = ChatBubbleService();
-                    if (await bubbleService.isPermissionGranted()) {
-                      final unread = _chatMessageCountService.getUnreadCount(fromUserId);
-                      await bubbleService.showBubble(friend: friend, unreadCount: unread);
-                      showedBubble = true;
-                    }
-                  }
-
-                  // Always show a notification too (so tray is populated)
                   final notificationId =
                       int.tryParse(fromUserId) ?? fromUserId.hashCode;
                   await _notificationService.showNotification(
@@ -755,7 +708,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
                     notificationId: notificationId,
                   );
                   if (kDebugMode) debugPrint(
-                      '[SKYBYN] ✅ [Main Chat Listener] bubble=$showedBubble, notification shown for $friendName');
+                      '[SKYBYN] ✅ [Main Chat Listener] notification shown for $friendName');
                 } catch (e) {
                   if (kDebugMode) debugPrint(
                       '[SKYBYN] ⚠️ [Main Chat Listener] Failed to show notification: $e');

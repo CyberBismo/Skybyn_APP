@@ -19,9 +19,7 @@ class MainActivity: FlutterFragmentActivity() {
     private val NOTIFICATION_CHANNEL = "no.skybyn.app/notification"
     private val INSTALLER_CHANNEL = "no.skybyn.app/installer"
     private val SYSTEM_SOUNDS_CHANNEL = "no.skybyn.app/system_sounds"
-    private val BUBBLE_CHANNEL = "no.skybyn.app/bubble"
     private var mediaPlayer: MediaPlayer? = null
-    private val overlayManager by lazy { NativeOverlayManager(applicationContext) }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -88,35 +86,6 @@ class MainActivity: FlutterFragmentActivity() {
             }
         }
         
-        // Method channel for native overlay bubble
-        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, BUBBLE_CHANNEL).setMethodCallHandler { call, result ->
-            when (call.method) {
-                "showBubble" -> {
-                    val friendId = call.argument<String>("friendId") ?: ""
-                    val friendName = call.argument<String>("friendName") ?: ""
-                    val friendAvatar = call.argument<String>("friendAvatar") ?: ""
-                    val sessionToken = call.argument<String>("sessionToken") ?: ""
-                    val userId = call.argument<String>("userId") ?: ""
-                    if (overlayManager.isPermissionGranted()) {
-                        overlayManager.show(friendId, friendName, friendAvatar, sessionToken, userId)
-                        result.success(true)
-                    } else {
-                        result.success(false)
-                    }
-                }
-                "dismissBubble" -> {
-                    overlayManager.remove()
-                    result.success(true)
-                }
-                "getPendingChatOpen" -> {
-                    val friendId = intent.getStringExtra("open_chat_friend_id")
-                    if (friendId != null) intent.removeExtra("open_chat_friend_id")
-                    result.success(friendId)
-                }
-                else -> result.notImplemented()
-            }
-        }
-
         // Method channel for system sounds
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, SYSTEM_SOUNDS_CHANNEL).setMethodCallHandler { call, result ->
             when (call.method) {

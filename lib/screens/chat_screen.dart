@@ -42,8 +42,6 @@ import '../services/chat_message_count_service.dart';
 import '../services/notification_service.dart';
 import '../widgets/skeleton_loader.dart';
 import '../widgets/app_banner.dart';
-import '../services/chat_bubble_service.dart';
-import '../widgets/chat_bubble_permission_dialog.dart';
 
 class ChatScreen extends StatefulWidget {
   final Friend friend;
@@ -144,10 +142,6 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
     _startPeriodicMessageCheck(); // Start periodic message checking
     // Clear unread count and notifications when opening chat
     _clearNotifications();
-    // Ensure overlay permission is granted so bubble can appear when app backgrounds
-    if (Platform.isAndroid) {
-      WidgetsBinding.instance.addPostFrameCallback((_) => _requestOverlayPermissionIfNeeded());
-    }
     // Messages are loaded once when opening chat, then WebSocket handles all updates
     // No need for periodic refresh - WebSocket provides real-time message delivery
     // Check online status every 10 seconds
@@ -158,46 +152,12 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
     });
   }
 
-  Future<void> _requestOverlayPermissionIfNeeded() async {
-    if (!mounted) return;
-    final granted = await ChatBubbleService().isPermissionGranted();
-    if (granted || !mounted) return;
-    final confirmed = await showDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('Chat Bubble'),
-        content: const Text(
-          'Allow Skybyn to show a floating chat bubble when you leave this chat, so you can quickly jump back into the conversation.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Later'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Enable'),
-          ),
-        ],
-      ),
-    );
-    if (confirmed == true) {
-      await ChatBubbleService().requestPermission();
-    }
-  }
-
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
     debugPrint('[ChatLifecycle] state=$state friend=${widget.friend.id}');
     switch (state) {
       case AppLifecycleState.resumed:
-        // App is in foreground — dismiss bubble since user is back in the chat
-        if (Platform.isAndroid) {
-          ChatBubbleService().closeBubble(friendId: widget.friend.id);
-        }
         _clearNotifications();
         // Messages are handled by WebSocket - no periodic refresh needed
         if (_onlineStatusTimer == null || !_onlineStatusTimer!.isActive) {
@@ -209,10 +169,6 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
         }
         break;
       case AppLifecycleState.paused:
-        // App went to background — show chat bubble so user can return easily
-        if (Platform.isAndroid) {
-          ChatBubbleService().showBubble(friend: widget.friend);
-        }
         _onlineStatusTimer?.cancel();
         _onlineStatusTimer = null;
         break;
