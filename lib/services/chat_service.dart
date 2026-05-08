@@ -447,10 +447,7 @@ class ChatService {
         offset: offset ?? 0,
       );
 
-      // Step 2: Sync with server in background (incremental sync)
-      syncMessages(friendId, userId);
-
-      // Return local messages immediately (even if empty)
+      // Return local messages immediately — caller is responsible for syncing
       return localMessages;
     } catch (e) {
       developer.log('Error getting messages: $e', name: 'ChatService');
@@ -667,9 +664,9 @@ class ChatService {
         'offset': offset?.toString() ?? '0',
       };
       
-      // Add sinceTimestamp for incremental sync if provided
+      // Add sinceTimestamp for incremental sync — local DB stores ms, server expects seconds
       if (sinceTimestamp != null) {
-        bodyMap['since'] = sinceTimestamp.toString();
+        bodyMap['since'] = (sinceTimestamp ~/ 1000).toString();
       }
 
       final response = await _retryHttpRequest(

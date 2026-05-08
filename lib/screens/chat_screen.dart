@@ -477,52 +477,44 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
       _isSyncing = false;
     });
 
-    // Log API request
-    final apiUrl = ApiConstants.chatGet; // Keep logging references
-    
     try {
-      // 1. Get local messages first (Fast, Offline-first)
-      // Note: This triggers a detached background sync in ChatService too,
-      // but we'll run our own awaited sync to update UI state properly.
+      // 1. Show local messages immediately (fast, offline-first)
       final localMessages = await _chatService.getMessages(
         friendId: widget.friend.id,
       );
-      
+
       if (mounted) {
         setState(() {
           _messages = localMessages;
           _messages.sort((a, b) => a.date.compareTo(b.date));
           _isLoading = false;
-          _isSyncing = true; // Show syncing indicator
+          _isSyncing = true;
         });
-        
-        // Scroll to bottom immediately to show local content
         _scrollToBottom();
       }
 
-      // 2. Explicitly sync with server to get fresh data and wait for it
-      // This ensures we know exactly when loading finishes
+      // 2. Sync with server — always awaited so we know when it finishes
       if (_currentUserId != null) {
-          developer.log('🔄 [Chat] Starting explicit sync...', name: 'ChatScreen');
           final newMessages = await _chatService.syncMessages(widget.friend.id, _currentUserId!);
-          
+
           if (mounted) {
              if (newMessages.isNotEmpty) {
-                 // Update the list with new messages
-                 // We use _addMessageIfNotExists to merge safely
                  for (final msg in newMessages) {
                      _addMessageIfNotExists(msg);
                  }
-                 
-                 // Scroll to bottom if we got new stuff
                  _scrollToBottom();
-                 
-                 // Mark read
                  _markMessagesAsRead();
-                 
-                 developer.log('✅ [Chat] Explicit sync finished: ${newMessages.length} new messages', name: 'ChatScreen');
-             } else {
-                 developer.log('✨ [Chat] Explicit sync finished: Up to date', name: 'ChatScreen');
+             } else if (localMessages.isEmpty) {
+                 // Local DB was empty and sync returned nothing — re-read DB in case
+                 // a concurrent background operation saved messages after our initial read.
+                 final refreshed = await _chatService.getMessages(friendId: widget.friend.id);
+                 if (mounted && refreshed.isNotEmpty) {
+                   setState(() {
+                     _messages = refreshed;
+                     _messages.sort((a, b) => a.date.compareTo(b.date));
+                   });
+                   _scrollToBottom();
+                 }
              }
           }
       }
